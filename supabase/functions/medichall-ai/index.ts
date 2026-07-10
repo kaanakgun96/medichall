@@ -1,323 +1,239 @@
-// MedicHall AI Edge Function — v2.0 (Claude / Anthropic API)
+// MedicHall TED Sync — v1.0
 //
-// Drop-in replacement for the OpenAI version:
-// - Same auth (Supabase JWT), same daily limits, same usage logging RPCs.
-// - Accepts BOTH { prompt } (live portal.html) and { input } payload fields.
-// - Returns BOTH { answer } (portal.html reads this) and { result }.
-// - AI provider: Anthropic Messages API (https://api.anthropic.com/v1/messages)
+// Pulls recent medical procurement notices from the official TED Search API v3
+// (https://api.ted.europa.eu/v3/notices/search — public, no API key needed),
+// upserts them into public.tenders, then refreshes opportunity matches for
+// every company that has a matching profile.
 //
-// Required Edge Function secret:  ANTHROPIC_API_KEY
-// Optional secrets:               ANTHROPIC_MODEL (default: claude-haiku-4-5)
-//                                 AI_DAILY_LIMIT  (default: 20)
+// Trigger: pg_cron daily schedule (see 202607100006_ted_cron.sql) or manual
+// POST with the x-cron-secret header.
+//
+// Required secrets:  CRON_SECRET            (any long random string)
+// Optional secrets:  TED_CPV                (space separated, default medical set)
+//                    TED_LOOKBACK_DAYS      (default 2)
+//                    TED_MAX_PAGES          (default 2, 250 notices per page)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGINS = new Set([
-  "https://medichall.com",
-  "https://www.medichall.com",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-]);
+const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
+const DEFAULT_CPV = "33140000* 33190000* 33141000* 33169000* 33124000*";
+const PAGE_LIMIT = 250;
 
-const MAX_INPUT_CHARS = 12_000;
-const MAX_INSTRUCTION_CHARS = 1_500;
-const DAILY_LIMIT_DEFAULT = 20;
-const DEFAULT_MODEL = "claude-haiku-4-5";
-
-const ALLOWED_MODES = new Set([
-  "general",
-  // names used by the live portal.html
-  "tender_match",
-  "sales_email",
-  "buyer_assistant",
-  // reserved names for future modules
-  "tender-analysis",
-  "rfq-builder",
-  "supplier-checklist",
-  "distributor-email",
-  "seo-keywords",
-]);
-
-type Payload = {
-  mode?: string;
-  instruction?: string;
-  input?: string;
-  prompt?: string; // legacy field sent by portal.html
-  context?: Record<string, unknown>;
+// ISO2 -> ISO3 map for the EU/EEA countries MedicHall targets.
+const ISO3: Record<string, string> = {
+  AT:"AUT", BE:"BEL", BG:"BGR", HR:"HRV", CY:"CYP", CZ:"CZE", DK:"DNK",
+  EE:"EST", FI:"FIN", FR:"FRA", DE:"DEU", GR:"GRC", HU:"HUN", IE:"IRL",
+  IT:"ITA", LV:"LVA", LT:"LTU", LU:"LUX", MT:"MLT", NL:"NLD", PL:"POL",
+  PT:"PRT", RO:"ROU", SK:"SVK", SI:"SVN", ES:"ESP", SE:"SWE", NO:"NOR",
+  IS:"ISL", CH:"CHE", GB:"GBR", TR:"TUR",
 };
-
-type AnthropicContentBlock = {
-  type: string;
-  text?: string;
+const ISO3_TO_2: Record<string, string> = Object.fromEntries(
+  Object.entries(ISO3).map(([k, v]) => [v, k]),
+);
+const COUNTRY_NAMES: Record<string, string> = {
+  AT:"Austria", BE:"Belgium", BG:"Bulgaria", HR:"Croatia", CY:"Cyprus",
+  CZ:"Czechia", DK:"Denmark", EE:"Estonia", FI:"Finland", FR:"France",
+  DE:"Germany", GR:"Greece", HU:"Hungary", IE:"Ireland", IT:"Italy",
+  LV:"Latvia", LT:"Lithuania", LU:"Luxembourg", MT:"Malta", NL:"Netherlands",
+  PL:"Poland", PT:"Portugal", RO:"Romania", SK:"Slovakia", SI:"Slovenia",
+  ES:"Spain", SE:"Sweden", NO:"Norway", IS:"Iceland", CH:"Switzerland",
+  GB:"United Kingdom", TR:"Turkey",
 };
+const NAME_TO_ISO2: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTRY_NAMES).map(([k, v]) => [v.toLowerCase(), k]),
+);
 
-type AnthropicResponse = {
-  content?: AnthropicContentBlock[];
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-  };
-  error?: { type?: string; message?: string };
-};
+type TedNotice = Record<string, unknown>;
 
-function corsHeaders(req: Request): HeadersInit {
-  const origin = req.headers.get("origin") ?? "";
-  const allowedOrigin = ALLOWED_ORIGINS.has(origin)
-    ? origin
-    : "https://medichall.com";
-
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Vary": "Origin",
-  };
+function firstText(value: unknown): string {
+  // TED multilingual fields come as { eng: ["..."], ita: ["..."] } or arrays.
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return firstText(value[0]);
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (obj.eng) return firstText(obj.eng);
+    const keys = Object.keys(obj);
+    return keys.length ? firstText(obj[keys[0]]) : "";
+  }
+  return String(value);
 }
 
-function json(req: Request, body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders(req),
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
+function toArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean);
+  return [String(value)].filter(Boolean);
 }
 
-function cleanText(value: unknown, maxLength: number): string {
-  return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, maxLength);
-}
-
-function getDailyLimit(): number {
-  const parsed = Number(Deno.env.get("AI_DAILY_LIMIT") ?? DAILY_LIMIT_DEFAULT);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.min(Math.floor(parsed), 500)
-    : DAILY_LIMIT_DEFAULT;
-}
-
-function extractOutputText(data: AnthropicResponse): string {
-  if (!Array.isArray(data.content)) return "";
-  return data.content
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("\n")
-    .trim();
+function toIso2(raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  const upper = v.toUpperCase();
+  if (upper.length === 2 && ISO3[upper]) return upper;
+  if (upper.length === 3 && ISO3_TO_2[upper]) return ISO3_TO_2[upper];
+  return NAME_TO_ISO2[v.toLowerCase()] ?? "";
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders(req) });
-  }
-
   if (req.method !== "POST") {
-    return json(req, { error: "Method not allowed" }, 405);
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
   }
 
-  const requestOrigin = req.headers.get("origin");
-  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
-    return json(req, { error: "Origin not allowed" }, 403);
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const given = req.headers.get("x-cron-secret") ?? "";
+  if (!cronSecret || given !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !anthropicKey) {
-    console.error("Missing required Edge Function secrets");
-    return json(req, { error: "AI service is not configured." }, 500);
-  }
-
-  const authHeader = req.headers.get("authorization") ?? "";
-  if (!authHeader.toLowerCase().startsWith("bearer ")) {
-    return json(req, { error: "Authentication required." }, 401);
-  }
-
-  const token = authHeader.slice(7).trim();
-  const authClient = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const {
-    data: { user },
-    error: authError,
-  } = await authClient.auth.getUser(token);
+  const lookbackDays = Math.max(1, Number(Deno.env.get("TED_LOOKBACK_DAYS") ?? 2));
+  const maxPages = Math.min(5, Math.max(1, Number(Deno.env.get("TED_MAX_PAGES") ?? 2)));
+  const cpvList = (Deno.env.get("TED_CPV") ?? DEFAULT_CPV).trim();
 
-  if (authError || !user) {
-    return json(req, { error: "Invalid or expired session." }, 401);
+  // 1) Collect target countries from all matching profiles (ISO3 for TED).
+  const { data: profiles, error: profErr } = await admin
+    .from("company_match_profiles")
+    .select("company_id, target_countries");
+  if (profErr) {
+    return new Response(JSON.stringify({ error: "Profiles read failed", detail: profErr.message }), { status: 500 });
   }
 
-  let payload: Payload;
-  try {
-    payload = await req.json();
-  } catch {
-    return json(req, { error: "Invalid JSON body." }, 400);
+  const iso3Set = new Set<string>();
+  for (const p of profiles ?? []) {
+    for (const c of (p.target_countries ?? []) as string[]) {
+      const iso2 = toIso2(c);
+      if (iso2 && ISO3[iso2]) iso3Set.add(ISO3[iso2]);
+    }
+  }
+  const countryClause = iso3Set.size
+    ? ` AND buyer-country IN (${[...iso3Set].join(" ")})`
+    : "";
+
+  // 2) Query TED Search API v3 (expert query).
+  const query =
+    `(classification-cpv IN (${cpvList}))` +
+    ` AND (form-type = competition)` +
+    ` AND (publication-date >= today(-${lookbackDays}))` +
+    countryClause;
+
+  const fields = [
+    "publication-number",
+    "publication-date",
+    "notice-title",
+    "description-proc",
+    "buyer-name",
+    "buyer-country",
+    "classification-cpv",
+    "deadline-receipt-tender-date-lot",
+    "estimated-value-proc",
+    "estimated-value-cur-proc",
+  ];
+
+  const notices: TedNotice[] = [];
+  let tedError: string | null = null;
+
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const res = await fetch(TED_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, fields, page, limit: PAGE_LIMIT }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        tedError = `TED ${res.status}: ${JSON.stringify(data).slice(0, 400)}`;
+        break;
+      }
+      const pageNotices = (data.notices ?? data.results ?? []) as TedNotice[];
+      notices.push(...pageNotices);
+      const total = Number(data.totalNoticeCount ?? data.total ?? pageNotices.length);
+      if (page * PAGE_LIMIT >= total || pageNotices.length === 0) break;
+    } catch (e) {
+      tedError = `TED fetch failed: ${String(e)}`;
+      break;
+    }
   }
 
-  const requestedMode = cleanText(payload.mode, 80) || "general";
-  const mode = ALLOWED_MODES.has(requestedMode) ? requestedMode : "general";
-  const instruction = cleanText(payload.instruction, MAX_INSTRUCTION_CHARS);
-  // portal.html sends "prompt"; newer clients may send "input". Accept both.
-  const input = cleanText(payload.input ?? payload.prompt, MAX_INPUT_CHARS);
-  const context = payload.context && typeof payload.context === "object"
-    ? payload.context
-    : {};
-
-  if (!input) {
-    return json(req, { error: "Please enter a request." }, 400);
-  }
-
-  const dailyLimit = getDailyLimit();
-  const { data: reservation, error: reserveError } = await adminClient.rpc(
-    "reserve_medichall_ai_request",
-    {
-      p_user_id: user.id,
-      p_mode: mode,
-      p_role: cleanText((context as Record<string, unknown>).role, 80) || null,
-      p_input_chars: input.length,
-      p_daily_limit: dailyLimit,
-    },
-  );
-
-  if (reserveError) {
-    console.error("AI reservation error", reserveError);
-    return json(req, { error: "Could not verify AI usage limit." }, 500);
-  }
-
-  const reservationRow = Array.isArray(reservation) ? reservation[0] : reservation;
-  if (!reservationRow?.allowed) {
-    return json(
-      req,
-      {
-        error: "Daily AI usage limit reached.",
-        code: "DAILY_LIMIT_REACHED",
-        daily_limit: dailyLimit,
-        used_today: reservationRow?.used_today ?? dailyLimit,
-      },
-      429,
+  // 3) Map + upsert into public.tenders.
+  const rows = notices.map((n) => {
+    const pubNumber = firstText(n["publication-number"]);
+    const countryRaw = firstText(
+      Array.isArray(n["buyer-country"]) ? (n["buyer-country"] as unknown[])[0] : n["buyer-country"],
     );
-  }
+    const iso2 = toIso2(countryRaw);
+    const deadline = firstText(n["deadline-receipt-tender-date-lot"]);
+    const estValue = firstText(n["estimated-value-proc"]);
+    return {
+      source: "TED",
+      source_notice_id: pubNumber,
+      title: firstText(n["notice-title"]).slice(0, 500) || "Untitled notice",
+      description: firstText(n["description-proc"]).slice(0, 5000) || null,
+      buyer_name: firstText(n["buyer-name"]).slice(0, 300) || null,
+      country_code: iso2 || null,
+      country_name: iso2 ? COUNTRY_NAMES[iso2] : (countryRaw || null),
+      cpv_codes: toArray(n["classification-cpv"]),
+      product_keywords: [] as string[],
+      publication_date: firstText(n["publication-date"]).slice(0, 10) || null,
+      deadline_at: deadline ? new Date(deadline).toISOString() : null,
+      estimated_value: estValue && !isNaN(Number(estValue)) ? Number(estValue) : null,
+      currency: firstText(n["estimated-value-cur-proc"]) || null,
+      source_url: pubNumber ? `https://ted.europa.eu/en/notice/-/detail/${pubNumber}` : null,
+      language_code: "en",
+      raw_payload: n,
+      status: "open",
+      updated_at: new Date().toISOString(),
+    };
+  }).filter((r) => r.source_notice_id);
 
-  const usageId = reservationRow.usage_id as number;
-  const remaining = Math.max(
-    0,
-    dailyLimit - Number(reservationRow.used_today ?? dailyLimit),
-  );
-
-  const systemPrompt = [
-    "You are MedicHall AI, an assistant for a B2B medical marketplace.",
-    "Help medical-device buyers, manufacturers, and distributors with sourcing, RFQs, tender analysis, supplier matching, and export communication.",
-    "Never invent certifications, approvals, tender clauses, prices, legal requirements, or company facts.",
-    "When evidence is missing, state exactly what must be verified.",
-    "Do not provide a final legal, regulatory, clinical, or procurement compliance decision.",
-    "Be concise, practical, and business-oriented. Use clear headings and action items.",
-    "Reply in the same language the user writes in.",
-  ].join("\n");
-
-  const userPrompt = JSON.stringify(
-    {
-      mode,
-      instruction: instruction || "Complete the requested MedicHall task.",
-      input,
-      context,
-    },
-    null,
-    2,
-  );
-
-  try {
-    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: Deno.env.get("ANTHROPIC_MODEL") || DEFAULT_MODEL,
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-
-    const data = (await anthropicResponse.json()) as AnthropicResponse;
-    if (!anthropicResponse.ok) {
-      const providerMessage = cleanText(data?.error?.message, 500);
-      console.error(
-        "Anthropic request failed",
-        anthropicResponse.status,
-        providerMessage,
+  let upserted = 0;
+  if (rows.length) {
+    const { error: upErr, count } = await admin
+      .from("tenders")
+      .upsert(rows, { onConflict: "source,source_notice_id", count: "exact" });
+    if (upErr) {
+      return new Response(
+        JSON.stringify({ error: "Tender upsert failed", detail: upErr.message, ted_error: tedError }),
+        { status: 500 },
       );
-      await adminClient.rpc("finish_medichall_ai_request", {
-        p_usage_id: usageId,
-        p_status: "failed",
-        p_output_chars: 0,
-        p_prompt_tokens: null,
-        p_completion_tokens: null,
-        p_total_tokens: null,
-        p_error_code: `ANTHROPIC_${anthropicResponse.status}`,
-      });
-      return json(req, { error: "AI provider request failed. Please try again." }, 502);
     }
-
-    const result = extractOutputText(data);
-    const promptTokens = data.usage?.input_tokens ?? null;
-    const completionTokens = data.usage?.output_tokens ?? null;
-    const totalTokens = promptTokens !== null && completionTokens !== null
-      ? promptTokens + completionTokens
-      : null;
-
-    if (!result) {
-      await adminClient.rpc("finish_medichall_ai_request", {
-        p_usage_id: usageId,
-        p_status: "failed",
-        p_output_chars: 0,
-        p_prompt_tokens: promptTokens,
-        p_completion_tokens: completionTokens,
-        p_total_tokens: totalTokens,
-        p_error_code: "EMPTY_RESPONSE",
-      });
-      return json(req, { error: "AI returned an empty response." }, 502);
-    }
-
-    const finish = await adminClient.rpc("finish_medichall_ai_request", {
-      p_usage_id: usageId,
-      p_status: "completed",
-      p_output_chars: result.length,
-      p_prompt_tokens: promptTokens,
-      p_completion_tokens: completionTokens,
-      p_total_tokens: totalTokens,
-      p_error_code: null,
-    });
-
-    if (finish.error) console.error("AI usage finalization error", finish.error);
-
-    // portal.html reads "answer"; keep "result" for newer clients.
-    return json(req, {
-      answer: result,
-      result,
-      remaining_today: remaining,
-      daily_limit: dailyLimit,
-    });
-  } catch (error) {
-    console.error("Unexpected AI error", error);
-    await adminClient.rpc("finish_medichall_ai_request", {
-      p_usage_id: usageId,
-      p_status: "failed",
-      p_output_chars: 0,
-      p_prompt_tokens: null,
-      p_completion_tokens: null,
-      p_total_tokens: null,
-      p_error_code: "UNEXPECTED_ERROR",
-    });
-    return json(req, { error: "Unexpected AI error. Please try again." }, 500);
+    upserted = count ?? rows.length;
   }
+
+  // 4) Close tenders whose deadline has passed.
+  await admin
+    .from("tenders")
+    .update({ status: "closed", updated_at: new Date().toISOString() })
+    .eq("status", "open")
+    .not("deadline_at", "is", null)
+    .lt("deadline_at", new Date().toISOString());
+
+  // 5) Refresh matches for every company with a profile.
+  let refreshed = 0;
+  const refreshErrors: string[] = [];
+  for (const p of profiles ?? []) {
+    const { error } = await admin.rpc("refresh_company_opportunity_matches", {
+      p_company_id: p.company_id,
+    });
+    if (error) refreshErrors.push(`company ${p.company_id}: ${error.message}`);
+    else refreshed++;
+  }
+
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      query,
+      fetched: notices.length,
+      upserted,
+      companies_refreshed: refreshed,
+      refresh_errors: refreshErrors,
+      ted_error: tedError,
+      generated_at: new Date().toISOString(),
+    }),
+    { headers: { "Content-Type": "application/json" } },
+  );
 });
