@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "fflate": "npm:fflate@0.8.2",
+    "xlsx": "npm:xlsx@0.18.5",
+    "mammoth": "npm:mammoth@1.9.0"
+  }
+}
