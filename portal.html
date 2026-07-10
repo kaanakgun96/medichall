@@ -127,6 +127,18 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .ai-chiprow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
 .ai-chip{border:1.5px solid var(--line);background:var(--mist);color:var(--ink);border-radius:100px;padding:7px 11px;font-size:.78rem;font-weight:600}
 .ai-chip:hover{border-color:var(--teal);color:var(--teal)}
+.opp-card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
+.opp-top{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.opp-score{font-family:var(--mono);font-weight:700;font-size:.95rem;border-radius:100px;padding:5px 13px;white-space:nowrap}
+.opp-score.hi{background:#E7F6EE;color:#177245;border:1.5px solid #9ED9B5}
+.opp-score.mid{background:#FFF6E5;color:#8A6100;border:1.5px solid #F1D48A}
+.opp-score.lo{background:var(--mist);color:var(--ink-soft);border:1.5px solid var(--line)}
+.opp-title{font-weight:700;font-size:.98rem;flex:1;min-width:200px}
+.opp-meta{font-size:.8rem;color:var(--ink-soft);margin-top:4px}
+.opp-reasons{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.opp-reason{font-size:.74rem;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:3px 10px;color:var(--ink)}
+.opp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.opp-actions .btn{font-size:.78rem;padding:7px 12px}
 
 
 /* mini catalog manager */
@@ -336,6 +348,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
         <button class="tab active" data-panel="profile" onclick="showPanel('profile')">Company profile</button>
         <button class="tab" data-panel="products" onclick="showPanel('products')">My products <span class="n" id="nProducts">0</span></button>
         <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ inbox <span class="n" id="nRfq">0</span><span class="n" id="rfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
+        <button class="tab" data-panel="opps" onclick="showPanel('opps')">Opportunities <span class="n" id="nOpps">0</span></button>
         <button class="tab" data-panel="ai" onclick="showPanel('ai')">AI Assistant</button>
       </div>
 
@@ -362,6 +375,53 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
           <h2>Quotation requests for your products</h2>
         </div>
         <div class="card" id="rfqList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-opps">
+        <div class="panel-head">
+          <h2>Opportunities</h2>
+          <span class="mono" style="color:var(--ink-soft)">Tender &amp; distributor matching — beta</span>
+        </div>
+
+        <div class="card pad" id="matchProfileCard">
+          <b style="display:block;margin-bottom:4px">Your matching profile</b>
+          <p style="font-size:.84rem;color:var(--ink-soft);margin-bottom:14px">
+            Tell MedicHall what you sell and where you want to sell it. We match new tenders and distributor candidates against this profile.
+          </p>
+          <div class="grid2">
+            <div>
+              <label for="mp-countries">Target countries (comma separated)</label>
+              <input id="mp-countries" placeholder="e.g. Italy, France, Germany, Spain">
+            </div>
+            <div>
+              <label for="mp-certs">Certifications (comma separated)</label>
+              <input id="mp-certs" placeholder="e.g. CE MDR, ISO 13485">
+            </div>
+          </div>
+          <label for="mp-keywords">Product keywords (comma separated)</label>
+          <input id="mp-keywords" placeholder="e.g. sterile ultrasound probe cover, camera cover, surgical drape">
+          <div class="grid2">
+            <div>
+              <label for="mp-cpv">CPV codes (optional, comma separated)</label>
+              <input id="mp-cpv" placeholder="e.g. 33140000, 33169000">
+            </div>
+            <div>
+              <label for="mp-minscore">Minimum match score (0–100)</label>
+              <input id="mp-minscore" type="number" min="0" max="100" value="60">
+            </div>
+          </div>
+          <div style="display:flex;gap:18px;margin:10px 0 4px;font-size:.88rem">
+            <label style="display:flex;gap:7px;align-items:center;margin:0"><input type="checkbox" id="mp-oem" style="width:auto"> OEM available</label>
+            <label style="display:flex;gap:7px;align-items:center;margin:0"><input type="checkbox" id="mp-pl" style="width:auto"> Private label available</label>
+          </div>
+          <div class="form-actions" style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-solid" id="mpSaveBtn" onclick="saveMatchProfile()">Save profile</button>
+            <button class="btn btn-grad" id="mpMatchBtn" onclick="findMatches()">🔎 Find matches</button>
+          </div>
+        </div>
+
+        <div style="height:16px"></div>
+        <div id="oppList"><div class="card pad" style="color:var(--ink-soft)">Save your matching profile and click <b>Find matches</b> to see tender and distributor opportunities here.</div></div>
       </div>
 
       <div class="panel" id="panel-ai">
@@ -921,7 +981,7 @@ async function enterApp(){
     document.getElementById("portal").style.display = "block";
     document.getElementById("profileFormFields").innerHTML = companyFormHTML("pf", COMPANY);
     renderAssets();
-    loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers();
+    loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers(); loadMatchProfile();
     applyHash(); startUnreadTimer();
   }else if(BUYER){
     setBadge("Buyer Account");
@@ -1534,6 +1594,186 @@ async function runBuyerAiAssistant(){
 }
 
 /* ---------------- misc ---------------- */
+/* ---------------- opportunities (match engine) ---------------- */
+let OPP_ROWS = [];
+
+function csvToArr(v){
+  return (v||"").split(",").map(s=>s.trim()).filter(Boolean);
+}
+function arrToCsv(a){ return Array.isArray(a) ? a.join(", ") : ""; }
+
+async function loadMatchProfile(){
+  if(!COMPANY) return;
+  try{
+    const rows = await db("company_match_profiles?select=*&company_id=eq." + COMPANY.id);
+    const p = rows && rows.length ? rows[0] : null;
+    if(p){
+      document.getElementById("mp-countries").value = arrToCsv(p.target_countries);
+      document.getElementById("mp-keywords").value  = arrToCsv(p.product_keywords);
+      document.getElementById("mp-certs").value     = arrToCsv(p.certifications);
+      document.getElementById("mp-cpv").value       = arrToCsv(p.cpv_codes);
+      document.getElementById("mp-minscore").value  = p.min_match_score ?? 60;
+      document.getElementById("mp-oem").checked     = !!p.oem_available;
+      document.getElementById("mp-pl").checked      = !!p.private_label_available;
+      loadOpportunities();
+    }else{
+      // sensible defaults from the company profile
+      document.getElementById("mp-certs").value = COMPANY.certifications || "";
+    }
+  }catch(e){ /* table may be empty on first visit */ }
+}
+
+async function saveMatchProfile(){
+  if(!COMPANY){ toast("Company profile not found"); return; }
+  const btn = document.getElementById("mpSaveBtn");
+  const body = {
+    company_id: COMPANY.id,
+    target_countries: csvToArr(document.getElementById("mp-countries").value),
+    product_keywords:  csvToArr(document.getElementById("mp-keywords").value),
+    certifications:    csvToArr(document.getElementById("mp-certs").value),
+    cpv_codes:         csvToArr(document.getElementById("mp-cpv").value),
+    min_match_score:   Math.min(100, Math.max(0, parseInt(document.getElementById("mp-minscore").value||"60",10))),
+    oem_available:           document.getElementById("mp-oem").checked,
+    private_label_available: document.getElementById("mp-pl").checked,
+    updated_at: new Date().toISOString()
+  };
+  if(!body.product_keywords.length){ toast("Add at least one product keyword"); return; }
+  btn.disabled = true;
+  try{
+    await db("company_match_profiles?on_conflict=company_id", {
+      method:"POST",
+      headers:{ "Prefer":"resolution=merge-duplicates" },
+      body: JSON.stringify(body)
+    });
+    toast("Matching profile saved ✔");
+  }catch(e){ toast(friendlyError(e)); }
+  finally{ btn.disabled = false; }
+}
+
+async function findMatches(){
+  if(!COMPANY) return;
+  const btn = document.getElementById("mpMatchBtn");
+  btn.disabled = true; btn.textContent = "Matching…";
+  try{
+    await saveMatchProfile();
+    await db("rpc/refresh_company_opportunity_matches", {
+      method:"POST",
+      body: JSON.stringify({ p_company_id: COMPANY.id })
+    });
+    await loadOpportunities();
+    toast("Matches refreshed");
+  }catch(e){ toast(friendlyError(e)); }
+  finally{ btn.disabled = false; btn.textContent = "🔎 Find matches"; }
+}
+
+async function loadOpportunities(){
+  if(!COMPANY) return;
+  const list = document.getElementById("oppList");
+  try{
+    OPP_ROWS = await db(
+      "opportunity_matches?select=*,tenders(*),distributor_candidates(*)" +
+      "&company_id=eq." + COMPANY.id +
+      "&status=neq.dismissed&order=match_score.desc,generated_at.desc&limit=50"
+    ) || [];
+    document.getElementById("nOpps").textContent = OPP_ROWS.length;
+    if(!OPP_ROWS.length){
+      list.innerHTML = '<div class="card pad" style="color:var(--ink-soft)">No matches yet. Check your keywords and target countries, then click <b>Find matches</b> again. New tenders are matched automatically as they arrive.</div>';
+      return;
+    }
+    list.innerHTML = OPP_ROWS.map(renderOppCard).join("");
+  }catch(e){
+    list.innerHTML = '<div class="card pad" style="color:var(--ink-soft)">' + esc(friendlyError(e)) + '</div>';
+  }
+}
+
+function scoreClass(s){ return s >= 75 ? "hi" : (s >= 55 ? "mid" : "lo"); }
+
+function renderOppCard(m){
+  const isTender = m.opportunity_type === "tender";
+  const t = m.tenders || {};
+  const d = m.distributor_candidates || {};
+  const icon = isTender ? "📄" : "🤝";
+  const title = isTender ? (t.title || "Tender") : (d.name || "Distributor");
+  const metaBits = [];
+  if(isTender){
+    if(t.country_name) metaBits.push(t.country_name);
+    if(t.buyer_name) metaBits.push(t.buyer_name);
+    if(t.deadline_at) metaBits.push("Deadline: " + new Date(t.deadline_at).toLocaleDateString());
+    if(t.estimated_value) metaBits.push("~" + Number(t.estimated_value).toLocaleString() + " " + (t.currency||""));
+  }else{
+    if(d.country_name) metaBits.push(d.country_name);
+    if(d.company_type) metaBits.push(d.company_type);
+    if(d.verification_status) metaBits.push(d.verification_status === "verified" ? "✔ Verified" : "Reviewed");
+  }
+  const reasons = Array.isArray(m.reasons) ? m.reasons.slice(0,5) : [];
+  const link = isTender ? t.source_url : d.website;
+  const saved = m.status === "saved";
+  return '<div class="opp-card" id="opp-' + m.id + '">'
+    + '<div class="opp-top">'
+    +   '<div class="opp-title">' + icon + ' ' + esc(title)
+    +     '<div class="opp-meta">' + esc(metaBits.join(" · ")) + '</div>'
+    +   '</div>'
+    +   '<span class="opp-score ' + scoreClass(m.match_score) + '">' + m.match_score + '% match</span>'
+    + '</div>'
+    + (reasons.length ? '<div class="opp-reasons">' + reasons.map(r=>'<span class="opp-reason">✔ ' + esc(String(r)) + '</span>').join("") + '</div>' : "")
+    + '<div class="opp-actions">'
+    +   '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">🤖 Analyze with AI</button>'
+    +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener">Open source ↗</a>' : "")
+    +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'' + (saved ? "viewed" : "saved") + '\')">' + (saved ? "★ Saved" : "☆ Save") + '</button>'
+    +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'contacted\')">' + (m.status === "contacted" ? "✔ Contacted" : "Mark contacted") + '</button>'
+    +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'dismissed\')">✕ Dismiss</button>'
+    + '</div>'
+    + '</div>';
+}
+
+async function setOppStatus(id, status){
+  try{
+    await db("rpc/set_opportunity_match_status", {
+      method:"POST",
+      body: JSON.stringify({ p_match_id: id, p_status: status })
+    });
+    if(status === "dismissed"){
+      const el = document.getElementById("opp-" + id);
+      if(el) el.remove();
+      OPP_ROWS = OPP_ROWS.filter(r => r.id !== id);
+      document.getElementById("nOpps").textContent = OPP_ROWS.length;
+      if(!OPP_ROWS.length) loadOpportunities();
+    }else{
+      const row = OPP_ROWS.find(r => r.id === id);
+      if(row){ row.status = status; const el = document.getElementById("opp-" + id); if(el) el.outerHTML = renderOppCard(row); }
+    }
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+function analyzeOpp(id){
+  const m = OPP_ROWS.find(r => r.id === id);
+  if(!m) return;
+  const isTender = m.opportunity_type === "tender";
+  const t = m.tenders || {};
+  const d = m.distributor_candidates || {};
+  let text;
+  if(isTender){
+    text = "Analyze this tender opportunity for our company. Give a fit assessment, required documents and certificates, risks, missing information we must verify, and concrete next steps.\n\n"
+      + "TENDER\nTitle: " + (t.title||"") + "\nCountry: " + (t.country_name||"") + "\nBuyer: " + (t.buyer_name||"")
+      + "\nDeadline: " + (t.deadline_at||"") + "\nEstimated value: " + (t.estimated_value||"") + " " + (t.currency||"")
+      + "\nCPV: " + arrToCsv(t.cpv_codes) + "\nKeywords: " + arrToCsv(t.product_keywords)
+      + "\nDescription: " + (t.description||"")
+      + "\n\nMATCH ENGINE\nScore: " + m.match_score + "%\nReasons: " + JSON.stringify(m.reasons||[]);
+  }else{
+    text = "Evaluate this distributor candidate for our company and draft a short professional outreach email (OEM/private label focus, CE MDR and ISO 13485). Also list what we should verify about this distributor before engaging.\n\n"
+      + "DISTRIBUTOR\nName: " + (d.name||"") + "\nCountry: " + (d.country_name||"") + "\nType: " + (d.company_type||"")
+      + "\nProduct focus: " + arrToCsv(d.product_keywords) + "\nChannels: " + arrToCsv(d.channels)
+      + "\nCertifications: " + arrToCsv(d.certifications) + "\nWebsite: " + (d.website||"")
+      + "\n\nMATCH ENGINE\nScore: " + m.match_score + "%\nReasons: " + JSON.stringify(m.reasons||[]);
+  }
+  AI_MODE = isTender ? "tender_match" : "sales_email";
+  showPanel("ai");
+  const p = document.getElementById("aiPrompt");
+  p.value = text;
+  setOppStatus(id, "viewed");
+  runAiAssistant();
+}
+
 function showPanel(name){
   document.querySelectorAll(".tab[data-panel]").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
