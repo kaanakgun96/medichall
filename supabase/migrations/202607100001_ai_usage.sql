@@ -1,4 +1,7 @@
 -- MedicHall AI usage log (safe to run multiple times)
+-- FIXED: "create policy if not exists" is not valid PostgreSQL syntax.
+-- Replaced with drop-then-create pattern.
+
 create table if not exists public.medichall_ai_usage (
   id bigserial primary key,
   user_id uuid,
@@ -15,11 +18,12 @@ create table if not exists public.medichall_ai_usage (
 alter table public.medichall_ai_usage enable row level security;
 
 -- Users can view only their own usage logs
-create policy if not exists "ai_usage_select_own"
+drop policy if exists "ai_usage_select_own" on public.medichall_ai_usage;
+create policy "ai_usage_select_own"
 on public.medichall_ai_usage
 for select
 to authenticated
 using (auth.uid() = user_id);
 
--- Do not allow browser-side inserts. Edge Function may use service role if configured.
--- If you do not configure SUPABASE_SERVICE_ROLE_KEY, the AI module still works, only logging is skipped.
+-- Browser-side inserts are not allowed.
+-- The Edge Function writes via the service role key.
