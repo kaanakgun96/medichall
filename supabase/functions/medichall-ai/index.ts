@@ -1,3 +1,15 @@
+// MedicHall AI Edge Function — v2.0 (Claude / Anthropic API)
+//
+// Drop-in replacement for the OpenAI version:
+// - Same auth (Supabase JWT), same daily limits, same usage logging RPCs.
+// - Accepts BOTH { prompt } (live portal.html) and { input } payload fields.
+// - Returns BOTH { answer } (portal.html reads this) and { result }.
+// - AI provider: Anthropic Messages API (https://api.anthropic.com/v1/messages)
+//
+// Required Edge Function secret:  ANTHROPIC_API_KEY
+// Optional secrets:               ANTHROPIC_MODEL (default: claude-haiku-4-5)
+//                                 AI_DAILY_LIMIT  (default: 20)
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = new Set([
@@ -10,9 +22,15 @@ const ALLOWED_ORIGINS = new Set([
 const MAX_INPUT_CHARS = 12_000;
 const MAX_INSTRUCTION_CHARS = 1_500;
 const DAILY_LIMIT_DEFAULT = 20;
+const DEFAULT_MODEL = "claude-haiku-4-5";
 
 const ALLOWED_MODES = new Set([
   "general",
+  // names used by the live portal.html
+  "tender_match",
+  "sales_email",
+  "buyer_assistant",
+  // reserved names for future modules
   "tender-analysis",
   "rfq-builder",
   "supplier-checklist",
@@ -24,17 +42,22 @@ type Payload = {
   mode?: string;
   instruction?: string;
   input?: string;
+  prompt?: string; // legacy field sent by portal.html
   context?: Record<string, unknown>;
 };
 
-type OpenAIResponse = {
-  output_text?: string;
+type AnthropicContentBlock = {
+  type: string;
+  text?: string;
+};
+
+type AnthropicResponse = {
+  content?: AnthropicContentBlock[];
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
-    total_tokens?: number;
   };
-  error?: { message?: string };
+  error?: { type?: string; message?: string };
 };
 
 function corsHeaders(req: Request): HeadersInit {
@@ -74,9 +97,13 @@ function getDailyLimit(): number {
     : DAILY_LIMIT_DEFAULT;
 }
 
-function extractOutputText(data: OpenAIResponse): string {
-  if (typeof data.output_text === "string") return data.output_text.trim();
-  return "";
+function extractOutputText(data: AnthropicResponse): string {
+  if (!Array.isArray(data.content)) return "";
+  return data.content
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text as string)
+    .join("\n")
+    .trim();
 }
 
 Deno.serve(async (req: Request) => {
@@ -96,9 +123,9 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const openAIKey = Deno.env.get("OPENAI_API_KEY");
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
 
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !openAIKey) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !anthropicKey) {
     console.error("Missing required Edge Function secrets");
     return json(req, { error: "AI service is not configured." }, 500);
   }
@@ -135,7 +162,8 @@ Deno.serve(async (req: Request) => {
   const requestedMode = cleanText(payload.mode, 80) || "general";
   const mode = ALLOWED_MODES.has(requestedMode) ? requestedMode : "general";
   const instruction = cleanText(payload.instruction, MAX_INSTRUCTION_CHARS);
-  const input = cleanText(payload.input, MAX_INPUT_CHARS);
+  // portal.html sends "prompt"; newer clients may send "input". Accept both.
+  const input = cleanText(payload.input ?? payload.prompt, MAX_INPUT_CHARS);
   const context = payload.context && typeof payload.context === "object"
     ? payload.context
     : {};
@@ -150,7 +178,7 @@ Deno.serve(async (req: Request) => {
     {
       p_user_id: user.id,
       p_mode: mode,
-      p_role: cleanText(context.role, 80) || null,
+      p_role: cleanText((context as Record<string, unknown>).role, 80) || null,
       p_input_chars: input.length,
       p_daily_limit: dailyLimit,
     },
@@ -188,6 +216,7 @@ Deno.serve(async (req: Request) => {
     "When evidence is missing, state exactly what must be verified.",
     "Do not provide a final legal, regulatory, clinical, or procurement compliance decision.",
     "Be concise, practical, and business-oriented. Use clear headings and action items.",
+    "Reply in the same language the user writes in.",
   ].join("\n");
 
   const userPrompt = JSON.stringify(
@@ -202,26 +231,31 @@ Deno.serve(async (req: Request) => {
   );
 
   try {
-    const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
+    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAIKey}`,
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini",
-        instructions: systemPrompt,
-        input: userPrompt,
-        max_output_tokens: 900,
-        temperature: 0.3,
-        store: false,
+        model: Deno.env.get("ANTHROPIC_MODEL") || DEFAULT_MODEL,
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [
+          { role: "user", content: userPrompt },
+        ],
       }),
     });
 
-    const data = (await openAIResponse.json()) as OpenAIResponse;
-    if (!openAIResponse.ok) {
+    const data = (await anthropicResponse.json()) as AnthropicResponse;
+    if (!anthropicResponse.ok) {
       const providerMessage = cleanText(data?.error?.message, 500);
-      console.error("OpenAI request failed", openAIResponse.status, providerMessage);
+      console.error(
+        "Anthropic request failed",
+        anthropicResponse.status,
+        providerMessage,
+      );
       await adminClient.rpc("finish_medichall_ai_request", {
         p_usage_id: usageId,
         p_status: "failed",
@@ -229,20 +263,26 @@ Deno.serve(async (req: Request) => {
         p_prompt_tokens: null,
         p_completion_tokens: null,
         p_total_tokens: null,
-        p_error_code: `OPENAI_${openAIResponse.status}`,
+        p_error_code: `ANTHROPIC_${anthropicResponse.status}`,
       });
       return json(req, { error: "AI provider request failed. Please try again." }, 502);
     }
 
     const result = extractOutputText(data);
+    const promptTokens = data.usage?.input_tokens ?? null;
+    const completionTokens = data.usage?.output_tokens ?? null;
+    const totalTokens = promptTokens !== null && completionTokens !== null
+      ? promptTokens + completionTokens
+      : null;
+
     if (!result) {
       await adminClient.rpc("finish_medichall_ai_request", {
         p_usage_id: usageId,
         p_status: "failed",
         p_output_chars: 0,
-        p_prompt_tokens: data.usage?.input_tokens ?? null,
-        p_completion_tokens: data.usage?.output_tokens ?? null,
-        p_total_tokens: data.usage?.total_tokens ?? null,
+        p_prompt_tokens: promptTokens,
+        p_completion_tokens: completionTokens,
+        p_total_tokens: totalTokens,
         p_error_code: "EMPTY_RESPONSE",
       });
       return json(req, { error: "AI returned an empty response." }, 502);
@@ -252,15 +292,17 @@ Deno.serve(async (req: Request) => {
       p_usage_id: usageId,
       p_status: "completed",
       p_output_chars: result.length,
-      p_prompt_tokens: data.usage?.input_tokens ?? null,
-      p_completion_tokens: data.usage?.output_tokens ?? null,
-      p_total_tokens: data.usage?.total_tokens ?? null,
+      p_prompt_tokens: promptTokens,
+      p_completion_tokens: completionTokens,
+      p_total_tokens: totalTokens,
       p_error_code: null,
     });
 
     if (finish.error) console.error("AI usage finalization error", finish.error);
 
+    // portal.html reads "answer"; keep "result" for newer clients.
     return json(req, {
+      answer: result,
       result,
       remaining_today: remaining,
       daily_limit: dailyLimit,
