@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner Portal — MedicHall</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";}</script>
+<style>
+:root{
+  --ink:#003E52;--ink-soft:#40748E;--teal:#4298CC;--teal-deep:#003E52;--teal-tint:#DCEEF7;
+  --sky:#70D0EC;--mint:#6CCCB9;--mint-soft:#9ED5CB;--cream:#F2E5B3;
+  --mist:#EFF6F9;--line:#D6E4EB;--radius:14px;--danger:#C0392B;--ok:#1E8E76;
+  --font:"Poppins",sans-serif;--mono:"IBM Plex Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);color:var(--ink);background:var(--mist);line-height:1.55;font-size:15px}
+img{max-width:100%;display:block}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px}
+.mono{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px;gap:20px}
+.logo{display:flex;align-items:center;gap:9px;font-size:1.15rem;letter-spacing:.04em}
+.logo-mark{width:26px;height:30px;flex-shrink:0}
+.logo .mword{color:var(--teal);font-weight:500}
+.logo .hword{color:var(--teal-deep);font-weight:700}
+.logo .adm{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-weight:600;font-size:.87rem;border:1.5px solid transparent;transition:all .15s}
+.btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-solid{background:var(--teal);color:#fff}
+.btn-solid:hover{background:#3184B4}
+.btn-grad{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none}
+.btn-grad:hover{filter:brightness(1.05)}
+.btn-danger{background:none;border:none;color:var(--danger);font-weight:600;font-size:.82rem;padding:6px 10px}
+.btn-sm{padding:7px 14px;font-size:.8rem}
+
+/* auth */
+.auth-shell{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:30px 20px;background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%)}
+.auth-card{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:36px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,62,82,.12)}
+.auth-tabs{display:flex;background:var(--mist);border-radius:11px;padding:4px;margin-bottom:22px}
+.auth-tab{flex:1;border:none;background:none;padding:9px;border-radius:8px;font-weight:600;font-size:.88rem;color:var(--ink-soft)}
+.auth-tab.active{background:#fff;color:var(--teal-deep);box-shadow:0 2px 8px rgba(0,62,82,.1)}
+.auth-card h1{font-size:1.3rem;font-weight:700;margin-bottom:4px}
+.auth-card .sub{color:var(--ink-soft);font-size:.88rem;margin-bottom:16px}
+label{display:block;font-size:.83rem;font-weight:600;margin:13px 0 5px}
+input,textarea,select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;font-family:var(--font);font-size:.92rem;background:#fff;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
+.auth-card .btn{width:100%;justify-content:center;margin-top:20px}
+.msg{font-size:.85rem;font-weight:600;margin-top:12px;display:none}
+.msg.err{color:var(--danger)}
+.msg.ok{color:var(--ok)}
+
+/* role picker */
+.role-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.role-opt{border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:14px 12px;text-align:left;font-weight:700;font-size:.92rem;color:var(--ink);transition:all .15s}
+.role-opt span{display:block;font-weight:400;font-size:.76rem;color:var(--ink-soft);margin-top:3px}
+.role-opt.active{border-color:var(--teal);background:var(--teal-tint)}
+.role-big{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.role-big button{border:1.5px solid var(--line);border-radius:16px;background:#fff;padding:28px 22px;text-align:left;transition:all .15s}
+.role-big button:hover{border-color:var(--teal);transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,62,82,.12)}
+.role-big b{display:block;font-size:1.1rem;margin-bottom:4px}
+.role-big span{font-size:.86rem;color:var(--ink-soft)}
+@media(max-width:560px){.role-big{grid-template-columns:1fr}}
+
+/* app */
+#app{display:none}
+.status-banner{margin:24px 0 0;border-radius:var(--radius);padding:16px 20px;display:flex;gap:12px;align-items:center;font-size:.9rem;border:1.5px solid}
+.status-banner.pending{background:#FBF6E3;border-color:#E8D89A;color:#7A6410}
+.status-banner.live{background:#E3F5EF;border-color:#A9DECF;color:var(--ok)}
+.status-banner b{font-weight:700}
+.tabs{display:flex;gap:6px;margin:22px 0 20px;flex-wrap:wrap}
+.tab{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:9px 20px;font-size:.88rem;font-weight:600;color:var(--ink-soft);transition:all .15s}
+.tab:hover{border-color:var(--teal);color:var(--teal)}
+.tab.active{background:var(--teal-deep);border-color:var(--teal-deep);color:#fff}
+.tab .n{font-family:var(--mono);font-size:.68rem;background:rgba(255,255,255,.2);border-radius:100px;padding:1px 8px;margin-left:6px}
+.tab:not(.active) .n{background:var(--mist);color:var(--ink-soft)}
+.panel{display:none;padding-bottom:80px}
+.panel.active{display:block}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.panel-head h2{font-size:1.15rem;font-weight:700}
+.card{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.card.pad{padding:26px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+.form-actions{margin-top:24px;display:flex;gap:10px}
+
+.row{display:grid;grid-template-columns:56px 1fr auto auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--mist)}
+.row .thumb{width:56px;height:42px;border-radius:8px;background:var(--mist);overflow:hidden;display:grid;place-items:center}
+.row .thumb img{width:100%;height:100%;object-fit:cover}
+.row .thumb span{font-weight:700;color:var(--teal);font-size:.8rem}
+.row .info b{display:block;font-size:.92rem;line-height:1.3}
+.row .info .mono{color:var(--ink-soft)}
+.pill{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;border-radius:100px;padding:4px 11px}
+.pill.on{background:#E3F5EF;color:var(--ok)}
+.pill.off{background:#FDECEA;color:var(--danger)}
+.row-actions{display:flex;gap:4px;align-items:center}
+@media(max-width:640px){.row{grid-template-columns:1fr auto}.row .thumb{display:none}.row .pillwrap{display:none}}
+
+.rfq-item{padding:16px 18px;border-bottom:1px solid var(--line)}
+.rfq-item:last-child{border-bottom:none}
+.rfq-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.rfq-top b{font-size:.95rem}
+.rfq-top time{font-family:var(--mono);font-size:.7rem;color:var(--ink-soft)}
+.rfq-meta{font-size:.85rem;color:var(--ink-soft);margin-bottom:8px}
+.rfq-meta a{color:var(--teal);font-weight:600;text-decoration:none}
+.rfq-msg{background:var(--mist);border-radius:10px;padding:12px 14px;font-size:.88rem;white-space:pre-wrap}
+.empty{text-align:center;padding:56px 20px;color:var(--ink-soft)}
+.empty b{display:block;font-size:1.05rem;color:var(--ink);margin-bottom:4px}
+.loading{text-align:center;padding:50px;color:var(--ink-soft)}
+/* AI assistant */
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+@media(max-width:760px){.ai-grid{grid-template-columns:1fr}}
+.ai-card{border:1.5px solid var(--line);border-radius:14px;padding:18px;background:#fff}
+.ai-card b{display:block;font-size:.98rem;margin-bottom:6px}
+.ai-card p{font-size:.84rem;color:var(--ink-soft);margin-bottom:12px}
+.ai-output{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;white-space:pre-wrap;min-height:170px;font-size:.9rem}
+.ai-chiprow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.ai-chip{border:1.5px solid var(--line);background:var(--mist);color:var(--ink);border-radius:100px;padding:7px 11px;font-size:.78rem;font-weight:600}
+.ai-chip:hover{border-color:var(--teal);color:var(--teal)}
+
+
+/* mini catalog manager */
+.cat-mini{display:flex;gap:10px;flex-wrap:wrap}
+.cat-mini-item{width:74px;text-align:center;position:relative}
+.cat-mini-item img,.cat-mini-ph{width:74px;height:98px;object-fit:cover;border:1.5px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:1.6rem;background:var(--mist)}
+.cat-mini-item .t{display:block;font-size:.62rem;color:var(--ink-soft);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-mini-item .btn-danger{position:absolute;top:-6px;right:-6px;background:#fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,62,82,.2)}
+
+/* assets + image upload */
+.asset-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+@media(max-width:560px){.asset-grid{grid-template-columns:1fr}}
+.asset{border:1.5px dashed var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.asset-label{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.asset-thumb{height:52px;width:auto;max-width:160px;object-fit:contain;border-radius:8px;background:var(--mist);padding:6px}
+.asset-none{font-size:.85rem;color:var(--ink-soft)}
+.asset-link{font-size:.88rem;font-weight:600;color:var(--teal)}
+.img-upload{display:flex;gap:14px;align-items:center}
+.img-preview{width:96px;height:72px;border:1.5px dashed var(--line);border-radius:10px;background:var(--mist);display:grid;place-items:center;overflow:hidden;flex-shrink:0}
+.img-preview span{font-size:1.6rem;color:var(--ink-soft)}
+.img-preview img{width:100%;height:100%;object-fit:cover}
+
+/* offer comparison */
+.cmp-table{width:100%;border-collapse:collapse;font-size:.86rem;min-width:620px}
+.cmp-table th{text-align:left;font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);padding:8px 10px;border-bottom:2px solid var(--line)}
+.cmp-table td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+
+/* chat */
+.chat-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;background:var(--mist)}
+.bubble{max-width:78%;padding:10px 14px;border-radius:14px;font-size:.9rem;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.bubble.mine{align-self:flex-end;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-bottom-right-radius:4px}
+.bubble.theirs{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.bubble time{display:block;font-size:.62rem;opacity:.75;margin-top:4px;font-family:var(--mono)}
+.chat-empty{text-align:center;color:var(--ink-soft);font-size:.86rem;margin:auto}
+
+/* modal + toast */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px;overflow-y:auto}
+.modal-backdrop.open{display:grid}
+.modal{background:#fff;border-radius:18px;padding:32px;max-width:520px;width:100%;position:relative;margin:auto}
+.modal h3{font-size:1.25rem;font-weight:700;margin-bottom:18px}
+.modal-close{position:absolute;top:14px;right:14px;background:var(--mist);border:none;width:32px;height:32px;border-radius:9px;font-size:.95rem;color:var(--ink-soft)}
+.modal .actions{display:flex;gap:10px;margin-top:24px}
+.modal .actions .btn{flex:1;justify-content:center}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--teal-deep);color:#fff;border-radius:100px;padding:12px 26px;font-size:.88rem;font-weight:600;z-index:120;transition:transform .25s;box-shadow:0 12px 30px rgba(0,62,82,.3)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <span class="logo">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
+        </linearGradient></defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+      <span class="adm">Partner Portal</span>
+    </span>
+    <div id="headActions" style="display:none;gap:10px;align-items:center">
+      <a class="btn btn-ghost btn-sm" href="index.html">View marketplace →</a>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
+    </div>
+  </div>
+</header>
+
+<!-- AUTH -->
+<div class="auth-shell" id="authShell">
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="authView('login')">Log in</button>
+      <button class="auth-tab" id="tabRegister" onclick="authView('register')">Create account</button>
+    </div>
+    <div id="loginView">
+      <h1>Partner login</h1>
+      <p class="sub">Manage your company profile, products and quotation requests.</p>
+      <label for="li-email">Email</label>
+      <input id="li-email" type="email" autocomplete="email" placeholder="you@yourcompany.com">
+      <label for="li-pass">Password</label>
+      <input id="li-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button class="btn btn-grad" id="loginBtn" onclick="login()">Log in</button>
+      <p class="msg err" id="loginMsg"></p>
+    </div>
+    <div id="registerView" style="display:none">
+      <h1>Create your account</h1>
+      <p class="sub">Buy from certified manufacturers, or list your own company.</p>
+      <label>Account type</label>
+      <div class="role-pick">
+        <button type="button" class="role-opt active" id="roleBuyer" onclick="pickRole('buyer')">🛒 Buyer<span>Source products, save favorites</span></button>
+        <button type="button" class="role-opt" id="roleManu" onclick="pickRole('manufacturer')">🏭 Manufacturer<span>List your company & products</span></button>
+      </div>
+      <label for="re-email">Work email</label>
+      <input id="re-email" type="email" autocomplete="email" placeholder="you@yourcompany.com">
+      <label for="re-pass">Password (min. 8 characters)</label>
+      <input id="re-pass" type="password" autocomplete="new-password" placeholder="Choose a strong password">
+      <button class="btn btn-grad" id="registerBtn" onclick="register()">Create account</button>
+      <p class="msg" id="registerMsg"></p>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="wrap">
+    <div id="statusBanner"></div>
+
+    <!-- onboarding: no company yet -->
+    <div id="onboarding" style="display:none">
+      <div class="tabs"><span class="tab active">Set up your company</span></div>
+      <div class="card pad">
+        <h2 style="font-size:1.15rem;margin-bottom:4px">Tell us about your company</h2>
+        <p style="color:var(--ink-soft);font-size:.9rem;margin-bottom:10px">This becomes your public profile after approval. You can edit everything later.</p>
+        <div id="companyFormFields"></div>
+        <div class="form-actions">
+          <button class="btn btn-grad" id="onboardSave" onclick="createCompany()">Save & submit for approval</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- account type chooser (existing account, no profile yet) -->
+    <div id="roleChooser" style="display:none">
+      <div class="card pad" style="text-align:center">
+        <h2 style="font-size:1.2rem;margin-bottom:4px">How will you use MedicHall?</h2>
+        <p style="color:var(--ink-soft);font-size:.9rem">Choose your account type to continue.</p>
+        <div class="role-big">
+          <button onclick="chooseRole('buyer')"><b>🛒 I'm a buyer</b><span>Browse manufacturers, save favorite products and send quotation requests.</span></button>
+          <button onclick="chooseRole('manufacturer')"><b>🏭 I'm a manufacturer</b><span>Create a company profile and list your products on the marketplace.</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- buyer onboarding -->
+    <div id="buyerOnboarding" style="display:none">
+      <div class="tabs"><span class="tab active">Set up your buyer account</span></div>
+      <div class="card pad">
+        <h2 style="font-size:1.15rem;margin-bottom:4px">Tell us about yourself</h2>
+        <p style="color:var(--ink-soft);font-size:.9rem;margin-bottom:10px">This helps manufacturers respond to your requests. You can edit it later.</p>
+        <div class="grid2">
+          <div><label for="bo-name">Your name</label><input id="bo-name" placeholder="Full name"></div>
+          <div><label for="bo-company">Company</label><input id="bo-company" placeholder="Your company (optional)"></div>
+        </div>
+        <label for="bo-country">Country</label>
+        <input id="bo-country" placeholder="e.g. Germany">
+        <div class="form-actions">
+          <button class="btn btn-grad" id="buyerOnboardSave" onclick="createBuyerProfile()">Save & continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- buyer portal -->
+    <div id="buyerPortal" style="display:none">
+      <div class="tabs">
+        <button class="tab active" data-panel="b-favorites" onclick="showPanel('b-favorites')">Favorites <span class="n" id="nFavs">0</span></button>
+        <button class="tab" data-panel="b-requests" onclick="showPanel('b-requests')">My requests <span class="n" id="nMyRfq">0</span><span class="n" id="myRfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
+        <button class="tab" data-panel="b-profile" onclick="showPanel('b-profile')">Profile</button>
+        <button class="tab" data-panel="b-ai" onclick="showPanel('b-ai')">AI Assistant</button>
+      </div>
+
+      <div class="panel active" id="panel-b-favorites">
+        <div class="panel-head"><h2>Saved products</h2><a class="btn btn-solid btn-sm" href="products.html">Browse catalog ↗</a></div>
+        <div class="card" id="favList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-b-requests">
+        <div class="panel-head"><h2>My quotation requests</h2></div>
+        <div class="card" id="myRfqList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-b-profile">
+        <div class="card pad">
+          <div class="grid2">
+            <div><label for="bp-name">Your name</label><input id="bp-name"></div>
+            <div><label for="bp-company">Company</label><input id="bp-company"></div>
+          </div>
+          <label for="bp-country">Country</label>
+          <input id="bp-country">
+          <div class="form-actions">
+            <button class="btn btn-grad" onclick="saveBuyerProfile()">Save changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-b-ai">
+        <div class="panel-head"><h2>MedicHall AI Assistant</h2><span class="mono" style="color:var(--ink-soft)">Buyer beta</span></div>
+        <div class="card pad">
+          <label for="bAiPrompt">Describe what you need</label>
+          <textarea id="bAiPrompt" rows="7" placeholder="Example: I need a sterile ultrasound probe cover manufacturer with MDR and private label option."></textarea>
+          <div class="ai-chiprow">
+            <button class="ai-chip" onclick="buyerAiQuick('Create a clear RFQ text for this medical product requirement:')">Create RFQ</button>
+            <button class="ai-chip" onclick="buyerAiQuick('List the key certificates and supplier questions I should ask for this requirement:')">Supplier checklist</button>
+          </div>
+          <div class="form-actions"><button class="btn btn-grad" id="bAiRunBtn" onclick="runBuyerAiAssistant()">Ask AI</button></div>
+        </div>
+        <div style="height:16px"></div>
+        <div class="ai-output" id="bAiOutput">AI output will appear here.</div>
+      </div>
+    </div>
+
+    <!-- main portal -->
+    <div id="portal" style="display:none">
+      <div class="tabs">
+        <button class="tab active" data-panel="profile" onclick="showPanel('profile')">Company profile</button>
+        <button class="tab" data-panel="products" onclick="showPanel('products')">My products <span class="n" id="nProducts">0</span></button>
+        <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ inbox <span class="n" id="nRfq">0</span><span class="n" id="rfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
+        <button class="tab" data-panel="ai" onclick="showPanel('ai')">AI Assistant</button>
+      </div>
+
+      <div class="panel active" id="panel-profile">
+        <div class="card pad">
+          <div class="asset-grid" id="assetRow"></div>
+          <div id="profileFormFields"></div>
+          <div class="form-actions">
+            <button class="btn btn-grad" onclick="saveCompany()">Save changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-products">
+        <div class="panel-head">
+          <h2>My products</h2>
+          <button class="btn btn-solid btn-sm" onclick="openProductForm()">+ Add product</button>
+        </div>
+        <div class="card" id="productList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-rfq">
+        <div class="panel-head">
+          <h2>Quotation requests for your products</h2>
+        </div>
+        <div class="card" id="rfqList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-ai">
+        <div class="panel-head">
+          <h2>MedicHall AI Assistant</h2>
+          <span class="mono" style="color:var(--ink-soft)">Beta module</span>
+        </div>
+        <div class="card pad">
+          <div class="ai-grid">
+            <div class="ai-card">
+              <b>🏥 Tender match check</b>
+              <p>Paste a tender description/specification and get a fit score, required documents, risks and next actions.</p>
+              <button class="btn btn-solid btn-sm" onclick="setAiMode('tender_match')">Use tender mode</button>
+            </div>
+            <div class="ai-card">
+              <b>📧 Sales email writer</b>
+              <p>Generate a professional distributor outreach email based on your company and products.</p>
+              <button class="btn btn-solid btn-sm" onclick="setAiMode('sales_email')">Use email mode</button>
+            </div>
+          </div>
+          <label for="aiPrompt">What do you want MedicHall AI to do?</label>
+          <textarea id="aiPrompt" rows="7" placeholder="Example: Paste a tender requirement here, or ask: Write an email to a German distributor for sterile ultrasound probe covers."></textarea>
+          <div class="ai-chiprow">
+            <button class="ai-chip" onclick="aiQuick('Analyze this tender for our company. Give fit score, required certificates, risks, missing information and next steps:')">Tender analysis</button>
+            <button class="ai-chip" onclick="aiQuick('Write a short professional distributor outreach email for our medical disposable products. Focus on OEM/private label, MDR and ISO 13485:')">Distributor email</button>
+            <button class="ai-chip" onclick="aiQuick('Suggest 10 SEO keywords for our company profile and products on MedicHall:')">SEO keywords</button>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-grad" id="aiRunBtn" onclick="runAiAssistant()">Ask AI</button>
+          </div>
+        </div>
+        <div style="height:16px"></div>
+        <div class="ai-output" id="aiOutput">AI output will appear here.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT FORM -->
+<div class="modal-backdrop" id="productModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="productFormTitle">Add product</h3>
+    <input type="hidden" id="p-id">
+    <div class="grid2">
+      <div><label for="p-ref">REF / product code *</label><input id="p-ref" placeholder="e.g. ABC-101"></div>
+      <div><label for="p-cat">Category *</label>
+        <select id="p-cat">
+          <option>Medical Devices</option><option>Sterilization</option><option>Cold Chain</option>
+          <option>Raw Materials</option><option>OEM Supplies</option><option>Services</option>
+          <option>IVD Supplies</option><option>Machinery</option>
+        </select>
+      </div>
+    </div>
+    <label for="p-name">Product name *</label>
+    <input id="p-name" placeholder="e.g. Cardiovascular Pack">
+    <label for="p-desc">Description</label>
+    <textarea id="p-desc" rows="3" placeholder="Shown on the product detail page"></textarea>
+    <label>Product image</label>
+    <input type="hidden" id="p-img">
+    <div class="img-upload">
+      <div class="img-preview" id="pImgPreview"><span>＋</span></div>
+      <div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductImage()">＋ Upload image</button>
+        <button type="button" class="btn-danger" id="pImgRemove" style="display:none" onclick="removeProductImage()">Remove</button>
+        <p style="font-size:.75rem;color:var(--ink-soft);margin-top:6px">JPG / PNG, max 5 MB</p>
+      </div>
+    </div>
+    <label>Product brochure (PDF, optional)</label>
+    <input type="hidden" id="p-broch">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductBrochure()">＋ Upload brochure</button>
+      <a id="pBrochLink" target="_blank" rel="noopener" style="display:none;font-size:.85rem;font-weight:600;color:var(--teal)">View current ↗</a>
+      <button type="button" class="btn-danger" id="pBrochRemove" style="display:none" onclick="removeProductBrochure()">Remove</button>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" onclick="saveProduct()">Save product</button>
+    </div>
+  </div>
+</div>
+
+<!-- FAVORITE PRODUCT MODAL -->
+<div class="modal-backdrop" id="favProductModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal" style="max-width:580px;padding:0;overflow:hidden">
+    <button class="modal-close" style="z-index:2;background:#fff;box-shadow:0 4px 14px rgba(0,62,82,.18)" aria-label="Close" onclick="closeModals()">✕</button>
+    <div id="fpImg" style="aspect-ratio:16/9;background:var(--mist);display:grid;place-items:center;overflow:hidden"></div>
+    <div style="padding:24px 26px 26px">
+      <div id="fpChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <h3 id="fpName" style="font-size:1.3rem;font-weight:700;line-height:1.25;margin-bottom:8px"></h3>
+      <p id="fpDesc" style="color:var(--ink-soft);font-size:.93rem"></p>
+      <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+        <a class="btn btn-grad" id="fpOpen" target="_blank" style="flex:1;justify-content:center;min-width:170px">Open product page ↗</a>
+        <a class="btn btn-ghost" id="fpBrochure" target="_blank" rel="noopener" style="display:none">📄 Brochure</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT MODAL -->
+<div class="modal-backdrop" id="chatModal" onclick="if(event.target===this)closeChat()">
+  <div class="modal" style="max-width:560px;padding:0;overflow:hidden;display:flex;flex-direction:column;height:min(620px,88vh)">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="min-width:0">
+        <b id="chatTitle" style="font-size:.95rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Conversation</b>
+        <span class="mono" id="chatSub" style="color:var(--ink-soft)"></span>
+      </div>
+      <button class="modal-close" style="position:static" aria-label="Close chat" onclick="closeChat()">✕</button>
+    </div>
+    <div id="chatBody" class="chat-body"><div class="loading">Loading…</div></div>
+    <div style="padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px">
+      <input id="chatInput" placeholder="Write a message…" style="flex:1" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn btn-grad" id="chatSend" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- OFFER FORM (manufacturer) -->
+<div class="modal-backdrop" id="offerModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="offerFormTitle">Submit offer</h3>
+    <input type="hidden" id="of-rfq">
+    <div class="grid2">
+      <div><label for="of-price">Unit price</label><input id="of-price" inputmode="decimal" placeholder="e.g. 1.25"></div>
+      <div><label for="of-currency">Currency</label>
+        <select id="of-currency"><option>USD</option><option>EUR</option><option>GBP</option><option>TRY</option></select>
+      </div>
+      <div><label for="of-moq">MOQ</label><input id="of-moq" placeholder="e.g. 5,000 pcs"></div>
+      <div><label for="of-lead">Lead time</label><input id="of-lead" placeholder="e.g. 4–5 weeks"></div>
+    </div>
+    <label for="of-valid">Offer valid until</label>
+    <input id="of-valid" type="date">
+    <label for="of-notes">Notes to the buyer</label>
+    <textarea id="of-notes" rows="3" placeholder="Payment terms, packaging, alternatives…"></textarea>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" onclick="saveOffer()">Send offer</button>
+    </div>
+  </div>
+</div>
+
+<!-- OFFER COMPARISON (buyer) -->
+<div class="modal-backdrop" id="compareModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal" style="max-width:760px">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="cmpTitle" style="margin-bottom:2px">Offers</h3>
+    <p class="mono" id="cmpSub" style="color:var(--ink-soft);margin-bottom:14px"></p>
+    <div style="overflow-x:auto">
+      <table class="cmp-table">
+        <thead><tr><th>Manufacturer</th><th>Unit price</th><th>MOQ</th><th>Lead time</th><th>Valid until</th><th>Chat</th></tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- config ---------------- */
+const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+
+let TOKEN = localStorage.getItem("mh_p_token") || null;
+let REGROLE = "buyer", JUSTSIGNED = false, LOGIN_REDIRECT = false;
+let BUYER = null;   // buyer profile row
+let USER = null;      // {id, email}
+let COMPANY = null;   // company row
+let PRODUCTS = [], RFQS = [];
+
+async function api(path, options={}){
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + (TOKEN || SUPABASE_ANON_KEY),
+      "Content-Type": "application/json",
+      ...(options.headers||{})
+    }
+  });
+  if(res.status===401){ logout(); throw new Error("Session expired — please log in again."); }
+  if(!res.ok){ throw new Error(await res.text()); }
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+const db = (p,o) => api("/rest/v1/" + p, o);
+
+const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2600);
+}
+function friendlyError(e){
+  const m = (e && e.message) ? e.message : "";
+  console.error("Portal error:", m);
+  if(m.includes("row-level security")) return "Permission error — please contact MedicHall support.";
+  if(m.includes("duplicate")) return "This product code already exists in your catalog.";
+  if(m.includes("Session expired")) return m;
+  if(m.includes("Failed to fetch")) return "Network error — check your internet connection.";
+  return "Error: " + m.slice(0,120);
+}
+
+/* ---------------- auth ---------------- */
+function pickRole(r){
+  REGROLE = r;
+  document.getElementById("roleBuyer").classList.toggle("active", r==="buyer");
+  document.getElementById("roleManu").classList.toggle("active", r==="manufacturer");
+}
+function authView(v){
+  document.getElementById("tabLogin").classList.toggle("active", v==="login");
+  document.getElementById("tabRegister").classList.toggle("active", v==="register");
+  document.getElementById("loginView").style.display = v==="login"?"block":"none";
+  document.getElementById("registerView").style.display = v==="register"?"block":"none";
+}
+async function register(){
+  const email = document.getElementById("re-email").value.trim();
+  const pass  = document.getElementById("re-pass").value;
+  const msg   = document.getElementById("registerMsg");
+  const btn   = document.getElementById("registerBtn");
+  msg.style.display = "none";
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.textContent="Please enter a valid email."; msg.className="msg err"; msg.style.display="block"; return; }
+  if(pass.length < 8){ msg.textContent="Password must be at least 8 characters."; msg.className="msg err"; msg.style.display="block"; return; }
+  btn.disabled = true; btn.textContent = "Creating account…";
+  try{
+    const res = await fetch(SUPABASE_URL + "/auth/v1/signup", {
+      method:"POST",
+      headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.msg || data.error_description || data.message || "Signup failed");
+    if(data.access_token){
+      // email confirmation disabled -> logged in immediately
+      JUSTSIGNED = true;
+      TOKEN = data.access_token;
+      localStorage.setItem("mh_p_token", TOKEN);
+      USER = data.user;
+      enterApp();
+    }else{
+      msg.textContent = "✓ Account created. Please check your inbox and confirm your email, then log in.";
+      msg.className = "msg ok"; msg.style.display = "block";
+    }
+  }catch(e){
+    const m = (e.message||"");
+    msg.textContent = m.includes("Signups not allowed")
+      ? "Registration is temporarily closed. Please contact info@medichall.com."
+      : ("Signup failed: " + m.slice(0,100));
+    msg.className = "msg err"; msg.style.display = "block";
+  }finally{
+    btn.disabled = false; btn.textContent = "Create account";
+  }
+}
+async function login(){
+  const btn = document.getElementById("loginBtn");
+  const msg = document.getElementById("loginMsg");
+  msg.style.display = "none";
+  btn.disabled = true; btn.textContent = "Logging in…";
+  try{
+    const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+      method:"POST",
+      headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+      body: JSON.stringify({
+        email: document.getElementById("li-email").value.trim(),
+        password: document.getElementById("li-pass").value
+      })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error_description || data.msg || "bad credentials");
+    TOKEN = data.access_token;
+    localStorage.setItem("mh_p_token", TOKEN);
+    USER = data.user;
+    LOGIN_REDIRECT = true;
+    enterApp();
+  }catch(e){
+    const m = e.message||"";
+    msg.textContent = m.includes("Email not confirmed")
+      ? "Please confirm your email first (check your inbox), then log in."
+      : "Login failed. Check your email and password.";
+    msg.style.display = "block";
+  }finally{
+    btn.disabled = false; btn.textContent = "Log in";
+  }
+}
+async function getUser(){
+  const data = await api("/auth/v1/user");
+  USER = data;
+}
+function logout(){
+  TOKEN = null; USER = null; COMPANY = null;
+  localStorage.removeItem("mh_p_token");
+  document.getElementById("app").style.display = "none";
+  document.getElementById("headActions").style.display = "none";
+  document.getElementById("authShell").style.display = "grid";
+}
+document.getElementById("li-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
+
+/* ---------------- file uploads ---------------- */
+async function uploadFile(file, folder){
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const path = folder + "/" + Date.now() + "-" + safe;
+  const res = await fetch(SUPABASE_URL + "/storage/v1/object/media/" + path, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + TOKEN,
+      "Content-Type": file.type || "application/octet-stream",
+      "x-upsert": "true"
+    },
+    body: file
+  });
+  if(!res.ok) throw new Error(await res.text());
+  return SUPABASE_URL + "/storage/v1/object/public/media/" + path;
+}
+function pickFile(accept, cb){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = accept;
+  inp.onchange = () => { if(inp.files[0]) cb(inp.files[0]); };
+  inp.click();
+}
+async function uploadCompanyAsset(kind){ // 'logo_url' (image) or 'catalog_url' (pdf)
+  const accept = kind==="logo_url" ? "image/*" : "application/pdf";
+  const max = kind==="logo_url" ? 5 : 25; // MB
+  pickFile(accept, async file => {
+    if(file.size > max*1024*1024){ toast("File too large (max "+max+" MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, kind==="logo_url" ? "logos" : "catalogs");
+      await db("companies?id=eq." + COMPANY.id, {method:"PATCH", body:JSON.stringify({[kind]: url})});
+      COMPANY[kind] = url;
+      renderAssets();
+      toast(kind==="logo_url" ? "Logo uploaded ✓" : "Catalog uploaded ✓");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function renderAssets(){
+  const el = document.getElementById("assetRow");
+  if(!el || !COMPANY) return;
+  el.innerHTML = `
+    <div class="asset">
+      <span class="asset-label">Company logo</span>
+      ${COMPANY.logo_url ? `<img src="${esc(COMPANY.logo_url)}" alt="Logo" class="asset-thumb">` : `<span class="asset-none">No logo yet</span>`}
+      <button class="btn btn-ghost btn-sm" onclick="uploadCompanyAsset('logo_url')">＋ ${COMPANY.logo_url?"Replace":"Upload"} logo</button>
+    </div>
+    <div class="asset" style="grid-column:span 1">
+      <span class="asset-label">Product catalogs (PDF)</span>
+      <div class="cat-mini" id="catManager"><span class="asset-none">Loading…</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="addCatalog()">＋ Add catalog</button>
+    </div>
+    <div class="asset" style="grid-column:span 1">
+      <span class="asset-label">Certificates (CE, ISO… — image or PDF)</span>
+      <div class="cat-mini" id="certManager"><span class="asset-none">Loading…</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="addCertificate()">＋ Add certificate</button>
+      <p style="font-size:.72rem;color:var(--ink-soft);margin-top:6px">Shown to buyers when they click your certification badges — strong trust signal.</p>
+    </div>`;
+  renderCatalogManager();
+  renderCertManager();
+}
+
+/* ---------------- certificates ---------------- */
+let CERTS = [];
+async function loadCerts(){
+  try{
+    CERTS = await db("company_certificates?select=*&company_id=eq." + COMPANY.id + "&order=created_at");
+    renderCertManager();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderCertManager(){
+  const el = document.getElementById("certManager");
+  if(!el) return;
+  if(!CERTS.length){ el.innerHTML = '<span class="asset-none">No certificates yet</span>'; return; }
+  el.innerHTML = CERTS.map(c=>{
+    const isPdf = /\.pdf(\?|$)/i.test(c.file_url);
+    return `
+    <div class="cat-mini-item">
+      <a href="${esc(c.file_url)}" target="_blank" rel="noopener">
+        ${isPdf?`<span class="cat-mini-ph">\ud83d\udcc4</span>`:`<img src="${esc(c.file_url)}" alt="">`}
+      </a>
+      <span class="t" title="${esc(c.title)}">${esc(c.title)}</span>
+      <button class="btn-danger" style="padding:2px 6px;font-size:.7rem" onclick="deleteCertificate(${c.id})">✕</button>
+    </div>`}).join("");
+}
+function addCertificate(){
+  pickFile("image/*,application/pdf", async file => {
+    if(file.size > 10*1024*1024){ toast("File too large (max 10 MB)"); return; }
+    let title = prompt("Certificate name (shown to buyers):",
+      file.name.replace(/\.(pdf|jpg|jpeg|png|webp)$/i,"").replace(/[-_]+/g," ").trim() || "Certificate");
+    if(title === null) return;
+    title = title.trim() || "Certificate";
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "certificates");
+      await db("company_certificates", {method:"POST", headers:{Prefer:"return=minimal"}, body: JSON.stringify({
+        company_id: COMPANY.id, title: title, file_url: url
+      })});
+      toast("Certificate added ✓");
+      loadCerts();
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function deleteCertificate(id){
+  if(!confirm("Remove this certificate?")) return;
+  try{ await db("company_certificates?id=eq." + id, {method:"DELETE"}); loadCerts(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- multiple catalogs ---------------- */
+let CATALOGS = [];
+async function loadCatalogs(){
+  try{
+    CATALOGS = await db("company_catalogs?select=*&company_id=eq." + COMPANY.id + "&order=created_at");
+    renderCatalogManager();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderCatalogManager(){
+  const el = document.getElementById("catManager");
+  if(!el) return;
+  if(!CATALOGS.length){ el.innerHTML = '<span class="asset-none">No catalogs yet</span>'; return; }
+  el.innerHTML = CATALOGS.map(c=>`
+    <div class="cat-mini-item">
+      <a href="${esc(c.file_url)}" target="_blank" rel="noopener">
+        ${c.thumb_url?`<img src="${esc(c.thumb_url)}" alt="">`:`<span class="cat-mini-ph">📄</span>`}
+      </a>
+      <span class="t" title="${esc(c.title)}">${esc(c.title)}</span>
+      ${!c.thumb_url?`<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.65rem;margin-top:2px" title="Generate cover from first page" onclick="regenCover(${c.id})">🔄 Cover</button>`:""}
+      <button class="btn-danger" style="padding:2px 6px;font-size:.7rem" onclick="deleteCatalog(${c.id})">✕</button>
+    </div>`).join("");
+}
+async function regenCover(id){
+  const c = CATALOGS.find(x=>x.id===id);
+  if(!c) return;
+  if(!window.pdfjsLib){ toast("Cover tool couldn't load — check ad blockers and refresh."); return; }
+  toast("Generating cover…");
+  try{
+    const url = await coverFromUrl(c.file_url, c.title);
+    await db("company_catalogs?id=eq." + id, {method:"PATCH", body: JSON.stringify({thumb_url: url})});
+    toast("Cover generated ✓");
+    loadCatalogs();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function addCatalog(){
+  pickFile("application/pdf", async file => {
+    if(file.size > 25*1024*1024){ toast("PDF too large (max 25 MB)"); return; }
+    toast("Uploading catalog…");
+    try{
+      const fileUrl = await uploadFile(file, "catalogs");
+      let thumbUrl = null;
+      if(window.pdfjsLib){
+        const thumb = await pdfFirstPageFile(file);
+        if(thumb) thumbUrl = await uploadFile(thumb, "catalog-covers");
+      }
+      if(!thumbUrl) toast("Note: cover not generated — use the 🔄 Cover button to retry");
+      await db("company_catalogs", {method:"POST", headers:{Prefer:"return=minimal"}, body: JSON.stringify({
+        company_id: COMPANY.id,
+        title: file.name.replace(/\.pdf$/i,"").replace(/[-_]+/g," ").trim() || "Product Catalog",
+        file_url: fileUrl,
+        thumb_url: thumbUrl
+      })});
+      toast("Catalog added ✓");
+      loadCatalogs();
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function deleteCatalog(id){
+  if(!confirm("Remove this catalog?")) return;
+  try{ await db("company_catalogs?id=eq." + id, {method:"DELETE"}); loadCatalogs(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+
+/* render first page of a PDF to a JPEG cover image */
+async function pdfFirstPageFile(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+    const page = await pdf.getPage(1);
+    let vp = page.getViewport({scale: 1});
+    const scale = 420 / vp.width;
+    vp = page.getViewport({scale});
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({canvasContext: canvas.getContext("2d"), viewport: vp}).promise;
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", .85));
+    if(!blob) return null;
+    return new File([blob], file.name.replace(/\.pdf$/i,"") + "-cover.jpg", {type:"image/jpeg"});
+  }catch(e){ console.warn("thumb failed", e); return null; }
+}
+
+
+async function coverFromUrl(fileUrl, baseName){
+  const res = await fetch(fileUrl);
+  if(!res.ok) throw new Error("PDF could not be fetched");
+  const blob = await res.blob();
+  const f = new File([blob], (baseName||"catalog") + ".pdf", {type:"application/pdf"});
+  const thumb = await pdfFirstPageFile(f);
+  if(!thumb) throw new Error("Cover render failed");
+  return await uploadFile(thumb, "catalog-covers");
+}
+
+/* ---------------- company form fields ---------------- */
+const COMPANY_FIELDS = [
+  ["name","Company name *","Your company's registered name"],
+  ["type","Company type","e.g. Medical device manufacturer"],
+  ["city","City","e.g. İzmir"],
+  ["website","Website","https://…"],
+  ["contact_email","Contact email (shown to buyers)","sales@yourcompany.com"],
+  ["phone","Phone","+90 …"],
+  ["certifications","Certifications","e.g. CE MDR, ISO 13485"],
+  ["video_url","Company video (YouTube link)","https://youtube.com/watch?v=…"]
+];
+function companyFormHTML(prefix, c={}){
+  return '<div class="grid2">' + COMPANY_FIELDS.map(([k,l,ph])=>
+    `<div><label for="${prefix}-${k}">${l}</label><input id="${prefix}-${k}" placeholder="${esc(ph)}" value="${esc(c[k]||"")}"></div>`
+  ).join("") + '</div>' +
+  `<label for="${prefix}-description">Company description</label>
+   <textarea id="${prefix}-description" rows="4" placeholder="What you manufacture, capacity, export experience…">${esc(c.description||"")}</textarea>`;
+}
+function readCompanyForm(prefix){
+  const body = {};
+  COMPANY_FIELDS.forEach(([k])=>{ body[k] = document.getElementById(prefix+"-"+k).value.trim() || null; });
+  body.description = document.getElementById(prefix+"-description").value.trim() || null;
+  return body;
+}
+
+/* ---------------- app flow ---------------- */
+function hideAllViews(){
+  ["onboarding","portal","roleChooser","buyerOnboarding","buyerPortal"].forEach(id=>{
+    document.getElementById(id).style.display = "none";
+  });
+}
+function setBadge(t){ const b = document.querySelector(".logo .adm"); if(b) b.textContent = t; }
+async function enterApp(){
+  document.getElementById("authShell").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("headActions").style.display = "flex";
+  try{
+    if(!USER) await getUser();
+    const [cRows, bRows] = await Promise.all([
+      db("companies?select=*&owner_id=eq." + USER.id),
+      db("buyer_profiles?select=*&user_id=eq." + USER.id)
+    ]);
+    COMPANY = cRows && cRows.length ? cRows[0] : null;
+    BUYER   = bRows && bRows.length ? bRows[0] : null;
+  }catch(e){ toast(friendlyError(e)); return; }
+  if(LOGIN_REDIRECT){
+    LOGIN_REDIRECT = false;
+    if((COMPANY || BUYER) && !location.hash){
+      location.href = "index.html";
+      return;
+    }
+  }
+  hideAllViews();
+  renderStatus();
+  if(COMPANY){
+    setBadge("Partner Portal");
+    document.getElementById("portal").style.display = "block";
+    document.getElementById("profileFormFields").innerHTML = companyFormHTML("pf", COMPANY);
+    renderAssets();
+    loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers();
+    applyHash(); startUnreadTimer();
+  }else if(BUYER){
+    setBadge("Buyer Account");
+    document.getElementById("statusBanner").innerHTML = "";
+    document.getElementById("buyerPortal").style.display = "block";
+    document.getElementById("bp-name").value = BUYER.full_name || "";
+    document.getElementById("bp-company").value = BUYER.company_name || "";
+    document.getElementById("bp-country").value = BUYER.country || "";
+    loadFavorites(); loadUnread();
+    (async()=>{ await loadMyRequests(); loadBuyerOffers(); })();
+    applyHash(); startUnreadTimer();
+  }else if(JUSTSIGNED){
+    JUSTSIGNED = false;
+    chooseRole(REGROLE);
+  }else{
+    setBadge("Portal");
+    document.getElementById("statusBanner").innerHTML = "";
+    document.getElementById("roleChooser").style.display = "block";
+  }
+}
+function chooseRole(role){
+  hideAllViews();
+  if(role === "manufacturer"){
+    setBadge("Partner Portal");
+    document.getElementById("companyFormFields").innerHTML = companyFormHTML("cf");
+    document.getElementById("onboarding").style.display = "block";
+  }else{
+    setBadge("Buyer Account");
+    document.getElementById("statusBanner").innerHTML = "";
+    document.getElementById("buyerOnboarding").style.display = "block";
+  }
+}
+function renderStatus(){
+  const el = document.getElementById("statusBanner");
+  if(!COMPANY){ el.innerHTML = ""; return; }
+  el.innerHTML = COMPANY.is_approved
+    ? `<div class="status-banner live">✅ <span><b>Your company is live.</b>${COMPANY.is_verified?` <b style="color:var(--ok)">\u2713 Documents verified by MedicHall.</b>`:""} Buyers can see your profile and products on the marketplace.${COMPANY.slug?` Your public page: <a href="/m/${COMPANY.slug}" target="_blank" style="font-weight:700;color:var(--ok);text-decoration:underline">medichall.com/m/${COMPANY.slug}</a>`:""}</span></div>`
+    : `<div class="status-banner pending">⏳ <span><b>Pending approval.</b> Your profile and products will appear on the marketplace once MedicHall approves your company. You can prepare everything meanwhile.</span></div>`;
+}
+async function createCompany(){
+  const body = readCompanyForm("cf");
+  if(!body.name){ toast("Company name is required"); return; }
+  body.owner_id = USER.id;
+  const btn = document.getElementById("onboardSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try{
+    await db("companies", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}});
+    toast("Company profile created ✓");
+    enterApp();
+  }catch(e){ toast(friendlyError(e)); }
+  finally{ btn.disabled=false; btn.textContent="Save & submit for approval"; }
+}
+async function saveCompany(){
+  const body = readCompanyForm("pf");
+  if(!body.name){ toast("Company name is required"); return; }
+  try{
+    await db("companies?id=eq." + COMPANY.id, {method:"PATCH", body:JSON.stringify(body)});
+    toast("Profile saved ✓");
+    const rows = await db("companies?select=*&id=eq." + COMPANY.id);
+    COMPANY = rows[0]; renderStatus();
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- products ---------------- */
+async function loadProducts(){
+  try{
+    PRODUCTS = await db("products?select=*&company_id=eq." + COMPANY.id + "&order=ref");
+    renderProducts();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderProducts(){
+  document.getElementById("nProducts").textContent = PRODUCTS.length;
+  const el = document.getElementById("productList");
+  if(!PRODUCTS.length){ el.innerHTML = '<div class="empty"><b>No products yet</b>Add your first product — it goes live once your company is approved.</div>'; return; }
+  el.innerHTML = PRODUCTS.map(p=>`
+    <div class="row">
+      <div class="thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="" onerror="this.outerHTML='<span>${esc(p.ref)}</span>'">`:`<span>${esc((p.name||"?")[0])}</span>`}</div>
+      <div class="info"><b>${esc(p.name)}</b><span class="mono">REF ${esc(p.ref)} · ${esc(p.category)}</span></div>
+      <span class="pillwrap"><span class="pill ${p.is_active?"on":"off"}">${p.is_active?"Visible":"Hidden"}</span></span>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openProductForm(${p.id})">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleProduct(${p.id})">${p.is_active?"Hide":"Show"}</button>
+        <button class="btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
+      </div>
+    </div>`).join("");
+}
+function openProductForm(id){
+  const p = PRODUCTS.find(x=>x.id===id) || {};
+  document.getElementById("productFormTitle").textContent = id ? "Edit product" : "Add product";
+  document.getElementById("p-id").value = id || "";
+  document.getElementById("p-ref").value = p.ref || "";
+  document.getElementById("p-cat").value = p.category || "Medical Devices";
+  document.getElementById("p-name").value = p.name || "";
+  document.getElementById("p-desc").value = p.description || "";
+  document.getElementById("p-img").value = p.image_url || "";
+  document.getElementById("p-broch").value = p.brochure_url || "";
+  syncImgPreview(); syncBrochRow();
+  document.getElementById("productModal").classList.add("open");
+}
+async function saveProduct(){
+  const id = document.getElementById("p-id").value;
+  const body = {
+    ref: document.getElementById("p-ref").value.trim(),
+    category: document.getElementById("p-cat").value,
+    name: document.getElementById("p-name").value.trim(),
+    description: document.getElementById("p-desc").value.trim() || null,
+    image_url: document.getElementById("p-img").value.trim() || null,
+    brochure_url: document.getElementById("p-broch").value.trim() || null,
+    company_id: COMPANY.id
+  };
+  if(!body.ref || !body.name){ toast("Product code and name are required"); return; }
+  try{
+    if(id){ await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)}); }
+    else{ await db("products", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}}); }
+    closeModals(); toast("Product saved ✓"); loadProducts();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function toggleProduct(id){
+  const p = PRODUCTS.find(x=>x.id===id);
+  try{
+    await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_active:!p.is_active})});
+    loadProducts();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function deleteProduct(id){
+  const p = PRODUCTS.find(x=>x.id===id);
+  if(!confirm(`Delete "${p.name}" permanently?\n\nTip: use Hide if you may need it again.`)) return;
+  try{ await db("products?id=eq."+id, {method:"DELETE"}); toast("Product deleted"); loadProducts(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+function syncImgPreview(){
+  const url = document.getElementById("p-img").value;
+  const prev = document.getElementById("pImgPreview");
+  prev.innerHTML = url ? `<img src="${esc(url)}" alt="">` : "<span>＋</span>";
+  document.getElementById("pImgRemove").style.display = url ? "inline-block" : "none";
+}
+function uploadProductImage(){
+  pickFile("image/*", async file => {
+    if(file.size > 5*1024*1024){ toast("Image too large (max 5 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "products");
+      document.getElementById("p-img").value = url;
+      syncImgPreview();
+      toast("Image uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function removeProductImage(){
+  document.getElementById("p-img").value = "";
+  syncImgPreview();
+}
+function syncBrochRow(){
+  const url = document.getElementById("p-broch").value;
+  const link = document.getElementById("pBrochLink");
+  link.style.display = url ? "inline" : "none";
+  if(url) link.href = url;
+  document.getElementById("pBrochRemove").style.display = url ? "inline-block" : "none";
+}
+function uploadProductBrochure(){
+  pickFile("application/pdf", async file => {
+    if(file.size > 15*1024*1024){ toast("PDF too large (max 15 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "brochures");
+      document.getElementById("p-broch").value = url;
+      syncBrochRow();
+      toast("Brochure uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function removeProductBrochure(){
+  document.getElementById("p-broch").value = "";
+  syncBrochRow();
+}
+
+/* ---------------- rfq ---------------- */
+async function loadRfq(){
+  try{
+    RFQS = await db("rfq_requests?select=*&company_id=eq." + COMPANY.id + "&order=created_at.desc");
+    renderRfq();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderRfq(){
+  document.getElementById("nRfq").textContent = RFQS.length;
+  const el = document.getElementById("rfqList");
+  if(!RFQS.length){ el.innerHTML = '<div class="empty"><b>No quotation requests yet</b>When buyers request a quote for your products, they appear here.</div>'; return; }
+  el.innerHTML = RFQS.map(r=>`
+    <div class="rfq-item">
+      <div class="rfq-top">
+        <b>${esc(r.product_name || "General inquiry")} ${r.product_ref?`<span class="mono" style="color:var(--ink-soft)">· ${esc(r.product_ref)}</span>`:""}</b>
+        <time>${new Date(r.created_at).toLocaleString()}</time>
+      </div>
+      <div class="rfq-meta">
+        From: ${r.user_id
+          ? `<b>Registered buyer</b>${r.company?` · ${esc(r.company)}`:""} <span class="mono" style="color:var(--ink-soft)">· reply via chat below</span>`
+          : `<a href="mailto:${esc(r.email)}?subject=${encodeURIComponent("Your quotation request — " + (r.product_name||"MedicHall"))}">${esc(r.email)}</a>${r.company?` · ${esc(r.company)}`:""}`}
+      </div>
+      ${rfqMeta(r)}
+      ${r.message?`<div class="rfq-msg">${esc(r.message)}</div>`:""}
+      ${offerLine(r)}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        ${r.user_id?`<button class="btn ${MYOFFERS[r.id]?"btn-ghost":"btn-grad"} btn-sm" onclick="openOfferForm(${r.id})">${MYOFFERS[r.id]?"✎ Update offer":"💰 Submit offer"}</button>`:""}
+        ${r.user_id?`<button class="btn btn-ghost btn-sm" onclick="openChat(${r.id})">💬 Chat with buyer${UNREAD[r.id]?` <span class="pill" style="background:#E0475B;color:#fff">${UNREAD[r.id]} new</span>`:""}</button>`:`<span class="mono" style="color:var(--ink-soft)">Guest inquiry — reply by email</span>`}
+      </div>
+    </div>`).join("");
+}
+let MYOFFERS = {};   // rfq_id -> offer row
+async function loadMyOffers(){
+  try{
+    const rows = await db("rfq_offers?select=*&company_id=eq." + COMPANY.id);
+    MYOFFERS = {};
+    rows.forEach(o=>{ MYOFFERS[o.rfq_id] = o; });
+    if(RFQS.length) renderRfq();
+  }catch(e){}
+}
+function offerLine(r){
+  const o = MYOFFERS[r.id];
+  if(!o) return "";
+  const f = fmtOffer(o);
+  return `<div style="margin-top:10px;background:#E8F6F1;border:1px solid #BFE6D9;border-radius:10px;padding:10px 14px;font-size:.85rem">
+    <b style="color:#1E8E76">Your offer:</b> ${f.price} · MOQ ${esc(f.moq)} · Lead time ${esc(f.lead)} · Valid until ${f.valid}
+  </div>`;
+}
+function openOfferForm(rfqId){
+  const r = RFQS.find(x=>x.id===rfqId);
+  const o = MYOFFERS[rfqId] || {};
+  document.getElementById("of-rfq").value = rfqId;
+  document.getElementById("offerFormTitle").textContent = (o.id ? "Update offer" : "Submit offer") + " — " + (r.product_name || "inquiry");
+  document.getElementById("of-price").value = o.unit_price != null ? o.unit_price : "";
+  document.getElementById("of-currency").value = o.currency || "USD";
+  document.getElementById("of-moq").value = o.moq || "";
+  document.getElementById("of-lead").value = o.lead_time || "";
+  document.getElementById("of-valid").value = o.valid_until ? o.valid_until.slice(0,10) : "";
+  document.getElementById("of-notes").value = o.notes || "";
+  document.getElementById("offerModal").classList.add("open");
+}
+async function saveOffer(){
+  const rfqId = document.getElementById("of-rfq").value;
+  const priceRaw = document.getElementById("of-price").value.trim().replace(",",".");
+  const price = priceRaw === "" ? null : Number(priceRaw);
+  if(priceRaw !== "" && isNaN(price)){ toast("Please enter a valid unit price (numbers only)"); return; }
+  const body = {
+    rfq_id: parseInt(rfqId),
+    company_id: COMPANY.id,
+    unit_price: price,
+    currency: document.getElementById("of-currency").value,
+    moq: document.getElementById("of-moq").value.trim() || null,
+    lead_time: document.getElementById("of-lead").value.trim() || null,
+    valid_until: document.getElementById("of-valid").value || null,
+    notes: document.getElementById("of-notes").value.trim() || null
+  };
+  try{
+    await db("rfq_offers?on_conflict=rfq_id,company_id", {method:"POST",
+      headers:{Prefer:"resolution=merge-duplicates,return=minimal"},
+      body: JSON.stringify(body)});
+    closeModals();
+    toast("💰 Offer sent to the buyer ✓");
+    loadMyOffers();
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- buyer: profile ---------------- */
+async function createBuyerProfile(){
+  const btn = document.getElementById("buyerOnboardSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try{
+    await db("buyer_profiles", {method:"POST", body:JSON.stringify({
+      user_id: USER.id,
+      full_name: document.getElementById("bo-name").value.trim() || null,
+      company_name: document.getElementById("bo-company").value.trim() || null,
+      country: document.getElementById("bo-country").value.trim() || null
+    }), headers:{Prefer:"return=minimal"}});
+    toast("Welcome to MedicHall ✓");
+    enterApp();
+  }catch(e){ toast(friendlyError(e)); }
+  finally{ btn.disabled = false; btn.textContent = "Save & continue"; }
+}
+async function saveBuyerProfile(){
+  try{
+    await db("buyer_profiles?user_id=eq." + USER.id, {method:"PATCH", body:JSON.stringify({
+      full_name: document.getElementById("bp-name").value.trim() || null,
+      company_name: document.getElementById("bp-company").value.trim() || null,
+      country: document.getElementById("bp-country").value.trim() || null
+    })});
+    toast("Profile saved ✓");
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- buyer: favorites ---------------- */
+let FAVORITES = [];
+async function loadFavorites(){
+  try{
+    FAVORITES = await db("favorites?select=id,product_id,products(id,ref,name,category,image_url,description,brochure_url)&user_id=eq." + USER.id + "&order=created_at.desc");
+    renderFavorites();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderFavorites(){
+  const list = FAVORITES.filter(f=>f.products);
+  document.getElementById("nFavs").textContent = list.length;
+  const el = document.getElementById("favList");
+  if(!list.length){ el.innerHTML = '<div class="empty"><b>No saved products yet</b>Tap the ♥ icon on any product in the catalog to save it here.</div>'; return; }
+  el.innerHTML = list.map(f=>{
+    const p = f.products;
+    return `
+    <div class="row" onclick="openFavProduct(${f.id})" style="cursor:pointer" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openFavProduct(${f.id})">
+      <div class="thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="" onerror="this.outerHTML='<span>${esc(p.ref)}</span>'">`:`<span>${esc((p.name||"?")[0])}</span>`}</div>
+      <div class="info"><b>${esc(p.name)}</b><span class="mono">REF ${esc(p.ref)} · ${esc(p.category)}</span></div>
+      <span class="pillwrap"></span>
+      <div class="row-actions">
+        <button class="btn-danger" onclick="event.stopPropagation();removeFavorite(${f.id})">Remove</button>
+      </div>
+    </div>`}).join("");
+}
+async function removeFavorite(id){
+  try{ await db("favorites?id=eq." + id, {method:"DELETE"}); loadFavorites(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- buyer: my requests ---------------- */
+let MYRFQS = [];
+async function loadMyRequests(){
+  try{
+    MYRFQS = await db("rfq_requests?select=*&user_id=eq." + USER.id + "&order=created_at.desc");
+    renderMyRequests();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function renderMyRequests(){
+  document.getElementById("nMyRfq").textContent = MYRFQS.length;
+  const el = document.getElementById("myRfqList");
+  if(!MYRFQS.length){ el.innerHTML = '<div class="empty"><b>No requests yet</b>Quotation requests you send from the marketplace will be listed here.</div>'; return; }
+  // group multi-send requests together
+  const groups = [];
+  const seen = {};
+  MYRFQS.forEach(r=>{
+    const key = r.group_id || ("single-" + r.id);
+    if(seen[key] === undefined){ seen[key] = groups.length; groups.push({key, rows:[]}); }
+    groups[seen[key]].rows.push(r);
+  });
+  el.innerHTML = groups.map(g=>{
+    const r0 = g.rows[0];
+    const many = g.rows.length > 1;
+    const offerCount = g.rows.filter(r=>BUYEROFFERS[r.id]).length;
+    return `
+    <div class="rfq-item">
+      <div class="rfq-top">
+        <b>${esc(r0.product_name || "General inquiry")} ${r0.product_ref?`<span class="mono" style="color:var(--ink-soft)">· ${esc(r0.product_ref)}</span>`:""}
+        ${many?`<span class="pill" style="background:var(--teal-tint);color:var(--teal-deep);margin-left:6px">sent to ${g.rows.length} manufacturers</span>`:""}
+        ${offerCount?`<span class="pill" style="background:#1E8E76;color:#fff;margin-left:4px">💰 ${offerCount} offer${offerCount>1?"s":""}</span>`:""}</b>
+        <time>${new Date(r0.created_at).toLocaleString()}</time>
+      </div>
+      ${rfqMeta(r0)}
+      ${r0.message?`<div class="rfq-msg">${esc(r0.message)}</div>`:""}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        ${(many || offerCount) ? `<button class="btn btn-grad btn-sm" onclick="openCompare('${g.key}')">📊 ${many?"Compare offers":"View offer"}</button>` : ""}
+        ${!many && r0.company_id?`<button class="btn btn-ghost btn-sm" onclick="openChat(${r0.id})">💬 Chat with manufacturer${UNREAD[r0.id]?` <span class="pill" style="background:#E0475B;color:#fff">${UNREAD[r0.id]} new</span>`:""}</button>`:""}
+        ${!many && !r0.company_id?`<span class="mono" style="color:var(--ink-soft)">Handled by MedicHall — you will be contacted by email</span>`:""}
+        ${many && Object.keys(UNREAD).some(id=>g.rows.find(r=>r.id==id))?`<span class="pill" style="background:#E0475B;color:#fff">new messages inside</span>`:""}
+      </div>
+    </div>`}).join("");
+}
+let BUYEROFFERS = {};   // rfq_id -> offer
+let RFQCOMPANIES = {};  // company_id -> name
+async function loadBuyerOffers(){
+  try{
+    if(!MYRFQS.length){ BUYEROFFERS = {}; return; }
+    const ids = MYRFQS.map(r=>r.id).join(",");
+    const rows = await db("rfq_offers?select=*&rfq_id=in.(" + ids + ")");
+    BUYEROFFERS = {};
+    rows.forEach(o=>{ BUYEROFFERS[o.rfq_id] = o; });
+    const cids = [...new Set(MYRFQS.map(r=>r.company_id).filter(Boolean))];
+    if(cids.length){
+      const cos = await db("companies?select=id,name,slug&id=in.(" + cids.join(",") + ")");
+      RFQCOMPANIES = {};
+      cos.forEach(c=>{ RFQCOMPANIES[c.id] = c; });
+    }
+    renderMyRequests();
+  }catch(e){}
+}
+function openCompare(key){
+  const rows = MYRFQS.filter(r=>(r.group_id || ("single-" + r.id)) === key);
+  if(!rows.length) return;
+  const r0 = rows[0];
+  document.getElementById("cmpTitle").textContent = (r0.product_name || "Inquiry") + " — offers";
+  document.getElementById("cmpSub").textContent = rows.length + " manufacturer" + (rows.length>1?"s":"") + " · " + rows.filter(r=>BUYEROFFERS[r.id]).length + " offer(s) received";
+  // sort: offers first, cheapest first
+  const sorted = rows.slice().sort((a,b)=>{
+    const oa = BUYEROFFERS[a.id], ob = BUYEROFFERS[b.id];
+    if(!!ob - !!oa) return (!!ob) - (!!oa);
+    if(oa && ob && oa.unit_price != null && ob.unit_price != null) return oa.unit_price - ob.unit_price;
+    return 0;
+  });
+  document.getElementById("cmpBody").innerHTML = sorted.map((r,i)=>{
+    const c = RFQCOMPANIES[r.company_id] || {name:"Manufacturer"};
+    const o = BUYEROFFERS[r.id];
+    const best = i===0 && o && o.unit_price != null && sorted.filter(x=>BUYEROFFERS[x.id] && BUYEROFFERS[x.id].unit_price!=null).length>1;
+    if(!o) return `<tr>
+      <td><b>${esc(c.name)}</b></td>
+      <td colspan="4" style="color:var(--ink-soft)">No offer yet</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="closeModals();openChat(${r.id})">💬</button></td></tr>`;
+    const f = fmtOffer(o);
+    return `<tr ${best?`style="background:#E8F6F1"`:""}>
+      <td><b>${esc(c.name)}</b>${best?` <span class="pill" style="background:#1E8E76;color:#fff">best price</span>`:""}</td>
+      <td><b>${f.price}</b></td>
+      <td>${esc(f.moq)}</td>
+      <td>${esc(f.lead)}</td>
+      <td>${f.valid}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="closeModals();openChat(${r.id})">💬</button></td></tr>`;
+  }).join("");
+  document.getElementById("compareModal").classList.add("open");
+}
+
+/* ---------------- favorite product popup ---------------- */
+function openFavProduct(favId){
+  const f = FAVORITES.find(x=>x.id===favId);
+  if(!f || !f.products) return;
+  const p = f.products;
+  document.getElementById("fpImg").innerHTML = p.image_url
+    ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:cover">`
+    : `<span style="font-weight:700;font-size:2.4rem;color:var(--teal-tint);-webkit-text-stroke:2px var(--teal)">${esc((p.name||"?")[0])}</span>`;
+  document.getElementById("fpChips").innerHTML =
+    `<span class="pill" style="background:var(--teal-tint);color:var(--teal-deep)">${esc(p.category)}</span><span class="pill" style="background:var(--mist);color:var(--ink-soft)">REF ${esc(p.ref)}</span>`;
+  document.getElementById("fpName").textContent = p.name;
+  document.getElementById("fpDesc").textContent = p.description || "";
+  document.getElementById("fpOpen").href = "products.html?p=" + encodeURIComponent(p.ref);
+  const fb = document.getElementById("fpBrochure");
+  if(p.brochure_url){ fb.style.display = "inline-flex"; fb.href = p.brochure_url; } else fb.style.display = "none";
+  document.getElementById("favProductModal").classList.add("open");
+}
+
+/* ---------------- RFQ v2 helpers ---------------- */
+function rfqMeta(r){
+  const chips = [];
+  if(r.quantity) chips.push("📦 " + esc(r.quantity));
+  if(r.destination) chips.push("📍 " + esc(r.destination));
+  if(r.incoterm) chips.push("🚚 " + esc(r.incoterm));
+  if(r.target_price) chips.push("🎯 " + esc(r.target_price));
+  if(r.req_certs) chips.push("✓ " + esc(r.req_certs));
+  if(!chips.length) return "";
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">` +
+    chips.map(c=>`<span class="pill" style="background:var(--mist);color:var(--ink)">${c}</span>`).join("") + `</div>`;
+}
+function fmtOffer(o){
+  const price = o.unit_price != null ? (Number(o.unit_price).toLocaleString("en-US",{maximumFractionDigits:4}) + " " + o.currency + " / unit") : "—";
+  return { price, moq: o.moq || "—", lead: o.lead_time || "—",
+           valid: o.valid_until ? new Date(o.valid_until).toLocaleDateString() : "—" };
+}
+
+/* ---------------- deep links & polling ---------------- */
+function applyHash(){
+  const h = location.hash;
+  if(!h) return;
+  if(h === "#inbox") showPanel(COMPANY ? "rfq" : "b-requests");
+  else if(h === "#settings" || h === "#profile") showPanel(COMPANY ? "profile" : "b-profile");
+  else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
+}
+function startUnreadTimer(){
+  if(window.__unreadTimer) return;
+  window.__unreadTimer = setInterval(loadUnread, 20000);
+}
+
+/* ---------------- unread messages ---------------- */
+let UNREAD = {};
+async function loadUnread(){
+  try{
+    const ms = await db("rfq_messages?select=rfq_id,sender_id&is_read=eq.false");
+    UNREAD = {};
+    ms.filter(m=>m.sender_id!==USER.id).forEach(m=>{ UNREAD[m.rfq_id]=(UNREAD[m.rfq_id]||0)+1; });
+    const total = Object.keys(UNREAD).length;
+    const el = document.getElementById(COMPANY ? "rfqUnread" : "myRfqUnread");
+    if(el){ el.textContent = total + " new"; el.style.display = total ? "inline" : "none"; }
+    if(COMPANY && RFQS.length) renderRfq();
+    if(!COMPANY && BUYER && MYRFQS.length) renderMyRequests();
+  }catch(e){}
+}
+async function markRead(rfqId){
+  try{
+    await db("rfq_messages?rfq_id=eq." + rfqId + "&sender_id=neq." + USER.id + "&is_read=eq.false",
+      {method:"PATCH", headers:{Prefer:"return=minimal"}, body: JSON.stringify({is_read:true})});
+    if(UNREAD[rfqId]){ delete UNREAD[rfqId]; loadUnread(); }
+  }catch(e){}
+}
+
+/* ---------------- chat ---------------- */
+let CHAT = { rfqId:null, timer:null, lastCount:-1 };
+function myRole(){ return COMPANY ? "manufacturer" : "buyer"; }
+function openChat(rfqId){
+  const r = (COMPANY ? RFQS : MYRFQS).find(x=>x.id===rfqId);
+  CHAT.rfqId = rfqId; CHAT.lastCount = -1;
+  document.getElementById("chatTitle").textContent = (r && r.product_name) ? r.product_name : "Inquiry";
+  document.getElementById("chatSub").textContent = COMPANY
+    ? ("Buyer: " + ((r && (r.company || r.email)) || ""))
+    : "Conversation with the manufacturer";
+  document.getElementById("chatBody").innerHTML = '<div class="loading">Loading…</div>';
+  document.getElementById("chatModal").classList.add("open");
+  loadChat();
+  markRead(rfqId);
+  CHAT.timer = setInterval(loadChat, 4000);
+  setTimeout(()=>document.getElementById("chatInput").focus(), 100);
+}
+function closeChat(){
+  document.getElementById("chatModal").classList.remove("open");
+  if(CHAT.timer){ clearInterval(CHAT.timer); CHAT.timer = null; }
+  CHAT.rfqId = null;
+}
+async function loadChat(){
+  if(!CHAT.rfqId) return;
+  try{
+    const msgs = await db("rfq_messages?select=*&rfq_id=eq." + CHAT.rfqId + "&order=created_at");
+    if(msgs.length === CHAT.lastCount) return;
+    CHAT.lastCount = msgs.length;
+    const body = document.getElementById("chatBody");
+    if(!msgs.length){
+      body.innerHTML = '<div class="chat-empty">No messages yet — start the conversation below.</div>';
+      return;
+    }
+    body.innerHTML = msgs.map(m=>`
+      <div class="bubble ${m.sender_id===USER.id?"mine":"theirs"}">${esc(m.body)}<time>${new Date(m.created_at).toLocaleString()}</time></div>`).join("");
+    body.scrollTop = body.scrollHeight;
+    markRead(CHAT.rfqId);
+  }catch(e){ console.error(e); }
+}
+async function sendChat(){
+  const inp = document.getElementById("chatInput");
+  const text = inp.value.trim();
+  if(!text || !CHAT.rfqId) return;
+  const btn = document.getElementById("chatSend");
+  btn.disabled = true;
+  try{
+    await db("rfq_messages", {method:"POST", headers:{Prefer:"return=minimal"}, body: JSON.stringify({
+      rfq_id: CHAT.rfqId, sender_id: USER.id, sender_role: myRole(), body: text
+    })});
+    inp.value = "";
+    CHAT.lastCount = -1;
+    await loadChat();
+  }catch(e){ toast(friendlyError(e)); }
+  finally{ btn.disabled = false; inp.focus(); }
+}
+
+
+/* ---------------- AI assistant ---------------- */
+let AI_MODE = "general";
+function setAiMode(mode){
+  AI_MODE = mode;
+  const prompt = document.getElementById("aiPrompt");
+  if(mode === "tender_match" && !prompt.value.trim()){
+    prompt.value = "Analyze this tender for our company. Give fit score, required certificates, risks, missing information and next steps:\n\n";
+  }
+  if(mode === "sales_email" && !prompt.value.trim()){
+    prompt.value = "Write a short professional distributor outreach email for our medical disposable products. Focus on OEM/private label, MDR and ISO 13485. Target country/company:\n\n";
+  }
+  prompt.focus();
+}
+function aiQuick(text){
+  const p = document.getElementById("aiPrompt");
+  p.value = text + "\n\n" + (p.value || "");
+  p.focus();
+}
+function buyerAiQuick(text){
+  const p = document.getElementById("bAiPrompt");
+  p.value = text + "\n\n" + (p.value || "");
+  p.focus();
+}
+async function callMedicHallAI(payload){
+  const res = await fetch(SUPABASE_URL + "/functions/v1/medichall-ai", {
+    method:"POST",
+    headers:{
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + TOKEN,
+      "Content-Type":"application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || data.message || "AI request failed");
+  return data;
+}
+async function runAiAssistant(){
+  const btn = document.getElementById("aiRunBtn");
+  const out = document.getElementById("aiOutput");
+  const prompt = document.getElementById("aiPrompt").value.trim();
+  if(!prompt){ toast("Write a prompt first"); return; }
+  btn.disabled = true; btn.textContent = "Thinking…"; out.textContent = "MedicHall AI is analyzing…";
+  try{
+    const data = await callMedicHallAI({
+      mode: AI_MODE,
+      prompt,
+      context: { role:"manufacturer", company: COMPANY, products: (PRODUCTS||[]).slice(0,20) }
+    });
+    out.textContent = data.answer || "No answer returned.";
+  }catch(e){ out.textContent = friendlyError(e); }
+  finally{ btn.disabled = false; btn.textContent = "Ask AI"; }
+}
+async function runBuyerAiAssistant(){
+  const btn = document.getElementById("bAiRunBtn");
+  const out = document.getElementById("bAiOutput");
+  const prompt = document.getElementById("bAiPrompt").value.trim();
+  if(!prompt){ toast("Write a prompt first"); return; }
+  btn.disabled = true; btn.textContent = "Thinking…"; out.textContent = "MedicHall AI is analyzing…";
+  try{
+    const data = await callMedicHallAI({
+      mode: "buyer_assistant",
+      prompt,
+      context: { role:"buyer", buyer: BUYER }
+    });
+    out.textContent = data.answer || "No answer returned.";
+  }catch(e){ out.textContent = friendlyError(e); }
+  finally{ btn.disabled = false; btn.textContent = "Ask AI"; }
+}
+
+/* ---------------- misc ---------------- */
+function showPanel(name){
+  document.querySelectorAll(".tab[data-panel]").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
+}
+function closeModals(){ document.querySelectorAll(".modal-backdrop").forEach(m=>m.classList.remove("open")); }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){
+  if(document.getElementById("chatModal").classList.contains("open")) closeChat();
+  else closeModals();
+} });
+
+if(TOKEN) enterApp();
+</script>
+</body>
+</html>

@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base href="/">
+<title>Manufacturers — MedicHall Marketplace</title>
+<meta name="description" content="Certified Turkish medical manufacturers on MedicHall — company profiles, catalogs and products.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#003E52;--ink-soft:#40748E;--teal:#4298CC;--teal-deep:#003E52;--teal-tint:#DCEEF7;
+  --sky:#70D0EC;--mint:#6CCCB9;--mint-soft:#9ED5CB;--cream:#F2E5B3;
+  --brand-grad:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);
+  --mist:#EFF6F9;--line:#D6E4EB;--radius:14px;--ok:#1E8E76;--danger:#C0392B;
+  --font:"Poppins",sans-serif;--mono:"IBM Plex Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+body{font-family:var(--font);color:var(--ink);background:var(--mist);line-height:1.6;font-size:16px}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.mono{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* header */
+header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:70px;gap:24px}
+.logo{display:flex;align-items:center;gap:10px;font-size:1.3rem;letter-spacing:.04em}
+.logo-mark{width:30px;height:34px;flex-shrink:0;display:block}
+.logo .mword{color:var(--teal);font-weight:500}
+.logo .hword{color:var(--teal-deep);font-weight:700}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-links a{padding:8px 14px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.nav-links a:hover{background:var(--mist);color:var(--ink)}
+.nav-links a.active{color:var(--teal);font-weight:600}
+.nav-cta{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-weight:600;font-size:.92rem;border:1.5px solid transparent;transition:all .15s}
+.btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-solid{background:var(--teal);color:#fff}
+.btn-solid:hover{background:#3184B4}
+.btn-grad{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none}
+.btn-grad:hover{filter:brightness(1.05)}
+.btn-sm{padding:7px 14px;font-size:.8rem}
+.menu-toggle{display:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:42px;height:42px;font-size:1.2rem;color:var(--ink)}
+@media(max-width:900px){
+  .nav-links{display:none;position:absolute;top:70px;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;padding:16px 24px 24px;border-bottom:1px solid var(--line);gap:4px}
+  .nav-links.open{display:flex}
+  .nav-links a{padding:12px 14px}
+  .menu-toggle{display:grid;place-items:center}
+  .nav-cta .btn-ghost{display:none}
+}
+
+/* page head */
+.page-head{background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%);border-bottom:1px solid var(--line);padding:38px 0 30px}
+.crumbs{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px}
+.crumbs a:hover{color:var(--teal)}
+.page-head h1{font-weight:700;font-size:clamp(1.6rem,3.4vw,2.3rem);letter-spacing:-.01em}
+.page-head p{color:var(--ink-soft);margin-top:6px}
+
+/* directory */
+.dir{padding:34px 0 90px}
+.dir-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media(max-width:1000px){.dir-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.dir-grid{grid-template-columns:1fr}}
+.co-card{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:22px;display:flex;flex-direction:column;gap:12px;transition:all .2s;text-align:left}
+.co-card:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,62,82,.12)}
+.co-logo{width:64px;height:64px;border-radius:14px;background:var(--mist);display:grid;place-items:center;overflow:hidden;flex-shrink:0}
+.co-logo img{width:100%;height:100%;object-fit:contain;padding:6px}
+.co-logo span{font-weight:700;font-size:1.3rem;color:#fff;background:linear-gradient(135deg,#6CCCB9,#4298CC);width:100%;height:100%;display:grid;place-items:center}
+.co-card h3{font-size:1.05rem;font-weight:700;line-height:1.3}
+.co-card .sub{font-size:.85rem;color:var(--ink-soft)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.tagchip{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:4px 11px;color:var(--ink-soft)}
+.tagchip.cat{background:var(--teal-tint);color:var(--teal-deep);border-color:transparent}
+.tagchip.cert{background:#E8F6F1;color:#1E8E76;border-color:#BFE6D9;font-weight:600}
+.certdoc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.certdoc{border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;text-align:center;cursor:pointer;transition:all .15s;padding:0;display:block;text-decoration:none}
+.certdoc:hover{border-color:var(--teal);transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,62,82,.12)}
+.certdoc img{width:100%;aspect-ratio:3/4;object-fit:contain;background:var(--mist);display:block}
+.certdoc-ph{width:100%;aspect-ratio:3/4;background:var(--mist);display:grid;place-items:center;font-size:2rem}
+.certdoc .t{display:block;font-size:.72rem;font-weight:600;padding:8px;color:var(--ink);line-height:1.3}
+.vbadge{display:inline-flex;align-items:center;gap:4px;background:#1E8E76;color:#fff;border-radius:100px;padding:4px 12px;font-size:.68rem;font-weight:700;letter-spacing:.03em;vertical-align:middle}
+.co-card .go{margin-top:auto;border-top:1px dashed var(--line);padding-top:12px;font-size:.82rem;font-weight:600;color:var(--teal)}
+.empty{text-align:center;padding:70px 20px;color:var(--ink-soft);background:#fff;border:1.5px dashed var(--line);border-radius:var(--radius)}
+.empty b{display:block;font-size:1.15rem;color:var(--ink);margin-bottom:6px}
+.loading{text-align:center;padding:60px;color:var(--ink-soft)}
+
+/* profile */
+#profileView{display:none}
+.pro-head{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:28px;display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}
+.pro-head .co-logo{width:88px;height:88px}
+.pro-head-info{flex:1;min-width:240px}
+.pro-head-info h1{font-size:clamp(1.4rem,3vw,1.9rem);font-weight:700;letter-spacing:-.01em}
+.pro-head-info .sub{color:var(--ink-soft);margin:4px 0 12px}
+.pro-actions{display:flex;gap:10px;flex-wrap:wrap}
+.pro-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;align-items:start}
+@media(max-width:860px){.pro-grid{grid-template-columns:1fr}}
+.card{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:26px}
+.card h2{font-size:1.05rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.card h2::before{content:"";width:22px;height:3px;border-radius:2px;background:var(--brand-grad)}
+.card p{color:var(--ink-soft);font-size:.95rem;white-space:pre-wrap}
+.video-box{aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--teal-deep)}
+.video-box iframe{width:100%;height:100%;border:none}
+.side-stack{display:flex;flex-direction:column;gap:22px}
+.contact-list{display:flex;flex-direction:column;gap:10px;font-size:.92rem}
+.contact-list a{color:var(--teal);font-weight:600}
+.contact-list .row{display:flex;gap:10px}
+.contact-list .k{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);width:74px;flex-shrink:0;padding-top:3px}
+.catalog-btn{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:12px;padding:14px;transition:all .15s}
+.catalog-btn:hover{border-color:var(--teal)}
+.catalog-btn .ic{width:42px;height:42px;border-radius:10px;background:var(--teal-tint);display:grid;place-items:center;font-size:1.2rem}
+.catalog-btn b{display:block;font-size:.92rem}
+.catalog-btn span{font-size:.78rem;color:var(--ink-soft)}
+
+/* products of company */
+.pro-products{margin-top:22px}
+.prod-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:1000px){.prod-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.prod-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.prod-grid{grid-template-columns:1fr}}
+.prod{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:all .2s;display:flex;flex-direction:column}
+.prod:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 12px 26px rgba(0,62,82,.11)}
+.prod-img{aspect-ratio:4/3;background:var(--mist);display:grid;place-items:center;overflow:hidden}
+.prod-img img{width:100%;height:100%;object-fit:cover}
+.prod-img .fallback{font-weight:700;font-size:2rem;color:var(--teal-tint);-webkit-text-stroke:1.5px var(--teal)}
+.prod-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.prod-cat{font-family:var(--mono);font-size:.63rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal)}
+.prod h4{font-size:.95rem;font-weight:600;line-height:1.35;flex:1}
+
+/* catalog shelf */
+.cat-shelf{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 8px;-webkit-overflow-scrolling:touch}
+.cat-shelf::-webkit-scrollbar{height:6px}
+.cat-shelf::-webkit-scrollbar-thumb{background:var(--line);border-radius:100px}
+.cat-card{flex:0 0 126px;scroll-snap-align:start;cursor:pointer;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;transition:all .18s;text-align:left;padding:0}
+.cat-card:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,62,82,.14)}
+.cat-card img,.cat-card .ph{width:100%;aspect-ratio:3/4;object-fit:cover;display:grid;place-items:center;font-size:2rem;background:var(--mist)}
+.cat-card .t{display:block;font-size:.7rem;font-weight:600;padding:7px 9px;line-height:1.3;color:var(--ink)}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px}
+.modal-backdrop.open{display:grid}
+.modal{background:#fff;border-radius:18px;padding:36px;max-width:440px;width:100%;position:relative;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal h3{font-size:1.3rem;font-weight:700;margin-bottom:4px}
+.modal .sub{color:var(--ink-soft);font-size:.9rem;margin-bottom:16px}
+.modal label{display:block;font-size:.85rem;font-weight:600;margin:13px 0 5px}
+.modal input,.modal textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-family:var(--font);font-size:.95rem}
+.modal input:focus,.modal textarea:focus{outline:none;border-color:var(--teal)}
+.modal .btn{width:100%;justify-content:center;margin-top:20px}
+.modal-close{position:absolute;top:14px;right:14px;background:var(--mist);border:none;width:34px;height:34px;border-radius:9px;font-size:.95rem;color:var(--ink-soft)}
+
+
+/* pdf viewer */
+.pdf-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.6);backdrop-filter:blur(3px);display:none;z-index:110;padding:16px}
+.pdf-backdrop.open{display:grid;place-items:center}
+.pdf-shell{background:#fff;border-radius:16px;width:min(920px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,62,82,.35)}
+.pdf-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);gap:10px}
+.pdf-bar b{font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-bar .acts{display:flex;gap:8px;flex-shrink:0}
+.pdf-frame{flex:1;border:none;width:100%;background:#5a6c74}
+footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem}
+.foot-bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;align-items:center}
+.foot-bottom a:hover{color:var(--sky)}
+
+/* logged-in user chip */
+.userchip{position:relative}
+.uc-btn{display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:5px 14px 5px 6px;font-weight:600;font-size:.88rem;color:var(--ink);transition:all .15s;max-width:230px}
+.uc-btn:hover{border-color:var(--teal)}
+.uc-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.82rem;overflow:hidden;flex-shrink:0}
+.uc-av img{width:100%;height:100%;object-fit:cover}
+.uc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uc-caret{font-size:.6rem;color:var(--ink-soft)}
+.uc-btn{position:relative}
+.uc-badge{position:absolute;top:-6px;left:24px;background:#E0475B;color:#fff;font-size:.62rem;font-weight:700;min-width:17px;height:17px;border-radius:100px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.uc-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1.5px solid var(--line);border-radius:12px;min-width:200px;box-shadow:0 16px 40px rgba(0,62,82,.15);display:none;overflow:hidden;z-index:80}
+.uc-menu.open{display:block}
+.uc-menu a,.uc-menu button{display:block;width:100%;text-align:left;padding:11px 16px;font-size:.88rem;font-weight:500;color:var(--ink);background:none;border:none;border-bottom:1px solid var(--line);transition:background .12s}
+.uc-menu a:hover,.uc-menu button:hover{background:var(--mist)}
+.uc-menu .uc-status{font-family:var(--font-mono, "IBM Plex Mono",monospace);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);padding:10px 16px;background:var(--mist)}
+.uc-menu button.uc-out{color:#C0392B;border-bottom:none}
+
+
+/* banner ads */
+.banner-slot{margin:26px auto 0;display:flex;justify-content:center}
+
+.banner-carousel{position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff}
+.banner-track{display:flex;transition:transform .55s ease}
+.banner-slide{flex:0 0 100%;display:block;position:relative;min-width:100%}
+.banner-slide img{width:100%;height:auto;display:block;max-height:210px;object-fit:cover}
+.banner-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;gap:6px;justify-content:center;z-index:3}
+.banner-dot{width:9px;height:9px;border-radius:50%;border:none;background:rgba(255,255,255,.65);box-shadow:0 1px 4px rgba(0,62,82,.35);padding:0;cursor:pointer;transition:all .2s}
+.banner-dot.on{background:#fff;width:22px;border-radius:100px}
+.house-ad{background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);text-decoration:none}
+.ha-inner{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap}
+.ha-inner b{display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2;letter-spacing:-.01em}
+.ha-inner .ha-sub{display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500}
+.ha-btn{background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0}
+
+.banner-tag{position:absolute;top:8px;right:10px;background:rgba(0,62,82,.65);color:#fff;font-family:var(--font-mono,"IBM Plex Mono",monospace);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;border-radius:100px;padding:3px 10px;backdrop-filter:blur(4px)}
+
+
+/* MedicHall assistant */
+.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:58px;height:58px;border-radius:50%;border:none;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
+.mha-fab:hover{transform:scale(1.08)}
+.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
+.mha-panel.open{display:flex}
+.mha-head{background:linear-gradient(100deg,#6CCCB9,#4298CC);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.mha-head b{font-size:.95rem}
+.mha-head span{display:block;font-size:.72rem;opacity:.9}
+.mha-head button{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer}
+.mha-body{flex:1;overflow-y:auto;padding:14px;background:var(--mist);display:flex;flex-direction:column;gap:10px}
+.mha-msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:.86rem;line-height:1.5}
+.mha-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.mha-msg.user{align-self:flex-end;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-bottom-right-radius:4px}
+.mha-msg a{color:var(--teal);font-weight:600;text-decoration:none}
+.mha-msg.user a{color:#fff;text-decoration:underline}
+.mha-chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
+.mha-chip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:6px 13px;font-size:.78rem;font-weight:600;color:var(--teal-deep);cursor:pointer;font-family:inherit}
+.mha-chip:hover{border-color:var(--teal);color:var(--teal)}
+.mha-card{display:flex;gap:10px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;text-decoration:none;align-self:flex-start;max-width:95%;transition:border-color .15s}
+.mha-card:hover{border-color:var(--teal)}
+.mha-card .t{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.3}
+.mha-card .s{font-size:.68rem;color:var(--ink-soft);font-family:var(--font-mono,monospace)}
+.mha-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:#fff}
+.mha-foot input{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:.86rem}
+.mha-foot input:focus{outline:none;border-color:var(--teal)}
+.mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a href="index.html" class="logo" aria-label="MedicHall home">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
+        </linearGradient></defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Main navigation">
+      <a href="products.html">Products</a>
+      <a href="companies.html" class="active">Manufacturers</a>
+      <a href="blog/">Insights</a>
+      <a href="index.html#industry">Industry</a>
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <span id="authArea" style="display:flex;gap:10px;align-items:center">
+      <a class="btn btn-ghost" href="portal.html">Partner login</a>
+      <a class="btn btn-solid" href="portal.html">Join for free</a>
+      </span>
+      <button class="menu-toggle" aria-label="Open menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- DIRECTORY -->
+<div id="directoryView">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="crumbs"><a href="index.html">Home</a> / Manufacturers</div>
+      <h1>Manufacturers</h1>
+      <p>Approved Turkish medical manufacturers — browse profiles, catalogs and products.</p>
+    </div>
+  </div>
+  <div class="wrap dir">
+    <div class="banner-slot" id="bannerCompanies" style="margin:0 0 22px"></div>
+    <div class="dir-grid" id="dirGrid"><div class="loading" style="grid-column:1/-1">Loading manufacturers…</div></div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div id="profileView">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="crumbs"><a href="index.html">Home</a> / <a href="companies.html">Manufacturers</a> / <span id="crumbName"></span></div>
+    </div>
+  </div>
+  <div class="wrap dir">
+    <div class="pro-head">
+      <div class="co-logo" id="proLogo"></div>
+      <div class="pro-head-info">
+        <h1 id="proName"></h1>
+        <div class="sub" id="proSub"></div>
+        <div class="chips" id="proChips"></div>
+      </div>
+      <div class="pro-actions">
+        <button class="btn btn-grad" onclick="openContact()">Contact / Request quote</button>
+        <a class="btn btn-ghost" id="proWebsite" target="_blank" rel="noopener" style="display:none">Website ↗</a>
+      </div>
+    </div>
+
+    <div class="pro-grid">
+      <div class="side-stack">
+        <div class="card" id="aboutCard" style="display:none">
+          <h2>About the company</h2>
+          <p id="proDesc"></p>
+        </div>
+        <div class="card" id="videoCard" style="display:none">
+          <h2>Company video</h2>
+          <div class="video-box" id="videoBox"></div>
+        </div>
+      </div>
+      <div class="side-stack">
+        <div class="card">
+          <h2>Contact</h2>
+          <div class="contact-list" id="contactList"></div>
+        </div>
+        <div class="card" id="catalogCard" style="display:none">
+          <h2>Product catalogs</h2>
+          <div class="cat-shelf" id="catShelf"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pro-products">
+      <div class="card" style="padding:26px 26px 8px;margin-bottom:16px"><h2 style="margin-bottom:2px">Products</h2></div>
+      <div class="prod-grid" id="proProducts"></div>
+      <div class="empty" id="noProProducts" style="display:none"><b>No products listed yet</b>This manufacturer hasn't published products.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL (centered) -->
+<!-- CERTIFICATES MODAL -->
+<div class="modal-backdrop" id="certsModal" onclick="if(event.target===this)closeCertsModal()">
+  <div class="modal" style="max-width:640px">
+    <button class="modal-close" onclick="closeCertsModal()" aria-label="Close">✕</button>
+    <h3 style="margin-bottom:4px">Certificates & documents</h3>
+    <p style="color:var(--ink-soft);font-size:.88rem;margin-bottom:16px">Uploaded by the manufacturer. Click to view full size.</p>
+    <div class="certdoc-grid" id="certGrid"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="prodBackdrop" onclick="if(event.target===this)closeProductModal()">
+  <div class="modal" style="max-width:600px;padding:0;overflow:hidden" role="dialog" aria-modal="true" aria-labelledby="pmName">
+    <button class="modal-close" style="z-index:2;background:#fff;box-shadow:0 4px 14px rgba(0,62,82,.18)" aria-label="Close" onclick="closeProductModal()">✕</button>
+    <div class="prod-img" style="aspect-ratio:16/9" id="pmImg"></div>
+    <div style="padding:26px 28px 28px">
+      <div class="chips" id="pmChips" style="margin-bottom:10px"></div>
+      <h3 id="pmName" style="font-size:1.35rem;font-weight:700;line-height:1.25;margin-bottom:8px"></h3>
+      <p id="pmDesc" style="color:var(--ink-soft);font-size:.94rem"></p>
+      <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+        <button class="btn btn-grad" style="flex:1;justify-content:center;min-width:170px" onclick="openContact(PRODCTX)">Request quotation</button>
+        <button class="btn btn-ghost" id="pmBrochure" style="display:none">📄 View brochure</button>
+      </div>
+      <a id="pmFull" style="display:block;margin-top:14px;font-size:.82rem;font-weight:600;color:var(--teal)">Open full product page ↗</a>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT MODAL -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" aria-label="Close" onclick="closeModal()">✕</button>
+    <h3>Contact manufacturer</h3>
+    <p class="sub" id="contactSub"></p>
+    <div id="cGuestFields">
+      <label for="c-email">Work email *</label>
+      <input id="c-email" type="email" placeholder="you@company.com">
+      <label for="c-company">Company</label>
+      <input id="c-company" type="text" placeholder="Your company name">
+    </div>
+    <p id="cAccountLine" style="display:none;background:var(--teal-tint);border-radius:10px;padding:10px 14px;font-size:.85rem;margin-top:8px">Sending as <b id="cAccountName"></b></p>
+    <div id="cRfqFields" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+        <div><label for="c-qty">Quantity *</label><input id="c-qty" placeholder="e.g. 10,000 pcs"></div>
+        <div><label for="c-dest">Destination country *</label><input id="c-dest" placeholder="e.g. Germany"></div>
+        <div><label for="c-incoterm">Incoterm</label>
+          <select id="c-incoterm">
+            <option value="">Not sure yet</option>
+            <option>EXW</option><option>FCA</option><option>FOB</option>
+            <option>CIF</option><option>DAP</option><option>DDP</option>
+          </select>
+        </div>
+        <div><label for="c-target">Target price (optional)</label><input id="c-target" placeholder="e.g. 1.20 USD / pc"></div>
+      </div>
+      <label for="c-certs">Required certifications (optional)</label>
+      <input id="c-certs" placeholder="e.g. CE MDR, ISO 13485">
+      <label id="cMultiWrap" style="display:none;margin-top:12px;background:var(--mist);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.85rem;font-weight:500;cursor:pointer;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="c-multi" style="width:auto;margin:3px 0 0">
+        <span>📊 <b>Also send to other manufacturers in this category</b><br>
+        <span style="color:var(--ink-soft);font-weight:400">Get multiple offers and compare them side by side in your account.</span></span>
+      </label>
+    </div>
+    <label for="c-msg" id="cMsgLabel">Your message</label>
+    <textarea id="c-msg" rows="4" placeholder="Products of interest, quantities, destination country…"></textarea>
+    <button class="btn btn-grad" id="cSend" onclick="sendInquiry()">Send message</button>
+    <p id="cStatus" style="display:none;margin-top:12px;font-size:.88rem;font-weight:600"></p>
+  </div>
+</div>
+
+
+<!-- PDF VIEWER -->
+<div class="pdf-backdrop" id="pdfBackdrop" onclick="if(event.target===this)closePdfViewer()">
+  <div class="pdf-shell" role="dialog" aria-modal="true" aria-label="PDF viewer">
+    <div class="pdf-bar">
+      <b id="pdfTitle">Document</b>
+      <div class="acts">
+        <a class="btn btn-ghost btn-sm" id="pdfOpenTab" target="_blank" rel="noopener">Open in new tab ↗</a>
+        <button class="btn btn-solid btn-sm" onclick="closePdfViewer()">✕ Close</button>
+      </div>
+    </div>
+    <iframe class="pdf-frame" id="pdfFrame" title="PDF document"></iframe>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap foot-bottom">
+    <span>© 2026 MedicHall · Where Health Meets</span>
+    <a href="index.html">← Back to homepage</a>
+  </div>
+</footer>
+
+<script>
+/* ---------------- config ---------------- */
+const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+
+async function db(path){
+  const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
+    headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer " + SUPABASE_ANON_KEY }
+  });
+  if(!res.ok) throw new Error("API " + res.status);
+  return res.json();
+}
+const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const initials = n => (n||"?").split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+
+function certChips(c, limit){
+  let toks = c.certifications ? c.certifications.split(",").map(x=>x.trim()).filter(Boolean) : [];
+  if(limit) toks = toks.slice(0, limit);
+  return toks.map(t=>`<span class="tagchip cert">\u2713 ${esc(t)}</span>`).join("");
+}
+function isPremium(c){ return c.plan==="premium" && (!c.plan_expires_at || new Date(c.plan_expires_at) > new Date()); }
+let CURRENT = null; // current company on profile view
+let PRODS = [];   // products of current company
+let PRODCTX = null; // product context for the contact form
+
+/* ---------------- directory ---------------- */
+async function loadDirectory(){
+  try{
+    let companies = await db("companies?select=id,name,type,description,website,phone,country,city,certifications,logo_url,is_approved,is_active,created_at,catalog_url,video_url,plan,plan_expires_at,slug,is_verified&order=name");
+    companies.sort((a,b)=>(isPremium(b)?1:0)-(isPremium(a)?1:0)); // premium partners rank first
+    const grid = document.getElementById("dirGrid");
+    if(!companies.length){
+      grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><b>No manufacturers yet</b>Approved companies will appear here.</div>';
+      return;
+    }
+    grid.innerHTML = companies.map(c=>`
+      <a class="co-card" href="${c.slug?`/m/${c.slug}`:`companies.html?c=${c.id}`}">
+        <div class="co-logo">${c.logo_url?`<img src="${esc(c.logo_url)}" alt="${esc(c.name)} logo">`:`<span>${initials(c.name)}</span>`}</div>
+        <h3>${esc(c.name)}${c.is_verified?` <span class="vbadge">✓ Verified</span>`:""}${isPremium(c)?` <span class="tagchip" style="background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none;vertical-align:middle">★ Premium</span>`:""}</h3>
+        <div class="sub">${esc(c.type||"Manufacturer")}${c.city?` · ${esc(c.city)}`:""}</div>
+        ${c.certifications?`<div class="chips">${certChips(c,3)}</div>`:""}
+        <span class="go">View profile & products →</span>
+      </a>`).join("");
+  }catch(e){
+    document.getElementById("dirGrid").innerHTML = '<div class="empty" style="grid-column:1/-1"><b>Could not load manufacturers</b>Please try again later.</div>';
+  }
+}
+
+/* ---------------- profile ---------------- */
+function youtubeEmbed(url){
+  try{
+    const u = new URL(url);
+    let id = null;
+    if(u.hostname.includes("youtu.be")) id = u.pathname.slice(1);
+    else if(u.hostname.includes("youtube.com")) id = u.searchParams.get("v") || (u.pathname.startsWith("/embed/") ? u.pathname.split("/")[2] : null);
+    if(u.hostname.includes("vimeo.com")){ const vid = u.pathname.split("/").filter(Boolean)[0]; return vid ? "https://player.vimeo.com/video/"+vid : null; }
+    return id ? "https://www.youtube.com/embed/"+id : null;
+  }catch(e){ return null; }
+}
+
+async function loadProfile(key, bySlug){
+  document.getElementById("directoryView").style.display = "none";
+  document.getElementById("profileView").style.display = "block";
+  try{
+    const rows = await db("companies?select=id,name,type,description,website,phone,country,city,certifications,logo_url,is_approved,is_active,created_at,catalog_url,video_url,plan,plan_expires_at,slug,is_verified&" + (bySlug ? "slug" : "id") + "=eq." + encodeURIComponent(key));
+    if(!rows.length){ location.href = "companies.html"; return; }
+    const c = rows[0]; CURRENT = c;
+    document.title = c.name + " — MedicHall";
+    document.getElementById("crumbName").textContent = c.name;
+    document.getElementById("proLogo").innerHTML = c.logo_url ? `<img src="${esc(c.logo_url)}" alt="${esc(c.name)} logo">` : `<span>${initials(c.name)}</span>`;
+    document.getElementById("proName").textContent = c.name;
+    document.getElementById("proSub").textContent = [c.type, c.city, c.country].filter(Boolean).join(" · ");
+    document.getElementById("proChips").innerHTML =
+      (c.is_verified?`<span class="vbadge" style="font-size:.74rem;padding:6px 14px">✓ Verified Manufacturer</span>`:"") +
+      (isPremium(c)?`<span class="tagchip" style="background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none">★ Premium Partner</span>`:"") +
+      certChips(c);
+    loadCertDocs(c);
+    if(c.website){
+      const w = document.getElementById("proWebsite");
+      w.href = c.website.startsWith("http") ? c.website : "https://" + c.website;
+      w.style.display = "inline-flex";
+    }
+    if(c.description){
+      document.getElementById("aboutCard").style.display = "block";
+      document.getElementById("proDesc").textContent = c.description;
+    }
+    const embed = c.video_url ? youtubeEmbed(c.video_url) : null;
+    if(embed){
+      document.getElementById("videoCard").style.display = "block";
+      document.getElementById("videoBox").innerHTML = `<iframe src="${esc(embed)}" title="Company video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
+    }
+    try{
+      let cats = await db("company_catalogs?select=*&company_id=eq." + c.id + "&order=created_at");
+      if(!cats.length && c.catalog_url) cats = [{id:0, title:"Product Catalog", file_url:c.catalog_url, thumb_url:null}];
+      if(cats.length){
+        document.getElementById("catalogCard").style.display = "block";
+        document.getElementById("catShelf").innerHTML = cats.map(k=>`
+          <button class="cat-card" onclick="openPdfViewer('${esc(k.file_url)}', '${esc(c.name)} — ${esc(k.title)}')" aria-label="Open ${esc(k.title)}">
+            ${k.thumb_url?`<img src="${esc(k.thumb_url)}" alt="${esc(k.title)} cover" loading="lazy">`:`<span class="ph">📄</span>`}
+            <span class="t">${esc(k.title)}</span>
+          </button>`).join("");
+      }
+    }catch(e){ console.warn(e); }
+    const cl = [];
+    cl.push(`<div class="row"><span class="k">Message</span><a href="#" onclick="openContact();return false" style="color:var(--teal);font-weight:600">Send a message via MedicHall →</a></div>`);
+    if(c.phone) cl.push(`<div class="row"><span class="k">Phone</span><span>${esc(c.phone)}</span></div>`);
+    cl.push(`<div class="row"><span class="k">Location</span><span>${esc([c.city,c.country].filter(Boolean).join(", ")||"Türkiye")}</span></div>`);
+    document.getElementById("contactList").innerHTML = cl.join("");
+    document.getElementById("contactSub").textContent = "Your message goes directly to " + c.name + ".";
+
+    // products of this company
+    const prods = await db("products?select=ref,name,category,image_url,description,brochure_url&company_id=eq." + c.id + "&order=name");
+    PRODS = prods;
+    const grid = document.getElementById("proProducts");
+    if(!prods.length){
+      grid.style.display = "none";
+      document.getElementById("noProProducts").style.display = "block";
+    }else{
+      grid.innerHTML = prods.map(p=>`
+        <button class="prod" onclick="openProductModal('${esc(p.ref)}')" aria-label="View ${esc(p.name)}" style="text-align:left;padding:0">
+          <div class="prod-img">${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`:`<div class="fallback">${initials(p.name)}</div>`}</div>
+          <div class="prod-body">
+            <span class="prod-cat">${esc(p.category)}</span>
+            <h4>${esc(p.name)}</h4>
+          </div>
+        </button>`).join("");
+    }
+  }catch(e){
+    console.error(e);
+    document.getElementById("proName").textContent = "Could not load this profile";
+  }
+}
+
+/* ---------------- product modal ---------------- */
+function openProductModal(ref){
+  const p = PRODS.find(x=>x.ref===ref);
+  if(!p) return;
+  PRODCTX = p;
+  document.getElementById("pmImg").innerHTML = p.image_url
+    ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`
+    : `<div class="fallback">${initials(p.name)}</div>`;
+  document.getElementById("pmChips").innerHTML =
+    `<span class="tagchip cat">${esc(p.category)}</span><span class="tagchip">REF ${esc(p.ref)}</span>`;
+  document.getElementById("pmName").textContent = p.name;
+  document.getElementById("pmDesc").textContent = p.description || "";
+  const bb = document.getElementById("pmBrochure");
+  if(p.brochure_url){ bb.style.display = "inline-flex"; bb.onclick = ()=>openPdfViewer(p.brochure_url, p.name + " — Brochure"); }
+  else bb.style.display = "none";
+  document.getElementById("pmFull").href = "products.html?p=" + encodeURIComponent(p.ref);
+  document.getElementById("prodBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeProductModal(){
+  PRODCTX = null;
+  document.getElementById("prodBackdrop").classList.remove("open");
+  if(!document.getElementById("modalBackdrop").classList.contains("open")) document.body.style.overflow = "";
+}
+
+/* ---------------- inquiry ---------------- */
+async function prepContactForm(){
+  const guest = document.getElementById("cGuestFields");
+  const line = document.getElementById("cAccountLine");
+  const uid = await ensureBuyerId();
+  if(uid){
+    const info = await ensureBuyerInfo();
+    guest.style.display = "none";
+    line.style.display = "block";
+    document.getElementById("cAccountName").textContent =
+      (BUYEREMAIL || "your account") + (info && info.company ? " · " + info.company : "");
+  }else{
+    guest.style.display = "block";
+    line.style.display = "none";
+  }
+}
+async function prepRfqMode(prod){
+  const box = document.getElementById("cRfqFields");
+  const mw = document.getElementById("cMultiWrap");
+  const msgLabel = document.getElementById("cMsgLabel");
+  const msg = document.getElementById("c-msg");
+  if(prod){
+    box.style.display = "block";
+    msgLabel.textContent = "Specifications & notes";
+    msg.rows = 3;
+    msg.placeholder = "Material, sizes, packaging, other requirements…";
+    const uid = await ensureBuyerId();
+    if(uid && prod.category){
+      mw.style.display = "flex";
+      mw.querySelector("b").textContent = 'Also send to other "' + prod.category + '" manufacturers';
+    }else{
+      mw.style.display = "none";
+      document.getElementById("c-multi").checked = false;
+    }
+  }else{
+    box.style.display = "none";
+    mw.style.display = "none";
+    msgLabel.textContent = "Your message";
+    msg.rows = 4;
+    msg.placeholder = "Products of interest, quantities, destination country…";
+  }
+}
+function openContact(prod){
+  prepContactForm();
+  prepRfqMode(prod);
+  document.getElementById("contactSub").textContent = prod
+    ? `Request a quotation for: ${prod.name} (${prod.ref}) — ${CURRENT ? CURRENT.name : ""}`
+    : (CURRENT ? "Your message goes directly to " + CURRENT.name + "." : "");
+  document.getElementById("modalBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeModal(){
+  document.getElementById("modalBackdrop").classList.remove("open");
+  document.body.style.overflow = "";
+}
+let BUYERID = null, BUYEREMAIL = null, BUYERINFO = null;
+function buyerHeaders(){
+  return {apikey:SUPABASE_ANON_KEY, Authorization:"Bearer " + localStorage.getItem("mh_p_token")};
+}
+async function ensureBuyerId(){
+  const tok = localStorage.getItem("mh_p_token");
+  if(BUYERID || !tok) return BUYERID;
+  try{
+    const r = await fetch(SUPABASE_URL + "/auth/v1/user", {headers: buyerHeaders()});
+    if(r.ok){ const u = await r.json(); BUYERID = u.id; BUYEREMAIL = u.email; }
+  }catch(e){}
+  return BUYERID;
+}
+async function ensureBuyerInfo(){
+  if(BUYERINFO || !BUYERID) return BUYERINFO;
+  try{
+    let r = await fetch(SUPABASE_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + BUYERID, {headers: buyerHeaders()});
+    if(r.ok){ const rows = await r.json(); if(rows.length){ BUYERINFO = {company: rows[0].company_name}; return BUYERINFO; } }
+    r = await fetch(SUPABASE_URL + "/rest/v1/companies?select=name&owner_id=eq." + BUYERID, {headers: buyerHeaders()});
+    if(r.ok){ const rows = await r.json(); if(rows.length){ BUYERINFO = {company: rows[0].name}; return BUYERINFO; } }
+  }catch(e){}
+  BUYERINFO = {company:null};
+  return BUYERINFO;
+}
+async function sendInquiry(){
+  const status = document.getElementById("cStatus");
+  const show = (m,ok)=>{ status.textContent=m; status.style.display="block"; status.style.color= ok?"#1E8E76":"#C0392B"; };
+  const uid = await ensureBuyerId();
+  let email, company;
+  if(uid){
+    const info = await ensureBuyerInfo();
+    email = BUYEREMAIL;
+    company = (info && info.company) || null;
+  }else{
+    email = document.getElementById("c-email").value.trim();
+    company = document.getElementById("c-company").value.trim() || null;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ show("Please enter a valid email address.", false); return; }
+  }
+  const structured = !!PRODCTX;
+  let qty = null, dest = null;
+  if(structured){
+    qty = document.getElementById("c-qty").value.trim();
+    dest = document.getElementById("c-dest").value.trim();
+    if(!qty){ show("Please enter the quantity you need.", false); return; }
+    if(!dest){ show("Please enter the destination country.", false); return; }
+  }
+  const btn = document.getElementById("cSend");
+  btn.disabled = true; btn.textContent = "Sending…";
+  const post = async body => {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rfq_requests", {
+      method:"POST",
+      headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, "Content-Type":"application/json", "Prefer":"return=minimal" },
+      body: JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error(await res.text());
+  };
+  const base = {
+    user_id: uid,
+    product_name: PRODCTX ? PRODCTX.name : null,
+    product_ref: PRODCTX ? PRODCTX.ref : null,
+    email,
+    company,
+    quantity: qty,
+    destination: dest,
+    incoterm: structured ? (document.getElementById("c-incoterm").value || null) : null,
+    target_price: structured ? (document.getElementById("c-target").value.trim() || null) : null,
+    req_certs: structured ? (document.getElementById("c-certs").value.trim() || null) : null,
+    message: document.getElementById("c-msg").value.trim() || null
+  };
+  try{
+    const multi = structured && uid && document.getElementById("c-multi").checked && PRODCTX.category;
+    if(multi){
+      const rows = await db("products?select=company_id&category=eq." + encodeURIComponent(PRODCTX.category) + "&is_active=eq.true&company_id=not.is.null");
+      const ids = [...new Set(rows.map(x=>x.company_id))];
+      if(CURRENT && !ids.includes(CURRENT.id)) ids.unshift(CURRENT.id);
+      const gid = crypto.randomUUID();
+      await post(ids.map(cid => ({...base, company_id: cid, group_id: gid})));
+      show("✓ Your request went to " + ids.length + " manufacturers. Compare their offers under My requests in your account.", true);
+    }else{
+      await post({...base, company_id: CURRENT ? CURRENT.id : null});
+      show(uid
+        ? "✓ Your request has been sent. Offers and replies will appear under My requests in your account."
+        : "✓ Your message has been sent. The manufacturer will contact you by email.", true);
+    }
+    btn.textContent = "Sent ✓";
+  }catch(e){
+    console.error(e);
+    show("Something went wrong, please try again.", false);
+    btn.disabled = false; btn.textContent = "Send message";
+  }
+}
+
+/* ---------------- nav ---------------- */
+function toggleMenu(btn){
+  const nav = document.getElementById("navLinks");
+  const open = nav.classList.toggle("open");
+  btn.setAttribute("aria-expanded", open);
+}
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){
+  if(document.getElementById("pdfBackdrop").classList.contains("open")) closePdfViewer();
+  else if(document.getElementById("modalBackdrop").classList.contains("open")) closeModal();
+  else closeProductModal();
+} });
+
+/* ---- certificate documents gallery ---- */
+let CERTDOCS = [];
+async function loadCertDocs(c){
+  CERTDOCS = [];
+  try{
+    CERTDOCS = await db("company_certificates?select=*&company_id=eq." + c.id + "&order=created_at");
+  }catch(e){}
+  if(!CERTDOCS.length) return;
+  document.querySelectorAll("#proChips .tagchip.cert").forEach(ch=>{
+    ch.style.cursor = "pointer";
+    ch.title = "View certificate documents";
+    ch.onclick = openCertsModal;
+  });
+  const hint = document.createElement("span");
+  hint.className = "tagchip";
+  hint.style.cssText = "cursor:pointer;background:#fff;border:1.5px dashed #1E8E76;color:#1E8E76;font-weight:600";
+  hint.textContent = "\ud83d\udcdc View certificates (" + CERTDOCS.length + ")";
+  hint.onclick = openCertsModal;
+  document.getElementById("proChips").appendChild(hint);
+}
+function openCertsModal(){
+  const grid = document.getElementById("certGrid");
+  grid.innerHTML = CERTDOCS.map(d=>{
+    const isPdf = /\.pdf(\?|$)/i.test(d.file_url);
+    return isPdf
+      ? `<button class="certdoc" onclick="closeCertsModal();openPdfViewer('${esc(d.file_url)}','${esc(CURRENT?CURRENT.name:"")} \u2014 ${esc(d.title)}')">
+           <span class="certdoc-ph">\ud83d\udcc4</span><span class="t">${esc(d.title)}</span>
+         </button>`
+      : `<a class="certdoc" href="${esc(d.file_url)}" target="_blank" rel="noopener">
+           <img src="${esc(d.file_url)}" alt="${esc(d.title)}" loading="lazy"><span class="t">${esc(d.title)}</span>
+         </a>`;
+  }).join("");
+  document.getElementById("certsModal").classList.add("open");
+}
+function closeCertsModal(){ document.getElementById("certsModal").classList.remove("open"); }
+
+function openPdfViewer(url, title){
+  document.getElementById("pdfTitle").textContent = title || "Document";
+  document.getElementById("pdfOpenTab").href = url;
+  document.getElementById("pdfFrame").src = url + "#toolbar=1&navpanes=0";
+  document.getElementById("pdfBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closePdfViewer(){
+  document.getElementById("pdfBackdrop").classList.remove("open");
+  document.getElementById("pdfFrame").src = "";
+  document.body.style.overflow = "";
+}
+
+
+/* ---------------- init ---------------- */
+const mPath = location.pathname.match(/\/m\/([^\/]+)/);
+const cid = new URLSearchParams(location.search).get("c");
+if(mPath) loadProfile(decodeURIComponent(mPath[1]), true);
+else if(cid) loadProfile(cid);
+else loadDirectory();
+
+
+/* ---- logged-in chip (manufacturer session) ---- */
+const MH_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const MH_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+async function initAuthChip(){
+  const area = document.getElementById("authArea");
+  const tok = localStorage.getItem("mh_p_token");
+  if(!area || !tok) return;
+  try{
+    const ur = await fetch(MH_URL + "/auth/v1/user", {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!ur.ok) throw 0;
+    const user = await ur.json();
+    let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
+    try{
+      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
+    }catch(e){}
+    if(approved === null){
+      try{
+        const br = await fetch(MH_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + user.id,
+          {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+        if(br.ok){ const rs = await br.json(); if(rs.length){ name = rs[0].full_name || rs[0].company_name || name; } }
+      }catch(e){}
+    }
+    let unread = 0;
+    try{
+      const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(mr.ok){ const ms = await mr.json(); unread = new Set(ms.filter(m=>m.sender_id!==user.id).map(m=>m.rfq_id)).size; }
+    }catch(e){}
+    const init = name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    area.innerHTML = `
+      <div class="userchip">
+        <button class="uc-btn" onclick="this.nextElementSibling.classList.toggle('open')" aria-haspopup="true">
+          <span class="uc-av">${logo?`<img src="${logo}" alt="">`:init}</span>${unread?`<span class="uc-badge">${unread}</span>`:""}
+          <span class="uc-name">${name.replace(/</g,"&lt;")}</span>
+          <span class="uc-caret">▼</span>
+        </button>
+        <div class="uc-menu">
+          ${approved===null?"":`<div class="uc-status">${approved?"● Live on marketplace":"○ Pending approval"}</div>`}
+          <a href="portal.html">My account</a>
+          <a href="portal.html#inbox" id="ucInboxLink">Inbox${unread?` (${unread})`:""}</a>
+          <a href="portal.html#settings">Settings</a>
+          <button class="uc-out" onclick="chipLogout()">Log out</button>
+        </div>
+      </div>`;
+    document.addEventListener("click", e=>{
+      if(!e.target.closest(".userchip")) document.querySelectorAll(".uc-menu").forEach(m=>m.classList.remove("open"));
+    });
+    window.__mhChipUid = user.id;
+    if(!window.__mhChipTimer){ window.__mhChipTimer = setInterval(refreshChipUnread, 30000); }
+  }catch(e){
+    localStorage.removeItem("mh_p_token");
+  }
+}
+async function refreshChipUnread(){
+  const tok = localStorage.getItem("mh_p_token");
+  if(!tok || !window.__mhChipUid) return;
+  try{
+    const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!mr.ok) return;
+    const ms = await mr.json();
+    const n = new Set(ms.filter(m=>m.sender_id!==window.__mhChipUid).map(m=>m.rfq_id)).size;
+    const btn = document.querySelector(".uc-btn");
+    if(!btn) return;
+    let b = btn.querySelector(".uc-badge");
+    if(n){
+      if(!b){ b = document.createElement("span"); b.className = "uc-badge"; btn.appendChild(b); }
+      b.textContent = n;
+    }else if(b){ b.remove(); }
+    const link = document.getElementById("ucInboxLink");
+    if(link) link.textContent = "Inbox" + (n ? " (" + n + ")" : "");
+  }catch(e){}
+}
+function chipLogout(){
+  localStorage.removeItem("mh_p_token");
+  location.reload();
+}
+initAuthChip();
+
+
+/* ---- banner ads (sliding carousel) ---- */
+const HOUSE_SLIDE = `<a class="banner-slide" href="portal.html" style="flex:0 0 100%;min-width:100%;display:block;position:relative;text-decoration:none;background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%)">
+  <span class="banner-tag">Ad space</span>
+  <span style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap">
+    <span>
+      <b style="display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2">Your products, front and center.</b>
+      <span style="display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500">Advertise on MedicHall and reach medical buyers worldwide.</span>
+    </span>
+    <span style="background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0">Become an advertiser →</span>
+  </span>
+</a>`;
+async function loadBanners(placement, containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  let banners = [];
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/banners?select=*&placement=eq." + placement + "&is_active=eq.true&order=created_at.desc",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(r.ok){
+      const now = new Date();
+      banners = (await r.json()).filter(b => !b.ends_at || new Date(b.ends_at) > now);
+    }
+  }catch(e){ banners = []; }
+  const slide = b => {
+    const inner = `<span class="banner-tag">Sponsored</span><img src="${b.image_url}" alt="${(b.title||"Advertisement").replace(/"/g,"&quot;")}" loading="lazy" style="width:100%;height:auto;display:block;max-height:210px;object-fit:cover">`;
+    return b.link_url
+      ? `<a class="banner-slide" href="${b.link_url}" target="_blank" rel="sponsored noopener" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</a>`
+      : `<div class="banner-slide" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</div>`;
+  };
+  const slides = banners.map(slide).join("") + HOUSE_SLIDE;
+  const total = banners.length + 1;
+  el.innerHTML = `<div class="banner-carousel" style="position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff">
+    <div id="${containerId}Track" style="display:flex;transition:transform .55s ease">${slides}</div>
+    ${total>1?`<div class="banner-dots" id="${containerId}Dots">${Array.from({length:total},(_,i)=>`<button class="banner-dot ${i===0?"on":""}" aria-label="Advertisement ${i+1}"></button>`).join("")}</div>`:""}
+  </div>`;
+  if(total > 1){
+    let i = 0, timer = null;
+    const track = document.getElementById(containerId + "Track");
+    const dots = Array.from(document.getElementById(containerId + "Dots").children);
+    const go = n => {
+      i = (n + total) % total;
+      track.style.transform = "translateX(-" + (i*100) + "%)";
+      dots.forEach((d,k)=>d.classList.toggle("on", k===i));
+    };
+    const start = () => { timer = setInterval(()=>go(i+1), 6000); };
+    dots.forEach((d,k)=>d.addEventListener("click", ()=>{ clearInterval(timer); go(k); start(); }));
+    start();
+  }
+}
+loadBanners("companies","bannerCompanies");
+
+/* ---- MedicHall Assistant (catalog-powered, no external AI) ---- */
+let mhaStarted = false;
+function mhaToggle(){
+  const p = document.getElementById("mhaPanel");
+  p.classList.toggle("open");
+  if(p.classList.contains("open") && !mhaStarted){ mhaStarted = true; mhaGreet(); }
+  if(p.classList.contains("open")) setTimeout(()=>document.getElementById("mhaInput").focus(), 100);
+}
+function mhaMsg(html, who){
+  const b = document.getElementById("mhaBody");
+  const d = document.createElement("div");
+  d.className = "mha-msg " + (who||"bot");
+  d.innerHTML = html;
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaChips(items){
+  const b = document.getElementById("mhaBody");
+  const w = document.createElement("div");
+  w.className = "mha-chips";
+  w.innerHTML = items.map(i=>`<button class="mha-chip" onclick="mhaQuick('${i.q.replace(/'/g,"\\'")}')">${i.t}</button>`).join("");
+  b.appendChild(w);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaCard(href, title, sub){
+  const b = document.getElementById("mhaBody");
+  const a = document.createElement("a");
+  a.className = "mha-card"; a.href = href;
+  a.innerHTML = `<span><span class="t">${title}</span><br><span class="s">${sub}</span></span>`;
+  b.appendChild(a);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaGreet(){
+  mhaMsg("Hello! 👋 I can help you find products and certified Turkish manufacturers, or explain how MedicHall works. What are you looking for?");
+  mhaChips([
+    {t:"🔍 Find a product", q:"find product"},
+    {t:"🏭 Manufacturers", q:"manufacturers"},
+    {t:"📋 How do RFQs work?", q:"how rfq works"},
+    {t:"⭐ Advertise / Premium", q:"premium"}
+  ]);
+}
+function mhaQuick(q){ document.getElementById("mhaInput").value = q; mhaSend(); }
+async function mhaSend(){
+  const inp = document.getElementById("mhaInput");
+  const q = inp.value.trim();
+  if(!q) return;
+  inp.value = "";
+  mhaMsg(q.replace(/</g,"&lt;"), "user");
+  const t = q.toLowerCase();
+
+  // FAQ intents
+  if(/rfq|quote|quotation|teklif|how.*(work|buy)|inquiry/.test(t)){
+    mhaMsg("Requesting a quote is easy: open any product and click <b>Request quotation</b>. The manufacturer replies directly — if you create a free account, the whole conversation happens right here on MedicHall with chat and notifications. 📬");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Create account", q:"register"}]);
+    return;
+  }
+  if(/register|sign ?up|join|account|kayıt|üye/.test(t)){
+    mhaMsg('You can join for free — as a <b>buyer</b> (save favorites, send RFQs, chat with manufacturers) or as a <b>manufacturer</b> (list your company and products). <a href="portal.html">Create your account here →</a>');
+    return;
+  }
+  if(/premium|advertis|banner|feature|reklam/.test(t)){
+    mhaMsg('Manufacturers can stand out with <b>★ Featured products</b> on the homepage, <b>Premium Partner</b> placement, and <b>banner campaigns</b> across the marketplace. <a href="portal.html">Join as a manufacturer</a> or contact us to discuss options.');
+    return;
+  }
+  if(/certif|ce |ce-|iso|mdr|quality/.test(t)){
+    mhaMsg('Manufacturers on MedicHall list their certifications (CE MDR, ISO 13485…) on their profiles — you can review them before making contact. <a href="companies.html">Browse certified manufacturers →</a>');
+    return;
+  }
+  if(/contact|support|help|iletişim|destek/.test(t)){
+    mhaMsg('You can reach the MedicHall team at <a href="mailto:info@medichall.com">info@medichall.com</a> — or message any manufacturer directly from their profile page.');
+    return;
+  }
+  if(/manufacturer|supplier|compan|firma|üretici/.test(t) && t.length < 30){
+    mhaMsg('Here is our directory of approved Turkish manufacturers: <a href="companies.html">View all manufacturers →</a> You can also type a company name and I\'ll look it up.');
+    return;
+  }
+  if(/find product|products?$|catalog/.test(t)){
+    mhaMsg('Tell me what you need — e.g. <i>"surgical packs"</i>, <i>"sterilization indicators"</i>, <i>"drapes"</i> — and I\'ll search the catalog. Or <a href="products.html">browse everything →</a>');
+    return;
+  }
+
+  // Catalog search
+  const enc = encodeURIComponent("*" + q.replace(/[%,()]/g," ").trim() + "*");
+  let found = false;
+  try{
+    const pr = await fetch(MH_URL + "/rest/v1/products?select=ref,name,category&or=(name.ilike." + enc + ",category.ilike." + enc + ")&is_active=eq.true&limit=4",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(pr.ok){
+      const prods = await pr.json();
+      if(prods.length){
+        found = true;
+        mhaMsg("Here's what I found in the catalog:");
+        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category + " · REF " + p.ref));
+        mhaCard("products.html?q=" + encodeURIComponent(q), "See all results for \"" + q.replace(/</g,"&lt;") + "\" →", "Full catalog search");
+      }
+    }
+    const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,slug,type&name=ilike." + enc + "&limit=3",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(cr.ok){
+      const cos = await cr.json();
+      if(cos.length){
+        found = true;
+        mhaMsg("Matching manufacturers:");
+        cos.forEach(c=>mhaCard(c.slug ? "/m/" + c.slug : "companies.html", c.name, c.type || "Manufacturer"));
+      }
+    }
+  }catch(e){}
+  if(!found){
+    mhaMsg("I couldn't find a direct match for that. Try different keywords (e.g. <i>drape, pack, sterilization, refrigerator</i>) — or <a href=\"products.html\">browse the full catalog</a> and <a href=\"companies.html\">manufacturer directory</a>.");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Contact support", q:"contact"}]);
+  }
+}
+
+</script>
+
+<!-- MedicHall Assistant -->
+<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()">💬</button>
+<div class="mha-panel" id="mhaPanel" role="dialog" aria-label="MedicHall assistant">
+  <div class="mha-head">
+    <div><b>MedicHall Assistant</b><span>Ask about products & manufacturers</span></div>
+    <button aria-label="Close assistant" onclick="mhaToggle()">✕</button>
+  </div>
+  <div class="mha-body" id="mhaBody"></div>
+  <div class="mha-foot">
+    <input id="mhaInput" placeholder="e.g. surgical drapes, sterilization…" onkeydown="if(event.key==='Enter')mhaSend()">
+    <button onclick="mhaSend()">➤</button>
+  </div>
+</div>
+
+</body>
+</html>

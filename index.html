@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedicHall — Turkey's Medical Industry Marketplace</title>
+<meta name="description" content="The B2B platform opening the world to Turkey's healthcare industry. Find certified manufacturers, OEM partners, raw materials and medical devices.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   BRAND COLORS — change only these values to re-theme the site
+   --teal       : main brand color (buttons, links, accents)
+   --teal-deep  : darker shade of the brand color
+   --indicator  : secondary accent (highlights, small details)
+   ============================================================ */
+:root{
+  /* MedicHall brand palette (from brand guide) */
+  --ink:#003E52;          /* Pantone 3035 C */
+  --ink-soft:#40748E;     /* Pantone 7699 C */
+  --teal:#4298CC;         /* Pantone 7688 C — primary blue */
+  --teal-deep:#003E52;    /* deep navy */
+  --teal-tint:#DCEEF7;
+  --sky:#70D0EC;
+  --mint:#6CCCB9;         /* Pantone 3248 C */
+  --mint-soft:#9ED5CB;
+  --cream:#F2E5B3;        /* Pantone 7499 C */
+  --brand-grad:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);
+  --mist:#EFF6F9;
+  --white:#FFFFFF;
+  --line:#D6E4EB;
+  --indicator:#6CCCB9;
+  --radius:14px;
+  --font-display:"Poppins",sans-serif;
+  --font-body:"Poppins",sans-serif;
+  --font-mono:"IBM Plex Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+body{font-family:var(--font-body);color:var(--ink);background:var(--white);line-height:1.6;font-size:16px}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:4px}
+
+/* ---------- utility ---------- */
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.mono{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+.eyebrow{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.eyebrow::before{content:"";width:26px;height:3px;border-radius:2px;background:var(--brand-grad)}
+h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.7rem,3.4vw,2.5rem);line-height:1.12;letter-spacing:-.01em}
+.section{padding:88px 0;scroll-margin-top:80px}
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;margin-bottom:44px;flex-wrap:wrap}
+.section-head p{max-width:520px;color:var(--ink-soft);margin-top:12px}
+.link-more{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);border-bottom:2px solid var(--indicator);padding-bottom:4px;white-space:nowrap;transition:color .15s}
+.link-more:hover{color:var(--teal-deep)}
+
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:70px;gap:24px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:1.3rem;letter-spacing:.04em}
+.logo-mark{width:30px;height:34px;flex-shrink:0;display:block}
+.logo .mword{color:var(--teal);font-weight:500}
+.logo .hword{color:var(--teal-deep);font-weight:700}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-links a{padding:8px 14px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.nav-links a:hover{background:var(--mist);color:var(--ink)}
+.nav-cta{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-weight:600;font-size:.92rem;border:1.5px solid transparent;transition:all .15s}
+.btn-ghost{border-color:var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-solid{background:var(--teal);color:#fff}
+.btn-solid:hover{background:var(--teal-deep)}
+.btn-indicator{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-weight:600;border:none}
+.btn-indicator:hover{filter:brightness(1.06)}
+.menu-toggle{display:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:42px;height:42px;font-size:1.2rem;color:var(--ink)}
+@media(max-width:900px){
+  .nav-links{display:none;position:absolute;top:70px;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;padding:16px 24px 24px;border-bottom:1px solid var(--line);gap:4px}
+  .nav-links.open{display:flex}
+  .nav-links a{padding:12px 14px}
+  .menu-toggle{display:grid;place-items:center}
+  .nav-cta .btn-ghost{display:none}
+}
+
+/* ---------- hero ---------- */
+.hero{background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%);border-bottom:1px solid var(--line);position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;right:-140px;top:-140px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,var(--teal-tint) 0%,transparent 70%);pointer-events:none}
+.hero-inner{padding:76px 0 64px;position:relative;display:flex;flex-direction:column;align-items:center;text-align:center}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:100px;padding:7px 16px 7px 10px;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:26px}
+.hero-badge i{width:9px;height:9px;border-radius:50%;background:var(--indicator);display:inline-block}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.3rem,5.6vw,4rem);line-height:1.04;letter-spacing:-.02em;max-width:17ch;margin:0 auto}
+h1 em{font-style:normal;color:var(--teal)}
+.hero-sub{margin:22px auto 34px;font-size:1.13rem;color:var(--ink-soft);max-width:56ch}
+.search-shell{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:8px;display:flex;gap:8px;max-width:680px;width:100%;margin:0 auto;box-shadow:0 12px 32px rgba(11,95,91,.09)}
+.search-shell:focus-within{border-color:var(--teal)}
+.search-shell input{flex:1;border:none;outline:none;font-family:var(--font-body);font-size:1rem;padding:12px 14px;background:transparent;color:var(--ink);min-width:0}
+.search-shell .btn-solid{border-radius:11px}
+.hero-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;justify-content:center}
+.hero-chips .chip{text-decoration:none;display:inline-flex;align-items:center}
+.chip{background:#fff;border:1px solid var(--line);border-radius:100px;padding:7px 16px;font-size:.85rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.trust-row{display:flex;gap:34px 54px;flex-wrap:wrap;margin-top:52px;padding-top:30px;border-top:1px dashed var(--line);justify-content:center;width:100%}
+.trust-item .num{font-family:var(--font-display);font-weight:700;font-size:1.9rem;color:var(--teal);line-height:1.1}
+.trust-item .lbl{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+
+/* ---------- pack-label cards (signature) ---------- */
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:900px){.cat-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.cat-grid{grid-template-columns:1fr}}
+.pack{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:24px;position:relative;transition:all .2s;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.pack::after{content:"";position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 26px 26px 0;border-color:transparent var(--mist) transparent transparent;transition:border-color .2s}
+.pack:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 34px rgba(11,95,91,.12)}
+.pack:hover::after{border-color:transparent var(--teal-tint) transparent transparent}
+.pack-top{display:flex;justify-content:space-between;align-items:center}
+.pack-ref{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;color:var(--ink-soft)}
+.pack-dot{width:11px;height:11px;border-radius:50%;background:var(--indicator);transition:background .2s;flex-shrink:0}
+.pack:hover .pack-dot{background:var(--teal)}
+.pack-icon{width:52px;height:52px;border-radius:12px;background:var(--teal-tint);display:grid;place-items:center;font-size:1.5rem}
+.pack h3{font-family:var(--font-display);font-weight:700;font-size:1.22rem;letter-spacing:-.01em}
+.pack p{color:var(--ink-soft);font-size:.93rem;flex:1}
+.pack-count{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);border-top:1px dashed var(--line);padding-top:12px}
+
+/* ---------- how it works ---------- */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:800px){.dual{grid-template-columns:1fr}}
+.path{border-radius:var(--radius);padding:34px;display:flex;flex-direction:column;gap:20px}
+.path-buyer{background:var(--teal-deep);color:#fff}
+.path-supplier{background:var(--mist);border:1.5px solid var(--line)}
+.path .tag{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;padding:6px 14px;border-radius:100px;width:fit-content}
+.path-buyer .tag{background:rgba(108,204,185,.18);color:var(--mint-soft)}
+.path-supplier .tag{background:var(--teal-tint);color:var(--teal)}
+.path h3{font-family:var(--font-display);font-weight:700;font-size:1.5rem;letter-spacing:-.01em}
+.path-buyer p{color:#B7D3DE}
+.path-supplier p{color:var(--ink-soft)}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step b{font-family:var(--font-mono);font-size:.75rem;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:500}
+.path-buyer .step b{background:rgba(255,255,255,.1);color:var(--sky)}
+.path-supplier .step b{background:#fff;border:1px solid var(--line);color:var(--teal)}
+.step span{font-size:.95rem;padding-top:3px}
+.path .btn{width:fit-content;margin-top:6px}
+.path-buyer .btn{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-weight:600}
+.path-supplier .btn{background:var(--teal);color:#fff}
+
+/* ---------- products ---------- */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:30px}
+.fchip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:8px 18px;font-size:.87rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.fchip:hover{border-color:var(--teal);color:var(--teal)}
+.fchip.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.prod-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+@media(max-width:1000px){.prod-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.prod-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.prod-grid{grid-template-columns:1fr}}
+.prod{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:all .2s;display:flex;flex-direction:column}
+.prod:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 30px rgba(11,95,91,.11)}
+.prod-img{aspect-ratio:4/3;background:var(--mist);display:grid;place-items:center;position:relative;overflow:hidden}
+.feat-badge{position:absolute;top:10px;left:10px;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;border-radius:100px;padding:4px 11px;z-index:2}
+
+.prod-img img{width:100%;height:100%;object-fit:cover}
+.prod-img .fallback{font-family:var(--font-display);font-weight:700;font-size:2.2rem;color:var(--teal-tint);-webkit-text-stroke:1.5px var(--teal)}
+.prod-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.prod-cat{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal)}
+.prod h4{font-size:.98rem;font-weight:600;line-height:1.35;flex:1}
+.prod-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:10px;margin-top:4px}
+.prod-foot .mono{color:var(--ink-soft)}
+.prod-foot .rfq{font-size:.8rem;font-weight:600;color:var(--teal)}
+.no-results{text-align:center;padding:60px 20px;color:var(--ink-soft);display:none}
+.no-results b{display:block;font-family:var(--font-display);font-size:1.2rem;color:var(--ink);margin-bottom:6px}
+
+/* ---------- industry band ---------- */
+.band{background:var(--teal-deep);color:#fff;position:relative;overflow:hidden}
+.band::before{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,transparent 0 34px,rgba(108,204,185,.06) 34px 40px);pointer-events:none}
+.band-inner{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;position:relative}
+@media(max-width:860px){.band-inner{grid-template-columns:1fr;gap:36px}}
+.band .eyebrow{color:var(--mint-soft)}
+.band h2{color:#fff}
+.band p{color:#B7D3DE;margin-top:16px;max-width:52ch}
+.band-stats{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bstat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);padding:24px}
+.bstat .num{font-family:var(--font-display);font-weight:700;font-size:2rem;color:var(--sky)}
+.bstat .lbl{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#B7D3DE;margin-top:6px;line-height:1.5}
+
+/* ---------- partners ---------- */
+.partner-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:900px){.partner-grid{grid-template-columns:repeat(2,1fr)}}
+.partner{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:22px;display:flex;flex-direction:column;gap:10px;transition:all .2s}
+.partner:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 12px 28px rgba(11,95,91,.1)}
+.partner-logo{width:46px;height:46px;border-radius:11px;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:700;font-size:1.1rem}
+.partner h4{font-size:.97rem;font-weight:600;line-height:1.35}
+.partner .mono{color:var(--ink-soft)}
+
+/* ---------- CTA ---------- */
+.cta{background:var(--mist);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cta-inner{text-align:center;max-width:640px;margin:0 auto}
+.cta-inner p{color:var(--ink-soft);margin:16px 0 30px}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- footer ---------- */
+footer{background:#02293A;color:#9CC2CF;padding:60px 0 34px;font-size:.9rem}
+.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:40px;margin-bottom:44px}
+@media(max-width:800px){.foot-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.foot-grid{grid-template-columns:1fr}}
+footer .logo{color:#fff;margin-bottom:14px}
+
+.foot-col h5{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:16px}
+.foot-col a{display:block;padding:5px 0;transition:color .15s}
+.foot-col a:hover{color:var(--sky)}
+.foot-bottom{border-top:1px solid rgba(255,255,255,.1);padding-top:24px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.05em}
+
+/* ---------- modal ---------- */
+.modal-backdrop{position:fixed;inset:0;background:rgba(8,62,59,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px}
+.modal-backdrop.open{display:grid}
+.modal{background:#fff;border-radius:18px;padding:36px;max-width:420px;width:100%;position:relative}
+.modal h3{font-family:var(--font-display);font-weight:700;font-size:1.4rem;margin-bottom:6px}
+.modal .sub{color:var(--ink-soft);font-size:.92rem;margin-bottom:24px}
+.modal label{display:block;font-size:.85rem;font-weight:600;margin:14px 0 6px}
+.modal input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-family:var(--font-body);font-size:.95rem}
+.modal input:focus{outline:none;border-color:var(--teal)}
+.modal .btn{width:100%;justify-content:center;margin-top:22px}
+.modal-close{position:absolute;top:16px;right:16px;background:var(--mist);border:none;width:34px;height:34px;border-radius:9px;font-size:1rem;color:var(--ink-soft)}
+.modal .swap{text-align:center;font-size:.86rem;color:var(--ink-soft);margin-top:16px}
+.modal .swap button{background:none;border:none;color:var(--teal);font-weight:600;font-size:.86rem;text-decoration:underline}
+
+/* logged-in user chip */
+.userchip{position:relative}
+.uc-btn{display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:5px 14px 5px 6px;font-weight:600;font-size:.88rem;color:var(--ink);transition:all .15s;max-width:230px}
+.uc-btn:hover{border-color:var(--teal)}
+.uc-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.82rem;overflow:hidden;flex-shrink:0}
+.uc-av img{width:100%;height:100%;object-fit:cover}
+.uc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uc-caret{font-size:.6rem;color:var(--ink-soft)}
+.uc-btn{position:relative}
+.uc-badge{position:absolute;top:-6px;left:24px;background:#E0475B;color:#fff;font-size:.62rem;font-weight:700;min-width:17px;height:17px;border-radius:100px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.uc-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1.5px solid var(--line);border-radius:12px;min-width:200px;box-shadow:0 16px 40px rgba(0,62,82,.15);display:none;overflow:hidden;z-index:80}
+.uc-menu.open{display:block}
+.uc-menu a,.uc-menu button{display:block;width:100%;text-align:left;padding:11px 16px;font-size:.88rem;font-weight:500;color:var(--ink);background:none;border:none;border-bottom:1px solid var(--line);transition:background .12s}
+.uc-menu a:hover,.uc-menu button:hover{background:var(--mist)}
+.uc-menu .uc-status{font-family:var(--font-mono, "IBM Plex Mono",monospace);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);padding:10px 16px;background:var(--mist)}
+.uc-menu button.uc-out{color:#C0392B;border-bottom:none}
+
+
+/* banner ads */
+.banner-slot{margin:26px auto 0;display:flex;justify-content:center}
+
+.banner-carousel{position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff}
+.banner-track{display:flex;transition:transform .55s ease}
+.banner-slide{flex:0 0 100%;display:block;position:relative;min-width:100%}
+.banner-slide img{width:100%;height:auto;display:block;max-height:210px;object-fit:cover}
+.banner-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;gap:6px;justify-content:center;z-index:3}
+.banner-dot{width:9px;height:9px;border-radius:50%;border:none;background:rgba(255,255,255,.65);box-shadow:0 1px 4px rgba(0,62,82,.35);padding:0;cursor:pointer;transition:all .2s}
+.banner-dot.on{background:#fff;width:22px;border-radius:100px}
+.house-ad{background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);text-decoration:none}
+.ha-inner{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap}
+.ha-inner b{display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2;letter-spacing:-.01em}
+.ha-inner .ha-sub{display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500}
+.ha-btn{background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0}
+
+.banner-tag{position:absolute;top:8px;right:10px;background:rgba(0,62,82,.65);color:#fff;font-family:var(--font-mono,"IBM Plex Mono",monospace);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;border-radius:100px;padding:3px 10px;backdrop-filter:blur(4px)}
+
+
+/* MedicHall assistant */
+.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:58px;height:58px;border-radius:50%;border:none;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
+.mha-fab:hover{transform:scale(1.08)}
+.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
+.mha-panel.open{display:flex}
+.mha-head{background:linear-gradient(100deg,#6CCCB9,#4298CC);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.mha-head b{font-size:.95rem}
+.mha-head span{display:block;font-size:.72rem;opacity:.9}
+.mha-head button{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer}
+.mha-body{flex:1;overflow-y:auto;padding:14px;background:var(--mist);display:flex;flex-direction:column;gap:10px}
+.mha-msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:.86rem;line-height:1.5}
+.mha-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.mha-msg.user{align-self:flex-end;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-bottom-right-radius:4px}
+.mha-msg a{color:var(--teal);font-weight:600;text-decoration:none}
+.mha-msg.user a{color:#fff;text-decoration:underline}
+.mha-chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
+.mha-chip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:6px 13px;font-size:.78rem;font-weight:600;color:var(--teal-deep);cursor:pointer;font-family:inherit}
+.mha-chip:hover{border-color:var(--teal);color:var(--teal)}
+.mha-card{display:flex;gap:10px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;text-decoration:none;align-self:flex-start;max-width:95%;transition:border-color .15s}
+.mha-card:hover{border-color:var(--teal)}
+.mha-card .t{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.3}
+.mha-card .s{font-size:.68rem;color:var(--ink-soft);font-family:var(--font-mono,monospace)}
+.mha-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:#fff}
+.mha-foot input{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:.86rem}
+.mha-foot input:focus{outline:none;border-color:var(--teal)}
+.mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a href="#" class="logo" aria-label="MedicHall home">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#F2E5B3"/>
+            <stop offset=".5" stop-color="#6CCCB9"/>
+            <stop offset="1" stop-color="#4298CC"/>
+          </linearGradient>
+        </defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Main navigation">
+      <a href="products.html">Products</a>
+      <a href="companies.html">Manufacturers</a>
+      <a href="blog/">Insights</a>
+      <a href="#industry">Industry</a>
+      <a href="#how">How it works</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <span id="authArea" style="display:flex;gap:10px;align-items:center">
+      <a class="btn btn-ghost" href="portal.html">Partner login</a>
+      <a class="btn btn-solid" href="portal.html">Join for free</a>
+      </span>
+      <button class="menu-toggle" aria-label="Open menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-badge"><i aria-hidden="true"></i>B2B marketplace · Made in Türkiye</div>
+    <h1>Turkey's medical industry, <em>open to the world</em>.</h1>
+    <p class="hero-sub">Find certified Turkish manufacturers, OEM partners, raw materials and finished medical devices — and deal with them directly. One marketplace connecting the Turkish healthcare industry with buyers worldwide.</p>
+    <form class="search-shell" role="search" onsubmit="event.preventDefault();runSearch()">
+      <input id="searchInput" type="search" placeholder="Search products, e.g. surgical packs, sterilization, drapes…" aria-label="Search products" oninput="renderProducts()">
+      <button type="submit" class="btn btn-solid">Search</button>
+    </form>
+    <div class="hero-chips" id="heroChips" aria-label="Popular categories"></div>
+    <div class="trust-row">
+      <div class="trust-item"><div class="num">1,087</div><div class="lbl">Manufacturers in Türkiye</div></div>
+      <div class="trust-item"><div class="num">6</div><div class="lbl">Product &amp; service categories</div></div>
+      <div class="trust-item"><div class="num">CE · ISO 13485</div><div class="lbl">Certified partners</div></div>
+      <div class="trust-item"><div class="num">24/7</div><div class="lbl">Buyer inquiries received</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap banner-slot" id="bannerHome"></div>
+
+<!-- CATEGORIES -->
+<section class="section" id="categories">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Categories</div>
+        <h2>Everything from raw materials to finished devices</h2>
+        <p>Whether you manufacture or source, six category areas cover the full supply chain of the medical industry.</p>
+      </div>
+      <a class="link-more" href="products.html">Browse all products →</a>
+    </div>
+    <div class="cat-grid">
+      <a class="pack" href="products.html?cat=Medical%20Devices">
+        <div class="pack-top"><span class="pack-ref">REF MH-01</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">🩺</div>
+        <h3>Medical Devices</h3>
+        <p>CE-certified finished devices: surgical packs, drapes, gowns, drainage systems and more, ready for export.</p>
+        <div class="pack-count">30+ product lines</div>
+      </a>
+      <a class="pack" href="products.html">
+        <div class="pack-top"><span class="pack-ref">REF MH-02</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">🏭</div>
+        <h3>OEM Supplies</h3>
+        <p>Private-label and contract manufacturing. Produce under your own brand with certified Turkish factories.</p>
+        <div class="pack-count">Contract manufacturing</div>
+      </a>
+      <a class="pack" href="products.html?cat=Raw%20Materials">
+        <div class="pack-top"><span class="pack-ref">REF MH-03</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">🧵</div>
+        <h3>Raw Materials</h3>
+        <p>Nonwovens, adhesives, films and components that feed medical production lines across the region.</p>
+        <div class="pack-count">Production inputs</div>
+      </a>
+      <a class="pack" href="products.html">
+        <div class="pack-top"><span class="pack-ref">REF MH-04</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">⚙️</div>
+        <h3>Services</h3>
+        <p>Sterilization, testing, regulatory and logistics service providers supporting manufacturers end to end.</p>
+        <div class="pack-count">Service providers</div>
+      </a>
+      <a class="pack" href="products.html">
+        <div class="pack-top"><span class="pack-ref">REF MH-05</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">🧪</div>
+        <h3>IVD Supplies</h3>
+        <p>In-vitro diagnostic products and laboratory supplies from specialized producers.</p>
+        <div class="pack-count">Diagnostics</div>
+      </a>
+      <a class="pack" href="products.html">
+        <div class="pack-top"><span class="pack-ref">REF MH-06</span><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true">🔧</div>
+        <h3>Machinery</h3>
+        <p>Production machinery and equipment for medical device manufacturing facilities.</p>
+        <div class="pack-count">Equipment</div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how" style="padding-top:0">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">How it works</div>
+        <h2>Two sides, one marketplace</h2>
+      </div>
+    </div>
+    <div class="dual">
+      <div class="path path-buyer">
+        <span class="tag">For buyers</span>
+        <h3>Source directly from certified manufacturers</h3>
+        <p>Skip the middlemen. Find the exact product or production capacity you need and talk to the factory.</p>
+        <div class="steps">
+          <div class="step"><b>1</b><span>Search products or browse categories</span></div>
+          <div class="step"><b>2</b><span>Compare certified suppliers and their capabilities</span></div>
+          <div class="step"><b>3</b><span>Send a request for quotation, negotiate directly</span></div>
+        </div>
+        <a class="btn" href="products.html">Start sourcing</a>
+      </div>
+      <div class="path path-supplier">
+        <span class="tag">For manufacturers</span>
+        <h3>Showcase your company 24/7, receive buyer inquiries</h3>
+        <p>Your products, certifications and capacity — visible to international buyers around the clock.</p>
+        <div class="steps">
+          <div class="step"><b>1</b><span>Create your company profile with certifications</span></div>
+          <div class="step"><b>2</b><span>List products, OEM capacity and services</span></div>
+          <div class="step"><b>3</b><span>Receive and answer buyer inquiries directly</span></div>
+        </div>
+        <a class="btn" href="portal.html">Become a partner</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRODUCTS -->
+<section class="section" id="products" style="background:var(--mist);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Marketplace</div>
+        <h2>Featured products</h2>
+        <p>Live listings from partner manufacturers. Search above or filter by category.</p>
+      </div>
+    </div>
+    <div class="filter-bar" id="filterBar" role="group" aria-label="Filter products by category"></div>
+    <div class="prod-grid" id="prodGrid"></div>
+    <div class="no-results" id="noResults"><b>No products match your search</b>Try a different term, or browse all categories.</div>
+  </div>
+</section>
+
+<!-- INDUSTRY BAND -->
+<section class="section band" id="industry">
+  <div class="wrap band-inner">
+    <div>
+      <div class="eyebrow">Why Türkiye</div>
+      <h2>A rising force in the global medical sector</h2>
+      <p>Turkey's medical device industry combines EU-level regulatory compliance with competitive manufacturing costs and short logistics routes to Europe, the Middle East and Africa. MedicHall opens this ecosystem to the world.</p>
+    </div>
+    <div class="band-stats">
+      <div class="bstat"><div class="num">1,087</div><div class="lbl">Medical device manufacturers</div></div>
+      <div class="bstat"><div class="num">1,841</div><div class="lbl">Importers in the sub-sector</div></div>
+      <div class="bstat"><div class="num">$1.9B</div><div class="lbl">Sector size — 19th in the world</div></div>
+      <div class="bstat"><div class="num">0.74%</div><div class="lbl">Share of the global medical industry</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PARTNERS -->
+<section class="section" id="partners">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Partners</div>
+        <h2>Certified manufacturers, ready to do business</h2>
+        <p>Every manufacturer lists its certifications and regulatory status. Get in touch and start working together.</p>
+      </div>
+      <a class="link-more" href="companies.html">View all manufacturers →</a>
+    </div>
+    <div class="partner-grid" id="partnerGrid"></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section cta" id="join">
+  <div class="wrap cta-inner">
+    <div class="eyebrow" style="justify-content:center">Join us</div>
+    <h2>Find your future business partner</h2>
+    <p>Create a free account to send quotation requests, list your products, and grow your business on MedicHall.</p>
+    <div class="cta-btns">
+      <a class="btn btn-indicator" href="portal.html">Create free account</a>
+      <a class="btn btn-ghost" href="portal.html">Partner login</a>
+    </div>
+  </div>
+</section>
+
+<!-- HOME PRODUCT POPUP -->
+<div class="modal-backdrop" id="hpBackdrop" onclick="if(event.target===this)closeHomeProduct()">
+  <div class="modal" style="max-width:580px;padding:0;overflow:hidden" role="dialog" aria-modal="true" aria-labelledby="hpName">
+    <button class="modal-close" style="z-index:2;background:#fff;box-shadow:0 4px 14px rgba(0,62,82,.18)" aria-label="Close" onclick="closeHomeProduct()">✕</button>
+    <div id="hpImg" style="aspect-ratio:16/9;background:var(--mist);display:grid;place-items:center;overflow:hidden;position:relative"></div>
+    <div style="padding:24px 26px 26px">
+      <div id="hpChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <h3 id="hpName" style="font-family:var(--font-display);font-weight:700;font-size:1.3rem;line-height:1.25;margin-bottom:8px"></h3>
+      <p id="hpDesc" style="color:var(--ink-soft);font-size:.93rem"></p>
+      <a id="hpSupplier" style="display:none;margin-top:12px;font-size:.85rem;font-weight:600;color:var(--teal)"></a>
+      <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+        <a class="btn btn-indicator" id="hpOpen" style="flex:1;justify-content:center;min-width:180px">View & request quote →</a>
+        <a class="btn btn-ghost" id="hpBrochure" target="_blank" rel="noopener" style="display:none">📄 Brochure</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer id="contact">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="logo" style="margin-bottom:6px">
+          <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+            <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+            <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+            <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+          </svg>
+          <span><span class="mword" style="color:var(--sky)">MEDIC</span><span class="hword" style="color:#fff">HALL</span></span>
+        </div>
+        <p class="mono" style="color:var(--mint-soft);margin-bottom:16px">Where Health Meets</p>
+        <p>The B2B marketplace connecting Turkey's medical manufacturers with buyers worldwide — products, OEM production and direct contact in one place.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Products</h5>
+        <a href="products.html?cat=Medical%20Devices">Medical Devices</a>
+        <a href="products.html">OEM Supplies</a>
+        <a href="products.html?cat=Raw%20Materials">Raw Materials</a>
+        <a href="products.html">IVD Supplies</a>
+        <a href="products.html">Machinery</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="#how">How it works</a>
+        <a href="companies.html">Manufacturers</a>
+        <a href="#industry">Industry in Türkiye</a>
+        <a href="#">F.A.Q.</a>
+        <a href="blog/">Blog / News</a>
+      </div>
+      <div class="foot-col">
+        <h5>Contact</h5>
+        <a href="mailto:info@medichall.com">info@medichall.com</a>
+        <a href="#">İzmir, Türkiye</a>
+        <a href="portal.html">Become a seller</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 MedicHall. All rights reserved.</span>
+      <span>STERILE·EO / CE / ISO 13485</span>
+    </div>
+  </div>
+</footer>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="modal-close" aria-label="Close" onclick="closeModal()">✕</button>
+    <div id="loginView">
+      <h3 id="modalTitle">Welcome back</h3>
+      <p class="sub">Log in to your MedicHall account.</p>
+      <label for="li-email">Email</label>
+      <input id="li-email" type="email" placeholder="you@company.com" autocomplete="email">
+      <label for="li-pass">Password</label>
+      <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+      <button class="btn btn-solid" onclick="fakeAuth()">Log in</button>
+      <p class="swap">No account yet? <button onclick="openModal('signup')">Join free</button></p>
+    </div>
+    <div id="signupView" style="display:none">
+      <h3>Create your account</h3>
+      <p class="sub">Free for buyers and manufacturers.</p>
+      <label for="su-name">Company name</label>
+      <input id="su-name" type="text" placeholder="Your company">
+      <label for="su-email">Work email</label>
+      <input id="su-email" type="email" placeholder="you@company.com" autocomplete="email">
+      <label for="su-pass">Password</label>
+      <input id="su-pass" type="password" placeholder="Choose a password" autocomplete="new-password">
+      <button class="btn btn-solid" onclick="fakeAuth()">Create account</button>
+      <p class="swap">Already a member? <button onclick="openModal('login')">Log in</button></p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- data (from medichall.com catalog) ---------------- */
+let PRODUCTS = [
+  {name:"Laparotomy Pack",cat:"Medical Devices",ref:"MH-070",img:"https://medichall.com/images/products/70/643bdbd6621b41681644502-70.jpg"},
+  {name:"Universal Pack",cat:"Medical Devices",ref:"MH-069",img:"https://medichall.com/images/products/69/643bdb6ca51851681644396-69.jpg"},
+  {name:"C-Section Packs",cat:"Medical Devices",ref:"MH-057",img:"https://medichall.com/images/products/57/6436b001c21511681305601-57.jpg"},
+  {name:"Laparoscopic Pack",cat:"Medical Devices",ref:"MH-062",img:"https://medichall.com/images/products/62/643bd82197cc91681643553-62.jpg"},
+  {name:"By-Pass Pack",cat:"Medical Devices",ref:"MH-071",img:"https://medichall.com/images/products/71/643bdc6acb74e1681644650-71.jpg"},
+  {name:"Angiography Pack",cat:"Medical Devices",ref:"MH-050",img:"https://medichall.com/images/products/50/6436ab1a5c3c11681304346-50.jpg"},
+  {name:"Gynaecology Pack",cat:"Medical Devices",ref:"MH-056",img:"https://medichall.com/images/products/56/6436afa8370371681305512-56.jpg"},
+  {name:"Cystoscopy Pack",cat:"Medical Devices",ref:"MH-061",img:"https://medichall.com/images/products/61/643bd7c4774821681643460-61.jpg"},
+  {name:"T.U.R. Pack",cat:"Medical Devices",ref:"MH-060",img:"https://medichall.com/images/products/60/643bd7651135b1681643365-60.jpg"},
+  {name:"Shoulder Arthroscopy Pack",cat:"Medical Devices",ref:"MH-054",img:"https://medichall.com/images/products/54/6436add1c5c1f1681305041-54.jpg"},
+  {name:"Hip Pack",cat:"Medical Devices",ref:"MH-053",img:"https://medichall.com/images/products/53/6436ad7561c121681304949-53.jpg"},
+  {name:"Extremity Pack",cat:"Medical Devices",ref:"MH-055",img:"https://medichall.com/images/products/55/6436aeb9444941681305273-55.jpg"},
+  {name:"Chemotherapy Pack",cat:"Medical Devices",ref:"MH-064",img:"https://medichall.com/images/products/64/643bd926303b31681643814-64.jpg"},
+  {name:"E.N.T Pack",cat:"Medical Devices",ref:"MH-065",img:"https://medichall.com/images/products/65/643bd97cade9c1681643900-65.jpg"},
+  {name:"Thorax Pack",cat:"Medical Devices",ref:"MH-073",img:"https://medichall.com/images/products/73/643bdd1f273541681644831-73.jpg"},
+  {name:"Sterile Gowns",cat:"Medical Devices",ref:"MH-075",img:"https://medichall.com/images/products/75/643bddd7537841681645015-75.jpg"},
+  {name:"Non-Sterile Gowns",cat:"Medical Devices",ref:"MH-074",img:"https://medichall.com/images/products/74/643bdd766a21a1681644918-74.jpg"},
+  {name:"Microscope Drapes",cat:"Medical Devices",ref:"MH-076",img:"https://medichall.com/images/products/76/643bde332f11e1681645107-76.jpg"},
+  {name:"Camera Covers",cat:"Medical Devices",ref:"MH-077",img:"https://medichall.com/images/products/77/643bdea560bd51681645221-77.jpg"},
+  {name:"Scopy / Fluoroscopy Drapes",cat:"Medical Devices",ref:"MH-044",img:"https://medichall.com/images/products/44/63f3c73fb717b1676920639-44.png"},
+  {name:"Ophthalmology Drape",cat:"Medical Devices",ref:"MH-068",img:"https://medichall.com/images/products/68/643bdafca474f1681644284-68.jpg"},
+  {name:"Mayo Stand Cover",cat:"Medical Devices",ref:"MH-040",img:"https://medichall.com/images/products/40/63f3c552b37c11676920146-40.png"},
+  {name:"Fluid Collection Pouches",cat:"Medical Devices",ref:"MH-043",img:"https://medichall.com/images/products/43/63f3c67494a3a1676920436-43.png"},
+  {name:"Pleural (Chest) Drainage Systems",cat:"Medical Devices",ref:"MH-085",img:"https://medichall.com/images/products/85/647db70e38f371685960462-85.jpg"},
+  {name:"ESU Pencil",cat:"Medical Devices",ref:"MH-086",img:"https://medichall.com/images/products/86/647db80328aa11685960707-86.jpg"},
+  {name:"Sterilization Chemical Indicators",cat:"Sterilization",ref:"MH-079",img:"https://medichall.com/images/products/79/647db07db8fbe1685958781-79.png"},
+  {name:"Biological Indicators",cat:"Sterilization",ref:"MH-082",img:"https://medichall.com/images/products/82/647db42b457f51685959723-82.png"},
+  {name:"Autoclave Test Package (Bowie Dick / Helix)",cat:"Sterilization",ref:"MH-081",img:"https://medichall.com/images/products/81/647db31adf0fa1685959450-81.jpg"},
+  {name:"Autoclave Tapes",cat:"Sterilization",ref:"MH-080",img:"https://medichall.com/images/products/80/647db19dc38831685959069-80.jpg"},
+  {name:"Sterilization Reels, Pouches & Packaging",cat:"Sterilization",ref:"MH-078",img:"https://medichall.com/images/products/78/643fbf87451d21681899399-78.jpg"},
+  {name:"Washer Control Products",cat:"Sterilization",ref:"MH-087",img:"https://medichall.com/images/products/87/647db8662e0811685960806-87.png"},
+  {name:"Documentation Labels and Label Gun",cat:"Sterilization",ref:"MH-083",img:"https://medichall.com/images/products/83/647db4c9cc4b01685959881-83.jpg"},
+  {name:"Instrument Protector",cat:"Sterilization",ref:"MH-084",img:"https://medichall.com/images/products/84/647db55f913ae1685960031-84.jpg"},
+  {name:"Container Accessories (Seal / Filter)",cat:"Sterilization",ref:"MH-088",img:"https://medichall.com/images/products/88/647db903ba6371685960963-88.jpg"},
+  {name:"Vaccine Refrigerator",cat:"Cold Chain",ref:"MH-048",img:"https://medichall.com/images/products/48/641dac8c39b951679666316-48.png"},
+  {name:"Blood Bank Refrigerator",cat:"Cold Chain",ref:"MH-049",img:""},
+  {name:"OP-Tape",cat:"Raw Materials",ref:"MH-042",img:"https://medichall.com/images/products/42/63f3c5eaed2341676920298-42.png"},
+  {name:"Double Sided Adhesive",cat:"Raw Materials",ref:"MH-045",img:"https://medichall.com/images/products/45/63f3c801124af1676920833-45.png"}
+];
+
+const PARTNERS = [
+  {name:"Grup A Medical",type:"Medical device supplier"},
+  {name:"4A Medical",type:"Medical device supplier"},
+  {name:"CoolerBox Company",type:"Cold chain equipment"},
+  {name:"Medibant Medikal",type:"Packaging & lamination"},
+  {name:"Telkar Çevre Sağlık",type:"Service provider"},
+  {name:"MD Beans",type:"Medical device supplier"},
+  {name:"Yaren Çörekoğlu",type:"Supplier"},
+  {name:"Your company here",type:"Join as a partner"}
+];
+
+/* ---------------- render ---------------- */
+let activeFilter = "All";
+
+function initials(n){return n.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+
+function renderFilterChips(){
+  const bar = document.getElementById("filterBar");
+  if(!bar) return;
+  const cats = [...new Set(PRODUCTS.map(p=>p.cat))].sort();
+  bar.innerHTML = ["All", ...cats].map(c=>
+    `<button class="fchip ${activeFilter===c?"active":""}" data-cat="${c}" onclick="setFilter('${c}')">${c}</button>`
+  ).join("");
+}
+function renderProducts(){
+  renderFilterChips();
+  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+  const grid = document.getElementById("prodGrid");
+  const list = PRODUCTS.filter(p =>
+    (activeFilter==="All" || p.cat===activeFilter) &&
+    (!q || p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q))
+  );
+  grid.innerHTML = list.map(p=>`
+    <article class="prod" onclick="openHomeProduct('${p.ref}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openHomeProduct('${p.ref}')" style="cursor:pointer">
+      <div class="prod-img">
+        ${p.feat?`<span class="feat-badge">★ Featured</span>`:""}
+        ${p.img?`<img src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`:`<div class="fallback">${initials(p.name)}</div>`}
+      </div>
+      <div class="prod-body">
+        <span class="prod-cat">${p.cat}</span>
+        <h4>${p.name}</h4>
+        <div class="prod-foot">
+          <span class="mono">REF ${p.ref}</span>
+          <span class="rfq">View details →</span>
+        </div>
+      </div>
+    </article>`).join("");
+  document.getElementById("noResults").style.display = list.length ? "none" : "block";
+}
+
+function renderPartners(){
+  document.getElementById("partnerGrid").innerHTML = PARTNERS.map(p=>`
+    <a class="partner" href="companies.html">
+      <div class="partner-logo">${initials(p.name)}</div>
+      <h4>${p.name}</h4>
+      <span class="mono">${p.type}</span>
+    </a>`).join("");
+}
+
+/* ---------------- interactions ---------------- */
+function setFilter(cat){
+  activeFilter = cat;
+  renderProducts();
+}
+function runSearch(){
+  const q = document.getElementById("searchInput").value.trim();
+  location.href = "products.html" + (q ? "?q="+encodeURIComponent(q) : "");
+}
+function scrollToProducts(){
+  const el = document.getElementById("products");
+  if(!el) return;
+  const header = document.querySelector("header");
+  const offset = (header ? header.offsetHeight : 0) + 10;
+  const y = el.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop || 0) - offset;
+  try{
+    window.scrollTo({top:y, behavior:"smooth"});
+  }catch(e){
+    window.scrollTo(0, y);
+  }
+  // fallback if nothing moved (some embedded viewers block programmatic smooth scroll)
+  setTimeout(()=>{
+    const moved = Math.abs((window.pageYOffset||document.documentElement.scrollTop||0) - y) < 4;
+    if(!moved){ el.scrollIntoView(true); }
+  }, 600);
+}
+function quickSearch(term){
+  location.href = "products.html?q="+encodeURIComponent(term);
+}
+function toggleMenu(btn){
+  const nav=document.getElementById("navLinks");
+  const open=nav.classList.toggle("open");
+  btn.setAttribute("aria-expanded",open);
+}
+document.getElementById("navLinks").addEventListener("click",e=>{
+  if(e.target.tagName==="A"){document.getElementById("navLinks").classList.remove("open")}
+});
+
+/* ---------------- modal ---------------- */
+function openModal(view){
+  document.getElementById("modalBackdrop").classList.add("open");
+  document.getElementById("loginView").style.display = view==="login"?"block":"none";
+  document.getElementById("signupView").style.display = view==="signup"?"block":"none";
+  document.body.style.overflow="hidden";
+}
+function closeModal(){
+  document.getElementById("modalBackdrop").classList.remove("open");
+  document.body.style.overflow="";
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){
+  if(document.getElementById("hpBackdrop").classList.contains("open")) closeHomeProduct();
+  else closeModal();
+}});
+function openHomeProduct(ref){
+  const p = PRODUCTS.find(x=>x.ref===ref);
+  if(!p) return;
+  document.getElementById("hpImg").innerHTML = p.img
+    ? `<img src="${p.img}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover">`
+    : `<span style="font-family:var(--font-display);font-weight:700;font-size:2.4rem;color:var(--teal-tint);-webkit-text-stroke:2px var(--teal)">${p.name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}</span>`;
+  document.getElementById("hpChips").innerHTML =
+    `<span class="tagchip-hp" style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--teal-tint);color:var(--teal-deep);border-radius:100px;padding:5px 12px">${p.cat}</span>`
+    + `<span style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--mist);color:var(--ink-soft);border-radius:100px;padding:5px 12px">REF ${p.ref}</span>`
+    + (p.feat?`<span style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:5px 12px">★ Featured</span>`:"");
+  document.getElementById("hpName").textContent = p.name;
+  document.getElementById("hpDesc").textContent = p.desc || "";
+  const sup = document.getElementById("hpSupplier");
+  if(p.coName){
+    sup.style.display = "block";
+    sup.textContent = "Manufacturer: " + p.coName + " →";
+    sup.href = p.coSlug ? ("/m/" + p.coSlug) : "companies.html";
+  }else sup.style.display = "none";
+  document.getElementById("hpOpen").href = "products.html?p=" + encodeURIComponent(p.ref);
+  const bb = document.getElementById("hpBrochure");
+  if(p.broch){ bb.style.display = "inline-flex"; bb.href = p.broch; } else bb.style.display = "none";
+  document.getElementById("hpBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeHomeProduct(){
+  document.getElementById("hpBackdrop").classList.remove("open");
+  document.body.style.overflow = "";
+}
+function fakeAuth(){
+  alert("Account features will be connected to your backend (e.g. Supabase). This is the design preview.");
+}
+
+renderProducts();
+renderPartners();
+
+
+/* ---- logged-in chip (manufacturer session) ---- */
+const MH_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const MH_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+async function initAuthChip(){
+  const area = document.getElementById("authArea");
+  const tok = localStorage.getItem("mh_p_token");
+  if(!area || !tok) return;
+  try{
+    const ur = await fetch(MH_URL + "/auth/v1/user", {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!ur.ok) throw 0;
+    const user = await ur.json();
+    let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
+    try{
+      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
+    }catch(e){}
+    if(approved === null){
+      try{
+        const br = await fetch(MH_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + user.id,
+          {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+        if(br.ok){ const rs = await br.json(); if(rs.length){ name = rs[0].full_name || rs[0].company_name || name; } }
+      }catch(e){}
+    }
+    let unread = 0;
+    try{
+      const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(mr.ok){ const ms = await mr.json(); unread = new Set(ms.filter(m=>m.sender_id!==user.id).map(m=>m.rfq_id)).size; }
+    }catch(e){}
+    const init = name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    area.innerHTML = `
+      <div class="userchip">
+        <button class="uc-btn" onclick="this.nextElementSibling.classList.toggle('open')" aria-haspopup="true">
+          <span class="uc-av">${logo?`<img src="${logo}" alt="">`:init}</span>${unread?`<span class="uc-badge">${unread}</span>`:""}
+          <span class="uc-name">${name.replace(/</g,"&lt;")}</span>
+          <span class="uc-caret">▼</span>
+        </button>
+        <div class="uc-menu">
+          ${approved===null?"":`<div class="uc-status">${approved?"● Live on marketplace":"○ Pending approval"}</div>`}
+          <a href="portal.html">My account</a>
+          <a href="portal.html#inbox" id="ucInboxLink">Inbox${unread?` (${unread})`:""}</a>
+          <a href="portal.html#settings">Settings</a>
+          <button class="uc-out" onclick="chipLogout()">Log out</button>
+        </div>
+      </div>`;
+    document.addEventListener("click", e=>{
+      if(!e.target.closest(".userchip")) document.querySelectorAll(".uc-menu").forEach(m=>m.classList.remove("open"));
+    });
+    window.__mhChipUid = user.id;
+    if(!window.__mhChipTimer){ window.__mhChipTimer = setInterval(refreshChipUnread, 30000); }
+  }catch(e){
+    localStorage.removeItem("mh_p_token");
+  }
+}
+async function refreshChipUnread(){
+  const tok = localStorage.getItem("mh_p_token");
+  if(!tok || !window.__mhChipUid) return;
+  try{
+    const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!mr.ok) return;
+    const ms = await mr.json();
+    const n = new Set(ms.filter(m=>m.sender_id!==window.__mhChipUid).map(m=>m.rfq_id)).size;
+    const btn = document.querySelector(".uc-btn");
+    if(!btn) return;
+    let b = btn.querySelector(".uc-badge");
+    if(n){
+      if(!b){ b = document.createElement("span"); b.className = "uc-badge"; btn.appendChild(b); }
+      b.textContent = n;
+    }else if(b){ b.remove(); }
+    const link = document.getElementById("ucInboxLink");
+    if(link) link.textContent = "Inbox" + (n ? " (" + n + ")" : "");
+  }catch(e){}
+}
+function chipLogout(){
+  localStorage.removeItem("mh_p_token");
+  location.reload();
+}
+initAuthChip();
+
+
+/* ---- featured products from database ---- */
+async function loadFeaturedProducts(){
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/products?select=id,ref,name,category,description,image_url,brochure_url,is_featured,companies(name,slug,logo_url)&is_active=eq.true&order=is_featured.desc&limit=40",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(!r.ok) return;
+    const rows = await r.json();
+    if(rows && rows.length){
+      const all = rows.map(x=>({name:x.name, cat:x.category, ref:x.ref, img:x.image_url||"", feat:!!x.is_featured, desc:x.description||"", broch:x.brochure_url||null, coName:x.companies?x.companies.name:null, coSlug:x.companies?x.companies.slug:null, coLogo:x.companies?x.companies.logo_url:null}));
+      const shuffle = a => { for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+      PRODUCTS = shuffle(all.filter(p=>p.feat)).concat(shuffle(all.filter(p=>!p.feat))).slice(0,16);
+      renderProducts();
+    }
+  }catch(e){ /* keep built-in list */ }
+}
+loadFeaturedProducts();
+
+/* ---- banner ads (sliding carousel) ---- */
+const HOUSE_SLIDE = `<a class="banner-slide" href="portal.html" style="flex:0 0 100%;min-width:100%;display:block;position:relative;text-decoration:none;background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%)">
+  <span class="banner-tag">Ad space</span>
+  <span style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap">
+    <span>
+      <b style="display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2">Your products, front and center.</b>
+      <span style="display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500">Advertise on MedicHall and reach medical buyers worldwide.</span>
+    </span>
+    <span style="background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0">Become an advertiser →</span>
+  </span>
+</a>`;
+async function loadBanners(placement, containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  let banners = [];
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/banners?select=*&placement=eq." + placement + "&is_active=eq.true&order=created_at.desc",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(r.ok){
+      const now = new Date();
+      banners = (await r.json()).filter(b => !b.ends_at || new Date(b.ends_at) > now);
+    }
+  }catch(e){ banners = []; }
+  const slide = b => {
+    const inner = `<span class="banner-tag">Sponsored</span><img src="${b.image_url}" alt="${(b.title||"Advertisement").replace(/"/g,"&quot;")}" loading="lazy" style="width:100%;height:auto;display:block;max-height:210px;object-fit:cover">`;
+    return b.link_url
+      ? `<a class="banner-slide" href="${b.link_url}" target="_blank" rel="sponsored noopener" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</a>`
+      : `<div class="banner-slide" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</div>`;
+  };
+  const slides = banners.map(slide).join("") + HOUSE_SLIDE;
+  const total = banners.length + 1;
+  el.innerHTML = `<div class="banner-carousel" style="position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff">
+    <div id="${containerId}Track" style="display:flex;transition:transform .55s ease">${slides}</div>
+    ${total>1?`<div class="banner-dots" id="${containerId}Dots">${Array.from({length:total},(_,i)=>`<button class="banner-dot ${i===0?"on":""}" aria-label="Advertisement ${i+1}"></button>`).join("")}</div>`:""}
+  </div>`;
+  if(total > 1){
+    let i = 0, timer = null;
+    const track = document.getElementById(containerId + "Track");
+    const dots = Array.from(document.getElementById(containerId + "Dots").children);
+    const go = n => {
+      i = (n + total) % total;
+      track.style.transform = "translateX(-" + (i*100) + "%)";
+      dots.forEach((d,k)=>d.classList.toggle("on", k===i));
+    };
+    const start = () => { timer = setInterval(()=>go(i+1), 6000); };
+    dots.forEach((d,k)=>d.addEventListener("click", ()=>{ clearInterval(timer); go(k); start(); }));
+    start();
+  }
+}
+loadBanners("home","bannerHome");
+
+/* ---- partners strip: live manufacturer logos ---- */
+async function loadPartnersFromDB(){
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,slug,type&is_approved=eq.true&is_active=eq.true&order=plan.desc,name&limit=8",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(!r.ok) return;
+    const cos = await r.json();
+    if(!cos.length) return;
+    const grid = document.getElementById("partnerGrid");
+    if(!grid) return;
+    grid.innerHTML = cos.map(c=>`
+      <a class="partner" href="${c.slug?`/m/${c.slug}`:"companies.html"}">
+        <div class="partner-logo" ${c.logo_url?`style="background:#fff;border:1.5px solid var(--line)"`:""}>
+          ${c.logo_url?`<img src="${c.logo_url}" alt="${(c.name||"").replace(/"/g,"&quot;")} logo" style="width:100%;height:100%;object-fit:contain;padding:5px">`:(c.name||"?").split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+        </div>
+        <h4>${(c.name||"").replace(/</g,"&lt;")}</h4>
+        <span class="mono">${(c.type||"Manufacturer").replace(/</g,"&lt;")}</span>
+      </a>`).join("");
+  }catch(e){}
+}
+loadPartnersFromDB();
+
+/* ---- MedicHall Assistant (catalog-powered, no external AI) ---- */
+let mhaStarted = false;
+function mhaToggle(){
+  const p = document.getElementById("mhaPanel");
+  p.classList.toggle("open");
+  if(p.classList.contains("open") && !mhaStarted){ mhaStarted = true; mhaGreet(); }
+  if(p.classList.contains("open")) setTimeout(()=>document.getElementById("mhaInput").focus(), 100);
+}
+function mhaMsg(html, who){
+  const b = document.getElementById("mhaBody");
+  const d = document.createElement("div");
+  d.className = "mha-msg " + (who||"bot");
+  d.innerHTML = html;
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaChips(items){
+  const b = document.getElementById("mhaBody");
+  const w = document.createElement("div");
+  w.className = "mha-chips";
+  w.innerHTML = items.map(i=>`<button class="mha-chip" onclick="mhaQuick('${i.q.replace(/'/g,"\\'")}')">${i.t}</button>`).join("");
+  b.appendChild(w);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaCard(href, title, sub){
+  const b = document.getElementById("mhaBody");
+  const a = document.createElement("a");
+  a.className = "mha-card"; a.href = href;
+  a.innerHTML = `<span><span class="t">${title}</span><br><span class="s">${sub}</span></span>`;
+  b.appendChild(a);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaGreet(){
+  mhaMsg("Hello! 👋 I can help you find products and certified Turkish manufacturers, or explain how MedicHall works. What are you looking for?");
+  mhaChips([
+    {t:"🔍 Find a product", q:"find product"},
+    {t:"🏭 Manufacturers", q:"manufacturers"},
+    {t:"📋 How do RFQs work?", q:"how rfq works"},
+    {t:"⭐ Advertise / Premium", q:"premium"}
+  ]);
+}
+function mhaQuick(q){ document.getElementById("mhaInput").value = q; mhaSend(); }
+async function mhaSend(){
+  const inp = document.getElementById("mhaInput");
+  const q = inp.value.trim();
+  if(!q) return;
+  inp.value = "";
+  mhaMsg(q.replace(/</g,"&lt;"), "user");
+  const t = q.toLowerCase();
+
+  // FAQ intents
+  if(/rfq|quote|quotation|teklif|how.*(work|buy)|inquiry/.test(t)){
+    mhaMsg("Requesting a quote is easy: open any product and click <b>Request quotation</b>. The manufacturer replies directly — if you create a free account, the whole conversation happens right here on MedicHall with chat and notifications. 📬");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Create account", q:"register"}]);
+    return;
+  }
+  if(/register|sign ?up|join|account|kayıt|üye/.test(t)){
+    mhaMsg('You can join for free — as a <b>buyer</b> (save favorites, send RFQs, chat with manufacturers) or as a <b>manufacturer</b> (list your company and products). <a href="portal.html">Create your account here →</a>');
+    return;
+  }
+  if(/premium|advertis|banner|feature|reklam/.test(t)){
+    mhaMsg('Manufacturers can stand out with <b>★ Featured products</b> on the homepage, <b>Premium Partner</b> placement, and <b>banner campaigns</b> across the marketplace. <a href="portal.html">Join as a manufacturer</a> or contact us to discuss options.');
+    return;
+  }
+  if(/certif|ce |ce-|iso|mdr|quality/.test(t)){
+    mhaMsg('Manufacturers on MedicHall list their certifications (CE MDR, ISO 13485…) on their profiles — you can review them before making contact. <a href="companies.html">Browse certified manufacturers →</a>');
+    return;
+  }
+  if(/contact|support|help|iletişim|destek/.test(t)){
+    mhaMsg('You can reach the MedicHall team at <a href="mailto:info@medichall.com">info@medichall.com</a> — or message any manufacturer directly from their profile page.');
+    return;
+  }
+  if(/manufacturer|supplier|compan|firma|üretici/.test(t) && t.length < 30){
+    mhaMsg('Here is our directory of approved Turkish manufacturers: <a href="companies.html">View all manufacturers →</a> You can also type a company name and I\'ll look it up.');
+    return;
+  }
+  if(/find product|products?$|catalog/.test(t)){
+    mhaMsg('Tell me what you need — e.g. <i>"surgical packs"</i>, <i>"sterilization indicators"</i>, <i>"drapes"</i> — and I\'ll search the catalog. Or <a href="products.html">browse everything →</a>');
+    return;
+  }
+
+  // Catalog search
+  const enc = encodeURIComponent("*" + q.replace(/[%,()]/g," ").trim() + "*");
+  let found = false;
+  try{
+    const pr = await fetch(MH_URL + "/rest/v1/products?select=ref,name,category&or=(name.ilike." + enc + ",category.ilike." + enc + ")&is_active=eq.true&limit=4",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(pr.ok){
+      const prods = await pr.json();
+      if(prods.length){
+        found = true;
+        mhaMsg("Here's what I found in the catalog:");
+        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category + " · REF " + p.ref));
+        mhaCard("products.html?q=" + encodeURIComponent(q), "See all results for \"" + q.replace(/</g,"&lt;") + "\" →", "Full catalog search");
+      }
+    }
+    const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,slug,type&name=ilike." + enc + "&limit=3",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(cr.ok){
+      const cos = await cr.json();
+      if(cos.length){
+        found = true;
+        mhaMsg("Matching manufacturers:");
+        cos.forEach(c=>mhaCard(c.slug ? "/m/" + c.slug : "companies.html", c.name, c.type || "Manufacturer"));
+      }
+    }
+  }catch(e){}
+  if(!found){
+    mhaMsg("I couldn't find a direct match for that. Try different keywords (e.g. <i>drape, pack, sterilization, refrigerator</i>) — or <a href=\"products.html\">browse the full catalog</a> and <a href=\"companies.html\">manufacturer directory</a>.");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Contact support", q:"contact"}]);
+  }
+}
+
+
+/* ---- hero chips: live categories from the full catalog ---- */
+async function loadHeroChips(){
+  const el = document.getElementById("heroChips");
+  if(!el) return;
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/products?select=category&is_active=eq.true",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(!r.ok) return;
+    const cats = [...new Set((await r.json()).map(x=>x.category).filter(Boolean))].sort();
+    if(!cats.length) return;
+    el.innerHTML = cats.map(c=>
+      `<a class="chip" href="products.html?cat=${encodeURIComponent(c)}">${c.replace(/</g,"&lt;")}</a>`
+    ).join("");
+  }catch(e){}
+}
+loadHeroChips();
+</script>
+
+<!-- MedicHall Assistant -->
+<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()">💬</button>
+<div class="mha-panel" id="mhaPanel" role="dialog" aria-label="MedicHall assistant">
+  <div class="mha-head">
+    <div><b>MedicHall Assistant</b><span>Ask about products & manufacturers</span></div>
+    <button aria-label="Close assistant" onclick="mhaToggle()">✕</button>
+  </div>
+  <div class="mha-body" id="mhaBody"></div>
+  <div class="mha-foot">
+    <input id="mhaInput" placeholder="e.g. surgical drapes, sterilization…" onkeydown="if(event.key==='Enter')mhaSend()">
+    <button onclick="mhaSend()">➤</button>
+  </div>
+</div>
+
+</body>
+</html>

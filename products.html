@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products — MedicHall Marketplace</title>
+<meta name="description" content="Browse certified medical devices, sterilization products, raw materials and equipment from Turkish manufacturers on MedicHall.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#003E52;
+  --ink-soft:#40748E;
+  --teal:#4298CC;
+  --teal-deep:#003E52;
+  --teal-tint:#DCEEF7;
+  --sky:#70D0EC;
+  --mint:#6CCCB9;
+  --mint-soft:#9ED5CB;
+  --cream:#F2E5B3;
+  --brand-grad:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);
+  --mist:#EFF6F9;
+  --white:#FFFFFF;
+  --line:#D6E4EB;
+  --radius:14px;
+  --font-display:"Poppins",sans-serif;
+  --font-body:"Poppins",sans-serif;
+  --font-mono:"IBM Plex Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+body{font-family:var(--font-body);color:var(--ink);background:var(--mist);line-height:1.6;font-size:16px}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.mono{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* header */
+header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:70px;gap:24px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:1.3rem;letter-spacing:.04em}
+.logo-mark{width:30px;height:34px;flex-shrink:0;display:block}
+.logo .mword{color:var(--teal);font-weight:500}
+.logo .hword{color:var(--teal-deep);font-weight:700}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-links a{padding:8px 14px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.nav-links a:hover{background:var(--mist);color:var(--ink)}
+.nav-links a.active{color:var(--teal);font-weight:600}
+.nav-cta{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-weight:600;font-size:.92rem;border:1.5px solid transparent;transition:all .15s}
+.btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-solid{background:var(--teal);color:#fff}
+.btn-solid:hover{background:#3184B4}
+.btn-grad{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none}
+.btn-grad:hover{filter:brightness(1.05)}
+.btn-sm{padding:7px 14px;font-size:.8rem}
+.menu-toggle{display:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:42px;height:42px;font-size:1.2rem;color:var(--ink)}
+@media(max-width:900px){
+  .nav-links{display:none;position:absolute;top:70px;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;padding:16px 24px 24px;border-bottom:1px solid var(--line);gap:4px}
+  .nav-links.open{display:flex}
+  .nav-links a{padding:12px 14px}
+  .menu-toggle{display:grid;place-items:center}
+  .nav-cta .btn-ghost{display:none}
+}
+
+/* page head */
+.page-head{background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%);border-bottom:1px solid var(--line);padding:38px 0 30px}
+.crumbs{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px}
+.crumbs a:hover{color:var(--teal)}
+.page-head h1{font-family:var(--font-display);font-weight:700;font-size:clamp(1.6rem,3.4vw,2.3rem);letter-spacing:-.01em}
+.page-head p{color:var(--ink-soft);margin-top:6px}
+
+/* layout */
+.catalog{display:grid;grid-template-columns:250px 1fr;gap:28px;padding:34px 0 90px;align-items:start}
+@media(max-width:860px){.catalog{grid-template-columns:1fr}}
+
+/* sidebar */
+.side{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:22px;position:sticky;top:88px}
+@media(max-width:860px){.side{position:static}}
+.side h3{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin:20px 0 10px}
+.side h3:first-child{margin-top:0}
+.side-search{display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.side-search input{flex:1;border:none;outline:none;padding:10px 12px;font-family:var(--font-body);font-size:.92rem;min-width:0}
+.side-search:focus-within{border-color:var(--teal)}
+.cat-list{display:flex;flex-direction:column;gap:2px}
+.cat-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:9px;font-size:.92rem;font-weight:500;color:var(--ink-soft);border:none;background:none;text-align:left;transition:all .13s;width:100%}
+.cat-item:hover{background:var(--mist);color:var(--ink)}
+.cat-item.active{background:var(--teal-tint);color:var(--teal-deep);font-weight:600}
+.cat-item .cnt{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-soft);background:var(--mist);border-radius:100px;padding:2px 8px}
+.cat-item.active .cnt{background:#fff}
+.side select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:var(--font-body);font-size:.92rem;color:var(--ink);background:#fff}
+.clear-btn{width:100%;margin-top:20px;background:none;border:1.5px dashed var(--line);border-radius:10px;padding:10px;font-size:.85rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.clear-btn:hover{border-color:var(--teal);color:var(--teal)}
+.filters-toggle{display:none;width:100%;margin-bottom:14px}
+@media(max-width:860px){
+  .filters-toggle{display:inline-flex;justify-content:center}
+  .side{display:none}
+  .side.open{display:block}
+}
+
+/* results */
+.results-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.results-bar .count{font-size:.92rem;color:var(--ink-soft)}
+.results-bar .count b{color:var(--ink)}
+.active-pill{display:inline-flex;align-items:center;gap:8px;background:var(--teal-tint);color:var(--teal-deep);border-radius:100px;padding:6px 8px 6px 14px;font-size:.83rem;font-weight:600}
+.active-pill button{background:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:.7rem;color:var(--ink-soft);display:grid;place-items:center}
+.prod-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media(max-width:1100px){.prod-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.prod-grid{grid-template-columns:1fr}}
+.prod{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:all .2s;display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer}
+.prod:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,62,82,.12)}
+.prod-img{aspect-ratio:4/3;background:var(--mist);display:grid;place-items:center;overflow:hidden;position:relative}
+.fav-btn{position:absolute;top:8px;right:8px;z-index:3;width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.92);color:#B9CDD6;font-size:1.05rem;display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,62,82,.15);transition:all .15s}
+.fav-btn:hover{transform:scale(1.1);color:var(--teal)}
+.fav-btn.on{color:#E0475B}
+.feat-badge{position:absolute;top:10px;left:10px;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;border-radius:100px;padding:4px 11px;z-index:2}
+
+.prod-img img{width:100%;height:100%;object-fit:cover}
+.prod-img .fallback{font-family:var(--font-display);font-weight:700;font-size:2.2rem;color:var(--teal-tint);-webkit-text-stroke:1.5px var(--teal)}
+.prod-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.prod-cat{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal)}
+.prod h4{font-size:.98rem;font-weight:600;line-height:1.35;flex:1;font-family:var(--font-body)}
+.prod-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:10px;margin-top:4px}
+.prod-foot .mono{color:var(--ink-soft)}
+.prod-foot .go{font-size:.8rem;font-weight:600;color:var(--teal)}
+.no-results{text-align:center;padding:70px 20px;color:var(--ink-soft);display:none;background:#fff;border:1.5px dashed var(--line);border-radius:var(--radius)}
+.no-results b{display:block;font-family:var(--font-display);font-size:1.15rem;color:var(--ink);margin-bottom:6px}
+.load-wrap{text-align:center;margin-top:30px}
+
+/* detail drawer */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.45);backdrop-filter:blur(3px);display:none;z-index:90}
+.drawer-backdrop.open{display:block}
+.drawer{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.96);opacity:0;pointer-events:none;width:min(620px,94vw);max-height:88vh;background:#fff;z-index:95;transition:transform .22s ease,opacity .22s ease;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,62,82,.35);border-radius:18px;overflow:hidden}
+.drawer.open{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+.drawer-img{aspect-ratio:16/9;flex-shrink:0;background:var(--mist);display:grid;place-items:center;overflow:hidden;flex-shrink:0}
+.drawer-img img{width:100%;height:100%;object-fit:cover}
+.drawer-img .fallback{font-family:var(--font-display);font-weight:700;font-size:3rem;color:var(--teal-tint);-webkit-text-stroke:2px var(--teal)}
+.drawer-body{padding:26px 28px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px}
+.drawer-close{position:absolute;top:16px;right:16px;background:#fff;border:none;width:38px;height:38px;border-radius:10px;font-size:1rem;color:var(--ink);box-shadow:0 4px 14px rgba(0,62,82,.18)}
+.drawer h2{font-family:var(--font-display);font-weight:700;font-size:1.45rem;line-height:1.25;letter-spacing:-.01em}
+.drawer .meta{display:flex;gap:10px;flex-wrap:wrap}
+.tagchip{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:5px 12px;color:var(--ink-soft)}
+.tagchip.cat{background:var(--teal-tint);color:var(--teal-deep);border-color:transparent}
+.drawer p{color:var(--ink-soft);font-size:.95rem}
+.supplier-box{border:1.5px solid var(--line);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px}
+.supplier-box .sl{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:700}
+.supplier-box .st b{display:block;font-size:.93rem}
+.supplier-box .st span{font-size:.8rem;color:var(--ink-soft)}
+.drawer-actions{display:flex;gap:10px;margin-top:auto;padding-top:10px;flex-wrap:wrap}
+.drawer-actions .btn{flex:1;justify-content:center;min-width:150px}
+.copied{font-size:.8rem;color:var(--mint);font-weight:600;display:none}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px}
+.modal-backdrop.open{display:grid}
+.modal{background:#fff;border-radius:18px;padding:32px 34px;max-width:480px;width:100%;position:relative;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal h3{font-family:var(--font-display);font-weight:700;font-size:1.4rem;margin-bottom:6px}
+.modal .sub{color:var(--ink-soft);font-size:.92rem;margin-bottom:24px}
+.modal label{display:block;font-size:.85rem;font-weight:600;margin:14px 0 6px}
+.modal input,.modal textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-family:var(--font-body);font-size:.95rem}
+.modal input:focus,.modal textarea:focus{outline:none;border-color:var(--teal)}
+.modal .btn{width:100%;justify-content:center;margin-top:22px}
+.modal-close{position:absolute;top:16px;right:16px;background:var(--mist);border:none;width:34px;height:34px;border-radius:9px;font-size:1rem;color:var(--ink-soft)}
+
+
+/* pdf viewer */
+.pdf-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.6);backdrop-filter:blur(3px);display:none;z-index:110;padding:16px}
+.pdf-backdrop.open{display:grid;place-items:center}
+.pdf-shell{background:#fff;border-radius:16px;width:min(920px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,62,82,.35)}
+.pdf-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);gap:10px}
+.pdf-bar b{font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-bar .acts{display:flex;gap:8px;flex-shrink:0}
+.pdf-frame{flex:1;border:none;width:100%;background:#5a6c74}
+
+/* footer */
+footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem;margin-top:0}
+.foot-bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.05em;align-items:center}
+.foot-bottom a:hover{color:var(--sky)}
+
+/* logged-in user chip */
+.userchip{position:relative}
+.uc-btn{display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:5px 14px 5px 6px;font-weight:600;font-size:.88rem;color:var(--ink);transition:all .15s;max-width:230px}
+.uc-btn:hover{border-color:var(--teal)}
+.uc-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.82rem;overflow:hidden;flex-shrink:0}
+.uc-av img{width:100%;height:100%;object-fit:cover}
+.uc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uc-caret{font-size:.6rem;color:var(--ink-soft)}
+.uc-btn{position:relative}
+.uc-badge{position:absolute;top:-6px;left:24px;background:#E0475B;color:#fff;font-size:.62rem;font-weight:700;min-width:17px;height:17px;border-radius:100px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.uc-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1.5px solid var(--line);border-radius:12px;min-width:200px;box-shadow:0 16px 40px rgba(0,62,82,.15);display:none;overflow:hidden;z-index:80}
+.uc-menu.open{display:block}
+.uc-menu a,.uc-menu button{display:block;width:100%;text-align:left;padding:11px 16px;font-size:.88rem;font-weight:500;color:var(--ink);background:none;border:none;border-bottom:1px solid var(--line);transition:background .12s}
+.uc-menu a:hover,.uc-menu button:hover{background:var(--mist)}
+.uc-menu .uc-status{font-family:var(--font-mono, "IBM Plex Mono",monospace);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);padding:10px 16px;background:var(--mist)}
+.uc-menu button.uc-out{color:#C0392B;border-bottom:none}
+
+
+/* banner ads */
+.banner-slot{margin:26px auto 0;display:flex;justify-content:center}
+
+.banner-carousel{position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff}
+.banner-track{display:flex;transition:transform .55s ease}
+.banner-slide{flex:0 0 100%;display:block;position:relative;min-width:100%}
+.banner-slide img{width:100%;height:auto;display:block;max-height:210px;object-fit:cover}
+.banner-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;gap:6px;justify-content:center;z-index:3}
+.banner-dot{width:9px;height:9px;border-radius:50%;border:none;background:rgba(255,255,255,.65);box-shadow:0 1px 4px rgba(0,62,82,.35);padding:0;cursor:pointer;transition:all .2s}
+.banner-dot.on{background:#fff;width:22px;border-radius:100px}
+.house-ad{background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);text-decoration:none}
+.ha-inner{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap}
+.ha-inner b{display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2;letter-spacing:-.01em}
+.ha-inner .ha-sub{display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500}
+.ha-btn{background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0}
+
+.banner-tag{position:absolute;top:8px;right:10px;background:rgba(0,62,82,.65);color:#fff;font-family:var(--font-mono,"IBM Plex Mono",monospace);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;border-radius:100px;padding:3px 10px;backdrop-filter:blur(4px)}
+
+
+/* MedicHall assistant */
+.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:58px;height:58px;border-radius:50%;border:none;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
+.mha-fab:hover{transform:scale(1.08)}
+.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
+.mha-panel.open{display:flex}
+.mha-head{background:linear-gradient(100deg,#6CCCB9,#4298CC);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.mha-head b{font-size:.95rem}
+.mha-head span{display:block;font-size:.72rem;opacity:.9}
+.mha-head button{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer}
+.mha-body{flex:1;overflow-y:auto;padding:14px;background:var(--mist);display:flex;flex-direction:column;gap:10px}
+.mha-msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:.86rem;line-height:1.5}
+.mha-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.mha-msg.user{align-self:flex-end;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-bottom-right-radius:4px}
+.mha-msg a{color:var(--teal);font-weight:600;text-decoration:none}
+.mha-msg.user a{color:#fff;text-decoration:underline}
+.mha-chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
+.mha-chip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:6px 13px;font-size:.78rem;font-weight:600;color:var(--teal-deep);cursor:pointer;font-family:inherit}
+.mha-chip:hover{border-color:var(--teal);color:var(--teal)}
+.mha-card{display:flex;gap:10px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;text-decoration:none;align-self:flex-start;max-width:95%;transition:border-color .15s}
+.mha-card:hover{border-color:var(--teal)}
+.mha-card .t{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.3}
+.mha-card .s{font-size:.68rem;color:var(--ink-soft);font-family:var(--font-mono,monospace)}
+.mha-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:#fff}
+.mha-foot input{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:.86rem}
+.mha-foot input:focus{outline:none;border-color:var(--teal)}
+.mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a href="index.html" class="logo" aria-label="MedicHall home">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#F2E5B3"/>
+            <stop offset=".5" stop-color="#6CCCB9"/>
+            <stop offset="1" stop-color="#4298CC"/>
+          </linearGradient>
+        </defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Main navigation">
+      <a href="products.html" class="active">Products</a>
+      <a href="companies.html">Manufacturers</a>
+      <a href="blog/">Insights</a>
+      <a href="index.html#industry">Industry</a>
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <span id="authArea" style="display:flex;gap:10px;align-items:center">
+      <a class="btn btn-ghost" href="portal.html">Partner login</a>
+      <a class="btn btn-solid" href="portal.html">Join for free</a>
+      </span>
+      <button class="menu-toggle" aria-label="Open menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
+    </div>
+  </div>
+</header>
+
+<div class="page-head">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Home</a> / Products</div>
+    <h1>Product Catalog</h1>
+    <p>Certified products from Turkish manufacturers — search, filter and request quotations directly.</p>
+  </div>
+</div>
+
+<div class="wrap catalog">
+  <div style="grid-column:1/-1;display:contents">
+    <button class="btn btn-ghost filters-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">Filters ☰</button>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="side" id="sidebar" aria-label="Filters">
+    <h3>Search</h3>
+    <div class="side-search">
+      <input id="q" type="search" placeholder="Search products…" aria-label="Search products">
+    </div>
+    <h3>Categories</h3>
+    <div class="cat-list" id="catList"></div>
+    <h3>Sort by</h3>
+    <select id="sort" aria-label="Sort products">
+      <option value="az">Name A–Z</option>
+      <option value="za">Name Z–A</option>
+      <option value="new">Newest first</option>
+    </select>
+    <button class="clear-btn" onclick="clearFilters()">✕ Clear all filters</button>
+  </aside>
+
+  <!-- RESULTS -->
+  <main>
+    <div class="results-bar">
+      <span class="count" id="countLbl"></span>
+      <span id="activePill"></span>
+    </div>
+    <div class="banner-slot" id="bannerCatalog" style="margin:0 0 18px"></div>
+    <div class="prod-grid" id="grid"></div>
+    <div class="no-results" id="noResults"><b>No products match your search</b>Try a different term or clear the filters.</div>
+    <div class="load-wrap"><button class="btn btn-ghost" id="loadMore" onclick="page++;render()">Load more products</button></div>
+  </main>
+</div>
+
+<!-- DETAIL DRAWER -->
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <button class="drawer-close" aria-label="Close product details" onclick="closeDrawer()">✕</button>
+  <div class="drawer-img" id="dImg"></div>
+  <div class="drawer-body">
+    <div class="meta" id="dMeta"></div>
+    <h2 id="dTitle"></h2>
+    <p id="dDesc"></p>
+    <a class="supplier-box" id="supplierBox">
+      <div class="sl" id="dSupInit">M</div>
+      <div class="st"><b id="dSupName">MedicHall Verified Partner</b> <span id="dSupVer" style="display:none;background:#1E8E76;color:#fff;border-radius:100px;padding:2px 10px;font-size:.64rem;font-weight:700;vertical-align:middle;white-space:nowrap">✓ Verified</span><span id="dSupSub">CE · ISO 13485 certified manufacturer</span></div>
+    </a>
+    <div class="drawer-actions">
+      <button class="btn btn-grad" onclick="openModal('rfq')">Request quotation</button>
+      <button class="btn btn-ghost" id="drawerFav" style="display:none">♥ Save</button>
+      <button class="btn btn-ghost" id="brochureBtn" style="display:none">📄 View brochure</button>
+      <button class="btn btn-ghost" onclick="copyLink(this)">Copy product link</button>
+    </div>
+    <span class="copied" id="copiedLbl">✓ Link copied</span>
+  </div>
+</aside>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" aria-label="Close" onclick="closeModal()">✕</button>
+    <div id="loginView">
+      <h3>Welcome back</h3>
+      <p class="sub">Log in to your MedicHall account.</p>
+      <label for="li-email">Email</label>
+      <input id="li-email" type="email" placeholder="you@company.com" autocomplete="email">
+      <label for="li-pass">Password</label>
+      <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+      <button class="btn btn-solid" onclick="fakeAuth()">Log in</button>
+    </div>
+    <div id="signupView" style="display:none">
+      <h3>Create your account</h3>
+      <p class="sub">Free for buyers and manufacturers.</p>
+      <label for="su-name">Company name</label>
+      <input id="su-name" type="text" placeholder="Your company">
+      <label for="su-email">Work email</label>
+      <input id="su-email" type="email" placeholder="you@company.com" autocomplete="email">
+      <label for="su-pass">Password</label>
+      <input id="su-pass" type="password" placeholder="Choose a password" autocomplete="new-password">
+      <button class="btn btn-solid" onclick="fakeAuth()">Create account</button>
+    </div>
+    <div id="rfqView" style="display:none">
+      <h3>Request a quotation</h3>
+      <p class="sub" id="rfqProduct">Send your requirements to the manufacturer.</p>
+      <div id="rfqGuestFields">
+        <label for="rfq-email">Work email *</label>
+        <input id="rfq-email" type="email" placeholder="you@company.com">
+        <label for="rfq-company">Company</label>
+        <input id="rfq-company" type="text" placeholder="Your company name">
+      </div>
+      <p id="rfqAccountLine" style="display:none;background:var(--teal-tint);border-radius:10px;padding:10px 14px;font-size:.85rem;margin-top:8px">Sending as <b id="rfqAccountName"></b></p>
+      <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+        <div><label for="rfq-qty">Quantity *</label><input id="rfq-qty" placeholder="e.g. 10,000 pcs"></div>
+        <div><label for="rfq-dest">Destination country *</label><input id="rfq-dest" placeholder="e.g. Germany"></div>
+        <div><label for="rfq-incoterm">Incoterm</label>
+          <select id="rfq-incoterm">
+            <option value="">Not sure yet</option>
+            <option>EXW</option><option>FCA</option><option>FOB</option>
+            <option>CIF</option><option>DAP</option><option>DDP</option>
+          </select>
+        </div>
+        <div><label for="rfq-target">Target price (optional)</label><input id="rfq-target" placeholder="e.g. 1.20 USD / pc"></div>
+      </div>
+      <label for="rfq-certs">Required certifications (optional)</label>
+      <input id="rfq-certs" placeholder="e.g. CE MDR, ISO 13485">
+      <label for="rfq-msg">Specifications & notes</label>
+      <textarea id="rfq-msg" rows="3" placeholder="Material, sizes, packaging, other requirements…"></textarea>
+      <label id="multiSendWrap" style="display:none;margin-top:12px;background:var(--mist);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.85rem;font-weight:500;cursor:pointer;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="rfq-multi" style="width:auto;margin:3px 0 0">
+        <span>📊 <b>Also send to other manufacturers in this category</b><br>
+        <span style="color:var(--ink-soft);font-weight:400">Get multiple offers and compare them side by side in your account.</span></span>
+      </label>
+      <button class="btn btn-grad" id="rfqSend" onclick="sendRFQ()">Send request</button>
+      <p id="rfqStatus" style="display:none;margin-top:14px;font-size:.88rem;font-weight:600"></p>
+    </div>
+  </div>
+</div>
+
+
+<!-- PDF VIEWER -->
+<div class="pdf-backdrop" id="pdfBackdrop" onclick="if(event.target===this)closePdfViewer()">
+  <div class="pdf-shell" role="dialog" aria-modal="true" aria-label="PDF viewer">
+    <div class="pdf-bar">
+      <b id="pdfTitle">Document</b>
+      <div class="acts">
+        <a class="btn btn-ghost btn-sm" id="pdfOpenTab" target="_blank" rel="noopener">Open in new tab ↗</a>
+        <button class="btn btn-solid btn-sm" onclick="closePdfViewer()">✕ Close</button>
+      </div>
+    </div>
+    <iframe class="pdf-frame" id="pdfFrame" title="PDF document"></iframe>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap foot-bottom">
+    <span>© 2026 MedicHall · Where Health Meets</span>
+    <a href="index.html">← Back to homepage</a>
+  </div>
+</footer>
+
+<script>
+/* ---------------- data ---------------- */
+/* ================================================================
+   BACKEND CONFIG — paste your Supabase keys here to go live.
+   Supabase Dashboard -> Project Settings -> API
+   Leave empty ("") and the site uses the built-in catalog below.
+   ================================================================ */
+const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+
+const backendReady = () => SUPABASE_URL && SUPABASE_ANON_KEY;
+
+async function sb(path, options={}){
+  const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+      ...(options.headers||{})
+    }
+  });
+  if(!res.ok) throw new Error("Supabase error " + res.status);
+  return res.status===201 ? null : res.json();
+}
+
+let PRODUCTS = [
+  {name:"Laparotomy Pack",cat:"Medical Devices",ref:"MH-070",img:"https://medichall.com/images/products/70/643bdbd6621b41681644502-70.jpg"},
+  {name:"Universal Pack",cat:"Medical Devices",ref:"MH-069",img:"https://medichall.com/images/products/69/643bdb6ca51851681644396-69.jpg"},
+  {name:"C-Section Packs",cat:"Medical Devices",ref:"MH-057",img:"https://medichall.com/images/products/57/6436b001c21511681305601-57.jpg"},
+  {name:"Laparoscopic Pack",cat:"Medical Devices",ref:"MH-062",img:"https://medichall.com/images/products/62/643bd82197cc91681643553-62.jpg"},
+  {name:"By-Pass Pack",cat:"Medical Devices",ref:"MH-071",img:"https://medichall.com/images/products/71/643bdc6acb74e1681644650-71.jpg"},
+  {name:"Angiography Pack",cat:"Medical Devices",ref:"MH-050",img:"https://medichall.com/images/products/50/6436ab1a5c3c11681304346-50.jpg"},
+  {name:"Gynaecology Pack",cat:"Medical Devices",ref:"MH-056",img:"https://medichall.com/images/products/56/6436afa8370371681305512-56.jpg"},
+  {name:"Cystoscopy Pack",cat:"Medical Devices",ref:"MH-061",img:"https://medichall.com/images/products/61/643bd7c4774821681643460-61.jpg"},
+  {name:"T.U.R. Pack",cat:"Medical Devices",ref:"MH-060",img:"https://medichall.com/images/products/60/643bd7651135b1681643365-60.jpg"},
+  {name:"Shoulder Arthroscopy Pack",cat:"Medical Devices",ref:"MH-054",img:"https://medichall.com/images/products/54/6436add1c5c1f1681305041-54.jpg"},
+  {name:"Hip Pack",cat:"Medical Devices",ref:"MH-053",img:"https://medichall.com/images/products/53/6436ad7561c121681304949-53.jpg"},
+  {name:"Extremity Pack",cat:"Medical Devices",ref:"MH-055",img:"https://medichall.com/images/products/55/6436aeb9444941681305273-55.jpg"},
+  {name:"Chemotherapy Pack",cat:"Medical Devices",ref:"MH-064",img:"https://medichall.com/images/products/64/643bd926303b31681643814-64.jpg"},
+  {name:"E.N.T Pack",cat:"Medical Devices",ref:"MH-065",img:"https://medichall.com/images/products/65/643bd97cade9c1681643900-65.jpg"},
+  {name:"Thorax Pack",cat:"Medical Devices",ref:"MH-073",img:"https://medichall.com/images/products/73/643bdd1f273541681644831-73.jpg"},
+  {name:"Sterile Gowns",cat:"Medical Devices",ref:"MH-075",img:"https://medichall.com/images/products/75/643bddd7537841681645015-75.jpg"},
+  {name:"Non-Sterile Gowns",cat:"Medical Devices",ref:"MH-074",img:"https://medichall.com/images/products/74/643bdd766a21a1681644918-74.jpg"},
+  {name:"Microscope Drapes",cat:"Medical Devices",ref:"MH-076",img:"https://medichall.com/images/products/76/643bde332f11e1681645107-76.jpg"},
+  {name:"Camera Covers",cat:"Medical Devices",ref:"MH-077",img:"https://medichall.com/images/products/77/643bdea560bd51681645221-77.jpg"},
+  {name:"Scopy / Fluoroscopy Drapes",cat:"Medical Devices",ref:"MH-044",img:"https://medichall.com/images/products/44/63f3c73fb717b1676920639-44.png"},
+  {name:"Ophthalmology Drape",cat:"Medical Devices",ref:"MH-068",img:"https://medichall.com/images/products/68/643bdafca474f1681644284-68.jpg"},
+  {name:"Mayo Stand Cover",cat:"Medical Devices",ref:"MH-040",img:"https://medichall.com/images/products/40/63f3c552b37c11676920146-40.png"},
+  {name:"Fluid Collection Pouches",cat:"Medical Devices",ref:"MH-043",img:"https://medichall.com/images/products/43/63f3c67494a3a1676920436-43.png"},
+  {name:"Pleural (Chest) Drainage Systems",cat:"Medical Devices",ref:"MH-085",img:"https://medichall.com/images/products/85/647db70e38f371685960462-85.jpg"},
+  {name:"ESU Pencil",cat:"Medical Devices",ref:"MH-086",img:"https://medichall.com/images/products/86/647db80328aa11685960707-86.jpg"},
+  {name:"Sterilization Chemical Indicators",cat:"Sterilization",ref:"MH-079",img:"https://medichall.com/images/products/79/647db07db8fbe1685958781-79.png"},
+  {name:"Biological Indicators",cat:"Sterilization",ref:"MH-082",img:"https://medichall.com/images/products/82/647db42b457f51685959723-82.png"},
+  {name:"Autoclave Test Package (Bowie Dick / Helix)",cat:"Sterilization",ref:"MH-081",img:"https://medichall.com/images/products/81/647db31adf0fa1685959450-81.jpg"},
+  {name:"Autoclave Tapes",cat:"Sterilization",ref:"MH-080",img:"https://medichall.com/images/products/80/647db19dc38831685959069-80.jpg"},
+  {name:"Sterilization Reels, Pouches & Packaging",cat:"Sterilization",ref:"MH-078",img:"https://medichall.com/images/products/78/643fbf87451d21681899399-78.jpg"},
+  {name:"Washer Control Products",cat:"Sterilization",ref:"MH-087",img:"https://medichall.com/images/products/87/647db8662e0811685960806-87.png"},
+  {name:"Documentation Labels and Label Gun",cat:"Sterilization",ref:"MH-083",img:"https://medichall.com/images/products/83/647db4c9cc4b01685959881-83.jpg"},
+  {name:"Instrument Protector",cat:"Sterilization",ref:"MH-084",img:"https://medichall.com/images/products/84/647db55f913ae1685960031-84.jpg"},
+  {name:"Container Accessories (Seal / Filter)",cat:"Sterilization",ref:"MH-088",img:"https://medichall.com/images/products/88/647db903ba6371685960963-88.jpg"},
+  {name:"Vaccine Refrigerator",cat:"Cold Chain",ref:"MH-048",img:"https://medichall.com/images/products/48/641dac8c39b951679666316-48.png"},
+  {name:"Blood Bank Refrigerator",cat:"Cold Chain",ref:"MH-049",img:""},
+  {name:"OP-Tape",cat:"Raw Materials",ref:"MH-042",img:"https://medichall.com/images/products/42/63f3c5eaed2341676920298-42.png"},
+  {name:"Double Sided Adhesive",cat:"Raw Materials",ref:"MH-045",img:"https://medichall.com/images/products/45/63f3c801124af1676920833-45.png"}
+];
+
+const CAT_DESC = {
+  "Medical Devices":"Sterile, single-use surgical product manufactured under CE MDR and ISO 13485 quality systems. Custom configurations and private-label (OEM) production available on request.",
+  "Sterilization":"Sterilization assurance and CSSD product complying with relevant EN/ISO standards. Suitable for hospital central sterilization departments and device manufacturers.",
+  "Cold Chain":"Medical cold-chain equipment designed for safe storage of temperature-sensitive products, with monitoring and alarm options.",
+  "Raw Materials":"Production input for medical device manufacturing lines. Technical specifications and samples available from the manufacturer."
+};
+
+/* ---------------- state (URL-driven) ---------------- */
+const params = new URLSearchParams(location.search);
+let q = params.get("q") || "";
+let cat = params.get("cat") || "All";
+let sort = "az";
+let page = 1;
+const PER_PAGE = 12;
+
+document.getElementById("q").value = q;
+
+function syncURL(){
+  const p = new URLSearchParams();
+  if(q) p.set("q",q);
+  if(cat!=="All") p.set("cat",cat);
+  const drawerRef = document.getElementById("drawer").dataset.ref;
+  if(drawerRef) p.set("p",drawerRef);
+  const qs = p.toString();
+  history.replaceState(null,"",qs?("?"+qs):location.pathname);
+}
+
+/* ---------------- helpers ---------------- */
+function initials(n){return n.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+function filtered(){
+  let list = PRODUCTS.filter(p =>
+    (cat==="All"||p.cat===cat) &&
+    (!q || p.name.toLowerCase().includes(q.toLowerCase()) || p.cat.toLowerCase().includes(q.toLowerCase()) || p.ref.toLowerCase().includes(q.toLowerCase()))
+  );
+  if(sort==="az") list.sort((a,b)=>a.name.localeCompare(b.name));
+  if(sort==="za") list.sort((a,b)=>b.name.localeCompare(a.name));
+  if(sort==="new") list.sort((a,b)=>b.ref.localeCompare(a.ref));
+  list.sort((a,b)=>(b.feat?1:0)-(a.feat?1:0)); // featured products rank first
+  return list;
+}
+
+/* ---------------- render ---------------- */
+function renderCats(){
+  const counts = {All:PRODUCTS.length};
+  PRODUCTS.forEach(p=>counts[p.cat]=(counts[p.cat]||0)+1);
+  document.getElementById("catList").innerHTML =
+    Object.keys(counts).map(c=>`
+      <button class="cat-item ${c===cat?"active":""}" onclick="setCat('${c}')">
+        <span>${c}</span><span class="cnt">${counts[c]}</span>
+      </button>`).join("");
+}
+
+function render(){
+  const list = filtered();
+  const shown = list.slice(0, page*PER_PAGE);
+  document.getElementById("grid").innerHTML = shown.map(p=>`
+    <div class="prod" onclick="openDrawer('${p.ref}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openDrawer('${p.ref}')" aria-label="View ${p.name}">
+      <div class="prod-img">
+        ${p.feat?`<span class="feat-badge">★ Featured</span>`:""}
+        ${p.pid?`<button class="fav-btn ${FAVS.has(p.pid)?"on":""}" aria-label="Save to favorites" title="Save to favorites" onclick="event.stopPropagation();toggleFav(${p.pid})">♥</button>`:""}
+        ${p.img?`<img src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`:`<div class="fallback">${initials(p.name)}</div>`}
+      </div>
+      <div class="prod-body">
+        <span class="prod-cat">${p.cat}</span>
+        <h4>${p.name}</h4>
+        <div class="prod-foot"><span class="mono">REF ${p.ref}</span><span class="go">View details →</span></div>
+      </div>
+    </div>`).join("");
+  document.getElementById("countLbl").innerHTML = `<b>${list.length}</b> product${list.length!==1?"s":""} found`;
+  document.getElementById("noResults").style.display = list.length?"none":"block";
+  document.getElementById("loadMore").style.display = shown.length<list.length?"inline-flex":"none";
+  document.getElementById("activePill").innerHTML =
+    (q||cat!=="All") ? `<span class="active-pill">${cat!=="All"?cat:""}${cat!=="All"&&q?" · ":""}${q?`"${q}"`:""}<button aria-label="Clear filters" onclick="clearFilters()">✕</button></span>` : "";
+  renderCats();
+  syncURL();
+}
+
+/* ---------------- interactions ---------------- */
+function setCat(c){cat=c;page=1;render();document.getElementById("sidebar").classList.remove("open")}
+function clearFilters(){q="";cat="All";page=1;document.getElementById("q").value="";render()}
+let deb;
+document.getElementById("q").addEventListener("input",e=>{
+  clearTimeout(deb);
+  deb=setTimeout(()=>{q=e.target.value.trim();page=1;render()},220);
+});
+document.getElementById("sort").addEventListener("change",e=>{sort=e.target.value;page=1;render()});
+
+/* ---------------- drawer ---------------- */
+function openDrawer(ref){
+  const p = PRODUCTS.find(x=>x.ref===ref);
+  if(!p) return;
+  const d = document.getElementById("drawer");
+  d.dataset.ref = ref;
+  document.getElementById("dTitle").textContent = p.name;
+  document.getElementById("dMeta").innerHTML = `<span class="tagchip cat">${p.cat}</span><span class="tagchip">REF ${p.ref}</span><span class="tagchip">Made in Türkiye</span>`;
+  document.getElementById("dDesc").textContent = p.desc || CAT_DESC[p.cat] || "";
+  document.getElementById("dImg").innerHTML = p.img
+    ? `<img src="${p.img}" alt="${p.name}" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`
+    : `<div class="fallback">${initials(p.name)}</div>`;
+  document.getElementById("rfqProduct").textContent = `Send your requirements for: ${p.name} (${p.ref})`;
+  const box = document.getElementById("supplierBox");
+  if(p.coName){
+    document.getElementById("dSupName").textContent = p.coName;
+    document.getElementById("dSupVer").style.display = p.coVer ? "inline-block" : "none";
+    const si = document.getElementById("dSupInit");
+    if(p.coLogo){
+      si.style.background = "#fff";
+      si.style.border = "1.5px solid var(--line)";
+      si.innerHTML = `<img src="${p.coLogo}" alt="" style="width:100%;height:100%;object-fit:contain;padding:3px">`;
+    }else{
+      si.style.background = "";
+      si.style.border = "";
+      si.textContent = p.coName.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    }
+    document.getElementById("dSupSub").textContent = "View manufacturer profile →";
+    box.href = p.coSlug ? ("/m/" + p.coSlug) : ("companies.html?c=" + p.coId);
+  }else{
+    document.getElementById("dSupName").textContent = "MedicHall Verified Partner";
+    document.getElementById("dSupVer").style.display = "none";
+    const si2 = document.getElementById("dSupInit");
+    si2.style.background = ""; si2.style.border = "";
+    si2.textContent = "M";
+    document.getElementById("dSupSub").textContent = "CE · ISO 13485 certified manufacturer";
+    box.removeAttribute("href");
+  }
+  const fb = document.getElementById("drawerFav");
+  if(p.pid){
+    fb.style.display = "inline-flex";
+    fb.textContent = FAVS.has(p.pid) ? "♥ Saved" : "♥ Save";
+    fb.style.color = FAVS.has(p.pid) ? "#E0475B" : "";
+    fb.onclick = ()=>toggleFav(p.pid);
+  }else fb.style.display = "none";
+  const bb = document.getElementById("brochureBtn");
+  if(p.broch){ bb.style.display="inline-flex"; bb.onclick = ()=>openPdfViewer(p.broch, p.name + " — Brochure"); }
+  else{ bb.style.display="none"; }
+  d.classList.add("open");
+  document.getElementById("drawerBackdrop").classList.add("open");
+  document.body.style.overflow="hidden";
+  syncURL();
+}
+function closeDrawer(){
+  const d = document.getElementById("drawer");
+  d.classList.remove("open");
+  delete d.dataset.ref;
+  document.getElementById("drawerBackdrop").classList.remove("open");
+  document.body.style.overflow="";
+  syncURL();
+}
+function copyLink(btn){
+  const url = location.href;
+  (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject()).then(()=>{
+    document.getElementById("copiedLbl").style.display="inline";
+    setTimeout(()=>document.getElementById("copiedLbl").style.display="none",1800);
+  }).catch(()=>{prompt("Copy this link:",url)});
+}
+
+/* ---------------- nav / modal ---------------- */
+function toggleMenu(btn){
+  const nav=document.getElementById("navLinks");
+  const open=nav.classList.toggle("open");
+  btn.setAttribute("aria-expanded",open);
+}
+function openModal(view){
+  document.getElementById("modalBackdrop").classList.add("open");
+  ["loginView","signupView","rfqView"].forEach(v=>
+    document.getElementById(v).style.display = (v===view+"View")?"block":"none");
+  document.body.style.overflow="hidden";
+  if(view === "rfq") prepRfqForm();
+}
+function closeModal(){
+  document.getElementById("modalBackdrop").classList.remove("open");
+  if(!document.getElementById("drawer").classList.contains("open")) document.body.style.overflow="";
+}
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){
+    if(document.getElementById("pdfBackdrop").classList.contains("open")) closePdfViewer();
+    else if(document.getElementById("modalBackdrop").classList.contains("open")) closeModal();
+    else closeDrawer();
+  }
+});
+
+function openPdfViewer(url, title){
+  document.getElementById("pdfTitle").textContent = title || "Document";
+  document.getElementById("pdfOpenTab").href = url;
+  document.getElementById("pdfFrame").src = url + "#toolbar=1&navpanes=0";
+  document.getElementById("pdfBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closePdfViewer(){
+  document.getElementById("pdfBackdrop").classList.remove("open");
+  document.getElementById("pdfFrame").src = "";
+  document.body.style.overflow = "";
+}
+
+async function sendRFQ(){
+  const status = document.getElementById("rfqStatus");
+  const show = (msg, ok) => { status.textContent = msg; status.style.display = "block"; status.style.color = ok ? "#1E8E76" : "#C0392B"; };
+  const uid = await ensureUserId();
+  let email, company;
+  if(uid){
+    const info = await ensureBuyerInfo();
+    email = PUSEREMAIL;
+    company = (info && info.company) || null;
+  }else{
+    email = document.getElementById("rfq-email").value.trim();
+    company = document.getElementById("rfq-company").value.trim() || null;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ show("Please enter a valid email address.", false); return; }
+  }
+  if(!backendReady()){ show("Preview mode: RFQ will be saved once Supabase keys are added.", false); return; }
+  const ref = document.getElementById("drawer").dataset.ref || null;
+  const prod = PRODUCTS.find(x=>x.ref===ref);
+  const qty = document.getElementById("rfq-qty").value.trim();
+  const dest = document.getElementById("rfq-dest").value.trim();
+  if(!qty){ show("Please enter the quantity you need.", false); return; }
+  if(!dest){ show("Please enter the destination country.", false); return; }
+  const btn = document.getElementById("rfqSend");
+  btn.disabled = true; btn.textContent = "Sending…";
+  const base = {
+    product_ref: ref,
+    product_name: prod ? prod.name : null,
+    user_id: uid,
+    email: email,
+    company: company,
+    quantity: qty,
+    destination: dest,
+    incoterm: document.getElementById("rfq-incoterm").value || null,
+    target_price: document.getElementById("rfq-target").value.trim() || null,
+    req_certs: document.getElementById("rfq-certs").value.trim() || null,
+    message: document.getElementById("rfq-msg").value.trim() || null
+  };
+  try{
+    const multi = uid && document.getElementById("rfq-multi").checked && prod && prod.cat;
+    if(multi){
+      // find every approved manufacturer with active products in this category
+      const rows = await sb("products?select=company_id&category=eq." + encodeURIComponent(prod.cat) + "&is_active=eq.true&company_id=not.is.null");
+      const ids = [...new Set(rows.map(x=>x.company_id))];
+      if(prod.coId && !ids.includes(prod.coId)) ids.unshift(prod.coId);
+      const gid = crypto.randomUUID();
+      const batch = ids.map(cid => ({...base, company_id: cid, group_id: gid}));
+      await sb("rfq_requests", { method:"POST", body: JSON.stringify(batch) });
+      show("✓ Your request went to " + ids.length + " manufacturers. Compare their offers under My requests in your account.", true);
+    }else{
+      await sb("rfq_requests", { method:"POST", body: JSON.stringify({
+        ...base, company_id: prod && prod.coId ? prod.coId : null
+      })});
+      show(uid
+        ? "✓ Your request has been sent. Offers and replies will appear under My requests in your account."
+        : "✓ Your request has been sent. The manufacturer will contact you by email.", true);
+    }
+    document.getElementById("rfq-msg").value = "";
+    btn.textContent = "Sent ✓";
+  }catch(e){
+    console.error(e);
+    show("Something went wrong, please try again.", false);
+    btn.disabled = false; btn.textContent = "Send request";
+  }
+}
+function fakeAuth(){
+  alert("Account & RFQ features will be connected to your backend (e.g. Supabase). This is the design preview.");
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  if(backendReady()){
+    try{
+      const rows = await sb("products?select=id,ref,name,category,description,image_url,brochure_url,is_featured,company_id,companies(id,name,slug,logo_url,is_verified)&is_active=eq.true&order=name");
+      if(rows && rows.length){
+        PRODUCTS = rows.map(r=>({name:r.name,cat:r.category,ref:r.ref,img:r.image_url||"",desc:r.description||"",coId:r.companies?r.companies.id:null,coName:r.companies?r.companies.name:null,coSlug:r.companies?r.companies.slug:null,coLogo:r.companies?r.companies.logo_url:null,coVer:r.companies?!!r.companies.is_verified:false,broch:r.brochure_url||null,feat:!!r.is_featured,pid:r.id}));
+      }
+    }catch(e){ console.warn("Falling back to built-in catalog:", e); }
+  }
+  render();
+  const deepLink = params.get("p");
+  if(deepLink) openDrawer(deepLink);
+}
+init();
+
+
+/* ---- logged-in chip (manufacturer session) ---- */
+const MH_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const MH_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+async function initAuthChip(){
+  const area = document.getElementById("authArea");
+  const tok = localStorage.getItem("mh_p_token");
+  if(!area || !tok) return;
+  try{
+    const ur = await fetch(MH_URL + "/auth/v1/user", {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!ur.ok) throw 0;
+    const user = await ur.json();
+    let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
+    try{
+      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
+    }catch(e){}
+    if(approved === null){
+      try{
+        const br = await fetch(MH_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + user.id,
+          {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+        if(br.ok){ const rs = await br.json(); if(rs.length){ name = rs[0].full_name || rs[0].company_name || name; } }
+      }catch(e){}
+    }
+    let unread = 0;
+    try{
+      const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      if(mr.ok){ const ms = await mr.json(); unread = new Set(ms.filter(m=>m.sender_id!==user.id).map(m=>m.rfq_id)).size; }
+    }catch(e){}
+    const init = name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    area.innerHTML = `
+      <div class="userchip">
+        <button class="uc-btn" onclick="this.nextElementSibling.classList.toggle('open')" aria-haspopup="true">
+          <span class="uc-av">${logo?`<img src="${logo}" alt="">`:init}</span>${unread?`<span class="uc-badge">${unread}</span>`:""}
+          <span class="uc-name">${name.replace(/</g,"&lt;")}</span>
+          <span class="uc-caret">▼</span>
+        </button>
+        <div class="uc-menu">
+          ${approved===null?"":`<div class="uc-status">${approved?"● Live on marketplace":"○ Pending approval"}</div>`}
+          <a href="portal.html">My account</a>
+          <a href="portal.html#inbox" id="ucInboxLink">Inbox${unread?` (${unread})`:""}</a>
+          <a href="portal.html#settings">Settings</a>
+          <button class="uc-out" onclick="chipLogout()">Log out</button>
+        </div>
+      </div>`;
+    document.addEventListener("click", e=>{
+      if(!e.target.closest(".userchip")) document.querySelectorAll(".uc-menu").forEach(m=>m.classList.remove("open"));
+    });
+    window.__mhChipUid = user.id;
+    if(!window.__mhChipTimer){ window.__mhChipTimer = setInterval(refreshChipUnread, 30000); }
+  }catch(e){
+    localStorage.removeItem("mh_p_token");
+  }
+}
+async function refreshChipUnread(){
+  const tok = localStorage.getItem("mh_p_token");
+  if(!tok || !window.__mhChipUid) return;
+  try{
+    const mr = await fetch(MH_URL + "/rest/v1/rfq_messages?select=rfq_id,sender_id&is_read=eq.false",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+    if(!mr.ok) return;
+    const ms = await mr.json();
+    const n = new Set(ms.filter(m=>m.sender_id!==window.__mhChipUid).map(m=>m.rfq_id)).size;
+    const btn = document.querySelector(".uc-btn");
+    if(!btn) return;
+    let b = btn.querySelector(".uc-badge");
+    if(n){
+      if(!b){ b = document.createElement("span"); b.className = "uc-badge"; btn.appendChild(b); }
+      b.textContent = n;
+    }else if(b){ b.remove(); }
+    const link = document.getElementById("ucInboxLink");
+    if(link) link.textContent = "Inbox" + (n ? " (" + n + ")" : "");
+  }catch(e){}
+}
+function chipLogout(){
+  localStorage.removeItem("mh_p_token");
+  location.reload();
+}
+initAuthChip();
+
+
+/* ---- banner ads (sliding carousel) ---- */
+const HOUSE_SLIDE = `<a class="banner-slide" href="portal.html" style="flex:0 0 100%;min-width:100%;display:block;position:relative;text-decoration:none;background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%)">
+  <span class="banner-tag">Ad space</span>
+  <span style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:28px 32px;min-height:130px;flex-wrap:wrap">
+    <span>
+      <b style="display:block;font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;color:#003E52;line-height:1.2">Your products, front and center.</b>
+      <span style="display:block;font-size:.88rem;color:#0A4A5E;margin-top:5px;font-weight:500">Advertise on MedicHall and reach medical buyers worldwide.</span>
+    </span>
+    <span style="background:#003E52;color:#fff;padding:12px 24px;border-radius:100px;font-weight:600;font-size:.86rem;white-space:nowrap;flex-shrink:0">Become an advertiser →</span>
+  </span>
+</a>`;
+async function loadBanners(placement, containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  let banners = [];
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/banners?select=*&placement=eq." + placement + "&is_active=eq.true&order=created_at.desc",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(r.ok){
+      const now = new Date();
+      banners = (await r.json()).filter(b => !b.ends_at || new Date(b.ends_at) > now);
+    }
+  }catch(e){ banners = []; }
+  const slide = b => {
+    const inner = `<span class="banner-tag">Sponsored</span><img src="${b.image_url}" alt="${(b.title||"Advertisement").replace(/"/g,"&quot;")}" loading="lazy" style="width:100%;height:auto;display:block;max-height:210px;object-fit:cover">`;
+    return b.link_url
+      ? `<a class="banner-slide" href="${b.link_url}" target="_blank" rel="sponsored noopener" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</a>`
+      : `<div class="banner-slide" style="flex:0 0 100%;min-width:100%;display:block;position:relative">${inner}</div>`;
+  };
+  const slides = banners.map(slide).join("") + HOUSE_SLIDE;
+  const total = banners.length + 1;
+  el.innerHTML = `<div class="banner-carousel" style="position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff">
+    <div id="${containerId}Track" style="display:flex;transition:transform .55s ease">${slides}</div>
+    ${total>1?`<div class="banner-dots" id="${containerId}Dots">${Array.from({length:total},(_,i)=>`<button class="banner-dot ${i===0?"on":""}" aria-label="Advertisement ${i+1}"></button>`).join("")}</div>`:""}
+  </div>`;
+  if(total > 1){
+    let i = 0, timer = null;
+    const track = document.getElementById(containerId + "Track");
+    const dots = Array.from(document.getElementById(containerId + "Dots").children);
+    const go = n => {
+      i = (n + total) % total;
+      track.style.transform = "translateX(-" + (i*100) + "%)";
+      dots.forEach((d,k)=>d.classList.toggle("on", k===i));
+    };
+    const start = () => { timer = setInterval(()=>go(i+1), 6000); };
+    dots.forEach((d,k)=>d.addEventListener("click", ()=>{ clearInterval(timer); go(k); start(); }));
+    start();
+  }
+}
+loadBanners("catalog","bannerCatalog");
+
+/* ---- favorites (buyer accounts) ---- */
+let FAVS = new Set();
+let PUSERID = null;
+const PTOKEN = () => localStorage.getItem("mh_p_token");
+async function pAuthHeaders(){
+  return { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + PTOKEN(), "Content-Type": "application/json" };
+}
+let PUSEREMAIL = null, PBUYERINFO = null;
+async function ensureUserId(){
+  if(PUSERID || !PTOKEN()) return PUSERID;
+  try{
+    const r = await fetch(SUPABASE_URL + "/auth/v1/user", {headers: await pAuthHeaders()});
+    if(r.ok){ const u = await r.json(); PUSERID = u.id; PUSEREMAIL = u.email; }
+  }catch(e){}
+  return PUSERID;
+}
+async function ensureBuyerInfo(){
+  if(PBUYERINFO || !PUSERID) return PBUYERINFO;
+  try{
+    let r = await fetch(SUPABASE_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + PUSERID, {headers: await pAuthHeaders()});
+    if(r.ok){ const rows = await r.json(); if(rows.length){ PBUYERINFO = {name: rows[0].full_name, company: rows[0].company_name}; return PBUYERINFO; } }
+    r = await fetch(SUPABASE_URL + "/rest/v1/companies?select=name&owner_id=eq." + PUSERID, {headers: await pAuthHeaders()});
+    if(r.ok){ const rows = await r.json(); if(rows.length){ PBUYERINFO = {name: null, company: rows[0].name}; return PBUYERINFO; } }
+  }catch(e){}
+  PBUYERINFO = {name:null, company:null};
+  return PBUYERINFO;
+}
+async function prepRfqForm(){
+  const guest = document.getElementById("rfqGuestFields");
+  const line = document.getElementById("rfqAccountLine");
+  const uid = await ensureUserId();
+  // multi-send: only for logged-in buyers on products that have a category
+  const ref = document.getElementById("drawer").dataset.ref || null;
+  const prod = PRODUCTS.find(x=>x.ref===ref);
+  const mw = document.getElementById("multiSendWrap");
+  if(uid && prod && prod.cat){
+    mw.style.display = "flex";
+    mw.querySelector("b").textContent = "Also send to other \"" + prod.cat + "\" manufacturers";
+  }else{
+    mw.style.display = "none";
+    document.getElementById("rfq-multi").checked = false;
+  }
+  if(uid){
+    const info = await ensureBuyerInfo();
+    guest.style.display = "none";
+    line.style.display = "block";
+    document.getElementById("rfqAccountName").textContent =
+      (PUSEREMAIL || "your account") + (info && info.company ? " · " + info.company : "");
+  }else{
+    guest.style.display = "block";
+    line.style.display = "none";
+  }
+}
+async function initFavs(){
+  if(!PTOKEN()) return;
+  const uid = await ensureUserId();
+  if(!uid) return;
+  try{
+    const r = await fetch(SUPABASE_URL + "/rest/v1/favorites?select=product_id&user_id=eq." + uid, {headers: await pAuthHeaders()});
+    if(r.ok){
+      FAVS = new Set((await r.json()).map(x=>x.product_id));
+      render();
+    }
+  }catch(e){}
+}
+async function toggleFav(pid){
+  if(!PTOKEN()){ location.href = "portal.html"; return; }
+  const uid = await ensureUserId();
+  if(!uid){ location.href = "portal.html"; return; }
+  try{
+    if(FAVS.has(pid)){
+      await fetch(SUPABASE_URL + "/rest/v1/favorites?user_id=eq." + uid + "&product_id=eq." + pid, {method:"DELETE", headers: await pAuthHeaders()});
+      FAVS.delete(pid);
+    }else{
+      await fetch(SUPABASE_URL + "/rest/v1/favorites", {method:"POST", headers: {...await pAuthHeaders(), "Prefer":"return=minimal"}, body: JSON.stringify({user_id:uid, product_id:pid})});
+      FAVS.add(pid);
+    }
+    render();
+    const ref = document.getElementById("drawer").dataset.ref;
+    const cur = PRODUCTS.find(x=>x.ref===ref);
+    if(cur && cur.pid){
+      const fb = document.getElementById("drawerFav");
+      fb.textContent = FAVS.has(cur.pid) ? "♥ Saved" : "♥ Save";
+      fb.style.color = FAVS.has(cur.pid) ? "#E0475B" : "";
+    }
+  }catch(e){ console.error(e); }
+}
+initFavs();
+
+/* ---- MedicHall Assistant (catalog-powered, no external AI) ---- */
+let mhaStarted = false;
+function mhaToggle(){
+  const p = document.getElementById("mhaPanel");
+  p.classList.toggle("open");
+  if(p.classList.contains("open") && !mhaStarted){ mhaStarted = true; mhaGreet(); }
+  if(p.classList.contains("open")) setTimeout(()=>document.getElementById("mhaInput").focus(), 100);
+}
+function mhaMsg(html, who){
+  const b = document.getElementById("mhaBody");
+  const d = document.createElement("div");
+  d.className = "mha-msg " + (who||"bot");
+  d.innerHTML = html;
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaChips(items){
+  const b = document.getElementById("mhaBody");
+  const w = document.createElement("div");
+  w.className = "mha-chips";
+  w.innerHTML = items.map(i=>`<button class="mha-chip" onclick="mhaQuick('${i.q.replace(/'/g,"\\'")}')">${i.t}</button>`).join("");
+  b.appendChild(w);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaCard(href, title, sub){
+  const b = document.getElementById("mhaBody");
+  const a = document.createElement("a");
+  a.className = "mha-card"; a.href = href;
+  a.innerHTML = `<span><span class="t">${title}</span><br><span class="s">${sub}</span></span>`;
+  b.appendChild(a);
+  b.scrollTop = b.scrollHeight;
+}
+function mhaGreet(){
+  mhaMsg("Hello! 👋 I can help you find products and certified Turkish manufacturers, or explain how MedicHall works. What are you looking for?");
+  mhaChips([
+    {t:"🔍 Find a product", q:"find product"},
+    {t:"🏭 Manufacturers", q:"manufacturers"},
+    {t:"📋 How do RFQs work?", q:"how rfq works"},
+    {t:"⭐ Advertise / Premium", q:"premium"}
+  ]);
+}
+function mhaQuick(q){ document.getElementById("mhaInput").value = q; mhaSend(); }
+async function mhaSend(){
+  const inp = document.getElementById("mhaInput");
+  const q = inp.value.trim();
+  if(!q) return;
+  inp.value = "";
+  mhaMsg(q.replace(/</g,"&lt;"), "user");
+  const t = q.toLowerCase();
+
+  // FAQ intents
+  if(/rfq|quote|quotation|teklif|how.*(work|buy)|inquiry/.test(t)){
+    mhaMsg("Requesting a quote is easy: open any product and click <b>Request quotation</b>. The manufacturer replies directly — if you create a free account, the whole conversation happens right here on MedicHall with chat and notifications. 📬");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Create account", q:"register"}]);
+    return;
+  }
+  if(/register|sign ?up|join|account|kayıt|üye/.test(t)){
+    mhaMsg('You can join for free — as a <b>buyer</b> (save favorites, send RFQs, chat with manufacturers) or as a <b>manufacturer</b> (list your company and products). <a href="portal.html">Create your account here →</a>');
+    return;
+  }
+  if(/premium|advertis|banner|feature|reklam/.test(t)){
+    mhaMsg('Manufacturers can stand out with <b>★ Featured products</b> on the homepage, <b>Premium Partner</b> placement, and <b>banner campaigns</b> across the marketplace. <a href="portal.html">Join as a manufacturer</a> or contact us to discuss options.');
+    return;
+  }
+  if(/certif|ce |ce-|iso|mdr|quality/.test(t)){
+    mhaMsg('Manufacturers on MedicHall list their certifications (CE MDR, ISO 13485…) on their profiles — you can review them before making contact. <a href="companies.html">Browse certified manufacturers →</a>');
+    return;
+  }
+  if(/contact|support|help|iletişim|destek/.test(t)){
+    mhaMsg('You can reach the MedicHall team at <a href="mailto:info@medichall.com">info@medichall.com</a> — or message any manufacturer directly from their profile page.');
+    return;
+  }
+  if(/manufacturer|supplier|compan|firma|üretici/.test(t) && t.length < 30){
+    mhaMsg('Here is our directory of approved Turkish manufacturers: <a href="companies.html">View all manufacturers →</a> You can also type a company name and I\'ll look it up.');
+    return;
+  }
+  if(/find product|products?$|catalog/.test(t)){
+    mhaMsg('Tell me what you need — e.g. <i>"surgical packs"</i>, <i>"sterilization indicators"</i>, <i>"drapes"</i> — and I\'ll search the catalog. Or <a href="products.html">browse everything →</a>');
+    return;
+  }
+
+  // Catalog search
+  const enc = encodeURIComponent("*" + q.replace(/[%,()]/g," ").trim() + "*");
+  let found = false;
+  try{
+    const pr = await fetch(MH_URL + "/rest/v1/products?select=ref,name,category&or=(name.ilike." + enc + ",category.ilike." + enc + ")&is_active=eq.true&limit=4",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(pr.ok){
+      const prods = await pr.json();
+      if(prods.length){
+        found = true;
+        mhaMsg("Here's what I found in the catalog:");
+        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category + " · REF " + p.ref));
+        mhaCard("products.html?q=" + encodeURIComponent(q), "See all results for \"" + q.replace(/</g,"&lt;") + "\" →", "Full catalog search");
+      }
+    }
+    const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,slug,type&name=ilike." + enc + "&limit=3",
+      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
+    if(cr.ok){
+      const cos = await cr.json();
+      if(cos.length){
+        found = true;
+        mhaMsg("Matching manufacturers:");
+        cos.forEach(c=>mhaCard(c.slug ? "/m/" + c.slug : "companies.html", c.name, c.type || "Manufacturer"));
+      }
+    }
+  }catch(e){}
+  if(!found){
+    mhaMsg("I couldn't find a direct match for that. Try different keywords (e.g. <i>drape, pack, sterilization, refrigerator</i>) — or <a href=\"products.html\">browse the full catalog</a> and <a href=\"companies.html\">manufacturer directory</a>.");
+    mhaChips([{t:"Browse products", q:"find product"},{t:"Contact support", q:"contact"}]);
+  }
+}
+
+</script>
+
+<!-- MedicHall Assistant -->
+<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()">💬</button>
+<div class="mha-panel" id="mhaPanel" role="dialog" aria-label="MedicHall assistant">
+  <div class="mha-head">
+    <div><b>MedicHall Assistant</b><span>Ask about products & manufacturers</span></div>
+    <button aria-label="Close assistant" onclick="mhaToggle()">✕</button>
+  </div>
+  <div class="mha-body" id="mhaBody"></div>
+  <div class="mha-foot">
+    <input id="mhaInput" placeholder="e.g. surgical drapes, sterilization…" onkeydown="if(event.key==='Enter')mhaSend()">
+    <button onclick="mhaSend()">➤</button>
+  </div>
+</div>
+
+</body>
+</html>

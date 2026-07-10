@@ -1,0 +1,3 @@
+# MedicHall — Netlify URL rules
+# /m/company-name serves the company profile page
+/m/*  /companies.html  200

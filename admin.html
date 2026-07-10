@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — MedicHall</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";}</script>
+<style>
+:root{
+  --ink:#003E52;--ink-soft:#40748E;--teal:#4298CC;--teal-deep:#003E52;--teal-tint:#DCEEF7;
+  --sky:#70D0EC;--mint:#6CCCB9;--mint-soft:#9ED5CB;--cream:#F2E5B3;
+  --brand-grad:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);
+  --mist:#EFF6F9;--line:#D6E4EB;--radius:14px;--danger:#C0392B;--ok:#1E8E76;
+  --font:"Poppins",sans-serif;--mono:"IBM Plex Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);color:var(--ink);background:var(--mist);line-height:1.55;font-size:15px}
+img{max-width:100%;display:block}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+.mono{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* header */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px;gap:20px}
+.logo{display:flex;align-items:center;gap:9px;font-size:1.15rem;letter-spacing:.04em}
+.logo-mark{width:26px;height:30px;flex-shrink:0}
+.logo .mword{color:var(--teal);font-weight:500}
+.logo .hword{color:var(--teal-deep);font-weight:700}
+.logo .adm{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;background:var(--teal-tint);color:var(--teal-deep);border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-weight:600;font-size:.87rem;border:1.5px solid transparent;transition:all .15s}
+.btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-solid{background:var(--teal);color:#fff}
+.btn-solid:hover{background:#3184B4}
+.btn-grad{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none}
+.btn-grad:hover{filter:brightness(1.05)}
+.btn-danger{background:none;border:none;color:var(--danger);font-weight:600;font-size:.82rem;padding:6px 10px}
+.btn-sm{padding:7px 14px;font-size:.8rem}
+
+/* login */
+.login-shell{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:30px 20px;background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%)}
+.login-card{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:38px;max-width:400px;width:100%;box-shadow:0 20px 50px rgba(0,62,82,.12)}
+.login-card h1{font-size:1.4rem;font-weight:700;margin-bottom:4px}
+.login-card .sub{color:var(--ink-soft);font-size:.9rem;margin-bottom:22px}
+label{display:block;font-size:.83rem;font-weight:600;margin:13px 0 5px}
+input,textarea,select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;font-family:var(--font);font-size:.92rem;background:#fff;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
+.login-card .btn{width:100%;justify-content:center;margin-top:20px}
+.err{color:var(--danger);font-size:.85rem;font-weight:600;margin-top:12px;display:none}
+
+/* app */
+#app{display:none}
+.tabs{display:flex;gap:6px;margin:26px 0 20px;flex-wrap:wrap}
+.tab{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:9px 20px;font-size:.88rem;font-weight:600;color:var(--ink-soft);transition:all .15s}
+.tab:hover{border-color:var(--teal);color:var(--teal)}
+.tab.active{background:var(--teal-deep);border-color:var(--teal-deep);color:#fff}
+.tab .n{font-family:var(--mono);font-size:.68rem;background:rgba(255,255,255,.2);border-radius:100px;padding:1px 8px;margin-left:6px}
+.tab:not(.active) .n{background:var(--mist);color:var(--ink-soft)}
+.panel{display:none;padding-bottom:80px}
+.panel.active{display:block}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.panel-head h2{font-size:1.15rem;font-weight:700}
+.panel-head .hint{font-size:.83rem;color:var(--ink-soft)}
+
+/* cards/table */
+.card{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.row{display:grid;grid-template-columns:56px 1fr auto auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--mist)}
+.row .thumb{width:56px;height:42px;border-radius:8px;background:var(--mist);overflow:hidden;display:grid;place-items:center}
+.row .thumb img{width:100%;height:100%;object-fit:cover}
+.row .thumb span{font-weight:700;color:var(--teal);font-size:.8rem}
+.row .info b{display:block;font-size:.92rem;line-height:1.3}
+.row .info .mono{color:var(--ink-soft)}
+.pill{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;border-radius:100px;padding:4px 11px}
+.pill.on{background:#E3F5EF;color:var(--ok)}
+.pill.off{background:#FDECEA;color:var(--danger)}
+.row-actions{display:flex;gap:4px;align-items:center}
+@media(max-width:640px){.row{grid-template-columns:1fr auto}.row .thumb{display:none}.row .pillwrap{display:none}}
+
+/* product groups */
+.pgroup{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
+.pgroup-head{width:100%;display:flex;align-items:center;gap:12px;padding:14px 18px;background:none;border:none;text-align:left;font-family:inherit;cursor:pointer}
+.pgroup-head:hover{background:var(--mist)}
+.pgroup-head .arr{font-size:.8rem;color:var(--ink-soft);transition:transform .15s;width:14px}
+.pgroup-head.open .arr{transform:rotate(90deg)}
+.pgroup-head b{font-size:.95rem;flex:1}
+.pgroup-head .cnt{font-family:var(--mono);font-size:.7rem;color:var(--ink-soft);background:var(--mist);border-radius:100px;padding:3px 11px}
+.pgroup-body{display:none;border-top:1px solid var(--line)}
+.pgroup-body.open{display:block}
+
+/* rfq */
+.rfq-item{padding:16px 18px;border-bottom:1px solid var(--line)}
+.rfq-item:last-child{border-bottom:none}
+.rfq-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.rfq-top b{font-size:.95rem}
+.rfq-top time{font-family:var(--mono);font-size:.7rem;color:var(--ink-soft)}
+.rfq-meta{font-size:.85rem;color:var(--ink-soft);margin-bottom:8px}
+.rfq-meta a{color:var(--teal);font-weight:600;text-decoration:none}
+.rfq-msg{background:var(--mist);border-radius:10px;padding:12px 14px;font-size:.88rem;white-space:pre-wrap}
+.empty{text-align:center;padding:56px 20px;color:var(--ink-soft)}
+.empty b{display:block;font-size:1.05rem;color:var(--ink);margin-bottom:4px}
+
+/* mini catalog manager */
+.cat-mini{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.cat-mini-item{width:74px;text-align:center;position:relative}
+.cat-mini-item img,.cat-mini-ph{width:74px;height:98px;object-fit:cover;border:1.5px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:1.6rem;background:var(--mist)}
+.cat-mini-item .t{display:block;font-size:.62rem;color:var(--ink-soft);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-mini-item .btn-danger{position:absolute;top:-6px;right:-6px;background:#fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,62,82,.2);padding:2px 6px;font-size:.7rem}
+
+/* image upload */
+.img-upload{display:flex;gap:14px;align-items:center}
+.img-preview{width:96px;height:72px;border:1.5px dashed var(--line);border-radius:10px;background:var(--mist);display:grid;place-items:center;overflow:hidden;flex-shrink:0}
+.img-preview span{font-size:1.6rem;color:var(--ink-soft)}
+.img-preview img{width:100%;height:100%;object-fit:cover}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,62,82,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px;overflow-y:auto}
+.modal-backdrop.open{display:grid}
+.modal{background:#fff;border-radius:18px;padding:32px;max-width:520px;width:100%;position:relative;margin:auto}
+.modal h3{font-size:1.25rem;font-weight:700;margin-bottom:18px}
+.modal-close{position:absolute;top:14px;right:14px;background:var(--mist);border:none;width:32px;height:32px;border-radius:9px;font-size:.95rem;color:var(--ink-soft)}
+.modal .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:520px){.modal .grid2{grid-template-columns:1fr}}
+.modal .actions{display:flex;gap:10px;margin-top:24px}
+.modal .actions .btn{flex:1;justify-content:center}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--teal-deep);color:#fff;border-radius:100px;padding:12px 26px;font-size:.88rem;font-weight:600;z-index:120;transition:transform .25s;box-shadow:0 12px 30px rgba(0,62,82,.3)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.loading{text-align:center;padding:50px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <span class="logo">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
+        </linearGradient></defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+      <span class="adm">Admin</span>
+    </span>
+    <div id="headActions" style="display:none;gap:10px;align-items:center">
+      <a class="btn btn-ghost btn-sm" href="products.html" target="_blank">View site ↗</a>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOGIN -->
+<div class="login-shell" id="loginShell">
+  <div class="login-card">
+    <h1>Admin login</h1>
+    <p class="sub">Manage your catalog, partners and quotation requests.</p>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@medichall.com">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button class="btn btn-grad" id="loginBtn" onclick="login()">Log in</button>
+    <p class="err" id="loginErr">Login failed. Check your email and password.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" data-panel="products" onclick="showPanel('products')">Products <span class="n" id="nProducts">0</span></button>
+      <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ Inbox <span class="n" id="nRfq">0</span></button>
+      <button class="tab" data-panel="companies" onclick="showPanel('companies')">Companies <span class="n" id="nCompanies">0</span></button>
+      <button class="tab" data-panel="banners" onclick="showPanel('banners')">Banners <span class="n" id="nBanners">0</span></button>
+      <button class="tab" data-panel="partners" onclick="showPanel('partners')">Partners <span class="n" id="nPartners">0</span></button>
+    </div>
+
+    <div class="panel active" id="panel-products">
+      <div class="panel-head">
+        <h2>Products</h2>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input id="prodSearch" placeholder="Search products…" oninput="renderProducts()" style="width:220px;border:1.5px solid var(--line);border-radius:9px;padding:8px 12px;font-size:.85rem">
+          <button class="btn btn-solid btn-sm" onclick="openProductForm()">+ Add product</button>
+        </div>
+      </div>
+      <div id="productList"><div class="loading">Loading…</div></div>
+    </div>
+
+    <div class="panel" id="panel-rfq">
+      <div class="panel-head">
+        <h2>Quotation requests</h2>
+        <div style="display:flex;gap:6px">
+          <button class="tab" id="rfqViewMine" onclick="setRfqView('mine')" style="padding:7px 16px;font-size:.8rem">For MedicHall</button>
+          <button class="tab" id="rfqViewAll" onclick="setRfqView('all')" style="padding:7px 16px;font-size:.8rem">All companies</button>
+        </div>
+      </div>
+      <div class="card" id="rfqList"><div class="loading">Loading…</div></div>
+    </div>
+
+    <div class="panel" id="panel-companies">
+      <div class="panel-head">
+        <h2>Manufacturer companies</h2>
+        <span class="hint">Approve a company to make its profile and products visible on the marketplace</span>
+      </div>
+      <div class="card" id="companyList"><div class="loading">Loading…</div></div>
+    </div>
+
+    <div class="panel" id="panel-banners">
+      <div class="panel-head">
+        <h2>Banner ads</h2>
+        <button class="btn btn-solid btn-sm" onclick="openBannerForm()">+ Add banner</button>
+      </div>
+      <div class="card" id="bannerList"><div class="loading">Loading…</div></div>
+    </div>
+
+    <div class="panel" id="panel-partners">
+      <div class="panel-head">
+        <h2>Partners</h2>
+        <button class="btn btn-solid btn-sm" onclick="openPartnerForm()">+ Add partner</button>
+      </div>
+      <div class="card" id="partnerList"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT FORM -->
+<div class="modal-backdrop" id="productModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="productFormTitle">Add product</h3>
+    <input type="hidden" id="p-id">
+    <div class="grid2">
+      <div><label for="p-ref">REF code *</label><input id="p-ref" placeholder="MH-090"></div>
+      <div><label for="p-co">Manufacturer</label>
+        <select id="p-co"><option value="">MedicHall (unassigned)</option></select>
+      </div>
+      <div><label for="p-cat">Category *</label>
+        <select id="p-cat">
+          <option>Medical Devices</option><option>Sterilization</option><option>Cold Chain</option>
+          <option>Raw Materials</option><option>OEM Supplies</option><option>Services</option>
+          <option>IVD Supplies</option><option>Machinery</option>
+        </select>
+      </div>
+    </div>
+    <label for="p-name">Product name *</label>
+    <input id="p-name" placeholder="e.g. Cardiovascular Pack">
+    <label for="p-desc">Description</label>
+    <textarea id="p-desc" rows="3" placeholder="Short description shown on the product detail page"></textarea>
+    <label>Product image</label>
+    <input type="hidden" id="p-img">
+    <div class="img-upload">
+      <div class="img-preview" id="pImgPreview"><span>＋</span></div>
+      <div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductImage()">＋ Upload image</button>
+        <button type="button" class="btn-danger" id="pImgRemove" style="display:none" onclick="removeProductImage()">Remove</button>
+        <p style="font-size:.75rem;color:var(--ink-soft);margin-top:6px">JPG / PNG, max 5 MB — or keep existing image</p>
+      </div>
+    </div>
+    <label>Product brochure (PDF, optional)</label>
+    <input type="hidden" id="p-broch">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductBrochure()">＋ Upload brochure</button>
+      <a id="pBrochLink" target="_blank" rel="noopener" style="display:none;font-size:.85rem;font-weight:600;color:var(--teal)">View current ↗</a>
+      <button type="button" class="btn-danger" id="pBrochRemove" style="display:none" onclick="removeProductBrochure()">Remove</button>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" id="pSave" onclick="saveProduct()">Save product</button>
+    </div>
+  </div>
+</div>
+
+<!-- PARTNER FORM -->
+<div class="modal-backdrop" id="partnerModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="partnerFormTitle">Add partner</h3>
+    <input type="hidden" id="pa-id">
+    <label for="pa-name">Company name *</label>
+    <input id="pa-name" placeholder="e.g. Dilamed Tıbbi Ürünler">
+    <label for="pa-type">Type</label>
+    <input id="pa-type" placeholder="e.g. Medical device supplier">
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" onclick="savePartner()">Save partner</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPANY FORM (admin edit) -->
+<div class="modal-backdrop" id="companyModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3>Edit company</h3>
+    <input type="hidden" id="co-id">
+    <div class="grid2">
+      <div><label for="co-name">Company name *</label><input id="co-name"></div>
+      <div><label for="co-type">Type</label><input id="co-type" placeholder="e.g. Medical device manufacturer"></div>
+      <div><label for="co-city">City</label><input id="co-city"></div>
+      <div><label for="co-website">Website</label><input id="co-website" placeholder="https://…"></div>
+      <div><label for="co-email">Contact email</label><input id="co-email"></div>
+      <div><label for="co-phone">Phone</label><input id="co-phone"></div>
+      <div><label for="co-certs">Certifications</label><input id="co-certs" placeholder="e.g. CE MDR, ISO 13485"></div>
+      <div><label for="co-video">Video URL (YouTube)</label><input id="co-video" placeholder="https://youtube.com/…"></div>
+    </div>
+    <label for="co-desc">Description</label>
+    <textarea id="co-desc" rows="4"></textarea>
+    <label>Logo</label>
+    <input type="hidden" id="co-logo">
+    <div class="img-upload">
+      <div class="img-preview" id="coLogoPreview" style="width:96px;height:60px"><span>＋</span></div>
+      <div><button type="button" class="btn btn-ghost btn-sm" onclick="uploadCompanyLogo()">＋ Upload logo</button></div>
+    </div>
+    <label style="margin-top:16px">Product catalogs (PDF)</label>
+    <input type="hidden" id="co-catalog">
+    <div class="cat-mini" id="coCatManager"><span style="font-size:.85rem;color:var(--ink-soft)">Loading…</span></div>
+    <div style="margin-top:8px">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="adminAddCatalog()">＋ Add catalog</button>
+    </div>
+    <label style="margin-top:16px">Certificates (image or PDF)</label>
+    <div class="cat-mini" id="coCertManager"><span style="font-size:.85rem;color:var(--ink-soft)">Loading…</span></div>
+    <div style="margin-top:8px">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="adminAddCertificate()">＋ Add certificate</button>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" onclick="saveCompanyAdmin()">Save company</button>
+    </div>
+  </div>
+</div>
+
+<!-- BANNER FORM -->
+<div class="modal-backdrop" id="bannerModal" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
+    <h3 id="bannerFormTitle">Add banner</h3>
+    <input type="hidden" id="b-id">
+    <label for="b-title">Internal name *</label>
+    <input id="b-title" placeholder="e.g. 4A Medical — spring campaign">
+    <label>Banner image *</label>
+    <input type="hidden" id="b-img">
+    <div class="img-upload">
+      <div class="img-preview" id="bImgPreview" style="width:180px;height:60px"><span>＋</span></div>
+      <div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="uploadBannerImage()">＋ Upload image</button>
+        <p style="font-size:.75rem;color:var(--ink-soft);margin-top:6px">Recommended 1200×180 px · JPG/PNG · max 2 MB</p>
+      </div>
+    </div>
+    <label for="b-link">Click-through link</label>
+    <input id="b-link" placeholder="https://…  (advertiser website or a company profile)">
+    <div class="grid2">
+      <div><label for="b-place">Placement *</label>
+        <select id="b-place">
+          <option value="home">Homepage</option>
+          <option value="catalog">Product catalog</option>
+          <option value="companies">Manufacturers page</option>
+        </select>
+      </div>
+      <div><label for="b-ends">End date (optional)</label><input id="b-ends" type="date"></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-grad" onclick="saveBanner()">Save banner</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- config ---------------- */
+const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+
+let TOKEN = sessionStorage.getItem("mh_token") || null;
+
+async function api(path, options={}, raw=false){
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + (TOKEN || SUPABASE_ANON_KEY),
+      "Content-Type": "application/json",
+      ...(options.headers||{})
+    }
+  });
+  if(res.status===401){ logout(); throw new Error("Session expired"); }
+  if(!res.ok){ throw new Error("API " + res.status + ": " + await res.text()); }
+  if(raw || res.status===204) return null;
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+const db = (p,o) => api("/rest/v1/" + p, o);
+
+/* ---------------- auth ---------------- */
+async function login(){
+  const btn = document.getElementById("loginBtn");
+  const err = document.getElementById("loginErr");
+  err.style.display = "none";
+  btn.disabled = true; btn.textContent = "Logging in…";
+  try{
+    const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+      method:"POST",
+      headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+      body: JSON.stringify({
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value
+      })
+    });
+    if(!res.ok) throw new Error("bad credentials");
+    const data = await res.json();
+    TOKEN = data.access_token;
+    sessionStorage.setItem("mh_token", TOKEN);
+    enterApp();
+  }catch(e){
+    err.style.display = "block";
+  }finally{
+    btn.disabled = false; btn.textContent = "Log in";
+  }
+}
+function logout(){
+  TOKEN = null;
+  sessionStorage.removeItem("mh_token");
+  document.getElementById("app").style.display = "none";
+  document.getElementById("headActions").style.display = "none";
+  document.getElementById("loginShell").style.display = "grid";
+}
+function enterApp(){
+  document.getElementById("loginShell").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("headActions").style.display = "flex";
+  loadAll();
+}
+document.getElementById("password").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
+
+/* ---------------- state ---------------- */
+let PRODUCTS = [], PARTNERS = [], RFQS = [], COMPANIES = [], BANNERS = [];
+const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function friendlyError(e){
+  const m = (e && e.message) ? e.message : "";
+  console.error("MedicHall admin error:", m);
+  if(m.includes("row-level security") || m.includes("42501"))
+    return "Permission error: run supabase-admin-setup.sql in the SQL Editor, then try again.";
+  if(m.includes("duplicate") || m.includes("23505"))
+    return "This REF code already exists — use a different one.";
+  if(m.includes("Session expired") || m.includes("401"))
+    return "Session expired — please log in again.";
+  if(m.includes("Failed to fetch"))
+    return "Network error — check your internet connection.";
+  return "Error: " + m.slice(0, 120);
+}
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2200);
+}
+function showPanel(name){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
+}
+
+/* ---------------- load ---------------- */
+async function loadAll(){
+  try{
+    [PRODUCTS, PARTNERS, RFQS, COMPANIES, BANNERS] = await Promise.all([
+      db("products?select=*&order=ref"),
+      db("partners?select=*&order=name"),
+      db("rfq_requests?select=*&order=created_at.desc"),
+      db("companies?select=*&order=created_at.desc"),
+      db("banners?select=*&order=created_at.desc")
+    ]);
+    renderProducts(); renderPartners(); renderRfq(); renderCompanies(); renderBanners();
+  }catch(e){
+    toast("Could not load data — check your connection");
+    console.error(e);
+  }
+}
+
+/* ---------------- products ---------------- */
+function renderProducts(){
+  document.getElementById("nProducts").textContent = PRODUCTS.length;
+  const el = document.getElementById("productList");
+  const q = (document.getElementById("prodSearch") ? document.getElementById("prodSearch").value : "").trim().toLowerCase();
+  const coName = id => id ? ((COMPANIES.find(c=>c.id===id)||{}).name || "Unknown company") : "MedicHall (unassigned)";
+  const list = PRODUCTS.filter(p => !q
+    || (p.name||"").toLowerCase().includes(q)
+    || (p.ref||"").toLowerCase().includes(q)
+    || (p.category||"").toLowerCase().includes(q)
+    || coName(p.company_id).toLowerCase().includes(q));
+  if(!PRODUCTS.length){ el.innerHTML = '<div class="card"><div class="empty"><b>No products yet</b>Add your first product to show it in the catalog.</div></div>'; return; }
+  if(!list.length){ el.innerHTML = '<div class="card"><div class="empty"><b>No products match your search</b></div></div>'; return; }
+  // group by company
+  const groups = new Map();
+  list.forEach(p=>{
+    const key = p.company_id || 0;
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  });
+  const keys = Array.from(groups.keys()).sort((a,b)=>{
+    if(a===0) return -1; if(b===0) return 1;
+    return coName(a).localeCompare(coName(b));
+  });
+  const rowHTML = p => `
+    <div class="row">
+      <div class="thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="" onerror="this.outerHTML='<span>${esc(p.ref)}</span>'">`:`<span>${esc((p.name||"?")[0])}</span>`}</div>
+      <div class="info"><b>${p.is_featured?"★ ":""}${esc(p.name)}</b><span class="mono">REF ${esc(p.ref)} · ${esc(p.category)}</span></div>
+      <span class="pillwrap"><span class="pill ${p.is_active?"on":"off"}">${p.is_active?"Live":"Hidden"}</span></span>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" title="${p.is_featured?"Remove from homepage":"Feature on homepage"}" onclick="toggleFeatured(${p.id})">${p.is_featured?"★":"☆"}</button>
+        <button class="btn btn-ghost btn-sm" onclick="openProductForm(${p.id})">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleProduct(${p.id})">${p.is_active?"Hide":"Show"}</button>
+        <button class="btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
+      </div>
+    </div>`;
+  const openAll = !!q;
+  el.innerHTML = keys.map(k=>`
+    <div class="pgroup">
+      <button class="pgroup-head ${openAll?"open":""}" onclick="toggleGroup(this)" aria-expanded="${openAll}">
+        <span class="arr">▶</span>
+        <b>${esc(coName(k))}</b>
+        <span class="cnt">${groups.get(k).length} product${groups.get(k).length!==1?"s":""}</span>
+      </button>
+      <div class="pgroup-body ${openAll?"open":""}">${groups.get(k).map(rowHTML).join("")}</div>
+    </div>`).join("");
+}
+function toggleGroup(btn){
+  btn.classList.toggle("open");
+  btn.nextElementSibling.classList.toggle("open");
+  btn.setAttribute("aria-expanded", btn.classList.contains("open"));
+}
+function openProductForm(id){
+  const p = PRODUCTS.find(x=>x.id===id) || {};
+  document.getElementById("p-co").innerHTML = '<option value="">MedicHall (unassigned)</option>' +
+    COMPANIES.map(c=>`<option value="${c.id}">${esc(c.name)}${c.is_approved?"":" (pending)"}</option>`).join("");
+  document.getElementById("p-co").value = p.company_id || "";
+  document.getElementById("productFormTitle").textContent = id ? "Edit product" : "Add product";
+  document.getElementById("p-id").value = id || "";
+  document.getElementById("p-ref").value = p.ref || "";
+  document.getElementById("p-cat").value = p.category || "Medical Devices";
+  document.getElementById("p-name").value = p.name || "";
+  document.getElementById("p-desc").value = p.description || "";
+  document.getElementById("p-img").value = p.image_url || "";
+  document.getElementById("p-broch").value = p.brochure_url || "";
+  syncImgPreview(); syncBrochRow();
+  document.getElementById("productModal").classList.add("open");
+}
+async function saveProduct(){
+  const id = document.getElementById("p-id").value;
+  const body = {
+    ref: document.getElementById("p-ref").value.trim(),
+    category: document.getElementById("p-cat").value,
+    name: document.getElementById("p-name").value.trim(),
+    description: document.getElementById("p-desc").value.trim() || null,
+    image_url: document.getElementById("p-img").value.trim() || null,
+    brochure_url: document.getElementById("p-broch").value.trim() || null,
+    company_id: document.getElementById("p-co").value ? parseInt(document.getElementById("p-co").value) : null
+  };
+  if(!body.ref || !body.name){ toast("REF and name are required"); return; }
+  try{
+    if(id){ await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)}); }
+    else{ await db("products", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}}); }
+    closeModals(); toast("Product saved ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function toggleFeatured(id){
+  const p = PRODUCTS.find(x=>x.id===id);
+  try{
+    await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_featured:!p.is_featured})});
+    toast(p.is_featured ? "Removed from homepage" : "★ Featured on homepage"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function toggleProduct(id){
+  const p = PRODUCTS.find(x=>x.id===id);
+  try{
+    await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_active:!p.is_active})});
+    toast(p.is_active ? "Product hidden from catalog" : "Product is live ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function deleteProduct(id){
+  const p = PRODUCTS.find(x=>x.id===id);
+  if(!confirm(`Delete "${p.name}" permanently?\n\nTip: use Hide instead if you may need it again.`)) return;
+  try{ await db("products?id=eq."+id, {method:"DELETE"}); toast("Product deleted"); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+async function uploadFile(file, folder){
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const path = folder + "/" + Date.now() + "-" + safe;
+  const res = await fetch(SUPABASE_URL + "/storage/v1/object/media/" + path, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + TOKEN,
+      "Content-Type": file.type || "application/octet-stream",
+      "x-upsert": "true"
+    },
+    body: file
+  });
+  if(!res.ok) throw new Error(await res.text());
+  return SUPABASE_URL + "/storage/v1/object/public/media/" + path;
+}
+function pickFile(accept, cb){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = accept;
+  inp.onchange = () => { if(inp.files[0]) cb(inp.files[0]); };
+  inp.click();
+}
+function syncImgPreview(){
+  const url = document.getElementById("p-img").value;
+  const prev = document.getElementById("pImgPreview");
+  prev.innerHTML = url ? `<img src="${esc(url)}" alt="">` : "<span>＋</span>";
+  document.getElementById("pImgRemove").style.display = url ? "inline-block" : "none";
+}
+function uploadProductImage(){
+  pickFile("image/*", async file => {
+    if(file.size > 5*1024*1024){ toast("Image too large (max 5 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "products");
+      document.getElementById("p-img").value = url;
+      syncImgPreview();
+      toast("Image uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function removeProductImage(){
+  document.getElementById("p-img").value = "";
+  syncImgPreview();
+}
+function syncBrochRow(){
+  const url = document.getElementById("p-broch").value;
+  const link = document.getElementById("pBrochLink");
+  link.style.display = url ? "inline" : "none";
+  if(url) link.href = url;
+  document.getElementById("pBrochRemove").style.display = url ? "inline-block" : "none";
+}
+function uploadProductBrochure(){
+  pickFile("application/pdf", async file => {
+    if(file.size > 15*1024*1024){ toast("PDF too large (max 15 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "brochures");
+      document.getElementById("p-broch").value = url;
+      syncBrochRow();
+      toast("Brochure uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function removeProductBrochure(){
+  document.getElementById("p-broch").value = "";
+  syncBrochRow();
+}
+
+/* ---------------- partners ---------------- */
+function renderPartners(){
+  document.getElementById("nPartners").textContent = PARTNERS.length;
+  const el = document.getElementById("partnerList");
+  if(!PARTNERS.length){ el.innerHTML = '<div class="empty"><b>No partners yet</b></div>'; return; }
+  el.innerHTML = PARTNERS.map(p=>`
+    <div class="row" style="grid-template-columns:1fr auto auto">
+      <div class="info"><b>${esc(p.name)}</b><span class="mono">${esc(p.type||"")}</span></div>
+      <span class="pillwrap"><span class="pill ${p.is_active?"on":"off"}">${p.is_active?"Live":"Hidden"}</span></span>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openPartnerForm(${p.id})">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="togglePartner(${p.id})">${p.is_active?"Hide":"Show"}</button>
+        <button class="btn-danger" onclick="deletePartner(${p.id})">Delete</button>
+      </div>
+    </div>`).join("");
+}
+function openPartnerForm(id){
+  const p = PARTNERS.find(x=>x.id===id) || {};
+  document.getElementById("partnerFormTitle").textContent = id ? "Edit partner" : "Add partner";
+  document.getElementById("pa-id").value = id || "";
+  document.getElementById("pa-name").value = p.name || "";
+  document.getElementById("pa-type").value = p.type || "";
+  document.getElementById("partnerModal").classList.add("open");
+}
+async function savePartner(){
+  const id = document.getElementById("pa-id").value;
+  const body = {
+    name: document.getElementById("pa-name").value.trim(),
+    type: document.getElementById("pa-type").value.trim() || null
+  };
+  if(!body.name){ toast("Company name is required"); return; }
+  try{
+    if(id){ await db("partners?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)}); }
+    else{ await db("partners", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}}); }
+    closeModals(); toast("Partner saved ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function togglePartner(id){
+  const p = PARTNERS.find(x=>x.id===id);
+  try{ await db("partners?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_active:!p.is_active})}); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+async function deletePartner(id){
+  const p = PARTNERS.find(x=>x.id===id);
+  if(!confirm(`Delete "${p.name}" permanently?`)) return;
+  try{ await db("partners?id=eq."+id, {method:"DELETE"}); toast("Partner deleted"); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- rfq ---------------- */
+let RFQ_VIEW = "mine";
+function setRfqView(v){ RFQ_VIEW = v; renderRfq(); }
+function renderRfq(){
+  const mine = RFQS.filter(r=>!r.company_id);
+  document.getElementById("nRfq").textContent = mine.length;
+  document.getElementById("rfqViewMine").classList.toggle("active", RFQ_VIEW==="mine");
+  document.getElementById("rfqViewAll").classList.toggle("active", RFQ_VIEW==="all");
+  document.getElementById("rfqViewMine").textContent = "For MedicHall (" + mine.length + ")";
+  document.getElementById("rfqViewAll").textContent = "All companies (" + RFQS.length + ")";
+  const el = document.getElementById("rfqList");
+  const shown = RFQ_VIEW==="mine" ? mine : RFQS;
+  if(!shown.length){ el.innerHTML = '<div class="empty"><b>No quotation requests here</b>' + (RFQ_VIEW==="mine" ? 'Requests for unassigned (MedicHall) products land in this view. Requests for manufacturers go to their own portals — switch to "All companies" to oversee them.' : 'New requests from buyers will appear here.') + '</div>'; return; }
+  const coName = id => id ? ((COMPANIES.find(c=>c.id===id)||{}).name || "company #" + id) : null;
+  el.innerHTML = shown.map(r=>`
+    <div class="rfq-item">
+      <div class="rfq-top">
+        <b>${esc(r.product_name || "General inquiry")} ${r.product_ref?`<span class="mono" style="color:var(--ink-soft)">· ${esc(r.product_ref)}</span>`:""}${r.company_id?` <span class="pill" style="background:var(--teal-tint);color:var(--teal-deep);margin-left:6px">→ ${esc(coName(r.company_id))}</span>`:""}</b>
+        <time>${new Date(r.created_at).toLocaleString()}</time>
+      </div>
+      <div class="rfq-meta">
+        From: <a href="mailto:${esc(r.email)}?subject=${encodeURIComponent("Your quotation request — " + (r.product_name||"MedicHall"))}">${esc(r.email)}</a>
+        ${r.company?` · ${esc(r.company)}`:""}
+        &nbsp;·&nbsp;<button class="btn-danger" style="padding:0" onclick="deleteRfq(${r.id})">delete</button>
+      </div>
+      ${(r.quantity||r.destination||r.incoterm||r.target_price)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${[r.quantity?"📦 "+esc(r.quantity):"",r.destination?"📍 "+esc(r.destination):"",r.incoterm?"🚚 "+esc(r.incoterm):"",r.target_price?"🎯 "+esc(r.target_price):""].filter(Boolean).map(c=>`<span class="pill" style="background:var(--mist);color:var(--ink)">${c}</span>`).join("")}</div>`:""}
+      ${r.message?`<div class="rfq-msg">${esc(r.message)}</div>`:""}
+    </div>`).join("");
+}
+async function deleteRfq(id){
+  if(!confirm("Delete this request?")) return;
+  try{ await db("rfq_requests?id=eq."+id, {method:"DELETE"}); toast("Request deleted"); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- companies ---------------- */
+function renderCompanies(){
+  document.getElementById("nCompanies").textContent = COMPANIES.length;
+  const el = document.getElementById("companyList");
+  if(!COMPANIES.length){ el.innerHTML = '<div class="empty"><b>No companies yet</b>When manufacturers register on the Partner Portal, they appear here for approval.</div>'; return; }
+  el.innerHTML = COMPANIES.map(c=>`
+    <div class="rfq-item">
+      <div class="rfq-top">
+        <b>${esc(c.name)} <span class="pill ${c.is_approved?"on":"off"}" style="margin-left:8px">${c.is_approved?"Approved":"Pending"}</span>${c.is_verified?` <span class="pill" style="background:#1E8E76;color:#fff;margin-left:4px">✓ Verified</span>`:""}${c.plan==="premium"?` <span class="pill" style="background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;margin-left:4px">★ Premium${c.plan_expires_at?` until ${new Date(c.plan_expires_at).toLocaleDateString()}`:""}</span>`:""}</b>
+        <time>${new Date(c.created_at).toLocaleDateString()}</time>
+      </div>
+      <div class="rfq-meta">
+        ${esc(c.type||"")}${c.city?` · ${esc(c.city)}`:""}${c.certifications?` · ${esc(c.certifications)}`:""}
+        ${c.contact_email?` · <a href="mailto:${esc(c.contact_email)}">${esc(c.contact_email)}</a>`:""}
+        ${c.website?` · <a href="${esc(c.website)}" target="_blank" rel="noopener">website ↗</a>`:""}
+        ${c.catalog_url?` · <a href="${esc(c.catalog_url)}" target="_blank" rel="noopener">PDF catalog ↗</a>`:""}
+        ${c.video_url?` · <a href="${esc(c.video_url)}" target="_blank" rel="noopener">video ↗</a>`:""}
+      </div>
+      ${c.description?`<div class="rfq-msg">${esc(c.description)}</div>`:""}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="openCompanyForm(${c.id})">Edit</button>
+        <button class="btn ${c.is_approved?"btn-ghost":"btn-grad"} btn-sm" onclick="toggleApprove(${c.id})">${c.is_approved?"Revoke approval":"✓ Approve company"}</button>
+        <button class="btn btn-ghost btn-sm" onclick="togglePremium(${c.id})">${c.plan==="premium"?"Downgrade to Free":"★ Make Premium"}</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleVerified(${c.id})">${c.is_verified?"Remove ✓ Verified":"✓ Verify documents"}</button>
+        <button class="btn-danger" onclick="deleteCompany(${c.id})">Delete</button>
+      </div>
+    </div>`).join("");
+}
+async function toggleApprove(id){
+  const c = COMPANIES.find(x=>x.id===id);
+  try{
+    await db("companies?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_approved:!c.is_approved})});
+    toast(c.is_approved ? "Approval revoked" : "Company approved — now live ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function toggleVerified(id){
+  const c = COMPANIES.find(x=>x.id===id);
+  if(!c.is_verified && !confirm(`Mark "${c.name}" as Verified?\n\nOnly do this after reviewing their certificates (CE/MDR, ISO 13485, \u00dcTS\u2026). The green \u2713 Verified badge tells buyers MedicHall checked the documents.`)) return;
+  try{
+    await db("companies?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_verified:!c.is_verified})});
+    toast(c.is_verified ? "Verified badge removed" : "\u2713 Company marked as Verified");
+    loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function togglePremium(id){
+  const c = COMPANIES.find(x=>x.id===id);
+  try{
+    if(c.plan === "premium"){
+      await db("companies?id=eq."+id, {method:"PATCH", body:JSON.stringify({plan:"free", plan_expires_at:null})});
+      toast("Company downgraded to Free");
+    }else{
+      const m = prompt("Premium for how many months? (leave empty for no expiry)","12");
+      if(m === null) return;
+      let expires = null;
+      if(m.trim() !== ""){
+        const months = parseInt(m);
+        if(isNaN(months) || months <= 0){ toast("Please enter a valid number of months"); return; }
+        const d = new Date(); d.setMonth(d.getMonth() + months);
+        expires = d.toISOString();
+      }
+      await db("companies?id=eq."+id, {method:"PATCH", body:JSON.stringify({plan:"premium", plan_expires_at:expires})});
+      toast("★ Company is now Premium");
+    }
+    loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+function openCompanyForm(id){
+  const c = COMPANIES.find(x=>x.id===id);
+  if(!c) return;
+  document.getElementById("co-id").value = c.id;
+  document.getElementById("co-name").value = c.name || "";
+  document.getElementById("co-type").value = c.type || "";
+  document.getElementById("co-city").value = c.city || "";
+  document.getElementById("co-website").value = c.website || "";
+  document.getElementById("co-email").value = c.contact_email || "";
+  document.getElementById("co-phone").value = c.phone || "";
+  document.getElementById("co-certs").value = c.certifications || "";
+  document.getElementById("co-video").value = c.video_url || "";
+  document.getElementById("co-desc").value = c.description || "";
+  document.getElementById("co-logo").value = c.logo_url || "";
+  document.getElementById("co-catalog").value = c.catalog_url || "";
+  syncCompanyAssets();
+  loadCoCatalogs(c.id);
+  loadCoCerts(c.id);
+  document.getElementById("companyModal").classList.add("open");
+}
+
+/* render first page of a PDF to a JPEG cover image */
+async function pdfFirstPageFile(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+    const page = await pdf.getPage(1);
+    let vp = page.getViewport({scale: 1});
+    const scale = 420 / vp.width;
+    vp = page.getViewport({scale});
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({canvasContext: canvas.getContext("2d"), viewport: vp}).promise;
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", .85));
+    if(!blob) return null;
+    return new File([blob], file.name.replace(/\.pdf$/i,"") + "-cover.jpg", {type:"image/jpeg"});
+  }catch(e){ console.warn("thumb failed", e); return null; }
+}
+
+
+async function coverFromUrl(fileUrl, baseName){
+  const res = await fetch(fileUrl);
+  if(!res.ok) throw new Error("PDF could not be fetched");
+  const blob = await res.blob();
+  const f = new File([blob], (baseName||"catalog") + ".pdf", {type:"application/pdf"});
+  const thumb = await pdfFirstPageFile(f);
+  if(!thumb) throw new Error("Cover render failed");
+  return await uploadFile(thumb, "catalog-covers");
+}
+
+let CO_CATALOGS = [];
+async function loadCoCatalogs(companyId){
+  try{
+    CO_CATALOGS = await db("company_catalogs?select=*&company_id=eq." + companyId + "&order=created_at");
+  }catch(e){ CO_CATALOGS = []; }
+  renderCoCatalogs();
+}
+function renderCoCatalogs(){
+  const el = document.getElementById("coCatManager");
+  if(!el) return;
+  if(!CO_CATALOGS.length){ el.innerHTML = '<span style="font-size:.85rem;color:var(--ink-soft)">No catalogs yet</span>'; return; }
+  el.innerHTML = CO_CATALOGS.map(c=>`
+    <div class="cat-mini-item">
+      <a href="${esc(c.file_url)}" target="_blank" rel="noopener">
+        ${c.thumb_url?`<img src="${esc(c.thumb_url)}" alt="">`:`<span class="cat-mini-ph">📄</span>`}
+      </a>
+      <span class="t" title="${esc(c.title)}">${esc(c.title)}</span>
+      ${!c.thumb_url?`<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.65rem;margin-top:2px" onclick="adminRegenCover(${c.id})">🔄 Cover</button>`:""}
+      <button class="btn-danger" onclick="adminDeleteCatalog(${c.id})">✕</button>
+    </div>`).join("");
+}
+async function adminRegenCover(id){
+  const c = CO_CATALOGS.find(x=>x.id===id);
+  if(!c) return;
+  if(!window.pdfjsLib){ toast("Cover tool couldn't load — check ad blockers and refresh."); return; }
+  toast("Generating cover…");
+  try{
+    const url = await coverFromUrl(c.file_url, c.title);
+    await db("company_catalogs?id=eq." + id, {method:"PATCH", body: JSON.stringify({thumb_url: url})});
+    toast("Cover generated ✓");
+    loadCoCatalogs(document.getElementById("co-id").value);
+  }catch(e){ toast(friendlyError(e)); }
+}
+function adminAddCatalog(){
+  const companyId = document.getElementById("co-id").value;
+  if(!companyId) return;
+  pickFile("application/pdf", async file => {
+    if(file.size > 25*1024*1024){ toast("PDF too large (max 25 MB)"); return; }
+    toast("Uploading catalog…");
+    try{
+      const fileUrl = await uploadFile(file, "catalogs");
+      let thumbUrl = null;
+      if(window.pdfjsLib){
+        const thumb = await pdfFirstPageFile(file);
+        if(thumb) thumbUrl = await uploadFile(thumb, "catalog-covers");
+      }
+      await db("company_catalogs", {method:"POST", headers:{Prefer:"return=minimal"}, body: JSON.stringify({
+        company_id: parseInt(companyId),
+        title: file.name.replace(/\.pdf$/i,"").replace(/[-_]+/g," ").trim() || "Product Catalog",
+        file_url: fileUrl,
+        thumb_url: thumbUrl
+      })});
+      toast("Catalog added ✓");
+      loadCoCatalogs(companyId);
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function adminDeleteCatalog(id){
+  if(!confirm("Remove this catalog?")) return;
+  const companyId = document.getElementById("co-id").value;
+  try{ await db("company_catalogs?id=eq." + id, {method:"DELETE"}); loadCoCatalogs(companyId); }
+  catch(e){ toast(friendlyError(e)); }
+}
+let CO_CERTS = [];
+async function loadCoCerts(companyId){
+  try{
+    CO_CERTS = await db("company_certificates?select=*&company_id=eq." + companyId + "&order=created_at");
+  }catch(e){ CO_CERTS = []; }
+  renderCoCerts();
+}
+function renderCoCerts(){
+  const el = document.getElementById("coCertManager");
+  if(!el) return;
+  if(!CO_CERTS.length){ el.innerHTML = '<span style="font-size:.85rem;color:var(--ink-soft)">No certificates yet</span>'; return; }
+  el.innerHTML = CO_CERTS.map(c=>{
+    const isPdf = /\.pdf(\?|$)/i.test(c.file_url);
+    return `
+    <div class="cat-mini-item">
+      <a href="${esc(c.file_url)}" target="_blank" rel="noopener">
+        ${isPdf?`<span class="cat-mini-ph">\ud83d\udcc4</span>`:`<img src="${esc(c.file_url)}" alt="">`}
+      </a>
+      <span class="t" title="${esc(c.title)}">${esc(c.title)}</span>
+      <button class="btn-danger" onclick="adminDeleteCertificate(${c.id})">✕</button>
+    </div>`}).join("");
+}
+function adminAddCertificate(){
+  const companyId = document.getElementById("co-id").value;
+  if(!companyId) return;
+  pickFile("image/*,application/pdf", async file => {
+    if(file.size > 10*1024*1024){ toast("File too large (max 10 MB)"); return; }
+    let title = prompt("Certificate name (shown to buyers):",
+      file.name.replace(/\.(pdf|jpg|jpeg|png|webp)$/i,"").replace(/[-_]+/g," ").trim() || "Certificate");
+    if(title === null) return;
+    title = title.trim() || "Certificate";
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "certificates");
+      await db("company_certificates", {method:"POST", headers:{Prefer:"return=minimal"}, body: JSON.stringify({
+        company_id: parseInt(companyId), title: title, file_url: url
+      })});
+      toast("Certificate added ✓");
+      loadCoCerts(companyId);
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function adminDeleteCertificate(id){
+  if(!confirm("Remove this certificate?")) return;
+  const companyId = document.getElementById("co-id").value;
+  try{ await db("company_certificates?id=eq." + id, {method:"DELETE"}); loadCoCerts(companyId); }
+  catch(e){ toast(friendlyError(e)); }
+}
+function syncCompanyAssets(){
+  const logo = document.getElementById("co-logo").value;
+  document.getElementById("coLogoPreview").innerHTML = logo ? `<img src="${esc(logo)}" alt="" style="object-fit:contain">` : "<span>＋</span>";
+}
+function uploadCompanyLogo(){
+  pickFile("image/*", async file => {
+    if(file.size > 5*1024*1024){ toast("Image too large (max 5 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "logos");
+      document.getElementById("co-logo").value = url;
+      syncCompanyAssets();
+      toast("Logo uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+function uploadCompanyCatalog(){
+  pickFile("application/pdf", async file => {
+    if(file.size > 25*1024*1024){ toast("PDF too large (max 25 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "catalogs");
+      document.getElementById("co-catalog").value = url;
+      syncCompanyAssets();
+      toast("Catalog uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function saveCompanyAdmin(){
+  const id = document.getElementById("co-id").value;
+  const body = {
+    name: document.getElementById("co-name").value.trim(),
+    type: document.getElementById("co-type").value.trim() || null,
+    city: document.getElementById("co-city").value.trim() || null,
+    website: document.getElementById("co-website").value.trim() || null,
+    contact_email: document.getElementById("co-email").value.trim() || null,
+    phone: document.getElementById("co-phone").value.trim() || null,
+    certifications: document.getElementById("co-certs").value.trim() || null,
+    video_url: document.getElementById("co-video").value.trim() || null,
+    description: document.getElementById("co-desc").value.trim() || null,
+    logo_url: document.getElementById("co-logo").value.trim() || null,
+    catalog_url: document.getElementById("co-catalog").value.trim() || null
+  };
+  if(!body.name){ toast("Company name is required"); return; }
+  try{
+    await db("companies?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)});
+    closeModals(); toast("Company saved ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function deleteCompany(id){
+  const c = COMPANIES.find(x=>x.id===id);
+  if(!confirm(`Delete "${c.name}" permanently?\n\nTheir products will stay but lose their company link.`)) return;
+  try{ await db("companies?id=eq."+id, {method:"DELETE"}); toast("Company deleted"); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- banners ---------------- */
+const PLACEMENT_LABELS = {home:"Homepage", catalog:"Product catalog", companies:"Manufacturers page"};
+function renderBanners(){
+  document.getElementById("nBanners").textContent = BANNERS.length;
+  const el = document.getElementById("bannerList");
+  if(!BANNERS.length){ el.innerHTML = '<div class="empty"><b>No banners yet</b>Add a banner to show sponsored campaigns on the site.</div>'; return; }
+  el.innerHTML = BANNERS.map(b=>{
+    const expired = b.ends_at && new Date(b.ends_at) < new Date();
+    return `
+    <div class="row" style="grid-template-columns:120px 1fr auto auto">
+      <div class="thumb" style="width:120px;height:40px"><img src="${esc(b.image_url)}" alt="" onerror="this.outerHTML='<span>?</span>'"></div>
+      <div class="info"><b>${esc(b.title)}</b><span class="mono">${PLACEMENT_LABELS[b.placement]||b.placement}${b.ends_at?` · until ${new Date(b.ends_at).toLocaleDateString()}`:""}${b.link_url?` · <a href="${esc(b.link_url)}" target="_blank" rel="noopener" style="color:var(--teal)">link ↗</a>`:""}</span></div>
+      <span class="pillwrap"><span class="pill ${b.is_active && !expired?"on":"off"}">${expired?"Expired":(b.is_active?"Live":"Hidden")}</span></span>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openBannerForm(${b.id})">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleBanner(${b.id})">${b.is_active?"Hide":"Show"}</button>
+        <button class="btn-danger" onclick="deleteBanner(${b.id})">Delete</button>
+      </div>
+    </div>`}).join("");
+}
+function openBannerForm(id){
+  const b = BANNERS.find(x=>x.id===id) || {};
+  document.getElementById("bannerFormTitle").textContent = id ? "Edit banner" : "Add banner";
+  document.getElementById("b-id").value = id || "";
+  document.getElementById("b-title").value = b.title || "";
+  document.getElementById("b-img").value = b.image_url || "";
+  document.getElementById("b-link").value = b.link_url || "";
+  document.getElementById("b-place").value = b.placement || "home";
+  document.getElementById("b-ends").value = b.ends_at ? b.ends_at.slice(0,10) : "";
+  syncBannerPreview();
+  document.getElementById("bannerModal").classList.add("open");
+}
+function syncBannerPreview(){
+  const url = document.getElementById("b-img").value;
+  document.getElementById("bImgPreview").innerHTML = url ? `<img src="${esc(url)}" alt="">` : "<span>＋</span>";
+}
+function uploadBannerImage(){
+  pickFile("image/*", async file => {
+    if(file.size > 2*1024*1024){ toast("Image too large (max 2 MB)"); return; }
+    toast("Uploading…");
+    try{
+      const url = await uploadFile(file, "banners");
+      document.getElementById("b-img").value = url;
+      syncBannerPreview();
+      toast("Image uploaded ✓ — don't forget to Save");
+    }catch(e){ toast(friendlyError(e)); }
+  });
+}
+async function saveBanner(){
+  const id = document.getElementById("b-id").value;
+  const ends = document.getElementById("b-ends").value;
+  const body = {
+    title: document.getElementById("b-title").value.trim(),
+    image_url: document.getElementById("b-img").value.trim(),
+    link_url: document.getElementById("b-link").value.trim() || null,
+    placement: document.getElementById("b-place").value,
+    ends_at: ends ? new Date(ends + "T23:59:59").toISOString() : null
+  };
+  if(!body.title || !body.image_url){ toast("Name and image are required"); return; }
+  try{
+    if(id){ await db("banners?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)}); }
+    else{ await db("banners", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}}); }
+    closeModals(); toast("Banner saved ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function toggleBanner(id){
+  const b = BANNERS.find(x=>x.id===id);
+  try{
+    await db("banners?id=eq."+id, {method:"PATCH", body:JSON.stringify({is_active:!b.is_active})});
+    toast(b.is_active ? "Banner hidden" : "Banner is live ✓"); loadAll();
+  }catch(e){ toast(friendlyError(e)); }
+}
+async function deleteBanner(id){
+  const b = BANNERS.find(x=>x.id===id);
+  if(!confirm(`Delete banner "${b.title}" permanently?`)) return;
+  try{ await db("banners?id=eq."+id, {method:"DELETE"}); toast("Banner deleted"); loadAll(); }
+  catch(e){ toast(friendlyError(e)); }
+}
+
+/* ---------------- misc ---------------- */
+function closeModals(){ document.querySelectorAll(".modal-backdrop").forEach(m=>m.classList.remove("open")); }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
+
+/* auto-login if session token exists */
+if(TOKEN) enterApp();
+</script>
+</body>
+</html>
