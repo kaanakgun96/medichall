@@ -240,6 +240,26 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .opp-filter{display:grid;grid-template-columns:minmax(160px,1fr) 150px 170px 130px;gap:10px;margin:0 0 14px}
 @media(max-width:690px){.opp-filter{grid-template-columns:1fr}}
 .opp-filter input,.opp-filter select{padding:9px 11px;font-size:.84rem;margin:0}
+/* ---- Feed advanced filters (Sprint B) ---- */
+.feed-filters{display:none;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px}
+.feed-filters.open{display:block}
+.feed-filters .ff-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 12px}
+@media(max-width:900px){.feed-filters .ff-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.feed-filters .ff-grid{grid-template-columns:1fr}}
+.feed-filters label{display:block;font-size:.72rem;font-weight:600;color:var(--ink-soft);margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+.feed-filters label.ff-unknown{text-transform:none;letter-spacing:0;font-weight:500}
+.feed-filters input,.feed-filters select{width:100%;padding:8px 10px;font-size:.84rem;margin:0}
+.ff-value-row{display:flex;gap:8px;align-items:center}
+.ff-value-row input{min-width:0}
+.ff-unknown{display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--ink-soft);margin-top:7px;cursor:pointer}
+.ff-unknown input{width:auto;margin:0;accent-color:var(--teal)}
+.ff-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px}
+.ff-hint{font-size:.72rem;color:var(--ink-soft)}
+.ff-toggle{background:none;border:1.5px solid var(--line);border-radius:100px;padding:9px 14px;font-size:.8rem;font-weight:600;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
+.ff-toggle:hover,.ff-toggle.active{border-color:var(--teal);color:var(--teal)}
+.ff-toggle .cnt{display:inline-block;min-width:17px;padding:0 4px;border-radius:100px;background:var(--teal);color:#fff;font-size:.68rem;margin-left:5px}
+.opp-eur{color:var(--ink-soft)}
+.opp-eur b{color:var(--ink);font-weight:600}
 .opp-empty{text-align:center;padding:48px 20px;border:1.5px dashed var(--line);border-radius:14px;background:#fff}
 .opp-empty .icon{font-size:2rem;margin-bottom:7px}
 .opp-empty b{display:block;font-size:1rem;margin-bottom:5px}
@@ -598,6 +618,44 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           <select id="oppType" onchange="oppFilterChanged()"><option value="">All types</option><option value="tender">Tenders</option><option value="distributor">Distributors</option></select>
           <select id="oppCountry" onchange="oppFilterChanged()"><option value="">All countries</option></select>
           <select id="oppMin" onchange="oppFilterChanged()"><option value="0">All scores</option><option value="80">80%+</option><option value="60">60%+</option></select>
+          <button class="ff-toggle" id="ffToggle" style="display:none" onclick="toggleFeedFilters()">Filters <span class="cnt" id="ffCount" style="display:none">0</span></button>
+        </div>
+        <!-- Sprint B: advanced feed filters — only visible in "All tenders" mode -->
+        <div class="feed-filters" id="feedFilters">
+          <div class="ff-grid">
+            <div>
+              <label for="ffCpv">CPV code / family</label>
+              <input id="ffCpv" placeholder="e.g. 3319 or 33190000" oninput="oppFilterChanged()">
+            </div>
+            <div>
+              <label for="ffDeadline">Deadline within</label>
+              <select id="ffDeadline" onchange="oppFilterChanged()">
+                <option value="">Any deadline</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+              </select>
+            </div>
+            <div>
+              <label for="ffNotice">Notice type</label>
+              <select id="ffNotice" onchange="oppFilterChanged()"><option value="">All notice types</option></select>
+            </div>
+            <div>
+              <label>Estimated value (EUR)</label>
+              <div class="ff-value-row">
+                <input id="ffValMin" type="number" min="0" placeholder="Min" oninput="oppFilterChanged()">
+                <input id="ffValMax" type="number" min="0" placeholder="Max" oninput="oppFilterChanged()">
+              </div>
+              <label class="ff-unknown" for="ffUnknown">
+                <input type="checkbox" id="ffUnknown" checked onchange="oppFilterChanged()">
+                Include tenders with no stated value
+              </label>
+            </div>
+          </div>
+          <div class="ff-foot">
+            <span class="ff-hint" id="ffFxHint"></span>
+            <button class="btn btn-ghost btn-sm" onclick="clearFeedFilters()">Clear filters</button>
+          </div>
         </div>
         <div id="oppList"><div class="card pad" style="color:var(--ink-soft)">Save your matching profile and click <b>Find matches</b> to see tender and distributor opportunities here.</div></div>
       </div>
@@ -1988,21 +2046,66 @@ function switchOppMode(mode){
   const search = document.getElementById("oppSearch");
   const typeSel = document.getElementById("oppType");
   const minSel = document.getElementById("oppMin");
+  const ffBtn = document.getElementById("ffToggle");
   if(mode === "feed"){
     search.placeholder = "Search all tenders — country, product, buyer…";
     typeSel.style.display = "none";           // beslemede yalnız ihaleler var
     minSel.style.display = "none";            // beslemede skor yok
-    fillFeedCountries();
+    ffBtn.style.display = "";                 // gelişmiş filtreler yalnız beslemede
+    fillFeedFacets();
     loadFeed(true);
   }else{
     search.placeholder = "Search matches…";
     typeSel.style.display = "";
     minSel.style.display = "";
+    ffBtn.style.display = "none";
+    document.getElementById("feedFilters").classList.remove("open");
     COUNTRY_FILTER_FILLED = false;            // ülke listesi eşleşmelerden yeniden dolsun
     const sel = document.getElementById("oppCountry");
     sel.innerHTML = '<option value="">All countries</option>';
     renderOppList();
   }
+}
+
+function toggleFeedFilters(){
+  const box = document.getElementById("feedFilters");
+  box.classList.toggle("open");
+  document.getElementById("ffToggle").classList.toggle("active", box.classList.contains("open"));
+}
+
+function feedFilterValues(){
+  const num = v => { const n = Number(v); return v !== "" && isFinite(n) && n >= 0 ? n : null; };
+  return {
+    q:        (document.getElementById("oppSearch")?.value || "").trim(),
+    country:  document.getElementById("oppCountry")?.value || "",
+    cpv:      (document.getElementById("ffCpv")?.value || "").trim(),
+    deadline: document.getElementById("ffDeadline")?.value || "",
+    notice:   document.getElementById("ffNotice")?.value || "",
+    valMin:   num(document.getElementById("ffValMin")?.value ?? ""),
+    valMax:   num(document.getElementById("ffValMax")?.value ?? ""),
+    inclUnknown: document.getElementById("ffUnknown")?.checked !== false
+  };
+}
+
+function updateFilterBadge(f){
+  // Etkin filtre sayısı rozeti — arama kutusu hariç (o zaten görünür).
+  let n = 0;
+  if(f.country) n++; if(f.cpv) n++; if(f.deadline) n++; if(f.notice) n++;
+  if(f.valMin !== null || f.valMax !== null) n++;
+  if(!f.inclUnknown) n++;   // varsayılandan sapma = etkin filtre
+  const badge = document.getElementById("ffCount");
+  badge.textContent = n;
+  badge.style.display = n ? "" : "none";
+}
+
+function clearFeedFilters(){
+  document.getElementById("ffCpv").value = "";
+  document.getElementById("ffDeadline").value = "";
+  document.getElementById("ffNotice").value = "";
+  document.getElementById("ffValMin").value = "";
+  document.getElementById("ffValMax").value = "";
+  document.getElementById("ffUnknown").checked = true;   // varsayılan: dahil
+  oppFilterChanged();
 }
 
 let OPP_FILTER_T = null;
@@ -2012,30 +2115,78 @@ function oppFilterChanged(){
   OPP_FILTER_T = setTimeout(()=>loadFeed(true), 350);   // beslemede sunucuya gittiğimiz için debounce
 }
 
-async function fillFeedCountries(){
-  const sel = document.getElementById("oppCountry");
-  if(FEED_COUNTRIES){ return; }
+let FEED_FACETS = null;
+async function fillFeedFacets(){
+  if(FEED_FACETS) return;
+  const cSel = document.getElementById("oppCountry");
+  const nSel = document.getElementById("ffNotice");
   try{
-    const rows = await db("tenders?select=country_name&status=eq.open&order=publication_date.desc&limit=1000");
-    FEED_COUNTRIES = [...new Set((rows||[]).map(r => r.country_name).filter(Boolean))].sort();
-    sel.innerHTML = '<option value="">All countries</option>' + FEED_COUNTRIES.map(c => '<option>' + esc(c) + '</option>').join("");
-  }catch(e){ FEED_COUNTRIES = []; }
+    // Sprint A RPC'si: tek çağrı; eski yöntem 1000 satır çekiyordu.
+    const fx = await db("rpc/tender_filter_facets", { method:"POST", body:"{}" });
+    FEED_FACETS = fx || {};
+    const countries = FEED_FACETS.countries || [];
+    const noticeTypes = FEED_FACETS.notice_types || [];
+    cSel.innerHTML = '<option value="">All countries</option>' + countries.map(c => '<option>' + esc(c) + '</option>').join("");
+    nSel.innerHTML = '<option value="">All notice types</option>' + noticeTypes.map(t => '<option>' + esc(t) + '</option>').join("");
+    const hint = document.getElementById("ffFxHint");
+    hint.textContent = FEED_FACETS.fx_as_of
+      ? "Non-EUR values converted with official ECB reference rates (" + FEED_FACETS.fx_as_of + "). Original values always shown."
+      : "";
+  }catch(e){
+    // Sprint A migration kurulu değilse eski yönteme düş — sayfa kırılmasın.
+    FEED_FACETS = {};
+    try{
+      const rows = await db("tenders?select=country_name&status=eq.open&order=publication_date.desc&limit=1000");
+      const list = [...new Set((rows||[]).map(r => r.country_name).filter(Boolean))].sort();
+      cSel.innerHTML = '<option value="">All countries</option>' + list.map(c => '<option>' + esc(c) + '</option>').join("");
+    }catch(_){ /* dropdown boş kalır */ }
+  }
+}
+
+function feedValueLine(t){
+  // Orijinal değer HER ZAMAN gösterilir; EUR karşılığı varsa "≈" ile yanına.
+  if(t.estimated_value == null) return null;
+  const orig = Number(t.estimated_value).toLocaleString() + " " + (t.currency || "");
+  if(t.estimated_value_eur != null && t.currency !== "EUR"){
+    return orig + " (≈ " + Math.round(Number(t.estimated_value_eur)).toLocaleString() + " EUR)";
+  }
+  return orig;
 }
 
 async function loadFeed(reset){
   const list = document.getElementById("oppList");
   if(reset){ FEED_OFFSET = 0; list.innerHTML = '<div class="loading">Loading the feed…</div>'; }
-  const q = (document.getElementById("oppSearch")?.value || "").replace(/[%,()]/g, " ").trim();
-  const country = document.getElementById("oppCountry")?.value || "";
-  let path = "tenders?select=id,title,buyer_name,country_name,deadline_at,estimated_value,currency,source_url,publication_date,cpv_codes"
-    + "&status=eq.open&order=publication_date.desc&limit=20&offset=" + FEED_OFFSET;
-  if(country) path += "&country_name=eq." + encodeURIComponent(country);
-  if(q) path += "&or=(title.ilike.*" + encodeURIComponent(q) + "*,buyer_name.ilike.*" + encodeURIComponent(q) + "*,country_name.ilike.*" + encodeURIComponent(q) + "*)";
+  const f = feedFilterValues();
+  updateFilterBadge(f);
   let rows = [];
-  try{ rows = await db(path) || []; }catch(e){
+  try{
+    // Sprint A RPC'si: tüm filtreler sunucu tarafında, tek çağrı.
+    rows = await db("rpc/search_tenders", {
+      method: "POST",
+      body: JSON.stringify({
+        p_query: f.q || null,
+        p_countries: f.country ? [f.country] : null,
+        p_cpv: f.cpv ? f.cpv.split(/[,;]/).map(s=>s.trim()).filter(Boolean) : null,
+        p_notice_types: f.notice ? [f.notice] : null,
+        p_deadline_within_days: f.deadline ? Number(f.deadline) : null,
+        p_value_min_eur: f.valMin,
+        p_value_max_eur: f.valMax,
+        p_include_unknown_value: f.inclUnknown,
+        p_limit: 20,
+        p_offset: FEED_OFFSET
+      })
+    }) || [];
+  }catch(e){
+    const msg = (e && e.message) || "";
+    if(msg.includes("search_tenders") || msg.includes("PGRST202") || msg.includes("404")){
+      // Sprint A migration henüz kurulmamış — kırık sayfa yerine net talimat.
+      list.innerHTML = '<div class="opp-empty"><div class="icon">🛠️</div><b>Advanced filters need a database update</b><p>The Sprint A migration (202607170001_tender_filters.sql) has not been installed on this database yet. Run it in the Supabase SQL Editor, then reload this page.</p></div>';
+      return;
+    }
     list.innerHTML = '<div class="opp-empty"><b>Could not load the feed</b><p>' + esc(friendlyError(e)) + '</p></div>';
     return;
   }
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
   const cards = rows.map(t =>
     '<div class="opp-card">'
     + '<div class="opp-top"><div class="opp-title"><span class="opp-type">Tender · feed</span><br>📄 ' + esc(t.title || "Tender")
@@ -2043,22 +2194,24 @@ async function loadFeed(reset){
         t.country_name,
         t.buyer_name,
         t.deadline_at ? "Deadline: " + new Date(t.deadline_at).toLocaleDateString() : null,
-        t.estimated_value ? "~" + Number(t.estimated_value).toLocaleString() + " " + (t.currency || "") : null
-      ].filter(Boolean).join(" · ")) + '</div>'
+        t.notice_type || null
+      ].filter(Boolean).join(" · "))
+    + (feedValueLine(t) ? ' · <span class="opp-eur">' + esc(feedValueLine(t)) + '</span>' : '')
+    + '</div>'
     + ((t.cpv_codes || []).length ? '<div class="opp-meta" style="margin-top:3px">CPV: ' + esc(t.cpv_codes.slice(0,4).join(", ")) + '</div>' : '')
     + '</div>'
     + (t.source_url ? '<a class="btn btn-solid" style="font-size:.76rem;padding:7px 11px;align-self:center" href="' + esc(t.source_url) + '" target="_blank" rel="noopener">Open source ↗</a>' : '')
     + '</div></div>'
   ).join("");
   if(reset){
-    list.innerHTML = rows.length ? cards
-      : '<div class="opp-empty"><div class="icon">🌍</div><b>Nothing found in the feed</b><p>No open tender matches this search. The feed covers medical CPV codes from official EU sources; if a country you expected never appears, check the TED_COUNTRIES sync setting.</p></div>';
+    list.innerHTML = rows.length ? ('<div class="opp-meta" style="margin:0 0 10px">' + total.toLocaleString() + ' open tender' + (total === 1 ? '' : 's') + ' match these filters</div>' + cards)
+      : '<div class="opp-empty"><div class="icon">🌍</div><b>Nothing found in the feed</b><p>No open tender matches these filters. Try clearing a filter — the feed covers medical CPV codes from official EU sources; if a country you expected never appears, check the TED_COUNTRIES sync setting.</p><button class="btn btn-ghost btn-sm" onclick="clearFeedFilters()">Clear filters</button></div>';
   }else{
     const btn = document.getElementById("feedMore");
     if(btn) btn.remove();
     list.insertAdjacentHTML("beforeend", cards);
   }
-  if(rows.length === 20){
+  if(FEED_OFFSET + rows.length < total){
     list.insertAdjacentHTML("beforeend", '<button class="btn btn-solid feed-more" id="feedMore" onclick="FEED_OFFSET+=20;loadFeed(false)">Load 20 more ↓</button>');
   }
 }

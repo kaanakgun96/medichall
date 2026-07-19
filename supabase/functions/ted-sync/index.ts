@@ -1,4 +1,16 @@
-// MedicHall TED Sync — v1.0
+// MedicHall TED Sync — v1.4
+//
+// v1.4 DEĞİŞİKLİKLERİ (2026-07-17):
+//   [KRİTİK HATA] v1.3'te ülke kısıtı kaldırılırken, `company_match_profiles`
+//   sorgusu da yanlışlıkla silinmişti; ama onu kullanan döngü (adım 5) kaldı.
+//   Sonuç: her koşuda ReferenceError → eşleşmeler HİÇ yenilenmiyordu.
+//   İhaleler geliyordu ama kimsenin eşleşmesi tazelenmiyordu. → Düzeltildi.
+//
+//   [YENİ] notice_type artık satıra yazılıyor (TED zaten gönderiyordu, biz
+//   atıyorduk).
+//   [YENİ] ECB resmi günlük kurları çekilip public.fx_rates'e yazılıyor,
+//   ardından refresh_tender_eur_values() ile EUR karşılıkları tazeleniyor.
+//   Kur bulunamazsa çeviri YAPILMAZ (uydurma kur yok) — sync yine de sürer.
 //
 // Pulls recent medical procurement notices from the official TED Search API v3
 // (https://api.ted.europa.eu/v3/notices/search — public, no API key needed),
@@ -249,7 +261,10 @@ async function handle(req: Request): Promise<Response> {
         publication_date: pubDate,
         deadline_at: safeIso(firstText(n["deadline-receipt-tender-date-lot"])),
         estimated_value: estValue && !isNaN(Number(estValue)) ? Number(estValue) : null,
-        currency: firstText(n["estimated-value-cur-proc"]) || null,
+        currency: (firstText(n["estimated-value-cur-proc"]) || "").toUpperCase().trim() || null,
+        // v1.4: TED bunu zaten `fields` listesinde gönderiyordu ama satıra
+        // yazılmıyordu. Geçmiş kayıtlar migration'da raw_payload'dan doldurulur.
+        notice_type: firstText(n["notice-type"]).slice(0, 120) || null,
         source_url: `https://ted.europa.eu/en/notice/-/detail/${pubNumber}`,
         language_code: "en",
         raw_payload: n,
@@ -284,9 +299,68 @@ async function handle(req: Request): Promise<Response> {
     .not("deadline_at", "is", null)
     .lt("deadline_at", new Date().toISOString());
 
+  // 4b) ECB resmi günlük referans kurları → public.fx_rates  (v1.4 YENİ)
+  //     Kaynak: ECB euro foreign exchange reference rates (resmi, ücretsiz,
+  //     anahtar gerektirmez). ECB "1 EUR = X yabancı" verir; biz tersini
+  //     (rate_to_eur) saklıyoruz.
+  //     ÖNEMLİ: Burası patlarsa sync DEVAM eder. Kur yoksa çeviri yapılmaz,
+  //     UI orijinal değeri gösterir. Uydurma kur ASLA yazılmaz.
+  let fxUpdated = 0;
+  let fxAsOf: string | null = null;
+  let fxError: string | null = null;
+  try {
+    const fxRes = await fetch(
+      "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+    );
+    if (!fxRes.ok) throw new Error(`HTTP ${fxRes.status}`);
+    const xml = await fxRes.text();
+
+    // <Cube time='2026-07-17'> ... <Cube currency='PLN' rate='4.2550'/>
+    fxAsOf = xml.match(/time=['"](\d{4}-\d{2}-\d{2})['"]/)?.[1] ?? null;
+    if (!fxAsOf) throw new Error("ECB tarihi (time=) okunamadı");
+
+    const fxRows: { currency: string; rate_to_eur: number; as_of: string }[] = [
+      { currency: "EUR", rate_to_eur: 1, as_of: fxAsOf }, // ECB listesinde yok
+    ];
+    const re = /currency=['"]([A-Z]{3})['"]\s+rate=['"]([0-9.]+)['"]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(xml)) !== null) {
+      const perEur = Number(m[2]);
+      if (!isFinite(perEur) || perEur <= 0) continue; // bozuk satırı atla
+      fxRows.push({
+        currency: m[1],
+        rate_to_eur: 1 / perEur,
+        as_of: fxAsOf,
+      });
+    }
+    if (fxRows.length < 2) throw new Error("ECB XML'inde kur satırı bulunamadı");
+
+    const { error: fxErr } = await admin
+      .from("fx_rates")
+      .upsert(fxRows, { onConflict: "currency" });
+    if (fxErr) throw new Error(fxErr.message);
+    fxUpdated = fxRows.length;
+
+    // EUR karşılıklarını tazele (kuru değişen satırlar güncellenir).
+    const { error: refErr } = await admin.rpc("refresh_tender_eur_values");
+    if (refErr) fxError = `EUR tazeleme: ${refErr.message}`;
+  } catch (e) {
+    // Kur alınamadı: felaket değil. Değer filtresi o gün eski kurla çalışır,
+    // hiç kur yoksa çeviri gösterilmez. Sync'i ASLA düşürmez.
+    fxError = String(e).slice(0, 200);
+  }
+
   // 5) Refresh matches for every company with a profile.
+  //    v1.4 KRİTİK DÜZELTME: `profiles` v1.3'te tanımsız kalmıştı (ülke kısıtı
+  //    temizlenirken bu sorgu da silinmiş, döngü kalmıştı) → her koşu
+  //    ReferenceError ile ölüyor, hiçbir eşleşme yenilenmiyordu.
+  const { data: profiles, error: profErr } = await admin
+    .from("company_match_profiles")
+    .select("company_id");
+
   let refreshed = 0;
   const refreshErrors: string[] = [];
+  if (profErr) refreshErrors.push(`profil listesi alınamadı: ${profErr.message}`);
   for (const p of profiles ?? []) {
     const { error } = await admin.rpc("refresh_company_opportunity_matches", {
       p_company_id: p.company_id,
@@ -302,6 +376,9 @@ async function handle(req: Request): Promise<Response> {
       attempts: attemptLog,
       fetched: notices.length,
       upserted,
+      fx_rates_updated: fxUpdated,
+      fx_as_of: fxAsOf,
+      fx_error: fxError,
       companies_refreshed: refreshed,
       refresh_errors: refreshErrors,
       skipped_rows: skipped.length,
