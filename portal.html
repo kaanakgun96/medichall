@@ -139,6 +139,26 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .opp-reason{font-size:.74rem;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:3px 10px;color:var(--ink)}
 .opp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .opp-actions .btn{font-size:.78rem;padding:7px 12px}
+.deep-panel{margin-top:14px;border-top:1.5px dashed var(--line);padding-top:14px;display:none}
+.deep-panel.open{display:block}
+.dp-steps{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.dp-step{display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--ink-soft);background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:5px 12px}
+.dp-step i{width:9px;height:9px;border-radius:50%;background:var(--line);display:inline-block}
+.dp-step.run i{background:#E8A93C;animation:dpPulse 1.2s infinite}
+.dp-step.ok i{background:#2FA36B}
+.dp-step.err i{background:#E0475B}
+@keyframes dpPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.dp-msg{font-size:.82rem;color:var(--ink-soft);margin-bottom:10px}
+.dp-scores{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0}
+.dp-score{font-family:var(--mono);font-size:.78rem;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:8px 12px}
+.dp-score b{font-size:1rem;display:block}
+.dp-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px}
+.dp-table th{text-align:left;padding:7px 9px;background:var(--mist);border-bottom:1.5px solid var(--line);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft)}
+.dp-table td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+.dp-table details{font-size:.74rem;color:var(--ink-soft)}
+.dp-table summary{cursor:pointer;color:var(--teal)}
+.dp-missing{margin-top:12px;font-size:.8rem;background:#FFF6E5;border:1.5px solid #F1D48A;border-radius:10px;padding:10px 14px}
+.dp-missing b{display:block;margin-bottom:4px}
 
 
 /* mini catalog manager */
@@ -184,6 +204,120 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .modal .actions .btn{flex:1;justify-content:center}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--teal-deep);color:#fff;border-radius:100px;padding:12px 26px;font-size:.88rem;font-weight:600;z-index:120;transition:transform .25s;box-shadow:0 12px 30px rgba(0,62,82,.3)}
 .toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ---------- dashboard (design ported from GPT concept) ---------- */
+.portal-welcome{margin:0 0 18px;padding:24px 26px;border-radius:18px;background:linear-gradient(115deg,#003E52 0%,#17637C 52%,#4298CC 100%);color:#fff;position:relative;overflow:hidden}
+.portal-welcome:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.08);right:-70px;top:-120px}
+.portal-welcome .pw-eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.11em;text-transform:uppercase;opacity:.78}
+.portal-welcome h1{font-size:1.55rem;line-height:1.2;margin:7px 0 5px;position:relative;z-index:1;color:#fff}
+.portal-welcome p{font-size:.9rem;opacity:.86;position:relative;z-index:1;margin:0}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+.metric-card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:17px 18px;cursor:pointer;transition:.15s}
+.metric-card:hover{border-color:#9CCEE4;transform:translateY(-1px)}
+.metric-card .metric-label{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.metric-card strong{display:block;font-size:1.55rem;line-height:1.1;margin-top:7px}
+.metric-card small{display:block;color:var(--ink-soft);font-size:.72rem;margin-top:4px}
+@media(max-width:760px){.metric-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:430px){.metric-grid{grid-template-columns:1fr}.portal-welcome h1{font-size:1.3rem}}
+.dashboard-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,.75fr);gap:16px}
+@media(max-width:780px){.dashboard-grid{grid-template-columns:1fr}}
+.section-card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:20px}
+.section-card h3{font-size:1rem;margin-bottom:4px}
+.section-card .section-sub{color:var(--ink-soft);font-size:.8rem;margin-bottom:14px}
+.opp-card{transition:.15s}
+.opp-card:hover{border-color:#9CCEE4;box-shadow:0 8px 24px rgba(0,62,82,.08);transform:translateY(-1px)}
+.opp-type{font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--teal)}
+.match-ring{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;flex:0 0 54px;background:conic-gradient(var(--mint) calc(var(--score)*1%),var(--mist) 0);position:relative}
+.match-ring:before{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
+.match-ring span{position:relative;font-size:.78rem;font-weight:700}
+.profile-meter{height:9px;background:var(--mist);border-radius:100px;overflow:hidden;margin:11px 0 7px}
+.profile-meter span{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--mint),var(--teal));width:0;transition:width .5s}
+.todo-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.todo-item{display:flex;gap:9px;font-size:.8rem;color:var(--ink-soft);align-items:flex-start;cursor:pointer}
+.todo-item:hover{color:var(--ink)}
+.todo-dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--mist);color:var(--teal);font-size:.68rem;flex:0 0 18px}
+.todo-item.done .todo-dot{background:#E7F6EE;color:#177245}
+.opp-filter{display:grid;grid-template-columns:minmax(160px,1fr) 150px 170px 130px;gap:10px;margin:0 0 14px}
+@media(max-width:690px){.opp-filter{grid-template-columns:1fr}}
+.opp-filter input,.opp-filter select{padding:9px 11px;font-size:.84rem;margin:0}
+.opp-empty{text-align:center;padding:48px 20px;border:1.5px dashed var(--line);border-radius:14px;background:#fff}
+.opp-empty .icon{font-size:2rem;margin-bottom:7px}
+.opp-empty b{display:block;font-size:1rem;margin-bottom:5px}
+.opp-empty p{color:var(--ink-soft);font-size:.82rem;max-width:460px;margin:0 auto 15px}
+
+/* ---------- tender detail (deep panel v2) ---------- */
+.dtl-summary{background:linear-gradient(115deg,#F0FAF7,#EDF6FC);border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;font-size:.88rem;line-height:1.55}
+.dtl-summary b{display:block;font-family:var(--mono);font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}
+.lot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin:10px 0}
+.lot-card{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 14px}
+.lot-card .lot-no{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.lot-card .lot-title{font-weight:700;font-size:.86rem;margin:4px 0 6px;line-height:1.3}
+.lot-card .lot-stars{color:#E8A93C;letter-spacing:2px;font-size:.85rem}
+.lot-card .lot-meta{font-size:.76rem;color:var(--ink-soft);margin-top:6px}
+.lot-fit{height:6px;background:var(--mist);border-radius:100px;overflow:hidden;margin-top:8px}
+.lot-fit span{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:100px}
+.lot-card .lot-reason{font-size:.73rem;color:var(--ink-soft);margin-top:7px;font-style:italic}
+.cm-row{display:grid;grid-template-columns:150px 1fr 44px;gap:10px;align-items:center;margin:7px 0;font-size:.8rem}
+.cm-bar{height:8px;background:var(--mist);border-radius:100px;overflow:hidden}
+.cm-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:100px}
+.cm-val{font-family:var(--mono);font-weight:700;text-align:right}
+.req-item{display:flex;gap:8px;align-items:flex-start;font-size:.82rem;margin:5px 0}
+.dtl-narrative{border-left:3px solid var(--teal);padding:8px 14px;margin:12px 0;font-size:.88rem;line-height:1.55;color:var(--ink)}
+.next-actions{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.next-actions .na{display:flex;gap:9px;align-items:center;font-size:.82rem}
+.na .na-btn{margin-left:auto}
+.dtl-h{font-family:var(--mono);font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin:16px 0 6px}
+
+/* ---------- opportunity verdict + product detail ---------- */
+.op-card{display:flex;gap:22px;align-items:center;background:linear-gradient(115deg,#003E52,#17637C);border-radius:14px;padding:18px 22px;color:#fff;margin:10px 0 14px;flex-wrap:wrap}
+.op-big{font-family:var(--mono);font-weight:700;font-size:2.1rem;line-height:1}
+.op-big small{font-size:.9rem;opacity:.7;font-weight:400}
+.op-verdict{font-size:.95rem;font-weight:700}
+.op-verdict span{display:block;font-size:.72rem;font-weight:400;opacity:.75;margin-top:3px}
+.mini-grid{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:8px;flex:1;min-width:260px}
+@media(max-width:560px){.mini-grid{grid-template-columns:1fr 1fr}}
+.mini{background:rgba(255,255,255,.1);border-radius:10px;padding:8px 10px;text-align:center}
+.mini b{display:block;font-family:var(--mono);font-size:1rem}
+.mini span{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;opacity:.75}
+.pf-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.pf-badge{font-size:.66rem;border-radius:100px;padding:2px 8px;font-weight:600;white-space:nowrap}
+.pf-g{background:#E7F6EE;color:#177245}.pf-y{background:#FFF6E5;color:#8A6100}
+.pf-b{background:#E3F0FA;color:#1B5E96}.pf-p{background:#F1E9FA;color:#6A3FA0}.pf-t{background:#E6F5F2;color:#0F7A66}
+tr.prod-row{cursor:pointer}
+tr.prod-row:hover td{background:#FAFCFD}
+tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
+.pd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:9px;margin-bottom:10px}
+.pd-item b{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.pd-item span{font-size:.82rem}
+.pd-ev{border-left:3px solid var(--mint);background:#fff;border-radius:0 8px 8px 0;padding:7px 11px;margin:6px 0;font-size:.78rem}
+.pd-ev b{font-family:var(--mono);font-size:.62rem;color:var(--teal);text-transform:uppercase;letter-spacing:.05em}
+
+.lot-card{cursor:pointer;transition:.13s}
+.lot-card:hover{border-color:#9CCEE4}
+.lot-card.sel{border-color:var(--teal);box-shadow:0 0 0 2px rgba(23,99,124,.14)}
+.lot-detail{background:#F8FBFC;border:1.5px solid var(--line);border-radius:12px;padding:16px;margin:4px 0 12px}
+.lot-detail .ld-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.lot-detail .ld-title{font-weight:700;font-size:.95rem}
+.lot-detail .ld-prod{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:12px;margin:8px 0}
+.lot-detail .ld-prod > b{font-size:.88rem}
+
+/* ---------- bring-your-own documents ---------- */
+.byod{border:1.5px dashed var(--teal);background:#F4FBFA;border-radius:12px;padding:16px;margin:14px 0}
+.byod b{display:block;margin-bottom:5px}
+.byod p{font-size:.82rem;color:var(--ink-soft);margin:0 0 10px;line-height:1.5}
+.byod .byod-ref{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 8px;user-select:all}
+.byod input[type=file]{display:none}
+.byod-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.byod-status{font-size:.8rem;color:var(--ink-soft);margin-top:8px}
+.byod-files{margin-top:8px;font-size:.78rem;color:var(--ink)}
+.byod-files span{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:100px;padding:2px 10px;margin:2px 4px 2px 0}
+
+/* ---------- opportunities view toggle ---------- */
+.opp-seg{display:inline-flex;background:var(--mist);border:1.5px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;gap:2px}
+.opp-seg button{border:none;background:transparent;padding:8px 16px;border-radius:8px;font-size:.84rem;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:.15s}
+.opp-seg button.active{background:#fff;color:var(--teal-deep);box-shadow:0 2px 8px rgba(0,62,82,.10)}
+.feed-note{background:#F4FBFA;border:1.5px solid var(--line);border-radius:12px;padding:12px 15px;font-size:.82rem;color:var(--ink-soft);margin:0 0 14px;line-height:1.5}
+.feed-more{display:block;margin:14px auto 0}
 </style>
 </head>
 <body>
@@ -345,14 +479,44 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
     <!-- main portal -->
     <div id="portal" style="display:none">
       <div class="tabs">
-        <button class="tab active" data-panel="profile" onclick="showPanel('profile')">Company profile</button>
+        <button class="tab active" data-panel="dashboard" onclick="showPanel('dashboard')">Dashboard</button>
+        <button class="tab" data-panel="profile" onclick="showPanel('profile')">Company profile</button>
         <button class="tab" data-panel="products" onclick="showPanel('products')">My products <span class="n" id="nProducts">0</span></button>
         <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ inbox <span class="n" id="nRfq">0</span><span class="n" id="rfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
         <button class="tab" data-panel="opps" onclick="showPanel('opps')">Opportunities <span class="n" id="nOpps">0</span></button>
         <button class="tab" data-panel="ai" onclick="showPanel('ai')">AI Assistant</button>
       </div>
 
-      <div class="panel active" id="panel-profile">
+      <div class="panel active" id="panel-dashboard">
+        <div class="portal-welcome">
+          <div class="pw-eyebrow">Manufacturer portal</div>
+          <h1 id="dashWelcome">Your opportunity dashboard</h1>
+          <p>Tenders and distributors matched to your company — refreshed every morning from official EU sources.</p>
+        </div>
+        <div class="metric-grid">
+          <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">Total matches</span><strong id="mTotal">—</strong><small>Tenders + distributors</small></div>
+          <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">High matches</span><strong id="mHigh">—</strong><small>Score of 80% or higher</small></div>
+          <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">Open tenders</span><strong id="mTenders">—</strong><small>Relevant procurement notices</small></div>
+          <div class="metric-card" onclick="showPanel('rfq')"><span class="metric-label">RFQ inbox</span><strong id="mRfq">—</strong><small>Quotation requests</small></div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="section-card">
+            <h3>Top opportunities</h3>
+            <p class="section-sub">Your strongest matches, ranked by compatibility.</p>
+            <div id="dashboardOpportunities"><div class="loading">Loading matches…</div></div>
+            <button class="btn btn-solid" style="margin-top:12px;font-size:.8rem" onclick="showPanel('opps')">See all opportunities →</button>
+          </div>
+          <div class="section-card">
+            <h3>Match readiness</h3>
+            <p class="section-sub">Complete your profile to improve match quality.</p>
+            <strong id="profileScoreText" style="font-size:1.35rem">—</strong>
+            <div class="profile-meter"><span id="profileScoreBar"></span></div>
+            <div class="todo-list" id="profileTodo"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-profile">
         <div class="card pad">
           <div class="asset-grid" id="assetRow"></div>
           <div id="profileFormFields"></div>
@@ -421,6 +585,20 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
         </div>
 
         <div style="height:16px"></div>
+        <div class="opp-seg" role="tablist" aria-label="Opportunity view">
+          <button id="segMatches" class="active" onclick="switchOppMode('matches')">🎯 My matches</button>
+          <button id="segFeed" onclick="switchOppMode('feed')">🌍 All tenders</button>
+        </div>
+        <div class="feed-note" id="feedNote" style="display:none">
+          Browsing the <b>full daily feed</b> — every open medical tender pulled from official EU sources, regardless of your profile.
+          To get a score and AI analysis for a tender family, add its keywords or country to your matching profile above and click <b>Find matches</b>.
+        </div>
+        <div class="opp-filter">
+          <input id="oppSearch" placeholder="Search matches…" oninput="oppFilterChanged()">
+          <select id="oppType" onchange="oppFilterChanged()"><option value="">All types</option><option value="tender">Tenders</option><option value="distributor">Distributors</option></select>
+          <select id="oppCountry" onchange="oppFilterChanged()"><option value="">All countries</option></select>
+          <select id="oppMin" onchange="oppFilterChanged()"><option value="0">All scores</option><option value="80">80%+</option><option value="60">60%+</option></select>
+        </div>
         <div id="oppList"><div class="card pad" style="color:var(--ink-soft)">Save your matching profile and click <b>Find matches</b> to see tender and distributor opportunities here.</div></div>
       </div>
 
@@ -660,6 +838,7 @@ async function register(){
       JUSTSIGNED = true;
       TOKEN = data.access_token;
       localStorage.setItem("mh_p_token", TOKEN);
+    if(data.refresh_token) localStorage.setItem("mh_p_refresh", data.refresh_token);
       USER = data.user;
       enterApp();
     }else{
@@ -694,6 +873,7 @@ async function login(){
     if(!res.ok) throw new Error(data.error_description || data.msg || "bad credentials");
     TOKEN = data.access_token;
     localStorage.setItem("mh_p_token", TOKEN);
+    if(data.refresh_token) localStorage.setItem("mh_p_refresh", data.refresh_token);
     USER = data.user;
     LOGIN_REDIRECT = true;
     enterApp();
@@ -713,7 +893,7 @@ async function getUser(){
 }
 function logout(){
   TOKEN = null; USER = null; COMPANY = null;
-  localStorage.removeItem("mh_p_token");
+  localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
   document.getElementById("app").style.display = "none";
   document.getElementById("headActions").style.display = "none";
   document.getElementById("authShell").style.display = "grid";
@@ -982,6 +1162,8 @@ async function enterApp(){
     document.getElementById("profileFormFields").innerHTML = companyFormHTML("pf", COMPANY);
     renderAssets();
     loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers(); loadMatchProfile();
+    const dw = document.getElementById("dashWelcome"); if(dw && COMPANY) dw.textContent = "Welcome back, " + (COMPANY.name || "partner") + " 👋";
+    setTimeout(updateDashboard, 1500); setTimeout(updateDashboard, 4000);
     applyHash(); startUnreadTimer();
   }else if(BUYER){
     setBadge("Buyer Account");
@@ -1438,6 +1620,8 @@ function applyHash(){
   if(h === "#inbox") showPanel(COMPANY ? "rfq" : "b-requests");
   else if(h === "#settings" || h === "#profile") showPanel(COMPANY ? "profile" : "b-profile");
   else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
+  else if(h === "#opportunities" && COMPANY) showPanel("opps");
+  else if(h === "#dashboard" && COMPANY) showPanel("dashboard");
 }
 function startUnreadTimer(){
   if(window.__unreadTimer) return;
@@ -1556,7 +1740,11 @@ async function callMedicHallAI(payload){
     },
     body: JSON.stringify(payload)
   });
-  const data = await res.json().catch(()=>({}));
+  let data = await res.json().catch(()=>({}));
+  if(res.status === 401 && await refreshSession()){
+    return callMedicHallAI(payload);
+  }
+  if(res.status === 401){ sessionExpired(); }
   if(!res.ok) throw new Error(data.error || data.message || "AI request failed");
   return data;
 }
@@ -1676,11 +1864,8 @@ async function loadOpportunities(){
       "&status=neq.dismissed&order=match_score.desc,generated_at.desc&limit=50"
     ) || [];
     document.getElementById("nOpps").textContent = OPP_ROWS.length;
-    if(!OPP_ROWS.length){
-      list.innerHTML = '<div class="card pad" style="color:var(--ink-soft)">No matches yet. Check your keywords and target countries, then click <b>Find matches</b> again. New tenders are matched automatically as they arrive.</div>';
-      return;
-    }
-    list.innerHTML = OPP_ROWS.map(renderOppCard).join("");
+    renderOppList();
+    updateDashboard();
   }catch(e){
     list.innerHTML = '<div class="card pad" style="color:var(--ink-soft)">' + esc(friendlyError(e)) + '</div>';
   }
@@ -1688,7 +1873,7 @@ async function loadOpportunities(){
 
 function scoreClass(s){ return s >= 75 ? "hi" : (s >= 55 ? "mid" : "lo"); }
 
-function renderOppCard(m){
+function renderOppCard(m, compact){
   const isTender = m.opportunity_type === "tender";
   const t = m.tenders || {};
   const d = m.distributor_candidates || {};
@@ -1708,21 +1893,33 @@ function renderOppCard(m){
   const reasons = Array.isArray(m.reasons) ? m.reasons.slice(0,5) : [];
   const link = isTender ? t.source_url : d.website;
   const saved = m.status === "saved";
+  if(compact){
+    return '<div class="opp-card" style="cursor:pointer" onclick="showPanel(\'opps\')">'
+      + '<div class="opp-top">'
+      +   '<div class="opp-title"><span class="opp-type">' + (isTender ? "Tender" : "Distributor") + '</span><br>' + icon + ' ' + esc(title)
+      +     '<div class="opp-meta">' + esc(metaBits.join(" · ")) + '</div>'
+      +   '</div>'
+      +   '<span class="match-ring" style="--score:' + m.match_score + '"><span>' + m.match_score + '%</span></span>'
+      + '</div>'
+      + '</div>';
+  }
   return '<div class="opp-card" id="opp-' + m.id + '">'
     + '<div class="opp-top">'
-    +   '<div class="opp-title">' + icon + ' ' + esc(title)
+    +   '<div class="opp-title"><span class="opp-type">' + (isTender ? "Tender" : "Distributor") + '</span><br>' + icon + ' ' + esc(title)
     +     '<div class="opp-meta">' + esc(metaBits.join(" · ")) + '</div>'
     +   '</div>'
-    +   '<span class="opp-score ' + scoreClass(m.match_score) + '">' + m.match_score + '% match</span>'
+    +   '<span class="match-ring" style="--score:' + m.match_score + '"><span>' + m.match_score + '%</span></span>'
     + '</div>'
     + (reasons.length ? '<div class="opp-reasons">' + reasons.map(r=>'<span class="opp-reason">✔ ' + esc(String(r)) + '</span>').join("") + '</div>' : "")
     + '<div class="opp-actions">'
     +   '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">🤖 Analyze with AI</button>'
+    +   (isTender && t.source === 'TED' ? '<button class="btn btn-solid" onclick="deepAnalyze(' + m.id + ')">📑 Deep analysis</button>' : "")
     +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener">Open source ↗</a>' : "")
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'' + (saved ? "viewed" : "saved") + '\')">' + (saved ? "★ Saved" : "☆ Save") + '</button>'
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'contacted\')">' + (m.status === "contacted" ? "✔ Contacted" : "Mark contacted") + '</button>'
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'dismissed\')">✕ Dismiss</button>'
     + '</div>'
+    + '<div class="deep-panel" id="deep-' + m.id + '"></div>'
     + '</div>';
 }
 
@@ -1772,6 +1969,696 @@ function analyzeOpp(id){
   p.value = text;
   setOppStatus(id, "viewed");
   runAiAssistant();
+}
+
+
+
+/* ---- Arama, eşleşme listende sonuç bulamazsa TÜM ihale beslemesinde arar.
+   ("France yazdım, Fransa ihalesi çıkmadı" durumu: Fransa ihaleleri beslemede
+   olabilir ama profilinle eşleşmedikleri için listende yoktur.) ---- */
+let OPP_MODE = "matches";
+let FEED_OFFSET = 0;
+let FEED_COUNTRIES = null;
+
+function switchOppMode(mode){
+  OPP_MODE = mode;
+  document.getElementById("segMatches").classList.toggle("active", mode === "matches");
+  document.getElementById("segFeed").classList.toggle("active", mode === "feed");
+  document.getElementById("feedNote").style.display = mode === "feed" ? "block" : "none";
+  const search = document.getElementById("oppSearch");
+  const typeSel = document.getElementById("oppType");
+  const minSel = document.getElementById("oppMin");
+  if(mode === "feed"){
+    search.placeholder = "Search all tenders — country, product, buyer…";
+    typeSel.style.display = "none";           // beslemede yalnız ihaleler var
+    minSel.style.display = "none";            // beslemede skor yok
+    fillFeedCountries();
+    loadFeed(true);
+  }else{
+    search.placeholder = "Search matches…";
+    typeSel.style.display = "";
+    minSel.style.display = "";
+    COUNTRY_FILTER_FILLED = false;            // ülke listesi eşleşmelerden yeniden dolsun
+    const sel = document.getElementById("oppCountry");
+    sel.innerHTML = '<option value="">All countries</option>';
+    renderOppList();
+  }
+}
+
+let OPP_FILTER_T = null;
+function oppFilterChanged(){
+  if(OPP_MODE === "matches"){ renderOppList(); return; }
+  clearTimeout(OPP_FILTER_T);
+  OPP_FILTER_T = setTimeout(()=>loadFeed(true), 350);   // beslemede sunucuya gittiğimiz için debounce
+}
+
+async function fillFeedCountries(){
+  const sel = document.getElementById("oppCountry");
+  if(FEED_COUNTRIES){ return; }
+  try{
+    const rows = await db("tenders?select=country_name&status=eq.open&order=publication_date.desc&limit=1000");
+    FEED_COUNTRIES = [...new Set((rows||[]).map(r => r.country_name).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All countries</option>' + FEED_COUNTRIES.map(c => '<option>' + esc(c) + '</option>').join("");
+  }catch(e){ FEED_COUNTRIES = []; }
+}
+
+async function loadFeed(reset){
+  const list = document.getElementById("oppList");
+  if(reset){ FEED_OFFSET = 0; list.innerHTML = '<div class="loading">Loading the feed…</div>'; }
+  const q = (document.getElementById("oppSearch")?.value || "").replace(/[%,()]/g, " ").trim();
+  const country = document.getElementById("oppCountry")?.value || "";
+  let path = "tenders?select=id,title,buyer_name,country_name,deadline_at,estimated_value,currency,source_url,publication_date,cpv_codes"
+    + "&status=eq.open&order=publication_date.desc&limit=20&offset=" + FEED_OFFSET;
+  if(country) path += "&country_name=eq." + encodeURIComponent(country);
+  if(q) path += "&or=(title.ilike.*" + encodeURIComponent(q) + "*,buyer_name.ilike.*" + encodeURIComponent(q) + "*,country_name.ilike.*" + encodeURIComponent(q) + "*)";
+  let rows = [];
+  try{ rows = await db(path) || []; }catch(e){
+    list.innerHTML = '<div class="opp-empty"><b>Could not load the feed</b><p>' + esc(friendlyError(e)) + '</p></div>';
+    return;
+  }
+  const cards = rows.map(t =>
+    '<div class="opp-card">'
+    + '<div class="opp-top"><div class="opp-title"><span class="opp-type">Tender · feed</span><br>📄 ' + esc(t.title || "Tender")
+    + '<div class="opp-meta">' + esc([
+        t.country_name,
+        t.buyer_name,
+        t.deadline_at ? "Deadline: " + new Date(t.deadline_at).toLocaleDateString() : null,
+        t.estimated_value ? "~" + Number(t.estimated_value).toLocaleString() + " " + (t.currency || "") : null
+      ].filter(Boolean).join(" · ")) + '</div>'
+    + ((t.cpv_codes || []).length ? '<div class="opp-meta" style="margin-top:3px">CPV: ' + esc(t.cpv_codes.slice(0,4).join(", ")) + '</div>' : '')
+    + '</div>'
+    + (t.source_url ? '<a class="btn btn-solid" style="font-size:.76rem;padding:7px 11px;align-self:center" href="' + esc(t.source_url) + '" target="_blank" rel="noopener">Open source ↗</a>' : '')
+    + '</div></div>'
+  ).join("");
+  if(reset){
+    list.innerHTML = rows.length ? cards
+      : '<div class="opp-empty"><div class="icon">🌍</div><b>Nothing found in the feed</b><p>No open tender matches this search. The feed covers medical CPV codes from official EU sources; if a country you expected never appears, check the TED_COUNTRIES sync setting.</p></div>';
+  }else{
+    const btn = document.getElementById("feedMore");
+    if(btn) btn.remove();
+    list.insertAdjacentHTML("beforeend", cards);
+  }
+  if(rows.length === 20){
+    list.insertAdjacentHTML("beforeend", '<button class="btn btn-solid feed-more" id="feedMore" onclick="FEED_OFFSET+=20;loadFeed(false)">Load 20 more ↓</button>');
+  }
+}
+
+/* ---- Bring-your-own documents: upload → register → re-analyze ---- */
+async function byodUpload(matchId, input){
+  const files = [...(input.files || [])].filter(f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)).slice(0, 8);
+  if(!files.length){ toast("Please choose PDF files"); return; }
+  const status = document.getElementById("byodStatus-" + matchId);
+  const fileBox = document.getElementById("byodFiles-" + matchId);
+  const m = OPP_ROWS.find(r => r.id === matchId);
+  if(!m || !m.tenders){ return; }
+  const tenderId = m.tenders.id;
+  const tooBig = files.find(f => f.size > 20 * 1024 * 1024);
+  if(tooBig){ toast("Each file must be under 20 MB"); return; }
+  input.disabled = true;
+  const registered = [];
+  try{
+    for(let i = 0; i < files.length; i++){
+      const f = files[i];
+      if(status) status.textContent = "Uploading " + (i+1) + "/" + files.length + " — " + f.name + "…";
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-120);
+      const path = "user-uploads/" + tenderId + "/" + COMPANY.id + "-" + Date.now() + "-" + safeName;
+      const up = await fetch(SUPABASE_URL + "/storage/v1/object/tender-documents/" + path, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type": "application/pdf", "x-upsert": "true" },
+        body: f
+      });
+      if(up.status === 401 && await refreshSession()){
+        i--; continue; // token yenilendi, aynı dosyayı tekrar dene
+      }
+      if(!up.ok){ throw new Error("Upload failed for " + f.name + " (HTTP " + up.status + ")"); }
+      registered.push({
+        file_name: f.name.slice(0, 200),
+        file_url: SUPABASE_URL + "/storage/v1/object/public/tender-documents/" + path,
+        file_size: f.size
+      });
+      if(fileBox) fileBox.innerHTML += "<span>✓ " + esc(f.name) + "</span>";
+    }
+    if(status) status.textContent = "Registering documents…";
+    await db("rpc/register_uploaded_tender_documents", {
+      method: "POST",
+      body: JSON.stringify({ p_tender_id: tenderId, p_company_id: COMPANY.id, p_files: registered })
+    });
+    if(status) status.textContent = "Documents added — running the full analysis now…";
+    toast(registered.length + " document(s) added");
+    // Motoru bu kez GERÇEK dokümanlarla çalıştır
+    await deepAnalyze(matchId);
+  }catch(e){
+    if(status) status.textContent = "";
+    toast(friendlyError(e));
+    input.disabled = false;
+  }
+}
+
+/* ---------------- dashboard + filtered list ---------------- */
+function renderOppList(){
+  const list = document.getElementById("oppList");
+  if(!list) return;
+  if(!OPP_ROWS.length){
+    list.innerHTML = '<div class="opp-empty"><div class="icon">🔭</div><b>No matches yet</b><p>Check your keywords and target countries, then click <b>Find matches</b>. New tenders are matched automatically every morning.</p></div>';
+    return;
+  }
+  const q = (document.getElementById("oppSearch")?.value || "").trim().toLowerCase();
+  const type = document.getElementById("oppType")?.value || "";
+  const min = Number(document.getElementById("oppMin")?.value || 0);
+  const countrySel = document.getElementById("oppCountry")?.value || "";
+  fillCountryFilter();
+  const rowCountry = (m)=> (((m.tenders||{}).country_name) || ((m.distributor_candidates||{}).country_name) || "");
+  // Arama kutusuna bir ülke adı yazılırsa, o ülkeyle BİREBİR filtrele
+  // (başlık içinde başka ülke adları geçebildiği için metin araması yanıltıyordu)
+  const allCountries = [...new Set(OPP_ROWS.map(rowCountry).filter(Boolean))];
+  const qAsCountry = q ? allCountries.find(c => c.toLowerCase() === q) : null;
+  const rows = OPP_ROWS.filter(m=>{
+    if(type && m.opportunity_type !== type) return false;
+    if((m.match_score ?? 0) < min) return false;
+    const c = rowCountry(m);
+    if(countrySel && c !== countrySel) return false;
+    if(qAsCountry) return c === qAsCountry;
+    if(q){
+      const t = m.tenders || {}, d = m.distributor_candidates || {};
+      // Çok dilli arama: başlık + alıcı + ülke + AÇIKLAMA + EŞLEŞME NEDENLERİ
+      // (nedenler İngilizce keyword'leri içerir → "probe cover" İtalyanca ihaleyi de bulur)
+      const hay = ((t.title||"") + " " + (t.buyer_name||"") + " " + c + " "
+        + (t.description||"") + " "
+        + (Array.isArray(m.reasons) ? m.reasons.join(" ") : "") + " "
+        + (d.name||"") + " " + ((d.product_keywords||[]).join(" "))).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if(rows.length){
+    list.innerHTML = rows.map(m => renderOppCard(m)).join("");
+  }else{
+    list.innerHTML = '<div class="opp-empty"><div class="icon">🔎</div><b>No matches for this filter</b>'
+      + '<p>Try clearing the search or lowering the score threshold.</p>'
+      + (q ? '<button class="btn btn-grad" style="margin-top:6px" onclick="switchOppMode(\'feed\')">🌍 Search all EU tenders for “' + esc(q) + '” →</button>' : '')
+      + '</div>';
+  }
+}
+
+let COUNTRY_FILTER_FILLED = false;
+function fillCountryFilter(){
+  const sel = document.getElementById("oppCountry");
+  if(!sel || COUNTRY_FILTER_FILLED || !OPP_ROWS.length) return;
+  const countries = [...new Set(OPP_ROWS.map(m => (((m.tenders||{}).country_name) || ((m.distributor_candidates||{}).country_name) || "")).filter(Boolean))].sort();
+  for(const c of countries){
+    const o = document.createElement("option"); o.value = c; o.textContent = c; sel.appendChild(o);
+  }
+  COUNTRY_FILTER_FILLED = countries.length > 0;
+}
+
+function updateDashboard(){
+  const total = OPP_ROWS.length;
+  const high = OPP_ROWS.filter(m => (m.match_score ?? 0) >= 80).length;
+  const tenders = OPP_ROWS.filter(m => m.opportunity_type === "tender").length;
+  const put = (id, v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
+  put("mTotal", total); put("mHigh", high); put("mTenders", tenders);
+  put("mRfq", (RFQS || []).length);
+  const top = document.getElementById("dashboardOpportunities");
+  if(top){
+    top.innerHTML = OPP_ROWS.length
+      ? OPP_ROWS.slice(0, 3).map(m => renderOppCard(m, true)).join("")
+      : '<div class="opp-empty"><div class="icon">🎯</div><b>No opportunities yet</b><p>Set up your matching profile in the Opportunities tab and click Find matches.</p><button class="btn btn-grad" onclick="showPanel(\'opps\')">Set up matching →</button></div>';
+  }
+  updateReadiness();
+}
+
+function updateReadiness(){
+  const bar = document.getElementById("profileScoreBar");
+  const txt = document.getElementById("profileScoreText");
+  const todo = document.getElementById("profileTodo");
+  if(!bar || !COMPANY) return;
+  const kw = (document.getElementById("mp-keywords")?.value || "").trim();
+  const co = (document.getElementById("mp-countries")?.value || "").trim();
+  const checks = [
+    { ok: !!(COMPANY.description && COMPANY.description.length > 30), label: "Add a company description", panel: "profile" },
+    { ok: !!(COMPANY.certifications), label: "List your certifications", panel: "profile" },
+    { ok: (PRODUCTS || []).length > 0, label: "Add at least one product", panel: "products" },
+    { ok: !!kw, label: "Set product keywords for matching", panel: "opps" },
+    { ok: !!co, label: "Choose target countries", panel: "opps" }
+  ];
+  const done = checks.filter(c => c.ok).length;
+  const pct = Math.round(100 * done / checks.length);
+  bar.style.width = pct + "%";
+  if(txt) txt.textContent = pct + "%";
+  if(todo){
+    todo.innerHTML = checks.map(c =>
+      '<div class="todo-item' + (c.ok ? " done" : "") + '" onclick="showPanel(\'' + c.panel + '\')">' +
+      '<span class="todo-dot">' + (c.ok ? "✓" : "•") + '</span><span>' + c.label + '</span></div>'
+    ).join("");
+  }
+}
+
+/* ---------------- deep document analysis pipeline ---------------- */
+let REFRESHING = null;
+async function refreshSession(){
+  if(REFRESHING) return REFRESHING;
+  REFRESHING = (async()=>{
+    const rt = localStorage.getItem("mh_p_refresh");
+    if(!rt) return false;
+    try{
+      const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
+        method:"POST",
+        headers:{ "apikey": SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+        body: JSON.stringify({ refresh_token: rt })
+      });
+      const d = await res.json().catch(()=>({}));
+      if(!res.ok || !d.access_token) return false;
+      TOKEN = d.access_token;
+      localStorage.setItem("mh_p_token", TOKEN);
+      if(d.refresh_token) localStorage.setItem("mh_p_refresh", d.refresh_token);
+      return true;
+    }catch(_){ return false; }
+    finally{ setTimeout(()=>{ REFRESHING = null; }, 500); }
+  })();
+  return REFRESHING;
+}
+function sessionExpired(){
+  toast("Session expired — please sign in again");
+  localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
+  setTimeout(()=>location.reload(), 1400);
+}
+async function edgeCall(fn, body){
+  const res = await fetch(SUPABASE_URL + "/functions/v1/" + fn, {
+    method:"POST",
+    headers:{ "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type":"application/json" },
+    body: JSON.stringify(body)
+  });
+  let data = await res.json().catch(()=>({}));
+  if(res.status === 401){
+    if(await refreshSession()){
+      const res2 = await fetch(SUPABASE_URL + "/functions/v1/" + fn, {
+        method:"POST",
+        headers:{ "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type":"application/json" },
+        body: JSON.stringify(body)
+      });
+      data = await res2.json().catch(()=>({}));
+      if(res2.ok) return data;
+      if(res2.status === 401){ sessionExpired(); }
+      throw new Error(data.error || data.message || (fn + " failed (HTTP " + res2.status + ")"));
+    }
+    sessionExpired();
+    throw new Error("Session expired");
+  }
+  if(!res.ok) throw new Error(data.error || data.message || (fn + " failed (HTTP " + res.status + ")"));
+  return data;
+}
+const sleep = (ms)=>new Promise(r=>setTimeout(r, ms));
+
+function dpStepsHtml(mid){
+  return '<div class="dp-steps">'
+    + '<span class="dp-step" id="dps1-' + mid + '"><i></i>Find documents</span>'
+    + '<span class="dp-step" id="dps2-' + mid + '"><i></i>Download &amp; extract</span>'
+    + '<span class="dp-step" id="dps3-' + mid + '"><i></i>AI analysis</span>'
+    + '</div><div class="dp-msg" id="dpMsg-' + mid + '">Starting…</div><div id="dpResult-' + mid + '"></div>';
+}
+function dpSet(mid, step, cls, msg){
+  const el = document.getElementById("dps" + step + "-" + mid);
+  if(el){ el.classList.remove("run","ok","err"); if(cls) el.classList.add(cls); }
+  if(msg){ const m = document.getElementById("dpMsg-" + mid); if(m) m.textContent = msg; }
+}
+
+async function deepAnalyze(matchId){
+  const m = OPP_ROWS.find(r => r.id === matchId);
+  if(!m || !m.tenders) return;
+  const t = m.tenders;
+  const panel = document.getElementById("deep-" + matchId);
+  panel.classList.add("open");
+  panel.innerHTML = '<div class="dp-steps">'
+    + '<span class="dp-step" id="dps1-' + matchId + '"><i></i>Official notice</span>'
+    + '<span class="dp-step" id="dps3-' + matchId + '"><i></i>AI analysis</span>'
+    + '</div><div class="dp-msg" id="dpMsg-' + matchId + '">Starting…</div><div id="dpResult-' + matchId + '"></div>';
+  const ids = { tender_id: t.id, company_id: COMPANY.id };
+  try{
+    /* HIZLI YOL: keşif/tarama yok. Motor, kayıtlı doküman varsa onları,
+       yoksa TED'in resmi bildirim PDF'ini + yapılandırılmış bildirim
+       verisini otomatik kullanır. */
+    dpSet(matchId, 1, "run", "Fetching the official TED notice…");
+    await edgeCall("tender-document-engine", ids);
+    dpSet(matchId, 1, "ok");
+    dpSet(matchId, 3, "run", "MedicHall AI is reading the notice… (~30-60 seconds)");
+    let job = null;
+    const startedAt = Date.now();
+    for(let i = 0; i < 60; i++){
+      await sleep(4000);
+      const s = await edgeCall("tender-document-engine", { ...ids, action:"status" });
+      job = s.job || s;
+      if(job && ["completed","partial","failed"].includes(job.status)) break;
+      dpSet(matchId, 3, "run", "MedicHall AI is reading… (" + Math.round((Date.now()-startedAt)/1000) + "s)");
+    }
+    if(!job || job.status === "failed"){
+      throw new Error(job?.error_message || "Document analysis did not finish");
+    }
+    dpSet(matchId, 3, "ok", "Analysis " + job.status + ".");
+    await renderDeepResult(matchId, t.id);
+  }catch(e){
+    [1,3].forEach(n=>{ const el=document.getElementById("dps"+n+"-"+matchId); if(el && el.classList.contains("run")){ el.classList.remove("run"); el.classList.add("err"); }});
+    const dm = document.getElementById("dpMsg-" + matchId); if(dm) dm.textContent = friendlyError(e);
+  }
+}
+
+const DEEP_CACHE = {};
+
+async function renderDeepResult(matchId, tenderId){
+  const [rows, mrows] = await Promise.all([
+    db("tenders?select=document_analysis_status,document_confidence_score,data_completeness_score,analyzed_document_count,extracted_products,missing_information,procurement_documents_url,document_analysis_notes,ai_lots&id=eq." + tenderId),
+    db("opportunity_matches?select=fit_narrative,keyword_score,geography_score,category_score&id=eq." + matchId)
+  ]);
+  const t = rows && rows[0];
+  if(!t) return;
+  t._match = (mrows && mrows[0]) || {};
+  DEEP_CACHE[matchId] = { base: t, en: null, showing: "orig", busy: false };
+  paintDeepResult(matchId);
+}
+
+function certStatusList(t){
+  // Şartnamede istenen sertifikalar ∪ — firmanın profilindeki sertifikalarla kıyas
+  const wanted = new Set();
+  for(const p of (Array.isArray(t.extracted_products) ? t.extracted_products : [])){
+    for(const c of (p.required_certifications || [])) wanted.add(String(c));
+  }
+  const mine = ((COMPANY && COMPANY.certifications) || "").toLowerCase().replace(/\s+/g, "");
+  const items = [];
+  for(const c of wanted){
+    const key = String(c).toLowerCase().replace(/\s+/g, "");
+    const have = key && mine.includes(key.replace("cemdr","mdr"));
+    items.push({ label: c, ok: !!have });
+  }
+  return items;
+}
+
+function paintDeepResult(matchId){
+  const c = DEEP_CACHE[matchId];
+  if(!c) return;
+  const t = (c.showing === "en" && c.en) ? c.en : c.base;
+  const mm = c.base._match || {};
+  const om = OPP_ROWS.find(r => r.id === matchId) || {};
+  const prods = Array.isArray(t.extracted_products) ? t.extracted_products : [];
+  const lots = Array.isArray(t.ai_lots) ? t.ai_lots : [];
+  const stars = s => { const n = Math.max(0, Math.min(5, Math.round((s||0)/20))); return "★".repeat(n) + "☆".repeat(5-n); };
+  const evTotal = prods.reduce((a,p)=>a + ((p.evidence||[]).length), 0);
+
+  // ---- 1) Büyük Opportunity Score kartı ----
+  const score = Math.max(0, Math.min(100, Number(om.match_score) || 0));
+  const verdict = score >= 80 ? ["🟢 Excellent match","Strong overlap with your profile — worth a serious look."]
+              : score >= 60 ? ["🟡 Good match","Relevant, but review the gaps below before committing."]
+              : ["⚪ Low match","Limited overlap — probably not worth your time."];
+  const certs = certStatusList(c.base);
+  const certPct = certs.length ? Math.round(100 * certs.filter(x=>x.ok).length / certs.length) : null;
+  const minis = [
+    ["Product", om.keyword_score],
+    ["Country", om.geography_score],
+    ["CPV", om.category_score],
+    ["Certificates", certPct]
+  ];
+  let html = '<div class="op-card">'
+    + '<div><div class="op-big">' + score + '<small> /100</small></div></div>'
+    + '<div class="op-verdict">' + verdict[0] + '<span>' + verdict[1] + '</span></div>'
+    + '<div class="mini-grid">' + minis.map(x =>
+        '<div class="mini"><b>' + (x[1] != null ? Math.max(0,Math.min(100,Number(x[1])||0)) + '%' : '—') + '</b><span>' + x[0] + '</span></div>'
+      ).join('') + '</div>'
+    + '</div>';
+
+  // ---- 3) AI Confidence + kanıt sayısı ----
+  html += '<div class="dp-scores">'
+    + '<span class="dp-score">AI confidence<b>' + (c.base.document_confidence_score ?? 0) + '%</b></span>'
+    + '<span class="dp-score">Evidence<b>' + evTotal + ' quotation' + (evTotal === 1 ? '' : 's') + '</b></span>'
+    + '<span class="dp-score">Data completeness<b>' + (c.base.data_completeness_score ?? 0) + '%</b></span>'
+    + '<span class="dp-score">Documents<b>' + (c.base.analyzed_document_count ?? 0) + '</b></span>'
+    + '</div>';
+
+  if(c.busy){
+    html += '<div class="dp-msg">🌐 Translating to English…</div>';
+  }else if(!c.en){
+    html += '<div style="margin:4px 0 10px"><button class="btn btn-solid" style="font-size:.78rem;padding:7px 12px" onclick="translateDeep(' + matchId + ')">🌐 Translate to English</button></div>';
+  }else{
+    html += '<div style="margin:4px 0 10px"><button class="btn btn-solid" style="font-size:.78rem;padding:7px 12px" onclick="toggleDeepLang(' + matchId + ')">'
+      + (c.showing === "en" ? "Show original" : "Show English") + '</button>'
+      + '<span style="font-size:.72rem;color:var(--ink-soft);margin-left:10px">Evidence quotes stay in the original language (verbatim proof).</span></div>';
+  }
+
+  if(t.document_analysis_notes){
+    html += '<div class="dtl-summary"><b>🤖 AI Executive Summary</b>' + esc(t.document_analysis_notes) + '</div>';
+  }
+
+  if(lots.length){
+    html += '<div class="dtl-h">Lots (' + lots.length + ')</div><div class="lot-grid">';
+    lots.forEach((l, li) => {
+      const fit = Math.max(0, Math.min(100, Number(l.catalog_fit_score) || 0));
+      html += '<div class="lot-card" id="lot-' + matchId + '-' + li + '" onclick="toggleLotDetail(' + matchId + ',' + li + ')">'
+        + '<div class="lot-no">' + esc(String(l.lot_number || "Lot")) + '</div>'
+        + '<div class="lot-title">' + esc(String(l.lot_title || "")) + '</div>'
+        + '<div class="lot-stars">' + stars(fit) + ' <span style="color:var(--ink);font-family:var(--mono);font-size:.74rem">' + fit + '%</span></div>'
+        + '<div class="lot-fit"><span style="width:' + fit + '%"></span></div>'
+        + '<div class="lot-meta">'
+        + (l.estimated_quantity != null ? esc(String(l.estimated_quantity)) + ' ' + esc(String(l.quantity_unit || "")) : "")
+        + (l.estimated_value != null ? (l.estimated_quantity != null ? " · " : "") + "~" + esc(String(l.estimated_value)) + " " + esc(String(l.currency || "")) : "")
+        + '</div>'
+        + (l.fit_reason ? '<div class="lot-reason">' + esc(String(l.fit_reason)) + '</div>' : "")
+        + '</div>';
+    });
+    html += '</div><div id="lotDetail-' + matchId + '"></div>';
+  }
+
+  // ---- 2) Rozetli, 4) tıklanabilir ürün tablosu ----
+  if(prods.length){
+    html += '<div class="dtl-h">Products found <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft)">— click a row for full details</span></div>';
+    html += '<table class="dp-table"><thead><tr><th>Product</th><th>Lot</th><th>Quantity</th><th>Dimensions</th><th>Material</th><th>Certifications</th></tr></thead><tbody>';
+    prods.forEach((p, pi) => {
+      const badges = [];
+      badges.push(p.quantity_value != null
+        ? '<span class="pf-badge pf-g">🟢 Qty ' + esc(String(p.quantity_value)) + '</span>'
+        : '<span class="pf-badge pf-y">🟡 Qty missing</span>');
+      if(p.sterility) badges.push('<span class="pf-badge pf-t">Sterile</span>');
+      for(const cert of (p.required_certifications || []).slice(0, 4)){
+        const cl = /mdr/i.test(cert) ? "pf-b" : (/iso/i.test(cert) ? "pf-p" : "pf-t");
+        badges.push('<span class="pf-badge ' + cl + '">' + esc(cert) + '</span>');
+      }
+      if((p.confidence_score ?? null) != null) badges.push('<span class="pf-badge ' + (p.confidence_score >= 80 ? 'pf-g' : 'pf-y') + '">' + p.confidence_score + '% conf.</span>');
+      html += '<tr class="prod-row" onclick="toggleProdDetail(' + matchId + ',' + pi + ')">'
+        + '<td><b>' + esc(p.product_name || "") + '</b><div class="pf-badges">' + badges.join('') + '</div></td>'
+        + '<td>' + esc(p.lot_number || "—") + '</td>'
+        + '<td>' + (p.quantity_value != null ? esc(String(p.quantity_value)) + ' ' + esc(p.quantity_unit || "") : "—") + '</td>'
+        + '<td>' + esc(p.dimensions || "—") + '</td>'
+        + '<td>' + esc(p.material || "—") + '</td>'
+        + '<td>' + esc((p.required_certifications || []).join(", ") || "—") + '</td>'
+        + '</tr>'
+        + '<tr class="prod-detail" id="pd-' + matchId + '-' + pi + '" style="display:none"><td colspan="6"></td></tr>';
+    });
+    html += '</tbody></table>';
+  }else{
+    html += '<div class="dp-msg">No product lines could be extracted from the documents.</div>';
+  }
+
+  const missing = Array.isArray(t.missing_information) ? t.missing_information : [];
+  if(certs.length || missing.length){
+    html += '<div class="dtl-h">Requirements check</div>';
+    for(const x of certs){
+      html += '<div class="req-item">' + (x.ok ? "🟢" : "🟡") + '<span>' + esc(x.label) + (x.ok ? " — found in your profile" : " — not found in your profile, verify") + '</span></div>';
+    }
+    for(const x of missing.slice(0, 8)){
+      html += '<div class="req-item">🟡<span>' + esc(String(x)) + '</span></div>';
+    }
+  }
+
+  if(c.showing === "en" && c.en && c.en._match && c.en._match.fit_narrative){
+    html += '<div class="dtl-h">Why this tender fits you</div><div class="dtl-narrative">' + esc(c.en._match.fit_narrative) + '</div>';
+  }else if(mm.fit_narrative){
+    html += '<div class="dtl-h">Why this tender fits you</div><div class="dtl-narrative">' + esc(mm.fit_narrative) + '</div>';
+  }
+
+  // "Kendi dokümanını getir": motor yalnızca bildirimi analiz edebildiyse
+  // (ek şartname dosyaları otomatik alınamadıysa) yükleme köprüsünü göster.
+  const onlyNotice = (c.base.analyzed_document_count ?? 0) <= 2 && evTotal === 0;
+  if(onlyNotice){
+    const om2 = OPP_ROWS.find(r => r.id === matchId) || {};
+    const tRow = om2.tenders || {};
+    const ref = (tRow.source_notice_id || "").trim();
+    const portalUrl = c.base.procurement_documents_url || tRow.source_url || "";
+    html += '<div class="byod">'
+      + '<b>📎 Get the full analysis — add the official documents</b>'
+      + '<p>The buyer hosts the tender files on an external portal that blocks automated access. '
+      + 'You can still get the complete AI analysis in under a minute: open the portal'
+      + (ref ? ', search for <span class="byod-ref">' + esc(ref) + '</span>' : '')
+      + ', download the PDF attachments, then drop them here.</p>'
+      + '<div class="byod-row">'
+      + (portalUrl ? '<a class="btn btn-solid" style="font-size:.78rem;padding:8px 13px" href="' + esc(portalUrl) + '" target="_blank" rel="noopener">Open documents portal ↗</a>' : '')
+      + '<label class="btn btn-grad" style="font-size:.78rem;padding:8px 13px;cursor:pointer">Upload PDFs'
+      + '<input type="file" accept="application/pdf" multiple onchange="byodUpload(' + matchId + ', this)"></label>'
+      + '</div>'
+      + '<div class="byod-status" id="byodStatus-' + matchId + '"></div>'
+      + '<div class="byod-files" id="byodFiles-' + matchId + '"></div>'
+      + '</div>';
+  }
+  html += '<div class="dtl-h">Recommended next actions</div><div class="next-actions">'
+    + '<div class="na">📄 Review the official tender documents' + (c.base.procurement_documents_url ? ' <a class="btn btn-solid na-btn" style="font-size:.74rem;padding:5px 10px" href="' + esc(c.base.procurement_documents_url) + '" target="_blank" rel="noopener">Open ↗</a>' : '') + '</div>'
+    + '<div class="na">📋 Verify the 🟡 items above before quoting</div>'
+    + '<div class="na">🤖 Ask MedicHall AI for a risk review <button class="btn btn-solid na-btn" style="font-size:.74rem;padding:5px 10px" onclick="analyzeOpp(' + matchId + ')">Analyze</button></div>'
+    + '<div class="na">💼 Prepare your commercial offer</div>'
+    + '</div>';
+
+  const target = document.getElementById("dpResult-" + matchId);
+  if(target) target.innerHTML = html;
+}
+
+function prodDetailHtml(p){
+  const fields = [
+    ["Lot", p.lot_number], ["Quantity", p.quantity_value != null ? p.quantity_value + " " + (p.quantity_unit || "") : null],
+    ["Packaging", p.packaging], ["Sterility", p.sterility], ["Material", p.material],
+    ["Dimensions", p.dimensions], ["Certificates", (p.required_certifications || []).join(", ") || null],
+    ["Normalized name", p.normalized_product_name]
+  ].filter(f => f[1]);
+  let html = '<div class="pd-grid">' + fields.map(f =>
+      '<div class="pd-item"><b>' + f[0] + '</b><span>' + esc(String(f[1])) + '</span></div>'
+    ).join('') + '</div>';
+  const techs = Array.isArray(p.technical_requirements) ? p.technical_requirements : [];
+  if(techs.length){
+    html += '<div class="pd-item" style="margin-bottom:8px"><b>Technical requirements</b><span>' + techs.slice(0,10).map(x=>esc(String(x))).join(" · ") + '</span></div>';
+  }
+  const ev = Array.isArray(p.evidence) ? p.evidence : [];
+  if(ev.length){
+    html += ev.slice(0, 8).map(e =>
+      '<div class="pd-ev"><b>' + esc(String(e.field_name || "evidence")) + (e.page_number ? " · p." + e.page_number : "") + '</b><br>„' + esc(String(e.source_quote || "").slice(0, 300)) + '”</div>'
+    ).join('');
+  }
+  return html;
+}
+
+function toggleProdDetail(matchId, pi){
+  const c = DEEP_CACHE[matchId];
+  if(!c) return;
+  const t = (c.showing === "en" && c.en) ? c.en : c.base;
+  const p = (t.extracted_products || [])[pi];
+  const row = document.getElementById("pd-" + matchId + "-" + pi);
+  if(!p || !row) return;
+  if(row.style.display !== "none"){ row.style.display = "none"; return; }
+  row.firstElementChild.innerHTML = prodDetailHtml(p);
+  row.style.display = "";
+}
+
+function lotDigits(v){ return String(v == null ? "" : v).replace(/[^0-9]/g, ""); }
+
+function toggleLotDetail(matchId, li){
+  const c = DEEP_CACHE[matchId];
+  if(!c) return;
+  const t = (c.showing === "en" && c.en) ? c.en : c.base;
+  const lots = Array.isArray(t.ai_lots) ? t.ai_lots : [];
+  const l = lots[li];
+  const box = document.getElementById("lotDetail-" + matchId);
+  if(!l || !box) return;
+  // kart vurgusu
+  lots.forEach((_, k) => {
+    const el = document.getElementById("lot-" + matchId + "-" + k);
+    if(el) el.classList.toggle("sel", k === li && c.lotOpen !== li);
+  });
+  if(c.lotOpen === li){ c.lotOpen = null; box.innerHTML = ""; return; }
+  c.lotOpen = li;
+
+  const prods = (Array.isArray(t.extracted_products) ? t.extracted_products : [])
+    .filter(p => {
+      const a = lotDigits(p.lot_number), b = lotDigits(l.lot_number);
+      if(a && b) return a === b;
+      return String(p.lot_number || "").toLowerCase() === String(l.lot_number || "").toLowerCase();
+    });
+
+  let html = '<div class="lot-detail">'
+    + '<div class="ld-head">'
+    +   '<span class="ld-title">' + esc(String(l.lot_number || "Lot")) + ' — ' + esc(String(l.lot_title || "")) + '</span>'
+    +   '<span class="opp-score ' + scoreClass(Number(l.catalog_fit_score) || 0) + '">' + (Number(l.catalog_fit_score) || 0) + '% fit</span>'
+    + '</div>'
+    + '<div class="pd-grid">'
+    +   (l.estimated_quantity != null ? '<div class="pd-item"><b>Estimated quantity</b><span>' + esc(String(l.estimated_quantity)) + ' ' + esc(String(l.quantity_unit || "")) + '</span></div>' : '')
+    +   (l.estimated_value != null ? '<div class="pd-item"><b>Estimated value</b><span>~' + esc(String(l.estimated_value)) + ' ' + esc(String(l.currency || "")) + '</span></div>' : '')
+    +   (l.fit_reason ? '<div class="pd-item"><b>Fit reason</b><span>' + esc(String(l.fit_reason)) + '</span></div>' : '')
+    + '</div>';
+
+  if(prods.length){
+    html += prods.map(p =>
+      '<div class="ld-prod"><b>' + esc(p.product_name || "") + '</b>' + prodDetailHtml(p) + '</div>'
+    ).join('');
+  }else{
+    html += '<div class="dp-msg">No extracted product lines are linked to this lot — check the products table or the official documents.</div>';
+  }
+  html += '</div>';
+  box.innerHTML = html;
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function toggleDeepLang(matchId){
+  const c = DEEP_CACHE[matchId];
+  if(!c || !c.en) return;
+  c.showing = (c.showing === "en") ? "orig" : "en";
+  paintDeepResult(matchId);
+}
+
+async function translateDeep(matchId){
+  const c = DEEP_CACHE[matchId];
+  if(!c || c.busy || c.en) return;
+  c.busy = true; paintDeepResult(matchId);
+  try{
+    const base = c.base;
+    const prods = (Array.isArray(base.extracted_products) ? base.extracted_products : []).slice(0, 15);
+    const payload = {
+      products: prods.map((p, i) => ({
+        i,
+        product_name: p.product_name || "",
+        dimensions: p.dimensions || "",
+        material: p.material || "",
+        sterility: p.sterility || "",
+        lot_number: p.lot_number || "",
+        quantity_unit: p.quantity_unit || "",
+        required_certifications: p.required_certifications || []
+      })),
+      missing_information: Array.isArray(base.missing_information) ? base.missing_information.slice(0, 8) : [],
+      summary: base.document_analysis_notes || "",
+      fit_narrative: (base._match && base._match.fit_narrative) || "",
+      lots: (Array.isArray(base.ai_lots) ? base.ai_lots : []).slice(0, 30).map((l, i) => ({ i, lot_title: l.lot_title || "", fit_reason: l.fit_reason || "" }))
+    };
+    const data = await callMedicHallAI({
+      mode: "general",
+      instruction: "Translate every text value in this JSON to English. Keep numbers, units, codes and certification names (CE, MDR, ISO 13485, UNE, EN) unchanged. Do NOT add, remove or reorder items. Reply with ONLY the JSON, no markdown fences, no commentary.",
+      prompt: JSON.stringify(payload),
+      context: { role: "manufacturer", task: "translate" }
+    });
+    const raw = String(data.answer || data.result || "").replace(/```json|```/g, "").trim();
+    const tr = JSON.parse(raw);
+    // Çeviriyi derin kopyaya uygula (evidence orijinal kalır)
+    const en = JSON.parse(JSON.stringify(base));
+    const list = Array.isArray(en.extracted_products) ? en.extracted_products : [];
+    for(const tp of (tr.products || [])){
+      const p = list[tp.i];
+      if(!p) continue;
+      if(tp.product_name) p.product_name = tp.product_name;
+      if(tp.dimensions) p.dimensions = tp.dimensions;
+      if(tp.material) p.material = tp.material;
+      if(tp.sterility) p.sterility = tp.sterility;
+      if(tp.lot_number) p.lot_number = tp.lot_number;
+      if(tp.quantity_unit) p.quantity_unit = tp.quantity_unit;
+      if(Array.isArray(tp.required_certifications) && tp.required_certifications.length) p.required_certifications = tp.required_certifications;
+    }
+    if(Array.isArray(tr.missing_information) && tr.missing_information.length){
+      en.missing_information = tr.missing_information;
+    }
+    if(tr.summary) en.document_analysis_notes = tr.summary;
+    en._match = JSON.parse(JSON.stringify(base._match || {}));
+    if(tr.fit_narrative) en._match.fit_narrative = tr.fit_narrative;
+    const enLots = Array.isArray(en.ai_lots) ? en.ai_lots : [];
+    for(const tl of (tr.lots || [])){
+      const l = enLots[tl.i];
+      if(!l) continue;
+      if(tl.lot_title) l.lot_title = tl.lot_title;
+      if(tl.fit_reason) l.fit_reason = tl.fit_reason;
+    }
+    c.en = en; c.showing = "en";
+  }catch(e){
+    toast("Translation failed: " + friendlyError(e));
+  }finally{
+    c.busy = false; paintDeepResult(matchId);
+  }
 }
 
 function showPanel(name){

@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Matchmaking — MedicHall</title>
+<meta name="description" content="Two-sided medical B2B matchmaking for manufacturers, distributors and buyers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#003E52;--teal:#3F738D;--blue:#4197CB;--sky:#6FCFEB;
+  --mint:#6BCBB8;--pale:#9DD4CA;--cream:#F1E4B2;
+  --ink:#12303D;--soft:#627982;--line:#DCE8EC;--mist:#F3F8FA;
+  --white:#fff;--ok:#198765;--warn:#9A6B13;--danger:#B44353;
+  --shadow:0 18px 50px rgba(0,62,82,.10);
+}
+*{box-sizing:border-box}body{margin:0;background:#F7FAFB;color:var(--ink);font-family:"DM Sans",sans-serif}
+button,input,textarea,select{font:inherit}a{text-decoration:none;color:inherit}
+.topbar{background:var(--navy);color:white;position:sticky;top:0;z-index:20}
+.topbar-inner{max-width:1240px;margin:auto;height:68px;padding:0 22px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.brand{font-size:1.22rem;font-weight:700;letter-spacing:-.02em}.brand span{color:var(--mint)}
+.logo{display:flex;align-items:center;gap:9px;font-size:1.15rem;letter-spacing:.04em;text-decoration:none}
+.logo-mark{width:26px;height:30px;flex-shrink:0}
+.logo .mword{color:var(--teal,#17637C);font-weight:500}
+.logo .hword{color:var(--teal-deep,#003E52);font-weight:700}
+.logo .adm{font-family:var(--mono,monospace);font-size:.62rem;letter-spacing:.1em;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
+.nav-actions{display:flex;align-items:center;gap:9px}
+.btn{border:0;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;transition:.16s}
+.btn:hover{transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,var(--mint),var(--blue));color:white}
+.btn-light{background:white;color:var(--navy)}.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn-danger{background:#FFF0F2;color:var(--danger)}.btn-sm{font-size:.76rem;padding:7px 10px}
+.wrap{max-width:1240px;margin:auto;padding:25px 22px 60px}
+.hero{background:linear-gradient(120deg,var(--navy),#17657E 60%,var(--blue));border-radius:20px;color:#fff;padding:28px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;box-shadow:var(--shadow)}
+.eyebrow{font-family:"DM Mono";font-size:.68rem;text-transform:uppercase;letter-spacing:.11em;opacity:.8}
+.hero h1{margin:7px 0 6px;font-size:1.8rem}.hero p{margin:0;opacity:.86;max-width:720px}
+.role-badge{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);padding:12px 15px;border-radius:13px;min-width:170px}
+.role-badge small{display:block;opacity:.75;font-family:"DM Mono";font-size:.62rem;text-transform:uppercase}.role-badge strong{display:block;margin-top:4px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0}
+.tab{border:1px solid var(--line);background:white;border-radius:100px;padding:9px 14px;color:var(--soft);font-weight:600;cursor:pointer}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.panel{display:none}.panel.active{display:block}
+.card{background:white;border:1px solid var(--line);border-radius:16px;box-shadow:0 7px 22px rgba(0,62,82,.04)}
+.pad{padding:20px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:14px;flex-wrap:wrap}
+.panel-head h2{margin:0;font-size:1.18rem}.sub{font-size:.82rem;color:var(--soft);margin:4px 0 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+label{display:block;font-size:.72rem;font-weight:700;color:var(--soft);margin:10px 0 6px}
+input,textarea,select{width:100%;border:1px solid #C9DCE3;border-radius:10px;padding:10px 11px;background:white;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:2px solid rgba(65,151,203,.2);border-color:var(--blue)}
+.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:17px}
+.profile-note{padding:11px 13px;background:var(--mist);border-radius:10px;font-size:.8rem;color:var(--soft);margin-top:12px}
+.metric-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.metric{padding:15px;background:white;border:1px solid var(--line);border-radius:13px}
+.metric small{font-family:"DM Mono";text-transform:uppercase;font-size:.58rem;color:var(--soft);letter-spacing:.06em}
+.metric strong{display:block;font-size:1.3rem;margin-top:5px}
+.filters{display:grid;grid-template-columns:1.3fr repeat(3,.7fr);gap:10px;margin-bottom:14px}
+.match-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.match-card{padding:18px;background:#fff;border:1px solid var(--line);border-radius:15px;position:relative}
+.match-top{display:flex;justify-content:space-between;gap:14px}.match-role{font-family:"DM Mono";font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--teal)}
+.match-title{font-size:1rem;font-weight:700;margin-top:3px}.match-meta{font-size:.77rem;color:var(--soft);margin-top:4px}
+.score{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--mint) calc(var(--score)*1%),#E8F0F3 0);position:relative;flex:0 0 58px}
+.score:after{content:"";position:absolute;inset:5px;background:#fff;border-radius:50%}.score b{position:relative;z-index:1;font-size:.78rem}
+.breakdown{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:13px}.break{background:var(--mist);border-radius:8px;padding:7px;text-align:center}
+.break small{display:block;font-size:.56rem;color:var(--soft)}.break b{font-size:.76rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}.chip{font-size:.67rem;border-radius:100px;padding:5px 8px;background:#EAF7F2;color:var(--ok)}
+.chip.risk{background:#FFF4DE;color:var(--warn)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+.empty{text-align:center;padding:48px 20px;color:var(--soft)}.empty b{display:block;color:var(--ink);font-size:1rem;margin-bottom:5px}
+.connection{padding:15px;border-bottom:1px solid var(--line)}.connection:last-child{border-bottom:0}
+.connection-head{display:flex;justify-content:space-between;gap:12px}.status{font-size:.66rem;padding:4px 8px;border-radius:100px;background:var(--mist);text-transform:uppercase;font-weight:700}
+.status.accepted{background:#EAF7F2;color:var(--ok)}.status.pending{background:#FFF4DE;color:var(--warn)}
+.toast{position:fixed;right:20px;bottom:20px;background:var(--navy);color:#fff;padding:12px 15px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:30;max-width:340px}
+.loading{padding:30px;text-align:center;color:var(--soft)}
+.auth-warning{margin-top:18px;padding:18px;background:#FFF8E8;border:1px solid #F0D69C;border-radius:14px;display:none}
+@media(max-width:920px){.match-list{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:1fr 1fr}.breakdown{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:620px){.hero{grid-template-columns:1fr}.grid2,.grid3{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.topbar-inner{padding:0 14px}.wrap{padding:18px 14px 45px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="logo" href="index.html">
+      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
+        </linearGradient></defs>
+        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
+        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
+        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
+        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+      </svg>
+      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
+      <span class="adm">Matchmaking</span>
+    </a>
+    <div class="nav-actions">
+      <a class="btn btn-light btn-sm" href="portal.html">Partner Portal</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">MedicHall AI Matchmaking</div>
+      <h1>Find the right medical business partner.</h1>
+      <p>Two-sided matching for manufacturers, distributors and buyers—based on products, markets, certificates and commercial intent.</p>
+    </div>
+    <div class="role-badge">
+      <small>Your profile</small>
+      <strong id="heroRole">Loading…</strong>
+    </div>
+  </section>
+
+  <div class="auth-warning" id="authWarning">
+    <b>Please log in first.</b>
+    <p style="margin:5px 0 12px;font-size:.84rem">Matchmaking uses your existing MedicHall partner account.</p>
+    <a class="btn btn-primary" href="portal.html">Open Partner Portal</a>
+  </div>
+
+  <div id="app" style="display:none">
+    <nav class="tabs">
+      <button class="tab active" data-panel="matches" onclick="showPanel('matches')">Discover Matches</button>
+      <button class="tab" data-panel="profile" onclick="showPanel('profile')">Match Profile</button>
+      <button class="tab" data-panel="connections" onclick="showPanel('connections')">Connections <span id="connectionCount"></span></button>
+      <button class="tab" data-panel="meetings" onclick="showPanel('meetings')">Meetings</button>
+    </nav>
+
+    <section class="panel active" id="panel-matches">
+      <div class="metric-grid">
+        <div class="metric"><small>Total matches</small><strong id="mTotal">0</strong></div>
+        <div class="metric"><small>High matches</small><strong id="mHigh">0</strong></div>
+        <div class="metric"><small>Manufacturers</small><strong id="mManufacturers">0</strong></div>
+        <div class="metric"><small>Distributors</small><strong id="mDistributors">0</strong></div>
+        <div class="metric"><small>Buyers</small><strong id="mBuyers">0</strong></div>
+      </div>
+
+      <div class="panel-head">
+        <div>
+          <h2>Recommended business partners</h2>
+          <p class="sub">Scores are calculated from both companies’ stated needs and capabilities.</p>
+        </div>
+        <button class="btn btn-primary" onclick="refreshMatches()">Refresh matches</button>
+      </div>
+
+      <div class="filters">
+        <input id="matchSearch" placeholder="Search company, product or country…" oninput="renderMatches()">
+        <select id="matchRole" onchange="renderMatches()">
+          <option value="">All roles</option>
+          <option value="manufacturer">Manufacturers</option>
+          <option value="distributor">Distributors</option>
+          <option value="buyer">Buyers</option>
+        </select>
+        <select id="matchCountry" onchange="renderMatches()"><option value="">All countries</option></select>
+        <select id="matchMin" onchange="renderMatches()">
+          <option value="0">All scores</option>
+          <option value="80">80%+</option>
+          <option value="60">60%+</option>
+        </select>
+      </div>
+      <div class="match-list" id="matchList"><div class="loading">Loading matches…</div></div>
+    </section>
+
+    <section class="panel" id="panel-profile">
+      <div class="panel-head">
+        <div>
+          <h2>Your two-sided match profile</h2>
+          <p class="sub">Share what you offer, what you need and the commercial conditions that matter.</p>
+        </div>
+      </div>
+      <div id="prefillNote" style="display:none;background:#E7F6EE;border:1.5px solid #9ED9B5;color:#177245;border-radius:12px;padding:12px 15px;margin-bottom:14px;font-size:.88rem"></div>
+      <div class="card pad">
+        <div class="grid3">
+          <div>
+            <label>Business role</label>
+            <select id="p-role" onchange="updateRoleHelp()">
+              <option value="manufacturer">Manufacturer</option>
+              <option value="distributor">Distributor</option>
+              <option value="buyer">Buyer / Procurement</option>
+            </select>
+          </div>
+          <div><label>Display name</label><input id="p-name"></div>
+          <div><label>Country</label><input id="p-country"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Website</label><input id="p-website" placeholder="https://"></div>
+          <div>
+            <label>Company size</label>
+            <select id="p-size">
+              <option value="">Not specified</option>
+              <option>1–10 employees</option><option>11–50 employees</option>
+              <option>51–200 employees</option><option>201–500 employees</option>
+              <option>500+ employees</option>
+            </select>
+          </div>
+        </div>
+        <label>Company description</label>
+        <textarea id="p-description" rows="3" placeholder="Describe your business, customer channels and specialization."></textarea>
+
+        <div class="profile-note" id="roleHelp"></div>
+
+        <div class="grid2">
+          <div><label>Products you offer (comma separated)</label><textarea id="p-offered" rows="3" placeholder="sterile probe covers, camera covers, surgical drapes"></textarea></div>
+          <div><label>Products you are looking for (comma separated)</label><textarea id="p-interested" rows="3" placeholder="infusion sets, wound care, operating room disposables"></textarea></div>
+        </div>
+        <div class="grid2">
+          <div><label>Product categories</label><input id="p-categories" placeholder="Operating Room, ICU, Infection Control"></div>
+          <div><label>Partner types sought</label><input id="p-partners" placeholder="manufacturer, distributor, buyer"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Target countries</label><input id="p-target" placeholder="Germany, Italy, Spain"></div>
+          <div><label>Countries served</label><input id="p-served" placeholder="Türkiye, EU, Middle East"></div>
+          <div><label>Preferred supplier countries</label><input id="p-supplier-countries" placeholder="Türkiye, Germany, Poland"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Sales channels</label><input id="p-channels" placeholder="Hospitals, tenders, clinics"></div>
+          <div><label>Certificates held</label><input id="p-certs" placeholder="MDR, CE, ISO 13485"></div>
+          <div><label>Required certificates</label><input id="p-required-certs" placeholder="MDR, CE, FDA"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Annual volume minimum</label><input id="p-volume-min" type="number" min="0" placeholder="50000"></div>
+          <div><label>Annual volume maximum</label><input id="p-volume-max" type="number" min="0" placeholder="500000"></div>
+          <div><label>Average order value (€)</label><input id="p-order-value" type="number" min="0" placeholder="25000"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Minimum order quantity</label><input id="p-moq" type="number" min="0" placeholder="5000"></div>
+          <div><label>Hospital network size</label><input id="p-hospital-network" type="number" min="0" placeholder="80"></div>
+          <div><label>Purchase frequency</label><input id="p-frequency" placeholder="Monthly, quarterly, project based"></div>
+        </div>
+        <label>Warehouse / logistics capacity</label>
+        <input id="p-warehouse" placeholder="e.g. 1,500 m² warehouse, EU-wide distribution">
+
+        <div class="grid3" style="margin-top:10px">
+          <label><input id="p-oem-available" type="checkbox" style="width:auto"> OEM available</label>
+          <label><input id="p-pl-available" type="checkbox" style="width:auto"> Private label available</label>
+          <label><input id="p-tender" type="checkbox" style="width:auto"> Public tender experience</label>
+          <label><input id="p-oem-interest" type="checkbox" style="width:auto"> Interested in OEM</label>
+          <label><input id="p-pl-interest" type="checkbox" style="width:auto"> Interested in private label</label>
+          <label><input id="p-active" type="checkbox" style="width:auto" checked> Profile visible</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="saveProfile()">Save match profile</button>
+          <button class="btn btn-ghost" onclick="saveProfile(true)">Save & find matches</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-connections">
+      <div class="panel-head"><div><h2>Business connections</h2><p class="sub">Accept connections before arranging meetings.</p></div></div>
+      <div class="card" id="connectionList"><div class="loading">Loading connections…</div></div>
+    </section>
+
+    <section class="panel" id="panel-meetings">
+      <div class="panel-head"><div><h2>Meeting requests</h2><p class="sub">Proposed meetings between connected companies.</p></div></div>
+      <div class="card" id="meetingList"><div class="loading">Loading meetings…</div></div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL="https://azdmuarzntzqdyirysux.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+let TOKEN=localStorage.getItem("mh_p_token")||null;
+let USER=null, COMPANY=null, BUYER=null, PROFILE=null, MATCHPROFILE=null;
+let MATCHES=[], CONNECTIONS=[], MEETINGS=[];
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function toast(message){
+  const el=document.getElementById("toast");el.textContent=message;el.style.display="block";
+  clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>el.style.display="none",3500);
+}
+async function request(path,options={}){
+  const res=await fetch(SUPABASE_URL+path,{
+    ...options,
+    headers:{
+      apikey:SUPABASE_ANON_KEY,
+      Authorization:"Bearer "+(TOKEN||SUPABASE_ANON_KEY),
+      "Content-Type":"application/json",
+      ...(options.headers||{})
+    }
+  });
+  const text=await res.text();
+  let data=null;try{data=text?JSON.parse(text):null}catch{data=text}
+  if(!res.ok) throw new Error(data?.message||data?.error_description||data?.hint||data?.details||text||"Request failed");
+  return data;
+}
+function db(query,options={}){return request("/rest/v1/"+query,options)}
+function arr(v){return String(v||"").split(",").map(x=>x.trim()).filter(Boolean)}
+function num(v){const n=Number(v);return Number.isFinite(n)&&v!==""?n:null}
+function jsonValues(v){if(!v)return[];if(Array.isArray(v))return v;return Object.values(v).filter(Boolean)}
+function showPanel(name){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.panel===name));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.toggle("active",x.id==="panel-"+name));
+}
+async function init(){
+  if(!TOKEN){
+    document.getElementById("authWarning").style.display="block";return;
+  }
+  try{
+    const auth=await request("/auth/v1/user");
+    USER=auth;
+    const safe=(p)=>db(p).catch(()=>[]);  // eksik tablo/kolon sayfayı düşürmesin
+    const [companies,buyers,profiles,matchProfiles]=await Promise.all([
+      safe("companies?select=*&owner_id=eq."+USER.id+"&limit=1"),
+      safe("buyer_profiles?select=*&user_id=eq."+USER.id+"&limit=1"),
+      safe("matchmaking_profiles?select=*&user_id=eq."+USER.id+"&limit=1"),
+      safe("company_match_profiles?select=*&limit=1")  // company_id ile aşağıda eşlenir
+    ]);
+    COMPANY=companies?.[0]||null;BUYER=buyers?.[0]||null;PROFILE=profiles?.[0]||null;
+    // Portal'daki eşleşme profilini (ürün keyword'leri, hedef ülkeler, sertifikalar) çek
+    MATCHPROFILE=null;
+    if(COMPANY){
+      try{
+        const mp=await db("company_match_profiles?select=*&company_id=eq."+COMPANY.id+"&limit=1");
+        MATCHPROFILE=mp?.[0]||null;
+      }catch(_){}
+    }
+    document.getElementById("app").style.display="block";
+    if(PROFILE) fillProfile(PROFILE); else prefillProfile();
+    updateHero();
+    await Promise.all([loadMatches(),loadConnections(),loadMeetings()]);
+  }catch(e){
+    console.error(e);document.getElementById("authWarning").style.display="block";
+  }
+}
+function prefillProfile(){
+  const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null&&v!=="")e.value=Array.isArray(v)?v.join(", "):v};
+  const isMfg=!!COMPANY;
+  const role=isMfg?"manufacturer":"buyer";
+  set("p-role",role);
+  // companies + buyer_profiles temel bilgiler
+  set("p-name",COMPANY?.name||BUYER?.company_name||BUYER?.full_name);
+  set("p-country",COMPANY?.country||BUYER?.country);
+  set("p-website",COMPANY?.website);
+  set("p-description",COMPANY?.description);
+  // portal certifications (companies.certifications) — string ya da dizi olabilir
+  const certs=COMPANY?.certifications;
+  if(certs) set("p-certs",Array.isArray(certs)?certs:String(certs));
+  // company_match_profiles → matchmaking (asıl değerli ön-doldurma)
+  if(MATCHPROFILE){
+    const kw=MATCHPROFILE.product_keywords||[];
+    if(isMfg){
+      set("p-offered",kw);            // üretici: sattığı ürünler
+    }else{
+      set("p-interested",kw);         // alıcı: aradığı ürünler
+    }
+    set("p-categories",kw);
+    set("p-target",MATCHPROFILE.target_countries);
+    if(!certs&&MATCHPROFILE.certifications) set("p-certs",MATCHPROFILE.certifications);
+    if(MATCHPROFILE.required_certifications) set("p-required-certs",MATCHPROFILE.required_certifications);
+    // OEM / private label bayrakları
+    const oem=document.getElementById("p-oem-available"); if(oem&&MATCHPROFILE.oem_available)oem.checked=true;
+    const pl=document.getElementById("p-pl-available"); if(pl&&MATCHPROFILE.private_label_available)pl.checked=true;
+  }
+  // partner tipi mantıklı varsayılan
+  set("p-partners",isMfg?"distributor, buyer":"manufacturer, distributor");
+  showPrefillNote(isMfg);
+  updateRoleHelp();updateHero();
+}
+function showPrefillNote(isMfg){
+  const box=document.getElementById("prefillNote");
+  if(!box)return;
+  const src=[];
+  if(COMPANY) src.push("your company profile");
+  if(MATCHPROFILE) src.push("your tender matching profile");
+  if(!src.length){ box.style.display="none"; return; }
+  box.style.display="block";
+  box.innerHTML="✨ We pre-filled this from "+src.join(" and ")+". Review it, adjust anything, and save — no need to re-enter what you already have.";
+}
+function fillProfile(p){
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=Array.isArray(v)?v.join(", "):(v??"")};
+  set("p-role",p.role);set("p-name",p.display_name);set("p-country",p.country);set("p-website",p.website);
+  set("p-size",p.company_size);set("p-description",p.description);set("p-offered",p.offered_products);
+  set("p-interested",p.interested_products);set("p-categories",p.product_categories);
+  set("p-partners",p.partner_types_sought);set("p-target",p.target_countries);
+  set("p-served",p.served_countries);set("p-supplier-countries",p.preferred_supplier_countries);
+  set("p-channels",p.sales_channels);set("p-certs",p.certifications);set("p-required-certs",p.required_certifications);
+  set("p-volume-min",p.annual_volume_min);set("p-volume-max",p.annual_volume_max);
+  set("p-order-value",p.average_order_value);set("p-moq",p.minimum_order_quantity);
+  set("p-hospital-network",p.hospital_network_size);set("p-frequency",p.purchase_frequency);
+  set("p-warehouse",p.warehouse_capacity_text);
+  ["oem_available","private_label_available","tender_experience","oem_interest","private_label_interest","is_active"].forEach(k=>{
+    const id={"oem_available":"p-oem-available","private_label_available":"p-pl-available","tender_experience":"p-tender","oem_interest":"p-oem-interest","private_label_interest":"p-pl-interest","is_active":"p-active"}[k];
+    document.getElementById(id).checked=Boolean(p[k]);
+  });
+  updateRoleHelp();
+}
+function updateHero(){
+  const role=PROFILE?.role||document.getElementById("p-role")?.value||"Profile incomplete";
+  document.getElementById("heroRole").textContent=role.charAt(0).toUpperCase()+role.slice(1);
+}
+function updateRoleHelp(){
+  const role=document.getElementById("p-role").value;
+  const messages={
+    manufacturer:"Manufacturers should emphasize products offered, certifications, MOQ, capacity, OEM/private-label capability and target markets.",
+    distributor:"Distributors should share products currently sourced, represented categories, hospital/tender channels, served markets and annual purchasing volume.",
+    buyer:"Buyers should share exact product needs, expected quantities, mandatory certificates, delivery market and purchase frequency."
+  };
+  document.getElementById("roleHelp").textContent=messages[role];
+  updateHero();
+}
+function completeness(payload){
+  const values=[
+    payload.display_name,payload.country,payload.description,
+    payload.offered_products.length||payload.interested_products.length,
+    payload.product_categories.length,payload.partner_types_sought.length,
+    payload.target_countries.length||payload.served_countries.length,
+    payload.sales_channels.length,
+    payload.certifications.length||payload.required_certifications.length,
+    payload.annual_volume_max||payload.minimum_order_quantity
+  ];
+  return Math.round(values.filter(Boolean).length/values.length*100);
+}
+async function saveProfile(findAfter=false){
+  if(!USER)return;
+  const payload={
+    user_id:USER.id,company_id:COMPANY?.id||null,
+    role:document.getElementById("p-role").value,
+    display_name:document.getElementById("p-name").value.trim(),
+    country:document.getElementById("p-country").value.trim()||null,
+    website:document.getElementById("p-website").value.trim()||null,
+    company_size:document.getElementById("p-size").value||null,
+    description:document.getElementById("p-description").value.trim()||null,
+    offered_products:arr(document.getElementById("p-offered").value),
+    interested_products:arr(document.getElementById("p-interested").value),
+    product_categories:arr(document.getElementById("p-categories").value),
+    partner_types_sought:arr(document.getElementById("p-partners").value).map(x=>x.toLowerCase()),
+    target_countries:arr(document.getElementById("p-target").value),
+    served_countries:arr(document.getElementById("p-served").value),
+    preferred_supplier_countries:arr(document.getElementById("p-supplier-countries").value),
+    sales_channels:arr(document.getElementById("p-channels").value),
+    certifications:arr(document.getElementById("p-certs").value),
+    required_certifications:arr(document.getElementById("p-required-certs").value),
+    annual_volume_min:num(document.getElementById("p-volume-min").value),
+    annual_volume_max:num(document.getElementById("p-volume-max").value),
+    average_order_value:num(document.getElementById("p-order-value").value),
+    minimum_order_quantity:num(document.getElementById("p-moq").value),
+    hospital_network_size:num(document.getElementById("p-hospital-network").value),
+    purchase_frequency:document.getElementById("p-frequency").value.trim()||null,
+    warehouse_capacity_text:document.getElementById("p-warehouse").value.trim()||null,
+    oem_available:document.getElementById("p-oem-available").checked,
+    private_label_available:document.getElementById("p-pl-available").checked,
+    tender_experience:document.getElementById("p-tender").checked,
+    oem_interest:document.getElementById("p-oem-interest").checked,
+    private_label_interest:document.getElementById("p-pl-interest").checked,
+    is_active:document.getElementById("p-active").checked
+  };
+  if(!payload.display_name){toast("Display name is required.");return}
+  payload.profile_completeness=completeness(payload);
+  try{
+    const rows=await db("matchmaking_profiles?on_conflict=user_id",{
+      method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify(payload)
+    });
+    PROFILE=rows?.[0]||payload;toast("Match profile saved ✓");updateHero();
+    if(findAfter){await refreshMatches();showPanel("matches")}
+  }catch(e){toast(e.message)}
+}
+async function refreshMatches(){
+  if(!PROFILE?.id){toast("Save your match profile first.");showPanel("profile");return}
+  toast("Calculating two-sided matches…");
+  try{
+    await db("rpc/refresh_matchmaking_matches",{method:"POST",body:JSON.stringify({p_profile_id:PROFILE.id})});
+    await loadMatches();toast("Matches refreshed ✓");
+  }catch(e){toast(e.message)}
+}
+async function loadMatches(){
+  if(!PROFILE?.id){renderMatches();return}
+  try{
+    MATCHES=await db("matchmaking_matches?select=*,target:matchmaking_profiles!matchmaking_matches_target_profile_id_fkey(*)&source_profile_id=eq."+PROFILE.id+"&order=match_score.desc");
+  }catch(e){console.warn(e);MATCHES=[]}
+  populateCountries();renderMatches();updateMetrics();
+}
+function populateCountries(){
+  const el=document.getElementById("matchCountry"),selected=el.value;
+  const countries=[...new Set(MATCHES.map(x=>x.target?.country).filter(Boolean))].sort();
+  el.innerHTML='<option value="">All countries</option>'+countries.map(x=>`<option>${esc(x)}</option>`).join("");
+  el.value=selected;
+}
+function updateMetrics(){
+  document.getElementById("mTotal").textContent=MATCHES.length;
+  document.getElementById("mHigh").textContent=MATCHES.filter(x=>x.match_score>=80).length;
+  ["manufacturer","distributor","buyer"].forEach(role=>{
+    const id={manufacturer:"mManufacturers",distributor:"mDistributors",buyer:"mBuyers"}[role];
+    document.getElementById(id).textContent=MATCHES.filter(x=>x.target?.role===role).length;
+  });
+}
+function renderMatches(){
+  const el=document.getElementById("matchList");
+  if(!PROFILE){
+    el.innerHTML='<div class="card empty"><b>Create your two-sided profile</b>Tell MedicHall what you offer and what you need before calculating matches.</div>';return
+  }
+  const q=document.getElementById("matchSearch").value.toLowerCase().trim();
+  const role=document.getElementById("matchRole").value,country=document.getElementById("matchCountry").value;
+  const min=Number(document.getElementById("matchMin").value||0);
+  const rows=MATCHES.filter(m=>{
+    const t=m.target||{},hay=[t.display_name,t.country,t.description,...(t.offered_products||[]),...(t.interested_products||[])].join(" ").toLowerCase();
+    return(!q||hay.includes(q))&&(!role||t.role===role)&&(!country||t.country===country)&&m.match_score>=min&&m.status!=="dismissed";
+  });
+  el.innerHTML=rows.length?rows.map(matchCard).join(""):'<div class="card empty"><b>No matches yet</b>Add more product and market information, then refresh matches.</div>';
+}
+function matchCard(m){
+  const t=m.target||{},reasons=jsonValues(m.reasons),risks=jsonValues(m.risks);
+  return `<article class="match-card">
+    <div class="match-top">
+      <div><div class="match-role">${esc(t.role||"company")}</div><div class="match-title">${esc(t.display_name||"Unnamed company")}</div>
+      <div class="match-meta">${esc(t.country||"Country not specified")}${t.company_size?" · "+esc(t.company_size):""} · ${esc(m.confidence_level)} confidence</div></div>
+      <div class="score" style="--score:${m.match_score}"><b>${m.match_score}%</b></div>
+    </div>
+    <div class="breakdown">
+      <div class="break"><small>Products</small><b>${m.product_score}%</b></div>
+      <div class="break"><small>Markets</small><b>${m.geography_score}%</b></div>
+      <div class="break"><small>Partner</small><b>${m.partner_type_score}%</b></div>
+      <div class="break"><small>Certs</small><b>${m.certification_score}%</b></div>
+      <div class="break"><small>Commercial</small><b>${m.commercial_score}%</b></div>
+    </div>
+    <div class="chips">${reasons.map(x=>`<span class="chip">✓ ${esc(x)}</span>`).join("")}${risks.map(x=>`<span class="chip risk">! ${esc(x)}</span>`).join("")}</div>
+    <div class="actions">
+      <button class="btn btn-primary btn-sm" onclick="requestConnection('${t.id}','${esc(t.display_name||"this company")}')">Request connection</button>
+      <button class="btn btn-ghost btn-sm" onclick="openMeeting('${t.id}','${esc(t.display_name||"company")}')">Request meeting</button>
+      ${t.website?`<a class="btn btn-ghost btn-sm" href="${esc(t.website)}" target="_blank" rel="noopener">Website ↗</a>`:""}
+    </div>
+  </article>`
+}
+async function requestConnection(targetId,name){
+  const message=prompt("Introduction message to "+name+":","Hello, our companies appear to be a strong match on MedicHall. I would like to explore a potential cooperation.");
+  if(message===null)return;
+  try{
+    await db("rpc/request_business_connection",{method:"POST",body:JSON.stringify({p_recipient_profile_id:targetId,p_message:message})});
+    toast("Connection request sent ✓");await Promise.all([loadConnections(),loadMatches()]);
+  }catch(e){toast(e.message)}
+}
+async function openMeeting(targetId,name){
+  const accepted=CONNECTIONS.find(c=>c.status==="accepted"&&(c.requester_profile_id===targetId||c.recipient_profile_id===targetId));
+  if(!accepted){toast("Connect with "+name+" before requesting a meeting.");return}
+  const start=prompt("Meeting start (YYYY-MM-DDTHH:MM):","");
+  if(!start)return;
+  const agenda=prompt("Meeting agenda:","Product portfolio and cooperation opportunities");
+  if(agenda===null)return;
+  const startDate=new Date(start),endDate=new Date(startDate.getTime()+30*60*1000);
+  if(Number.isNaN(startDate.getTime())){toast("Invalid meeting date.");return}
+  try{
+    await db("rpc/request_matchmaking_meeting",{method:"POST",body:JSON.stringify({
+      p_recipient_profile_id:targetId,p_start:startDate.toISOString(),p_end:endDate.toISOString(),
+      p_timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,p_agenda:agenda
+    })});
+    toast("Meeting request sent ✓");await loadMeetings();showPanel("meetings");
+  }catch(e){toast(e.message)}
+}
+async function loadConnections(){
+  if(!PROFILE?.id){CONNECTIONS=[];renderConnections();return}
+  try{
+    CONNECTIONS=await db("business_connections?select=*,requester:matchmaking_profiles!business_connections_requester_profile_id_fkey(id,display_name,role,country),recipient:matchmaking_profiles!business_connections_recipient_profile_id_fkey(id,display_name,role,country)&or=(requester_profile_id.eq."+PROFILE.id+",recipient_profile_id.eq."+PROFILE.id+")&order=created_at.desc");
+  }catch(e){console.warn(e);CONNECTIONS=[]}
+  renderConnections();
+}
+function renderConnections(){
+  const el=document.getElementById("connectionList");
+  document.getElementById("connectionCount").textContent=CONNECTIONS.length?"("+CONNECTIONS.length+")":"";
+  if(!CONNECTIONS.length){el.innerHTML='<div class="empty"><b>No connections yet</b>Request a connection from a match card.</div>';return}
+  el.innerHTML=CONNECTIONS.map(c=>{
+    const incoming=c.recipient_profile_id===PROFILE.id,other=incoming?c.requester:c.recipient;
+    return `<div class="connection"><div class="connection-head"><div><b>${esc(other?.display_name||"Company")}</b>
+      <div class="match-meta">${esc(other?.role||"")} · ${esc(other?.country||"")}</div></div><span class="status ${esc(c.status)}">${esc(c.status)}</span></div>
+      ${c.introduction_message?`<p style="font-size:.82rem;color:var(--soft)">${esc(c.introduction_message)}</p>`:""}
+      <div class="actions">
+      ${incoming&&c.status==="pending"?`<button class="btn btn-primary btn-sm" onclick="respondConnection(${c.id},'accepted')">Accept</button><button class="btn btn-danger btn-sm" onclick="respondConnection(${c.id},'declined')">Decline</button>`:""}
+      ${c.status==="accepted"?`<button class="btn btn-ghost btn-sm" onclick="openMeeting('${other.id}','${esc(other.display_name)}')">Request meeting</button>`:""}
+      </div></div>`
+  }).join("");
+}
+async function respondConnection(id,status){
+  try{
+    await db("rpc/respond_business_connection",{method:"POST",body:JSON.stringify({p_connection_id:id,p_status:status})});
+    toast(status==="accepted"?"Connection accepted ✓":"Connection declined");await Promise.all([loadConnections(),loadMatches()]);
+  }catch(e){toast(e.message)}
+}
+async function loadMeetings(){
+  if(!PROFILE?.id){MEETINGS=[];renderMeetings();return}
+  try{
+    MEETINGS=await db("matchmaking_meeting_requests?select=*,requester:matchmaking_profiles!matchmaking_meeting_requests_requester_profile_id_fkey(display_name),recipient:matchmaking_profiles!matchmaking_meeting_requests_recipient_profile_id_fkey(display_name)&or=(requester_profile_id.eq."+PROFILE.id+",recipient_profile_id.eq."+PROFILE.id+")&order=created_at.desc");
+  }catch(e){console.warn(e);MEETINGS=[]}
+  renderMeetings();
+}
+function renderMeetings(){
+  const el=document.getElementById("meetingList");
+  if(!MEETINGS.length){el.innerHTML='<div class="empty"><b>No meeting requests</b>Accepted business connections can request meetings.</div>';return}
+  el.innerHTML=MEETINGS.map(m=>{
+    const incoming=m.recipient_profile_id===PROFILE.id,other=incoming?m.requester:m.recipient;
+    const when=m.proposed_start?new Date(m.proposed_start).toLocaleString():"Time not specified";
+    return `<div class="connection"><div class="connection-head"><div><b>${esc(other?.display_name||"Company")}</b><div class="match-meta">${esc(when)} · ${esc(m.timezone||"")}</div></div><span class="status ${esc(m.status)}">${esc(m.status)}</span></div>
+    ${m.agenda?`<p style="font-size:.82rem;color:var(--soft)">${esc(m.agenda)}</p>`:""}${m.meeting_url?`<a class="btn btn-primary btn-sm" href="${esc(m.meeting_url)}" target="_blank">Join meeting ↗</a>`:""}</div>`
+  }).join("");
+}
+init();
+</script>
+</body>
+</html>

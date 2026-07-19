@@ -3,11 +3,56 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MedicHall — Turkey's Medical Industry Marketplace</title>
-<meta name="description" content="The B2B platform opening the world to Turkey's healthcare industry. Find certified manufacturers, OEM partners, raw materials and medical devices.">
+<title>MedicHall — Medical Business. Connected.</title>
+<meta name="description" content="Discover medical manufacturers, distributors, buyers, products and European tenders in one connected B2B platform.">
+
+<!-- canonical + theme -->
+<link rel="canonical" href="https://medichall.com/">
+<meta name="theme-color" content="#003E52">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 66 80'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23F2E5B3'/%3E%3Cstop offset='.5' stop-color='%236CCCB9'/%3E%3Cstop offset='1' stop-color='%234298CC'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon fill='url(%23g)' points='0,16 14,8 14,80 0,80'/%3E%3Cpolygon fill='url(%23g)' points='26,8 40,2 40,34 26,40'/%3E%3Cpolygon fill='url(%23g)' points='26,52 40,46 40,80 26,80'/%3E%3Cpolygon fill='url(%23g)' points='52,2 66,10 66,80 52,80'/%3E%3C/svg%3E">
+
+<!-- social sharing (Open Graph + Twitter) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MedicHall">
+<meta property="og:title" content="MedicHall — Medical Business. Connected.">
+<meta property="og:description" content="European tenders matched to your products, AI that reads the documents, and business matchmaking for the medical industry.">
+<meta property="og:url" content="https://medichall.com/">
+<meta property="og:image" content="https://medichall.com/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MedicHall — Medical Business. Connected.">
+<meta name="twitter:description" content="European tenders matched to your products, AI that reads the documents, and business matchmaking for the medical industry.">
+<meta name="twitter:image" content="https://medichall.com/og-cover.png">
+
+<!-- structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://medichall.com/#org",
+      "name": "MedicHall",
+      "url": "https://medichall.com/",
+      "email": "info@medichall.com",
+      "description": "AI-powered B2B platform for the medical industry: European tender intelligence, business matchmaking and digital showrooms.",
+      "address": { "@type": "PostalAddress", "addressLocality": "İzmir", "addressCountry": "TR" }
+    },
+    {
+      "@type": "WebSite",
+      "url": "https://medichall.com/",
+      "name": "MedicHall",
+      "publisher": { "@id": "https://medichall.com/#org" }
+    }
+  ]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
    BRAND COLORS — change only these values to re-theme the site
@@ -29,11 +74,15 @@
   --brand-grad:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%);
   --mist:#EFF6F9;
   --white:#FFFFFF;
-  --line:#D6E4EB;
+  --line:#E2E8ED;
+  --line-strong:#CBD6DE;
+  --slate:#5A6B75;
+  --slate-light:#64747E;
+  --surface:#F7F9FA;
   --indicator:#6CCCB9;
-  --radius:14px;
-  --font-display:"Poppins",sans-serif;
-  --font-body:"Poppins",sans-serif;
+  --radius:8px;
+  --font-display:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-body:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
   --font-mono:"IBM Plex Mono",monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -53,8 +102,8 @@ button{font-family:inherit;cursor:pointer}
 .mono{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
 .eyebrow{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .eyebrow::before{content:"";width:26px;height:3px;border-radius:2px;background:var(--brand-grad)}
-h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.7rem,3.4vw,2.5rem);line-height:1.12;letter-spacing:-.01em}
-.section{padding:88px 0;scroll-margin-top:80px}
+h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.6rem,3vw,2.2rem);line-height:1.15;letter-spacing:-.02em;color:var(--teal-deep)}
+.section{padding:76px 0;scroll-margin-top:80px}
 .section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;margin-bottom:44px;flex-wrap:wrap}
 .section-head p{max-width:520px;color:var(--ink-soft);margin-top:12px}
 .link-more{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);border-bottom:2px solid var(--indicator);padding-bottom:4px;white-space:nowrap;transition:color .15s}
@@ -67,46 +116,66 @@ header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.92);backdro
 .logo-mark{width:30px;height:34px;flex-shrink:0;display:block}
 .logo .mword{color:var(--teal);font-weight:500}
 .logo .hword{color:var(--teal-deep);font-weight:700}
-.nav-links{display:flex;gap:6px;align-items:center}
-.nav-links a{padding:8px 14px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
+.nav-links{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;min-width:0}
+.nav-links a{padding:8px 12px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s;white-space:nowrap}
 .nav-links a:hover{background:var(--mist);color:var(--ink)}
-.nav-cta{display:flex;gap:10px;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-weight:600;font-size:.92rem;border:1.5px solid transparent;transition:all .15s}
+.nav-cta{display:flex;gap:10px;align-items:center;flex-shrink:0}
+.nav-cta .btn{white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:6px;font-weight:600;font-size:.92rem;border:1px solid transparent;transition:all .15s}
 .btn-ghost{border-color:var(--line);color:var(--ink)}
 .btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
-.btn-solid{background:var(--teal);color:#fff}
-.btn-solid:hover{background:var(--teal-deep)}
+.btn-solid{background:var(--teal-deep);color:#fff}
+.btn-solid:hover{background:var(--teal)}
 .btn-indicator{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-weight:600;border:none}
 .btn-indicator:hover{filter:brightness(1.06)}
 .menu-toggle{display:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:42px;height:42px;font-size:1.2rem;color:var(--ink)}
-@media(max-width:900px){
+@media(max-width:1024px){
   .nav-links{display:none;position:absolute;top:70px;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;padding:16px 24px 24px;border-bottom:1px solid var(--line);gap:4px}
   .nav-links.open{display:flex}
   .nav-links a{padding:12px 14px}
   .menu-toggle{display:grid;place-items:center}
   .nav-cta .btn-ghost{display:none}
 }
+@media(max-width:620px){
+  /* dar ekranda header yatay taşmayı önle (logo + Join for free + menü) */
+  .nav{gap:10px}
+  .nav-cta{gap:8px}
+  .nav-cta .btn{padding:10px 14px;font-size:.86rem}
+  .logo{font-size:1.15rem}
+}
 
 /* ---------- hero ---------- */
-.hero{background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%);border-bottom:1px solid var(--line);position:relative;overflow:hidden}
-.hero::before{content:"";position:absolute;right:-140px;top:-140px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,var(--teal-tint) 0%,transparent 70%);pointer-events:none}
-.hero-inner{padding:76px 0 64px;position:relative;display:flex;flex-direction:column;align-items:center;text-align:center}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:100px;padding:7px 16px 7px 10px;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:26px}
-.hero-badge i{width:9px;height:9px;border-radius:50%;background:var(--indicator);display:inline-block}
-h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.3rem,5.6vw,4rem);line-height:1.04;letter-spacing:-.02em;max-width:17ch;margin:0 auto}
-h1 em{font-style:normal;color:var(--teal)}
-.hero-sub{margin:22px auto 34px;font-size:1.13rem;color:var(--ink-soft);max-width:56ch}
-.search-shell{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:8px;display:flex;gap:8px;max-width:680px;width:100%;margin:0 auto;box-shadow:0 12px 32px rgba(11,95,91,.09)}
-.search-shell:focus-within{border-color:var(--teal)}
-.search-shell input{flex:1;border:none;outline:none;font-family:var(--font-body);font-size:1rem;padding:12px 14px;background:transparent;color:var(--ink);min-width:0}
-.search-shell .btn-solid{border-radius:11px}
-.hero-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;justify-content:center}
-.hero-chips .chip{text-decoration:none;display:inline-flex;align-items:center}
-.chip{background:#fff;border:1px solid var(--line);border-radius:100px;padding:7px 16px;font-size:.85rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
-.chip:hover{border-color:var(--teal);color:var(--teal)}
-.trust-row{display:flex;gap:34px 54px;flex-wrap:wrap;margin-top:52px;padding-top:30px;border-top:1px dashed var(--line);justify-content:center;width:100%}
-.trust-item .num{font-family:var(--font-display);font-weight:700;font-size:1.9rem;color:var(--teal);line-height:1.1}
-.trust-item .lbl{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);background:#fff}
+.hero::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 92% 12%,rgba(65,151,203,.06),transparent 34%)}
+.hero-inner{position:relative;z-index:1;padding:72px 0 60px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,.9fr);gap:60px;align-items:start}
+.hero-copy{min-width:0}.hero-label{display:inline-flex;align-items:center;gap:9px;margin-bottom:22px;color:var(--ink-soft);font-size:.82rem;font-weight:500;letter-spacing:.01em}
+.hero-label::before{content:"";width:28px;height:2px;border-radius:3px;background:var(--mint)}
+.hero h1{font-family:var(--font-display);font-weight:800;font-size:clamp(2.6rem,5vw,4.2rem);line-height:1.04;letter-spacing:-.035em;max-width:13ch;margin:0;color:var(--teal-deep)}
+.hero h1 em{font-style:normal;color:var(--teal)}
+.hero-sub{margin:24px 0 28px;max-width:58ch;color:var(--ink-soft);font-size:1.07rem;line-height:1.75}
+.hero-note{display:flex;align-items:center;gap:10px;margin-bottom:22px;color:var(--ink-soft);font-size:.82rem}
+.hero-note::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 5px rgba(108,204,185,.12)}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:25px}.hero-actions .btn{min-height:46px}
+.hero-search-label{display:flex;justify-content:space-between;gap:14px;max-width:720px;margin-bottom:7px;color:var(--ink-soft);font-size:.78rem;font-weight:500}
+.search-shell{background:#fff;border:1px solid var(--line-strong);border-radius:8px;padding:7px;display:flex;gap:8px;max-width:720px;width:100%;margin:0;box-shadow:0 4px 16px rgba(0,62,82,.06)}
+.search-shell:focus-within{border-color:var(--teal);box-shadow:0 16px 38px rgba(65,151,203,.12)}
+.search-shell input{flex:1;border:none;outline:none;font-family:var(--font-body);font-size:.96rem;padding:12px 14px;background:transparent;color:var(--ink);min-width:0}
+.search-shell .btn-solid{border-radius:10px;white-space:nowrap}
+.hero-chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-start;margin-top:14px}.hero-chips .chip{text-decoration:none;display:inline-flex;align-items:center}
+.chip{background:#fff;border:1px solid var(--line);border-radius:100px;padding:6px 13px;font-size:.79rem;font-weight:500;color:var(--ink-soft);transition:all .15s}.chip:hover{border-color:var(--teal);color:var(--teal)}
+.platform-stack{position:relative;min-height:440px;margin-top:8px}.platform-card{position:absolute;width:88%;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 18px 44px -28px rgba(0,62,82,.32);padding:18px}
+.platform-card.back{top:14px;right:0;transform:rotate(2.2deg);opacity:.88}.platform-card.middle{top:145px;left:0;transform:rotate(-1.8deg);z-index:2}.platform-card.front{top:274px;right:4%;z-index:3}
+.pc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.pc-label{font-size:.68rem;font-weight:600;letter-spacing:.02em;color:var(--teal)}.pc-title{margin-top:3px;font-size:.9rem;font-weight:700;line-height:1.35}.pc-meta{margin-top:4px;color:var(--ink-soft);font-size:.7rem}
+.pc-score{flex:0 0 auto;border-radius:6px;padding:5px 10px;background:#E8F3EE;color:#1F6E4E;font-size:.72rem;font-weight:600}
+.pc-body{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.pc-stat{background:var(--surface);border-radius:6px;padding:9px}.pc-stat small{display:block;font-size:.64rem;font-weight:500;color:var(--slate-light)}.pc-stat strong{display:block;margin-top:3px;font-size:.74rem}
+.pc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:11px}.pc-tags span{border:1px solid var(--line);border-radius:100px;padding:4px 7px;color:var(--ink-soft);font-size:.61rem}
+.pc-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:.72rem;font-weight:500}
+.trust-row{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:100%;padding-top:24px;margin-top:8px;border-top:1px solid var(--line)}
+.trust-item{padding:16px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px}.trust-item .num{font-family:var(--font-display);font-weight:700;font-size:.98rem;color:var(--teal-deep);line-height:1.2;letter-spacing:-.01em}.trust-item .lbl{margin-top:5px;color:var(--slate);font-size:.76rem;line-height:1.4}
+@media(max-width:930px){.hero-inner{grid-template-columns:1fr;gap:44px;padding:70px 0 58px}.hero h1{max-width:12ch}.platform-stack{max-width:720px;width:100%;min-height:430px}}
+@media(max-width:620px){.hero-inner{padding:54px 0 44px}.hero h1{font-size:clamp(2.7rem,13vw,3.7rem)}.hero-actions{align-items:stretch}.hero-actions .btn{flex:1 1 100%;justify-content:center}.hero-search-label{flex-direction:column;gap:3px}.search-shell{flex-direction:column}.search-shell .btn-solid{width:100%;justify-content:center}.platform-stack{min-height:520px}.platform-card{width:94%}.platform-card.back{top:0}.platform-card.middle{top:165px}.platform-card.front{top:335px}.pc-body{grid-template-columns:1fr}.trust-row{grid-template-columns:1fr 1fr}}
+
 
 /* ---------- pack-label cards (signature) ---------- */
 .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
@@ -116,14 +185,14 @@ h1 em{font-style:normal;color:var(--teal)}
 .pack::after{content:"";position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 26px 26px 0;border-color:transparent var(--mist) transparent transparent;transition:border-color .2s}
 .pack:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 34px rgba(11,95,91,.12)}
 .pack:hover::after{border-color:transparent var(--teal-tint) transparent transparent}
-.pack-top{display:flex;justify-content:space-between;align-items:center}
-.pack-ref{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;color:var(--ink-soft)}
+.pack-top{display:flex;justify-content:flex-start;align-items:center}
+
 .pack-dot{width:11px;height:11px;border-radius:50%;background:var(--indicator);transition:background .2s;flex-shrink:0}
 .pack:hover .pack-dot{background:var(--teal)}
-.pack-icon{width:52px;height:52px;border-radius:12px;background:var(--teal-tint);display:grid;place-items:center;font-size:1.5rem}
+.pack-icon{width:34px;height:34px;color:var(--teal);margin-bottom:16px}.pack-icon svg{width:100%;height:100%}
 .pack h3{font-family:var(--font-display);font-weight:700;font-size:1.22rem;letter-spacing:-.01em}
 .pack p{color:var(--ink-soft);font-size:.93rem;flex:1}
-.pack-count{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);border-top:1px dashed var(--line);padding-top:12px}
+.pack-count{font-size:.78rem;font-weight:500;color:var(--teal);border-top:1px solid var(--line);padding-top:12px}
 
 /* ---------- how it works ---------- */
 .dual{display:grid;grid-template-columns:1fr 1fr;gap:20px}
@@ -152,21 +221,36 @@ h1 em{font-style:normal;color:var(--teal)}
 .fchip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:8px 18px;font-size:.87rem;font-weight:500;color:var(--ink-soft);transition:all .15s}
 .fchip:hover{border-color:var(--teal);color:var(--teal)}
 .fchip.active{background:var(--teal);border-color:var(--teal);color:#fff}
-.prod-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-@media(max-width:1000px){.prod-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:760px){.prod-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:480px){.prod-grid{grid-template-columns:1fr}}
+/* Featured products: yatay kaydırma rayı (dikey yer kazanır) */
+.prod-rail{position:relative}
+.prod-grid{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;
+  padding:4px 4px 16px;margin:0 -4px;scrollbar-width:none;-ms-overflow-style:none}
+.prod-grid::-webkit-scrollbar{display:none}
+.prod-grid > .prod{flex:0 0 252px;scroll-snap-align:start}
+@media(max-width:560px){.prod-grid > .prod{flex:0 0 76%}}
+/* sağ kenarda "devamı var" ipucu */
+.prod-rail::after{content:"";position:absolute;top:0;right:-4px;width:56px;bottom:16px;pointer-events:none;
+  background:linear-gradient(90deg,rgba(240,246,248,0),var(--mist));opacity:0;transition:opacity .2s}
+.prod-rail.scrollable.not-end::after{opacity:1}
+.rail-nav{display:flex;gap:8px}
+@media(max-width:760px){.rail-nav{display:none}}
+.rail-btn{width:38px;height:38px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--teal-deep);
+  display:grid;place-items:center;transition:.15s;cursor:pointer}
+.rail-btn:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
+.rail-btn:disabled{opacity:.32;cursor:default}
+.rail-btn svg{width:18px;height:18px}
+@media(prefers-reduced-motion:reduce){.prod-grid{scroll-behavior:auto}}
 .prod{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:all .2s;display:flex;flex-direction:column}
 .prod:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 14px 30px rgba(11,95,91,.11)}
 .prod-img{aspect-ratio:4/3;background:var(--mist);display:grid;place-items:center;position:relative;overflow:hidden}
-.feat-badge{position:absolute;top:10px;left:10px;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;border-radius:100px;padding:4px 11px;z-index:2}
+.feat-badge{position:absolute;top:10px;left:10px;background:var(--teal-deep);color:#fff;font-size:.64rem;font-weight:600;letter-spacing:.02em;border-radius:5px;padding:4px 10px;z-index:2}
 
 .prod-img img{width:100%;height:100%;object-fit:cover}
 .prod-img .fallback{font-family:var(--font-display);font-weight:700;font-size:2.2rem;color:var(--teal-tint);-webkit-text-stroke:1.5px var(--teal)}
 .prod-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
 .prod-cat{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal)}
 .prod h4{font-size:.98rem;font-weight:600;line-height:1.35;flex:1}
-.prod-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:10px;margin-top:4px}
+.prod-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
 .prod-foot .mono{color:var(--ink-soft)}
 .prod-foot .rfq{font-size:.8rem;font-weight:600;color:var(--teal)}
 .no-results{text-align:center;padding:60px 20px;color:var(--ink-soft);display:none}
@@ -247,7 +331,7 @@ footer .logo{color:#fff;margin-bottom:14px}
 /* banner ads */
 .banner-slot{margin:26px auto 0;display:flex;justify-content:center}
 
-.banner-carousel{position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff}
+.banner-carousel{position:relative;overflow:hidden;border-radius:10px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff}
 .banner-track{display:flex;transition:transform .55s ease}
 .banner-slide{flex:0 0 100%;display:block;position:relative;min-width:100%}
 .banner-slide img{width:100%;height:auto;display:block;max-height:210px;object-fit:cover}
@@ -264,9 +348,11 @@ footer .logo{color:#fff;margin-bottom:14px}
 
 
 /* MedicHall assistant */
-.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:58px;height:58px;border-radius:50%;border:none;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
+.mha-typing{color:var(--ink-soft);font-style:italic;font-size:.85rem}
+@keyframes mhaDot{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:56px;height:56px;border-radius:50%;border:none;color:#fff;display:grid;place-items:center;background:var(--teal-deep);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
 .mha-fab:hover{transform:scale(1.08)}
-.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
+.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
 .mha-panel.open{display:flex}
 .mha-head{background:linear-gradient(100deg,#6CCCB9,#4298CC);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
 .mha-head b{font-size:.95rem}
@@ -275,7 +361,7 @@ footer .logo{color:#fff;margin-bottom:14px}
 .mha-body{flex:1;overflow-y:auto;padding:14px;background:var(--mist);display:flex;flex-direction:column;gap:10px}
 .mha-msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:.86rem;line-height:1.5}
 .mha-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
-.mha-msg.user{align-self:flex-end;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-bottom-right-radius:4px}
+.mha-msg.user{align-self:flex-end;background:var(--teal);color:#fff;border-bottom-right-radius:4px}
 .mha-msg a{color:var(--teal);font-weight:600;text-decoration:none}
 .mha-msg.user a{color:#fff;text-decoration:underline}
 .mha-chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
@@ -290,6 +376,120 @@ footer .logo{color:#fff;margin-bottom:14px}
 .mha-foot input:focus{outline:none;border-color:var(--teal)}
 .mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
 
+/* ---------- tender intelligence promo ---------- */
+.ti{background:linear-gradient(115deg,#E9F6F2 0%,#E2F2FA 55%,#FAF6E4 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;overflow:hidden}
+.ti::before{content:"";position:absolute;left:-160px;bottom:-160px;width:480px;height:480px;border-radius:50%;background:radial-gradient(circle,rgba(108,204,185,.25) 0%,transparent 70%);pointer-events:none}
+.ti-inner{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;position:relative}
+@media(max-width:900px){.ti-inner{grid-template-columns:1fr;gap:40px}}
+.ti-new{display:inline-flex;align-items:center;gap:8px;background:var(--teal-deep);color:#fff;border-radius:100px;padding:6px 14px;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px}
+.ti-new i{width:8px;height:8px;border-radius:50%;background:var(--mint);display:inline-block;animation:tiPulse 1.6s infinite}
+@keyframes tiPulse{0%,100%{opacity:1}50%{opacity:.35}}
+.ti h2{margin-bottom:16px}
+.ti p.lead{color:var(--ink-soft);font-size:1.05rem;max-width:52ch;margin-bottom:26px}
+.ti-steps{display:flex;flex-direction:column;gap:14px;margin-bottom:30px}
+.ti-step{display:flex;gap:14px;align-items:flex-start}
+.ti-step b{flex:0 0 34px;height:34px;border-radius:10px;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1rem}
+.ti-step span{font-size:.94rem;color:var(--ink);padding-top:6px}
+.ti-step span em{font-style:normal;color:var(--ink-soft)}
+.ti-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.ti-cta .btn-grad2{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-weight:600}
+.ti-cta .mono-note{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-soft)}
+.ti-mock{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 24px 60px -30px rgba(0,62,82,.35);position:relative}
+.ti-mock::after{content:"LIVE FROM TED · EUROPA.EU";position:absolute;top:-11px;right:18px;background:var(--teal-deep);color:#fff;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;padding:4px 10px;border-radius:100px}
+.ti-mock-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.ti-mock-title{font-weight:700;font-size:.95rem;color:var(--ink)}
+.ti-mock-meta{font-size:.78rem;color:var(--ink-soft);margin-top:4px}
+.ti-score{font-family:var(--font-mono);font-weight:700;font-size:.88rem;border-radius:100px;padding:5px 12px;background:#E7F6EE;color:#177245;border:1.5px solid #9ED9B5;white-space:nowrap}
+.ti-reasons{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 16px}
+.ti-reason{font-size:.72rem;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:3px 10px;color:var(--ink)}
+.ti-mock-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ti-mock-actions span{font-size:.76rem;font-weight:600;border-radius:9px;padding:8px 12px}
+.ti-mock-actions .a1{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff}
+.ti-mock-actions .a2{background:var(--mist);border:1.5px solid var(--line);color:var(--ink)}
+.ti-mock-foot{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:.7rem;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+/* ---------- how it works (real workflow) ---------- */
+.hiw{background:var(--mist);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.hiw-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:12px;counter-reset:hiw}
+@media(max-width:920px){.hiw-steps{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.hiw-steps{grid-template-columns:1fr}}
+.hiw-step{position:relative;padding:22px 20px;background:#fff;border:1px solid var(--line);margin:-0.5px}
+.hiw-step:first-child{border-radius:8px 0 0 8px}
+.hiw-step:last-child{border-radius:0 8px 8px 0}
+@media(max-width:920px){.hiw-step,.hiw-step:first-child,.hiw-step:last-child{border-radius:8px;margin:6px}}
+.hiw-num{counter-increment:hiw;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;color:var(--teal);font-weight:600}
+.hiw-num::before{content:"0" counter(hiw)}
+.hiw-icon{width:30px;height:30px;color:var(--teal);margin:8px 0 12px}.hiw-icon svg{width:100%;height:100%}
+.hiw-step h4{font-size:.98rem;margin-bottom:6px;color:var(--teal-deep)}
+.hiw-step p{font-size:.83rem;color:var(--ink-soft);line-height:1.5;margin:0}
+.hiw-tag{display:inline-block;margin-top:10px;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:3px 9px;color:var(--teal-deep)}
+.hiw-foot{margin-top:26px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.hiw-foot .mono-note{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-soft)}
+
+/* ---------- why companies use MedicHall (pillars) ---------- */
+.pillars{background:#fff;border-bottom:1px solid var(--line)}
+.pillars-grid{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);gap:60px;padding:76px 0;align-items:start}
+@media(max-width:880px){.pillars-grid{grid-template-columns:1fr;gap:34px;padding:60px 0}}
+.pillars-copy{position:sticky;top:100px}
+@media(max-width:880px){.pillars-copy{position:static}}
+.pillars-copy h2{margin:8px 0 12px}
+.pillars-copy p{color:var(--slate);font-size:.94rem;line-height:1.6;max-width:38ch}
+.pillar{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:16px;align-items:start;padding:22px 0;border-top:1px solid var(--line)}
+.pillar:first-child{border-top:none;padding-top:0}
+.pillar-index{font-family:var(--font-mono);font-size:.76rem;color:var(--slate-light);padding-top:3px}
+.pillar h3{font-size:1.02rem;font-weight:600;color:var(--teal-deep);margin:0 0 5px;letter-spacing:-.01em;line-height:1.3}
+.pillar p{font-size:.86rem;color:var(--slate);line-height:1.55;margin:0}
+.pillar-link{align-self:center;white-space:nowrap;font-size:.78rem;font-weight:600;color:var(--teal);border:1px solid var(--line);border-radius:6px;padding:7px 12px;transition:.15s}
+.pillar-link:hover{border-color:var(--teal);background:var(--surface)}
+@media(max-width:620px){
+  .pillar{grid-template-columns:32px minmax(0,1fr);gap:12px}
+  .pillar-link{grid-column:2;justify-self:start;margin-top:10px}
+}
+
+.partner-cta{display:block;margin-top:9px;font-size:.74rem;font-weight:600;color:var(--teal);opacity:0;transform:translateY(-2px);transition:.15s}
+.partner:hover .partner-cta{opacity:1;transform:none}
+
+/* ---------- live scale band (real numbers only) ---------- */
+.scale-band{background:var(--surface);border-bottom:1px solid var(--line);display:none}
+.scale-band.ready{display:block}
+.scale-grid{display:grid;grid-template-columns:repeat(4,1fr);padding:32px 0}
+@media(max-width:760px){.scale-grid{grid-template-columns:1fr 1fr;gap:24px 0;padding:28px 0}}
+@media(max-width:430px){.scale-grid{grid-template-columns:1fr;gap:20px}}
+.scale-item{padding:0 26px;border-left:1px solid var(--line)}
+.scale-item:first-child{border-left:none;padding-left:0}
+@media(max-width:760px){.scale-item{border-left:none;padding:0 12px 0 0}}
+.scale-num{font-family:var(--font-display);font-weight:700;font-size:1.85rem;color:var(--teal-deep);letter-spacing:-.025em;line-height:1}
+.scale-lbl{margin-top:7px;font-size:.82rem;color:var(--slate);line-height:1.45;max-width:22ch}
+
+/* ---------- matchmaking flow ---------- */
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:0;align-items:stretch;margin-top:10px}
+@media(max-width:900px){.flow{grid-template-columns:1fr;gap:0}}
+.flow-step{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 18px 20px;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease}
+.flow.in .flow-step{opacity:1;transform:none}
+.flow.in .flow-step:nth-child(3){transition-delay:.12s}
+.flow.in .flow-step:nth-child(5){transition-delay:.24s}
+.flow.in .flow-step:nth-child(7){transition-delay:.36s}
+.flow-step.accent{border-color:var(--teal);background:linear-gradient(180deg,#F4FBFA,#fff)}
+.flow-role{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;color:var(--slate-light)}
+.flow-step.accent .flow-role{color:var(--teal)}
+.flow-step h3{font-size:.98rem;font-weight:600;color:var(--teal-deep);margin:8px 0 6px;letter-spacing:-.01em}
+.flow-step p{font-size:.8rem;color:var(--slate);line-height:1.5;margin:0}
+.flow-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}
+.flow-tag{font-size:.66rem;font-weight:500;color:var(--slate);background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:3px 8px}
+.flow-arrow{display:grid;place-items:center;padding:0 12px;color:var(--line-strong)}
+.flow-arrow svg{width:22px;height:22px}
+.flow.in .flow-arrow svg{animation:flowPulse 2.4s ease-in-out infinite}
+.flow-arrow:nth-child(4) svg{animation-delay:.3s}
+.flow-arrow:nth-child(6) svg{animation-delay:.6s}
+@keyframes flowPulse{0%,100%{opacity:.45;transform:translateX(0)}50%{opacity:1;transform:translateX(3px)}}
+@media(max-width:900px){
+  .flow-arrow{padding:10px 0;transform:rotate(90deg)}
+  @keyframes flowPulse{0%,100%{opacity:.45;transform:translateX(0)}50%{opacity:1;transform:translateX(3px)}}
+}
+@media(prefers-reduced-motion:reduce){
+  .flow-step{opacity:1;transform:none;transition:none}
+  .flow.in .flow-arrow svg{animation:none}
+}
 </style>
 </head>
 <body>
@@ -315,10 +515,9 @@ footer .logo{color:#fff;margin-bottom:14px}
     <nav class="nav-links" id="navLinks" aria-label="Main navigation">
       <a href="products.html">Products</a>
       <a href="companies.html">Manufacturers</a>
-      <a href="blog/">Insights</a>
-      <a href="#industry">Industry</a>
+      <a href="#tenders">Tenders <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
+      <a href="matchmaking.html">Matchmaking <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
       <a href="#how">How it works</a>
-      <a href="#contact">Contact</a>
     </nav>
     <div class="nav-cta">
       <span id="authArea" style="display:flex;gap:10px;align-items:center">
@@ -333,75 +532,157 @@ footer .logo{color:#fff;margin-bottom:14px}
 <!-- HERO -->
 <section class="hero">
   <div class="wrap hero-inner">
-    <div class="hero-badge"><i aria-hidden="true"></i>B2B marketplace · Made in Türkiye</div>
-    <h1>Turkey's medical industry, <em>open to the world</em>.</h1>
-    <p class="hero-sub">Find certified Turkish manufacturers, OEM partners, raw materials and finished medical devices — and deal with them directly. One marketplace connecting the Turkish healthcare industry with buyers worldwide.</p>
-    <form class="search-shell" role="search" onsubmit="event.preventDefault();runSearch()">
-      <input id="searchInput" type="search" placeholder="Search products, e.g. surgical packs, sterilization, drapes…" aria-label="Search products" oninput="renderProducts()">
-      <button type="submit" class="btn btn-solid">Search</button>
-    </form>
-    <div class="hero-chips" id="heroChips" aria-label="Popular categories"></div>
+    <div class="hero-copy">
+      <div class="hero-label">For medical manufacturers, distributors &amp; buyers</div>
+      <h1>Medical Business. <em>Connected.</em></h1>
+      <p class="hero-sub">Find European tenders that fit your products, see the requirements without reading 100-page PDFs, and connect with the right manufacturers, distributors and buyers — all in one place.</p>
+      <div class="hero-note">New EU tenders matched to you every morning</div>
+      <div class="hero-actions">
+        <a class="btn btn-solid" href="portal.html">Find opportunities</a>
+        <a class="btn btn-ghost" href="matchmaking.html">Explore matchmaking</a>
+      </div>
+      <div class="hero-search-label"><span>Search the marketplace</span><span>Products, manufacturers &amp; categories</span></div>
+      <form class="search-shell" role="search" onsubmit="event.preventDefault();runSearch()">
+        <input id="searchInput" type="search" placeholder="Search products, e.g. probe covers, surgical drapes, sterilization…" aria-label="Search products" oninput="renderProducts()">
+        <button type="submit" class="btn btn-solid">Search products</button>
+      </form>
+      <div class="hero-chips" id="heroChips" aria-label="Popular categories"></div>
+    </div>
+
+    <div class="platform-stack" aria-label="MedicHall platform preview">
+      <article class="platform-card back">
+        <div class="pc-head"><div><div class="pc-label">Manufacturer showroom</div><div class="pc-title">Across Medical</div><div class="pc-meta">Türkiye · MDR · ISO 13485</div></div><span class="pc-score">Verified</span></div>
+        <div class="pc-body"><div class="pc-stat"><small>Products</small><strong>Probe covers</strong></div><div class="pc-stat"><small>Model</small><strong>OEM / Private label</strong></div><div class="pc-stat"><small>Markets</small><strong>Europe · MENA</strong></div></div>
+        <div class="pc-tags"><span>Camera covers</span><span>Microscope drapes</span><span>C-arm covers</span></div>
+        <div class="pc-actions"><span>Digital showroom</span><span>View company →</span></div>
+      </article>
+      <article class="platform-card middle">
+        <div class="pc-head"><div><div class="pc-label">Tender intelligence</div><div class="pc-title">Sterile operating-room disposables</div><div class="pc-meta">Italy · 12 lots · Deadline in 24 days</div></div><span class="pc-score">91% fit</span></div>
+        <div class="pc-body"><div class="pc-stat"><small>Documents</small><strong>Analyzed</strong></div><div class="pc-stat"><small>Products</small><strong>12 extracted</strong></div><div class="pc-stat"><small>Quantities</small><strong>Available</strong></div></div>
+        <div class="pc-tags"><span>Evidence-backed</span><span>MDR required</span><span>Open tender</span></div>
+        <div class="pc-actions"><span>EU procurement</span><span>Open analysis →</span></div>
+      </article>
+      <article class="platform-card front">
+        <div class="pc-head"><div><div class="pc-label">Business matchmaking</div><div class="pc-title">Spanish hospital distributor</div><div class="pc-meta">Looking for private-label operating-room products</div></div><span class="pc-score">94% fit</span></div>
+        <div class="pc-body"><div class="pc-stat"><small>Channel</small><strong>Hospitals</strong></div><div class="pc-stat"><small>Interest</small><strong>Private label</strong></div><div class="pc-stat"><small>Volume</small><strong>Strong fit</strong></div></div>
+        <div class="pc-tags"><span>Spain</span><span>Tender experience</span><span>OEM interest</span></div>
+        <div class="pc-actions"><span>Two-sided match</span><span>Connect →</span></div>
+      </article>
+    </div>
+
     <div class="trust-row">
-      <div class="trust-item"><div class="num">1,087</div><div class="lbl">Manufacturers in Türkiye</div></div>
-      <div class="trust-item"><div class="num">6</div><div class="lbl">Product &amp; service categories</div></div>
-      <div class="trust-item"><div class="num">CE · ISO 13485</div><div class="lbl">Certified partners</div></div>
-      <div class="trust-item"><div class="num">24/7</div><div class="lbl">Buyer inquiries received</div></div>
+      <div class="trust-item"><div class="num">Tenders</div><div class="lbl">European medical tenders, read and scored for you</div></div>
+      <div class="trust-item"><div class="num">Matchmaking</div><div class="lbl">The right manufacturers, distributors and buyers</div></div>
+      <div class="trust-item"><div class="num">Showrooms</div><div class="lbl">Products, certificates and catalogues in one page</div></div>
+      <div class="trust-item"><div class="num">Direct deals</div><div class="lbl">Messages, meetings and quotation requests</div></div>
     </div>
   </div>
 </section>
 
+<!-- LIVE SCALE (real numbers, pulled from the database) -->
+<section class="scale-band" id="scaleBand">
+  <div class="wrap">
+    <div class="scale-grid" id="scaleGrid"></div>
+  </div>
+</section>
+
 <div class="wrap banner-slot" id="bannerHome"></div>
+
+<!-- WHY COMPANIES USE MEDICHALL -->
+<section class="pillars">
+  <div class="wrap pillars-grid">
+    <div class="pillars-copy">
+      <div class="eyebrow">Why companies use MedicHall</div>
+      <h2>More than a medical marketplace.</h2>
+      <p>MedicHall brings opportunity discovery, company visibility and partner development into one connected workflow.</p>
+    </div>
+    <div class="pillar-list">
+      <article class="pillar">
+        <div class="pillar-index">01</div>
+        <div>
+          <h3>Find opportunities worth your time</h3>
+          <p>Explore European procurement notices and focus on the tenders that align with your portfolio, certificates and markets.</p>
+        </div>
+        <a class="pillar-link" href="#tenders">Tender intelligence →</a>
+      </article>
+      <article class="pillar">
+        <div class="pillar-index">02</div>
+        <div>
+          <h3>Meet companies with genuine commercial intent</h3>
+          <p>Match manufacturers, distributors and buyers through the products, markets, volumes and partnership models they actually care about.</p>
+        </div>
+        <a class="pillar-link" href="matchmaking.html">Matchmaking →</a>
+      </article>
+      <article class="pillar">
+        <div class="pillar-index">03</div>
+        <div>
+          <h3>Present your company professionally</h3>
+          <p>Show products, catalogues, certifications and capabilities through a structured digital showroom built for medical business.</p>
+        </div>
+        <a class="pillar-link" href="companies.html">Company network →</a>
+      </article>
+      <article class="pillar">
+        <div class="pillar-index">04</div>
+        <div>
+          <h3>Move from discovery to business</h3>
+          <p>Send quotation requests, request connections and arrange meetings through a platform designed to create commercial conversations.</p>
+        </div>
+        <a class="pillar-link" href="portal.html">Partner portal →</a>
+      </article>
+    </div>
+  </div>
+</section>
 
 <!-- CATEGORIES -->
 <section class="section" id="categories">
   <div class="wrap">
     <div class="section-head">
       <div>
-        <div class="eyebrow">Categories</div>
-        <h2>Everything from raw materials to finished devices</h2>
-        <p>Whether you manufacture or source, six category areas cover the full supply chain of the medical industry.</p>
+        <div class="eyebrow">Medical marketplace</div>
+        <h2>Products and capabilities across the medical supply chain</h2>
+        <p>Browse finished devices, OEM manufacturing, production inputs and specialist services from medical-industry partners.</p>
       </div>
       <a class="link-more" href="products.html">Browse all products →</a>
     </div>
     <div class="cat-grid">
       <a class="pack" href="products.html?cat=Medical%20Devices">
-        <div class="pack-top"><span class="pack-ref">REF MH-01</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">🩺</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v5a5 5 0 0 0 10 0V3"/><path d="M4 3h2M12 3h2"/><path d="M9 13v3a5 5 0 0 0 10 0v-1"/><circle cx="19" cy="12" r="2.5"/></svg></div>
         <h3>Medical Devices</h3>
         <p>CE-certified finished devices: surgical packs, drapes, gowns, drainage systems and more, ready for export.</p>
         <div class="pack-count">30+ product lines</div>
       </a>
       <a class="pack" href="products.html">
-        <div class="pack-top"><span class="pack-ref">REF MH-02</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">🏭</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V9l6 4V9l6 4V6l4-2v17"/></svg></div>
         <h3>OEM Supplies</h3>
-        <p>Private-label and contract manufacturing. Produce under your own brand with certified Turkish factories.</p>
+        <p>Private-label and contract manufacturing. Produce under your own brand with certified factories.</p>
         <div class="pack-count">Contract manufacturing</div>
       </a>
       <a class="pack" href="products.html?cat=Raw%20Materials">
-        <div class="pack-top"><span class="pack-ref">REF MH-03</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">🧵</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></div>
         <h3>Raw Materials</h3>
-        <p>Nonwovens, adhesives, films and components that feed medical production lines across the region.</p>
+        <p>Nonwovens, adhesives, films and components that feed medical production lines.</p>
         <div class="pack-count">Production inputs</div>
       </a>
       <a class="pack" href="products.html">
-        <div class="pack-top"><span class="pack-ref">REF MH-04</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">⚙️</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></div>
         <h3>Services</h3>
         <p>Sterilization, testing, regulatory and logistics service providers supporting manufacturers end to end.</p>
         <div class="pack-count">Service providers</div>
       </a>
       <a class="pack" href="products.html">
-        <div class="pack-top"><span class="pack-ref">REF MH-05</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">🧪</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-4.5 8a2 2 0 0 0 1.8 3h9.4a2 2 0 0 0 1.8-3L14 9V3"/><path d="M7 15h10"/></svg></div>
         <h3>IVD Supplies</h3>
         <p>In-vitro diagnostic products and laboratory supplies from specialized producers.</p>
         <div class="pack-count">Diagnostics</div>
       </a>
       <a class="pack" href="products.html">
-        <div class="pack-top"><span class="pack-ref">REF MH-06</span><span class="pack-dot" aria-hidden="true"></span></div>
-        <div class="pack-icon" aria-hidden="true">🔧</div>
+        <div class="pack-top"><span class="pack-dot" aria-hidden="true"></span></div>
+        <div class="pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2.7-.7-.7-2.7 2.4-2.2z"/></svg></div>
         <h3>Machinery</h3>
         <p>Production machinery and equipment for medical device manufacturing facilities.</p>
         <div class="pack-count">Equipment</div>
@@ -411,36 +692,143 @@ footer .logo{color:#fff;margin-bottom:14px}
 </section>
 
 <!-- HOW IT WORKS -->
-<section class="section" id="how" style="padding-top:0">
+<section class="hiw section" id="how">
   <div class="wrap">
     <div class="section-head">
       <div>
         <div class="eyebrow">How it works</div>
-        <h2>Two sides, one marketplace</h2>
+        <h2>From a European tender to a decision — in minutes</h2>
+        <p>MedicHall does the work a sales team does every morning across ten portals: find the tenders, read the documents, and tell you whether they fit — with the evidence to back it up.</p>
       </div>
     </div>
-    <div class="dual">
-      <div class="path path-buyer">
-        <span class="tag">For buyers</span>
-        <h3>Source directly from certified manufacturers</h3>
-        <p>Skip the middlemen. Find the exact product or production capacity you need and talk to the factory.</p>
-        <div class="steps">
-          <div class="step"><b>1</b><span>Search products or browse categories</span></div>
-          <div class="step"><b>2</b><span>Compare certified suppliers and their capabilities</span></div>
-          <div class="step"><b>3</b><span>Send a request for quotation, negotiate directly</span></div>
-        </div>
-        <a class="btn" href="products.html">Start sourcing</a>
+    <div class="hiw-steps">
+      <div class="hiw-step">
+        <div class="hiw-num"></div>
+        <div class="hiw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 16.1a10 10 0 0 1 0-8.2M7.8 13.8a6 6 0 0 1 0-3.6M16.2 10.2a6 6 0 0 1 0 3.6M19.1 7.9a10 10 0 0 1 0 8.2"/><circle cx="12" cy="12" r="1.5"/><path d="M12 13.5V21"/></svg></div>
+        <h4>Tenders come to you</h4>
+        <p>Every morning we pull new medical procurement notices from official EU sources and add them to your feed automatically.</p>
+        <span class="hiw-tag">Daily · TED</span>
       </div>
-      <div class="path path-supplier">
-        <span class="tag">For manufacturers</span>
-        <h3>Showcase your company 24/7, receive buyer inquiries</h3>
-        <p>Your products, certifications and capacity — visible to international buyers around the clock.</p>
-        <div class="steps">
-          <div class="step"><b>1</b><span>Create your company profile with certifications</span></div>
-          <div class="step"><b>2</b><span>List products, OEM capacity and services</span></div>
-          <div class="step"><b>3</b><span>Receive and answer buyer inquiries directly</span></div>
+      <div class="hiw-step">
+        <div class="hiw-num"></div>
+        <div class="hiw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg></div>
+        <h4>Matched to your profile</h4>
+        <p>Each tender is scored against your products, target countries and certifications, so the most relevant ones rise to the top.</p>
+        <span class="hiw-tag">Explainable score</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-num"></div>
+        <div class="hiw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
+        <h4>AI reads the documents</h4>
+        <p>One click and MedicHall AI reads the official tender notice, extracts every product lot, quantity and requirement — with the source quote for each.</p>
+        <span class="hiw-tag">Evidence-backed</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-num"></div>
+        <div class="hiw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+        <h4>In your language</h4>
+        <p>Spanish, Italian or German tender? Translate the extracted data to English with one tap, while the original quotes stay intact as proof.</p>
+        <span class="hiw-tag">On demand</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-num"></div>
+        <div class="hiw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11l2.5 2.5a1.5 1.5 0 0 0 2.1 0L20 6M11 8L8.5 5.5a2 2 0 0 0-2.8 0L2 9l4 4M13 16l3 3a2 2 0 0 0 2.8 0L22 15l-4-4"/></svg></div>
+        <h4>Find partners too</h4>
+        <p>Beyond tenders, our matchmaking connects manufacturers, distributors and buyers by product, market and commercial fit.</p>
+        <span class="hiw-tag">Two-sided</span>
+      </div>
+    </div>
+    <div class="hiw-foot">
+      <a class="btn btn-solid" href="portal.html">Start free as a partner →</a>
+      <span class="mono-note">No setup fees · Built for medical manufacturers, distributors &amp; buyers</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- TENDER INTELLIGENCE -->
+<section class="ti section" id="tenders">
+  <div class="wrap ti-inner">
+    <div>
+      <span class="ti-new"><i aria-hidden="true"></i>New · AI-powered</span>
+      <div class="eyebrow">Tender Intelligence</div>
+      <h2>European hospital tenders find <em>you</em></h2>
+      <p class="lead">Every morning, MedicHall scans official European public procurement notices (TED) and matches them against your products, certifications and target countries — so you stop searching ten portals and start bidding.</p>
+      <div class="ti-steps">
+        <div class="ti-step"><b><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 16.1a10 10 0 0 1 0-8.2M16.2 10.2a6 6 0 0 1 0 3.6"/><circle cx="12" cy="12" r="1.5"/><path d="M12 13.5V21"/></svg></b><span><strong>Daily tender feed</strong> — <em>new medical tenders from across Europe, pulled automatically from official sources every morning.</em></span></div>
+        <div class="ti-step"><b><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></b><span><strong>Smart match score</strong> — <em>each tender is scored against your matching profile: products, target countries and CPV codes.</em></span></div>
+        <div class="ti-step"><b><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 4h6"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg></b><span><strong>One-click AI analysis</strong> — <em>MedicHall AI summarizes requirements, flags risks and drafts your outreach in seconds.</em></span></div>
+      </div>
+      <div class="ti-cta">
+        <a class="btn btn-grad2" href="portal.html#opportunities">Open your Opportunities →</a>
+        <a class="btn btn-ghost" href="portal.html">Become a partner first</a>
+        <span class="mono-note">Free for registered manufacturers · beta</span>
+      </div>
+    </div>
+    <div class="ti-mock" aria-hidden="true">
+      <div class="ti-mock-head">
+        <div>
+          <div class="ti-mock-title">Supply of sterile ultrasound probe covers — hospital network</div>
+          <div class="ti-mock-meta">Italy · Deadline in 25 days · ~€180,000</div>
         </div>
-        <a class="btn" href="portal.html">Become a partner</a>
+        <span class="ti-score">87% match</span>
+      </div>
+      <div class="ti-reasons">
+        <span class="ti-reason">✔ Keywords: ultrasound probe cover</span>
+        <span class="ti-reason">✔ Target country: Italy</span>
+        <span class="ti-reason">✔ CPV codes overlap</span>
+      </div>
+      <div class="ti-mock-actions">
+        <span class="a1">Analyze with AI</span>
+        <span class="a2">Save</span>
+        <span class="a2">Open source ↗</span>
+      </div>
+      <div class="ti-mock-foot">
+        <span>SOURCE · TED / EU PUBLIC PROCUREMENT</span>
+        <span>UPDATED · DAILY 09:30</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MATCHMAKING FLOW -->
+<section class="section" id="matchflow">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Business matchmaking</div>
+        <h2>From a company profile to a meeting</h2>
+        <p>Tell MedicHall what you make and what you need. The matching engine compares products, markets, volumes and partnership models — then opens the conversation.</p>
+      </div>
+      <a class="link-more" href="matchmaking.html">Explore matchmaking →</a>
+    </div>
+    <div class="flow" id="matchFlow">
+      <div class="flow-step">
+        <div class="flow-role">Manufacturer</div>
+        <h3>What you make</h3>
+        <p>Products, certifications, OEM and private-label capability, target markets and volumes.</p>
+        <div class="flow-tags"><span class="flow-tag">CE MDR</span><span class="flow-tag">ISO 13485</span><span class="flow-tag">OEM</span></div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></div>
+      <div class="flow-step accent">
+        <div class="flow-role">MedicHall AI</div>
+        <h3>Match &amp; explain</h3>
+        <p>Compares both sides on products, geography, certifications and commercial model — and shows why it fits.</p>
+        <div class="flow-tags"><span class="flow-tag">Explainable score</span><span class="flow-tag">Two-sided</span></div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></div>
+      <div class="flow-step">
+        <div class="flow-role">Distributor / Buyer</div>
+        <h3>What you need</h3>
+        <p>Sourcing needs, channels, annual volumes, tender experience and private-label interest.</p>
+        <div class="flow-tags"><span class="flow-tag">Hospitals</span><span class="flow-tag">Private label</span><span class="flow-tag">Tenders</span></div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></div>
+      <div class="flow-step">
+        <div class="flow-role">Business</div>
+        <h3>Connect &amp; meet</h3>
+        <p>Connection requests, quotation requests and meetings — handled inside the platform.</p>
+        <div class="flow-tags"><span class="flow-tag">RFQ</span><span class="flow-tag">Meeting</span></div>
       </div>
     </div>
   </div>
@@ -455,29 +843,24 @@ footer .logo{color:#fff;margin-bottom:14px}
         <h2>Featured products</h2>
         <p>Live listings from partner manufacturers. Search above or filter by category.</p>
       </div>
+      <div class="rail-nav">
+        <button class="rail-btn" id="railPrev" onclick="railScroll(-1)" aria-label="Previous products">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="rail-btn" id="railNext" onclick="railScroll(1)" aria-label="Next products">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
     </div>
     <div class="filter-bar" id="filterBar" role="group" aria-label="Filter products by category"></div>
-    <div class="prod-grid" id="prodGrid"></div>
+    <div class="prod-rail" id="prodRail">
+      <div class="prod-grid" id="prodGrid" tabindex="0" role="region" aria-label="Featured products, scroll horizontally"></div>
+    </div>
     <div class="no-results" id="noResults"><b>No products match your search</b>Try a different term, or browse all categories.</div>
   </div>
 </section>
 
-<!-- INDUSTRY BAND -->
-<section class="section band" id="industry">
-  <div class="wrap band-inner">
-    <div>
-      <div class="eyebrow">Why Türkiye</div>
-      <h2>A rising force in the global medical sector</h2>
-      <p>Turkey's medical device industry combines EU-level regulatory compliance with competitive manufacturing costs and short logistics routes to Europe, the Middle East and Africa. MedicHall opens this ecosystem to the world.</p>
-    </div>
-    <div class="band-stats">
-      <div class="bstat"><div class="num">1,087</div><div class="lbl">Medical device manufacturers</div></div>
-      <div class="bstat"><div class="num">1,841</div><div class="lbl">Importers in the sub-sector</div></div>
-      <div class="bstat"><div class="num">$1.9B</div><div class="lbl">Sector size — 19th in the world</div></div>
-      <div class="bstat"><div class="num">0.74%</div><div class="lbl">Share of the global medical industry</div></div>
-    </div>
-  </div>
-</section>
+
 
 <!-- PARTNERS -->
 <section class="section" id="partners">
@@ -519,7 +902,7 @@ footer .logo{color:#fff;margin-bottom:14px}
       <a id="hpSupplier" style="display:none;margin-top:12px;font-size:.85rem;font-weight:600;color:var(--teal)"></a>
       <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
         <a class="btn btn-indicator" id="hpOpen" style="flex:1;justify-content:center;min-width:180px">View & request quote →</a>
-        <a class="btn btn-ghost" id="hpBrochure" target="_blank" rel="noopener" style="display:none">📄 Brochure</a>
+        <a class="btn btn-ghost" id="hpBrochure" target="_blank" rel="noopener" style="display:none">Brochure ↗</a>
       </div>
     </div>
   </div>
@@ -540,7 +923,7 @@ footer .logo{color:#fff;margin-bottom:14px}
           <span><span class="mword" style="color:var(--sky)">MEDIC</span><span class="hword" style="color:#fff">HALL</span></span>
         </div>
         <p class="mono" style="color:var(--mint-soft);margin-bottom:16px">Where Health Meets</p>
-        <p>The B2B marketplace connecting Turkey's medical manufacturers with buyers worldwide — products, OEM production and direct contact in one place.</p>
+        <p>The AI-powered B2B platform for the medical industry — European tenders, business matchmaking and digital showrooms in one place.</p>
       </div>
       <div class="foot-col">
         <h5>Products</h5>
@@ -552,9 +935,8 @@ footer .logo{color:#fff;margin-bottom:14px}
       </div>
       <div class="foot-col">
         <h5>Company</h5>
-        <a href="#how">How it works</a>
         <a href="companies.html">Manufacturers</a>
-        <a href="#industry">Industry in Türkiye</a>
+      <a href="#tenders">Tenders <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
         <a href="#">F.A.Q.</a>
         <a href="blog/">Blog / News</a>
       </div>
@@ -602,6 +984,16 @@ footer .logo{color:#fff;margin-bottom:14px}
 </div>
 
 <script>
+/* ---- core constants & security helpers (MUST stay first: everything below uses them) ---- */
+const MH_URL = "https://azdmuarzntzqdyirysux.supabase.co";
+const MH_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+
+/* ---- security helpers: ALL database-origin strings pass through these ---- */
+const esc  = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const escA = s => esc(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+/* allow only http(s), protocol-relative or site-relative URLs; blocks javascript:, data:, vbscript: */
+const safeUrl = u => { const s = String(u ?? "").trim(); return /^(https?:\/\/|\/|\.\/|#)/i.test(s) ? s : ""; };
+
 /* ---------------- data (from medichall.com catalog) ---------------- */
 let PRODUCTS = [
   {name:"Laparotomy Pack",cat:"Medical Devices",ref:"MH-070",img:"https://medichall.com/images/products/70/643bdbd6621b41681644502-70.jpg"},
@@ -665,9 +1057,14 @@ function renderFilterChips(){
   if(!bar) return;
   const cats = [...new Set(PRODUCTS.map(p=>p.cat))].sort();
   bar.innerHTML = ["All", ...cats].map(c=>
-    `<button class="fchip ${activeFilter===c?"active":""}" data-cat="${c}" onclick="setFilter('${c}')">${c}</button>`
+    `<button class="fchip ${activeFilter===c?"active":""}" data-cat="${escA(c)}">${esc(c)}</button>`
   ).join("");
 }
+/* event delegation: DB'den gelen kategori adları asla inline JS'e girmez */
+document.getElementById("filterBar")?.addEventListener("click", e => {
+  const b = e.target.closest(".fchip");
+  if(b) setFilter(b.dataset.cat);
+});
 function renderProducts(){
   renderFilterChips();
   const q = document.getElementById("searchInput").value.trim().toLowerCase();
@@ -676,23 +1073,90 @@ function renderProducts(){
     (activeFilter==="All" || p.cat===activeFilter) &&
     (!q || p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q))
   );
-  grid.innerHTML = list.map(p=>`
-    <article class="prod" onclick="openHomeProduct('${p.ref}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openHomeProduct('${p.ref}')" style="cursor:pointer">
+  grid.innerHTML = list.map(p=>{
+    const img = safeUrl(p.img);
+    return `
+    <article class="prod" data-ref="${escA(p.ref)}" role="button" tabindex="0" style="cursor:pointer">
       <div class="prod-img">
         ${p.feat?`<span class="feat-badge">★ Featured</span>`:""}
-        ${p.img?`<img src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.outerHTML='<div class=&quot;fallback&quot;>${initials(p.name)}</div>'">`:`<div class="fallback">${initials(p.name)}</div>`}
+        ${img?`<img src="${escA(img)}" alt="${escA(p.name)}" loading="lazy">`:`<div class="fallback">${esc(initials(p.name))}</div>`}
       </div>
       <div class="prod-body">
-        <span class="prod-cat">${p.cat}</span>
-        <h4>${p.name}</h4>
+        <span class="prod-cat">${esc(p.cat)}</span>
+        <h4>${esc(p.name)}</h4>
         <div class="prod-foot">
-          <span class="mono">REF ${p.ref}</span>
+          <span class="mono">REF ${esc(p.ref)}</span>
           <span class="rfq">View details →</span>
         </div>
       </div>
-    </article>`).join("");
+    </article>`;
+  }).join("");
   document.getElementById("noResults").style.display = list.length ? "none" : "block";
+  const rail = document.getElementById("prodGrid");
+  if(rail){
+    // Filtre/arama değişince ANINDA başa dön.
+    // Not: CSS'te scroll-behavior:smooth olduğu için scrollTo({behavior:"auto"})
+    // yine animasyon yapar — davranışı geçici kapatmak tek güvenilir yol.
+    const prevBehavior = rail.style.scrollBehavior;
+    rail.style.scrollBehavior = "auto";
+    rail.scrollLeft = 0;
+    rail.style.scrollBehavior = prevBehavior;
+  }
+  requestAnimationFrame(updateRailBtns);
 }
+
+/* ---- Featured products: yatay ray kontrolü ---- */
+function railStep(){
+  const rail = document.getElementById("prodGrid");
+  const card = rail && rail.querySelector(".prod");
+  const w = card ? card.getBoundingClientRect().width + 18 : 270;
+  const perView = Math.max(1, Math.floor(rail.clientWidth / w));
+  return w * perView;
+}
+function railScroll(dir){
+  const rail = document.getElementById("prodGrid");
+  if(!rail) return;
+  rail.scrollBy({ left: dir * railStep(), behavior: "smooth" });
+}
+function updateRailBtns(){
+  const rail = document.getElementById("prodGrid");
+  const wrap = document.getElementById("prodRail");
+  const prev = document.getElementById("railPrev");
+  const next = document.getElementById("railNext");
+  if(!rail || !wrap) return;
+  const max = rail.scrollWidth - rail.clientWidth;
+  const scrollable = max > 4;
+  wrap.classList.toggle("scrollable", scrollable);
+  wrap.classList.toggle("not-end", scrollable && rail.scrollLeft < max - 4);
+  if(prev) prev.disabled = !scrollable || rail.scrollLeft <= 4;
+  if(next) next.disabled = !scrollable || rail.scrollLeft >= max - 4;
+  const nav = document.querySelector(".rail-nav");
+  if(nav) nav.style.visibility = scrollable ? "visible" : "hidden";
+}
+(function(){
+  const rail = document.getElementById("prodGrid");
+  if(!rail) return;
+  rail.addEventListener("scroll", updateRailBtns, { passive: true });
+  window.addEventListener("resize", updateRailBtns);
+  /* kart tıklama/klavye: delegation (ref inline JS'e girmez) */
+  const openFrom = e => {
+    const card = e.target.closest(".prod[data-ref]");
+    if(card) openHomeProduct(card.dataset.ref);
+  };
+  rail.addEventListener("click", openFrom);
+  rail.addEventListener("keydown", e => { if(e.key === "Enter") openFrom(e); });
+  /* kırık görselde güvenli fallback (inline onerror yok) */
+  rail.addEventListener("error", e => {
+    const img = e.target;
+    if(img.tagName !== "IMG") return;
+    const card = img.closest(".prod[data-ref]");
+    const p = card && PRODUCTS.find(x => x.ref === card.dataset.ref);
+    const d = document.createElement("div");
+    d.className = "fallback";
+    d.textContent = p ? initials(p.name) : "?";
+    img.replaceWith(d);
+  }, true);
+})();
 
 function renderPartners(){
   document.getElementById("partnerGrid").innerHTML = PARTNERS.map(p=>`
@@ -759,12 +1223,13 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){
 function openHomeProduct(ref){
   const p = PRODUCTS.find(x=>x.ref===ref);
   if(!p) return;
-  document.getElementById("hpImg").innerHTML = p.img
-    ? `<img src="${p.img}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover">`
-    : `<span style="font-family:var(--font-display);font-weight:700;font-size:2.4rem;color:var(--teal-tint);-webkit-text-stroke:2px var(--teal)">${p.name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}</span>`;
+  const mImg = safeUrl(p.img);
+  document.getElementById("hpImg").innerHTML = mImg
+    ? `<img src="${escA(mImg)}" alt="${escA(p.name)}" style="width:100%;height:100%;object-fit:cover">`
+    : `<span style="font-family:var(--font-display);font-weight:700;font-size:2.4rem;color:var(--teal-tint);-webkit-text-stroke:2px var(--teal)">${esc(p.name.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase())}</span>`;
   document.getElementById("hpChips").innerHTML =
-    `<span class="tagchip-hp" style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--teal-tint);color:var(--teal-deep);border-radius:100px;padding:5px 12px">${p.cat}</span>`
-    + `<span style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--mist);color:var(--ink-soft);border-radius:100px;padding:5px 12px">REF ${p.ref}</span>`
+    `<span class="tagchip-hp" style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--teal-tint);color:var(--teal-deep);border-radius:100px;padding:5px 12px">${esc(p.cat)}</span>`
+    + `<span style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:var(--mist);color:var(--ink-soft);border-radius:100px;padding:5px 12px">REF ${esc(p.ref)}</span>`
     + (p.feat?`<span style="font-family:var(--font-mono);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:5px 12px">★ Featured</span>`:"");
   document.getElementById("hpName").textContent = p.name;
   document.getElementById("hpDesc").textContent = p.desc || "";
@@ -776,7 +1241,8 @@ function openHomeProduct(ref){
   }else sup.style.display = "none";
   document.getElementById("hpOpen").href = "products.html?p=" + encodeURIComponent(p.ref);
   const bb = document.getElementById("hpBrochure");
-  if(p.broch){ bb.style.display = "inline-flex"; bb.href = p.broch; } else bb.style.display = "none";
+  const brochUrl = safeUrl(p.broch);
+  if(brochUrl){ bb.style.display = "inline-flex"; bb.href = brochUrl; } else bb.style.display = "none";
   document.getElementById("hpBackdrop").classList.add("open");
   document.body.style.overflow = "hidden";
 }
@@ -793,8 +1259,6 @@ renderPartners();
 
 
 /* ---- logged-in chip (manufacturer session) ---- */
-const MH_URL = "https://azdmuarzntzqdyirysux.supabase.co";
-const MH_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
 async function initAuthChip(){
   const area = document.getElementById("authArea");
   const tok = localStorage.getItem("mh_p_token");
@@ -922,7 +1386,7 @@ async function loadBanners(placement, containerId){
   };
   const slides = banners.map(slide).join("") + HOUSE_SLIDE;
   const total = banners.length + 1;
-  el.innerHTML = `<div class="banner-carousel" style="position:relative;overflow:hidden;border-radius:14px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff">
+  el.innerHTML = `<div class="banner-carousel" style="position:relative;overflow:hidden;border-radius:10px;border:1.5px solid var(--line);width:100%;max-width:1152px;background:#fff">
     <div id="${containerId}Track" style="display:flex;transition:transform .55s ease">${slides}</div>
     ${total>1?`<div class="banner-dots" id="${containerId}Dots">${Array.from({length:total},(_,i)=>`<button class="banner-dot ${i===0?"on":""}" aria-label="Advertisement ${i+1}"></button>`).join("")}</div>`:""}
   </div>`;
@@ -943,6 +1407,80 @@ async function loadBanners(placement, containerId){
 loadBanners("home","bannerHome");
 
 /* ---- partners strip: live manufacturer logos ---- */
+
+/* ---- Live scale band: REAL counts from the database ----
+   Uses the medichall_public_stats() RPC (aggregate counts only).
+   If the RPC is missing or every count is zero, the band stays hidden.
+   No placeholder numbers, ever. ---- */
+const mhFmt = n => Number(n).toLocaleString("en-US");
+function mhCountUp(el, target){
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce || target < 25){ el.textContent = mhFmt(target); return; }
+  const dur = 900, t0 = performance.now();
+  (function step(t){
+    const p = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = mhFmt(Math.round(target * e));
+    if(p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+async function loadScaleStats(){
+  let s = null;
+  try{
+    const r = await fetch(MH_URL + "/rest/v1/rpc/medichall_public_stats", {
+      method:"POST",
+      headers:{ apikey: MH_KEY, Authorization:"Bearer " + MH_KEY, "Content-Type":"application/json" },
+      body:"{}"
+    });
+    if(!r.ok) return;
+    s = await r.json();
+  }catch(e){ return; }
+  if(!s) return;
+
+  const openT = Number(s.open_tenders ?? 0);
+  const tiles = [
+    openT > 0
+      ? { v: openT,                       l: "Open European tenders right now" }
+      : { v: Number(s.tenders || 0),      l: "European tenders in the feed" },
+    { v: Number(s.tender_countries || 0), l: "Countries with open tenders" },
+    { v: Number(s.products || 0),         l: "Products listed by partners" }
+  ].filter(t => t.v > 0);
+  if(!tiles.length) return;
+
+  const grid = document.getElementById("scaleGrid");
+  const band = document.getElementById("scaleBand");
+  if(!grid || !band) return;
+
+  grid.innerHTML = tiles.map(t =>
+    '<div class="scale-item"><div class="scale-num" data-target="' + t.v + '">0</div>'
+    + '<div class="scale-lbl">' + t.l + '</div></div>'
+  ).join("") +
+    '<div class="scale-item"><div class="scale-num">Daily</div>'
+    + '<div class="scale-lbl">New notices pulled from official EU sources every morning</div></div>';
+  band.classList.add("ready");
+
+  const nums = [...grid.querySelectorAll(".scale-num[data-target]")];
+  const run = () => nums.forEach(el => mhCountUp(el, Number(el.dataset.target)));
+  if("IntersectionObserver" in window){
+    const io = new IntersectionObserver((en)=>{
+      en.forEach(e=>{ if(e.isIntersecting){ run(); io.disconnect(); } });
+    }, { threshold: .3 });
+    io.observe(band);
+  }else{ run(); }
+}
+loadScaleStats();
+
+/* ---- Matchmaking flow: reveal on scroll ---- */
+(function(){
+  const flow = document.getElementById("matchFlow");
+  if(!flow) return;
+  if(!("IntersectionObserver" in window)){ flow.classList.add("in"); return; }
+  const io = new IntersectionObserver((en)=>{
+    en.forEach(e=>{ if(e.isIntersecting){ flow.classList.add("in"); io.disconnect(); } });
+  }, { threshold: .25 });
+  io.observe(flow);
+})();
+
 async function loadPartnersFromDB(){
   try{
     const r = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,slug,type&is_approved=eq.true&is_active=eq.true&order=plan.desc,name&limit=8",
@@ -953,12 +1491,13 @@ async function loadPartnersFromDB(){
     const grid = document.getElementById("partnerGrid");
     if(!grid) return;
     grid.innerHTML = cos.map(c=>`
-      <a class="partner" href="${c.slug?`/m/${c.slug}`:"companies.html"}">
-        <div class="partner-logo" ${c.logo_url?`style="background:#fff;border:1.5px solid var(--line)"`:""}>
-          ${c.logo_url?`<img src="${c.logo_url}" alt="${(c.name||"").replace(/"/g,"&quot;")} logo" style="width:100%;height:100%;object-fit:contain;padding:5px">`:(c.name||"?").split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+      <a class="partner" href="${c.slug?`/m/${encodeURIComponent(c.slug)}`:"companies.html"}">
+        <div class="partner-logo" ${safeUrl(c.logo_url)?`style="background:#fff;border:1.5px solid var(--line)"`:""}>
+          ${safeUrl(c.logo_url)?`<img src="${escA(safeUrl(c.logo_url))}" alt="${escA(c.name||"")} logo" style="width:100%;height:100%;object-fit:contain;padding:5px">`:esc((c.name||"?").split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase())}
         </div>
-        <h4>${(c.name||"").replace(/</g,"&lt;")}</h4>
-        <span class="mono">${(c.type||"Manufacturer").replace(/</g,"&lt;")}</span>
+        <h4>${esc(c.name||"")}</h4>
+        <span class="mono">${esc(c.type||"Manufacturer")}</span>
+        <span class="partner-cta">View showroom →</span>
       </a>`).join("");
   }catch(e){}
 }
@@ -997,12 +1536,12 @@ function mhaCard(href, title, sub){
   b.scrollTop = b.scrollHeight;
 }
 function mhaGreet(){
-  mhaMsg("Hello! 👋 I can help you find products and certified Turkish manufacturers, or explain how MedicHall works. What are you looking for?");
+  mhaMsg("Hi! 👋 I can help you explore MedicHall — European tenders, business matchmaking, products and manufacturers. What would you like to know?");
   mhaChips([
-    {t:"🔍 Find a product", q:"find product"},
-    {t:"🏭 Manufacturers", q:"manufacturers"},
-    {t:"📋 How do RFQs work?", q:"how rfq works"},
-    {t:"⭐ Advertise / Premium", q:"premium"}
+    {t:"European tenders", q:"tenders"},
+    {t:"Business matchmaking", q:"matchmaking"},
+    {t:"Find a product", q:"find product"},
+    {t:"How it works", q:"how it works"}
   ]);
 }
 function mhaQuick(q){ document.getElementById("mhaInput").value = q; mhaSend(); }
@@ -1014,6 +1553,25 @@ async function mhaSend(){
   mhaMsg(q.replace(/</g,"&lt;"), "user");
   const t = q.toLowerCase();
 
+  // Tender intelligence
+  if(/tender|ihale|procurement|ted|bid|contract notice/.test(t)){
+    mhaMsg("MedicHall pulls new <b>European medical tenders</b> from official sources (TED) every morning and scores them against your products, target countries and certifications. Open any tender and our AI reads the documents for you — extracting lots, quantities and requirements with the source quote for each.");
+    mhaChips([{t:"Open the portal", q:"register"},{t:"How scoring works", q:"how it works"}]);
+    return;
+  }
+  // Matchmaking
+  if(/matchmak|match ?making|partner|distributor match|find.*(partner|buyer|distributor)|connect/.test(t)){
+    mhaMsg('Our <b>two-sided matchmaking</b> connects manufacturers, distributors and buyers by product, market and commercial fit. Set up a profile once and MedicHall suggests the right partners. <a href="matchmaking.html">Explore matchmaking →</a>');
+    mhaChips([{t:"European tenders", q:"tenders"},{t:"Create account", q:"register"}]);
+    return;
+  }
+  // How it works
+  if(/how it works|how does.*work|what is medichall|explain|nedir|nasıl/.test(t)){
+    mhaMsg("MedicHall does the work a sales team does every morning: <b>finds</b> European tenders that fit you, <b>reads</b> the documents with AI, and <b>connects</b> you with the right manufacturers, distributors and buyers — all in one place.");
+    mhaChips([{t:"European tenders", q:"tenders"},{t:"Matchmaking", q:"matchmaking"},{t:"Create account", q:"register"}]);
+    return;
+  }
+
   // FAQ intents
   if(/rfq|quote|quotation|teklif|how.*(work|buy)|inquiry/.test(t)){
     mhaMsg("Requesting a quote is easy: open any product and click <b>Request quotation</b>. The manufacturer replies directly — if you create a free account, the whole conversation happens right here on MedicHall with chat and notifications. 📬");
@@ -1021,7 +1579,7 @@ async function mhaSend(){
     return;
   }
   if(/register|sign ?up|join|account|kayıt|üye/.test(t)){
-    mhaMsg('You can join for free — as a <b>buyer</b> (save favorites, send RFQs, chat with manufacturers) or as a <b>manufacturer</b> (list your company and products). <a href="portal.html">Create your account here →</a>');
+    mhaMsg('You can join for free — as a <b>manufacturer</b> (list products, get matched to European tenders, appear in matchmaking) or as a <b>buyer</b> (save favorites, send RFQs, find partners). <a href="portal.html">Create your account here →</a>');
     return;
   }
   if(/premium|advertis|banner|feature|reklam/.test(t)){
@@ -1037,7 +1595,7 @@ async function mhaSend(){
     return;
   }
   if(/manufacturer|supplier|compan|firma|üretici/.test(t) && t.length < 30){
-    mhaMsg('Here is our directory of approved Turkish manufacturers: <a href="companies.html">View all manufacturers →</a> You can also type a company name and I\'ll look it up.');
+    mhaMsg('Here is our directory of approved manufacturers: <a href="companies.html">View all manufacturers →</a> You can also type a company name and I\'ll look it up.');
     return;
   }
   if(/find product|products?$|catalog/.test(t)){
@@ -1056,7 +1614,7 @@ async function mhaSend(){
       if(prods.length){
         found = true;
         mhaMsg("Here's what I found in the catalog:");
-        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category + " · REF " + p.ref));
+        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category));
         mhaCard("products.html?q=" + encodeURIComponent(q), "See all results for \"" + q.replace(/</g,"&lt;") + "\" →", "Full catalog search");
       }
     }
@@ -1072,8 +1630,47 @@ async function mhaSend(){
     }
   }catch(e){}
   if(!found){
-    mhaMsg("I couldn't find a direct match for that. Try different keywords (e.g. <i>drape, pack, sterilization, refrigerator</i>) — or <a href=\"products.html\">browse the full catalog</a> and <a href=\"companies.html\">manufacturer directory</a>.");
-    mhaChips([{t:"Browse products", q:"find product"},{t:"Contact support", q:"contact"}]);
+    // Serbest soru: kurallara ve katalog aramasına uymadı → Claude'a sor
+    await mhaAskAI(q);
+  }
+}
+
+// ---- Claude fallback (only for free-form questions) ----
+const MHA_HISTORY = [];
+let mhaThinking = false;
+async function mhaAskAI(question){
+  if(mhaThinking) return;
+  mhaThinking = true;
+  const b = document.getElementById("mhaBody");
+  const think = document.createElement("div");
+  think.className = "mha-msg bot";
+  think.innerHTML = '<span class="mha-typing">MedicHall AI is thinking…</span>';
+  b.appendChild(think); b.scrollTop = b.scrollHeight;
+  try{
+    const res = await fetch(MH_URL + "/functions/v1/public-assistant", {
+      method:"POST",
+      headers:{ apikey: MH_KEY, "Content-Type":"application/json" },
+      body: JSON.stringify({ message: question, history: MHA_HISTORY.slice(-6) })
+    });
+    const data = await res.json().catch(()=>({}));
+    const reply = (data && data.reply) ? String(data.reply) : "Sorry, I couldn't answer that right now. You can email info@medichall.com.";
+    think.remove();
+    // basit güvenli render: linkleri koru, HTML enjeksiyonunu engelle
+    const safe = reply.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+                      .replace(/\n/g,"<br>")
+                      .replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
+                      .replace(/\b(portal\.html|matchmaking\.html|products\.html|companies\.html)\b/g,'<a href="$1">$1</a>');
+    mhaMsg(safe);
+    MHA_HISTORY.push({role:"user", content:question});
+    MHA_HISTORY.push({role:"assistant", content:reply});
+    if(data && data.limited){
+      mhaChips([{t:"Create free account", q:"register"}]);
+    }
+  }catch(e){
+    think.remove();
+    mhaMsg("I'm having trouble reaching the assistant. Please try again, or email <a href=\"mailto:info@medichall.com\">info@medichall.com</a>.");
+  }finally{
+    mhaThinking = false;
   }
 }
 
@@ -1097,10 +1694,10 @@ loadHeroChips();
 </script>
 
 <!-- MedicHall Assistant -->
-<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()">💬</button>
+<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.2 0-2.4-.25-3.4-.7L3 21l1.7-5.1A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg></button>
 <div class="mha-panel" id="mhaPanel" role="dialog" aria-label="MedicHall assistant">
   <div class="mha-head">
-    <div><b>MedicHall Assistant</b><span>Ask about products & manufacturers</span></div>
+    <div><b>MedicHall Assistant</b><span>Tenders · matchmaking · products</span></div>
     <button aria-label="Close assistant" onclick="mhaToggle()">✕</button>
   </div>
   <div class="mha-body" id="mhaBody"></div>

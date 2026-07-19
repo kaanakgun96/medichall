@@ -1,3 +1,15 @@
+// MedicHall AI Edge Function — v2.0 (Claude / Anthropic API)
+//
+// Drop-in replacement for the OpenAI version:
+// - Same auth (Supabase JWT), same daily limits, same usage logging RPCs.
+// - Accepts BOTH { prompt } (live portal.html) and { input } payload fields.
+// - Returns BOTH { answer } (portal.html reads this) and { result }.
+// - AI provider: Anthropic Messages API (https://api.anthropic.com/v1/messages)
+//
+// Required Edge Function secret:  ANTHROPIC_API_KEY
+// Optional secrets:               ANTHROPIC_MODEL (default: claude-haiku-4-5)
+//                                 AI_DAILY_LIMIT  (default: 20)
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = new Set([
@@ -7,50 +19,45 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:3000",
 ]);
 
-const MAX_DOCUMENTS = 6;
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
-const SUPPORTED_MIME_TYPES = new Set([
-  "application/pdf",
-  "text/plain",
-  "text/csv",
+const MAX_INPUT_CHARS = 12_000;
+const MAX_INSTRUCTION_CHARS = 1_500;
+const DAILY_LIMIT_DEFAULT = 20;
+const DEFAULT_MODEL = "claude-haiku-4-5";
+
+const ALLOWED_MODES = new Set([
+  "general",
+  // names used by the live portal.html
+  "tender_match",
+  "sales_email",
+  "buyer_assistant",
+  // reserved names for future modules
+  "tender-analysis",
+  "rfq-builder",
+  "supplier-checklist",
+  "distributor-email",
+  "seo-keywords",
 ]);
 
-type QueuePayload = {
-  action?: "queue" | "status";
-  tender_id?: number;
-  company_id?: number;
+type Payload = {
+  mode?: string;
+  instruction?: string;
+  input?: string;
+  prompt?: string; // legacy field sent by portal.html
+  context?: Record<string, unknown>;
 };
 
-type AnalysisOutput = {
-  analysis_status: "completed" | "partial";
-  document_confidence_score: number;
-  data_completeness_score: number;
-  summary: string;
-  missing_information: string[];
-  products: Array<{
-    product_name: string;
-    normalized_product_name: string | null;
-    lot_number: string | null;
-    quantity_value: number | null;
-    quantity_unit: string | null;
-    packaging: string | null;
-    sterility: string | null;
-    material: string | null;
-    dimensions: string | null;
-    required_certifications: string[];
-    technical_requirements: string[];
-    confidence_score: number;
-    evidence: Array<{
-      document_id: number;
-      page_number: number | null;
-      sheet_name: string | null;
-      cell_range: string | null;
-      source_quote: string;
-      field_name: string;
-      extracted_value: string;
-      confidence_score: number;
-    }>;
-  }>;
+type AnthropicContentBlock = {
+  type: string;
+  text?: string;
+};
+
+type AnthropicResponse = {
+  content?: AnthropicContentBlock[];
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+  error?: { type?: string; message?: string };
 };
 
 function corsHeaders(req: Request): HeadersInit {
@@ -58,6 +65,7 @@ function corsHeaders(req: Request): HeadersInit {
   const allowedOrigin = ALLOWED_ORIGINS.has(origin)
     ? origin
     : "https://medichall.com";
+
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers":
@@ -78,390 +86,24 @@ function json(req: Request, body: unknown, status = 200): Response {
   });
 }
 
-function clampScore(value: unknown): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(100, Math.round(parsed)));
+function cleanText(value: unknown, maxLength: number): string {
+  return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, maxLength);
 }
 
-function isSafeHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
+function getDailyLimit(): number {
+  const parsed = Number(Deno.env.get("AI_DAILY_LIMIT") ?? DAILY_LIMIT_DEFAULT);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(Math.floor(parsed), 500)
+    : DAILY_LIMIT_DEFAULT;
 }
 
-function extractClaudeText(data: any): string {
-  const blocks = Array.isArray(data?.content) ? data.content : [];
-  return blocks
-    .filter((block: any) => block?.type === "text")
-    .map((block: any) => String(block.text || ""))
+function extractOutputText(data: AnthropicResponse): string {
+  if (!Array.isArray(data.content)) return "";
+  return data.content
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text as string)
     .join("\n")
     .trim();
-}
-
-function stripJsonFence(value: string): string {
-  return value
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
-
-async function fetchAsBase64(url: string): Promise<{
-  data: string;
-  mimeType: string;
-}> {
-  const response = await fetch(url, {
-    redirect: "follow",
-    headers: { "User-Agent": "MedicHall-Tender-Document-Engine/1.0" },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Could not download document (${response.status})`);
-  }
-
-  const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > MAX_FILE_BYTES) {
-    throw new Error("Document exceeds the configured size limit");
-  }
-
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAX_FILE_BYTES) {
-    throw new Error("Document exceeds the configured size limit");
-  }
-
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-
-  return {
-    data: btoa(binary),
-    mimeType:
-      response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ||
-      "application/pdf",
-  };
-}
-
-async function buildClaudeContent(documents: any[], documentMap: any[]) {
-  const content: any[] = [];
-
-  for (const document of documents) {
-    const mimeType = String(document.mime_type || "").toLowerCase();
-    const downloaded = await fetchAsBase64(document.file_url);
-
-    if (mimeType === "application/pdf") {
-      content.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: downloaded.data,
-        },
-        title: document.file_name || document.title || `Document ${document.id}`,
-        context: `MedicHall tender document ID: ${document.id}. Type: ${document.document_type || "other"}.`,
-        citations: { enabled: true },
-      });
-      continue;
-    }
-
-    if (mimeType === "text/plain" || mimeType === "text/csv") {
-      const decoded = new TextDecoder().decode(
-        Uint8Array.from(atob(downloaded.data), (c) => c.charCodeAt(0)),
-      );
-      content.push({
-        type: "text",
-        text: [
-          `<document id="${document.id}" filename="${document.file_name || ""}">`,
-          decoded.slice(0, 200_000),
-          "</document>",
-        ].join("\n"),
-      });
-    }
-  }
-
-  const prompt = `
-You are MedicHall's medical tender document extraction engine.
-
-Your only task is to extract verifiable procurement facts from the attached tender documents.
-
-STRICT RULES:
-1. Never infer, estimate, guess, complete, normalize from industry knowledge, or invent missing facts.
-2. A tender title, CPV code, or broad category is not proof of a specific product.
-3. Product name and quantity must be explicitly supported by the documents.
-4. If a field cannot be proven, return null or an empty array.
-5. Keep the source product wording and original quantity unit.
-6. Distinguish annual quantity, estimated quantity, minimum quantity, package quantity and contract quantity whenever the document does.
-7. Do not multiply package size by package count unless the document explicitly defines both and the calculation is certain.
-8. Every extracted material field must have evidence.
-9. Evidence must include document_id, a short exact source quote, and page number when visible.
-10. Mark the result "partial" if:
-   - product names cannot be proven,
-   - quantities cannot be proven,
-   - relevant appendices appear missing,
-   - documents are ambiguous,
-   - tables are unreadable,
-   - or extraction confidence is limited.
-11. Confidence represents evidence strength, not how plausible the result sounds.
-12. Return JSON only. Do not add markdown or commentary outside JSON.
-
-DOCUMENT MAP:
-${JSON.stringify(documentMap, null, 2)}
-
-Return this exact JSON structure:
-{
-  "analysis_status": "completed" | "partial",
-  "document_confidence_score": 0-100,
-  "data_completeness_score": 0-100,
-  "summary": "brief factual summary",
-  "missing_information": ["..."],
-  "products": [
-    {
-      "product_name": "exact document wording",
-      "normalized_product_name": "optional conservative English normalization or null",
-      "lot_number": "lot identifier or null",
-      "quantity_value": number or null,
-      "quantity_unit": "original unit or null",
-      "packaging": "explicit packaging information or null",
-      "sterility": "explicit sterility requirement or null",
-      "material": "explicit material or null",
-      "dimensions": "explicit dimensions or null",
-      "required_certifications": ["only explicit requirements"],
-      "technical_requirements": ["only explicit requirements"],
-      "confidence_score": 0-100,
-      "evidence": [
-        {
-          "document_id": integer,
-          "page_number": integer or null,
-          "sheet_name": null,
-          "cell_range": null,
-          "source_quote": "short exact quote",
-          "field_name": "product_name|quantity|packaging|sterility|material|dimensions|certification|technical_requirement",
-          "extracted_value": "value proven by quote",
-          "confidence_score": 0-100
-        }
-      ]
-    }
-  ]
-}
-`.trim();
-
-  content.push({ type: "text", text: prompt });
-  return content;
-}
-
-async function processJob(
-  adminClient: ReturnType<typeof createClient>,
-  anthropicKey: string,
-  jobId: number,
-) {
-  const { data: job, error: jobError } = await adminClient
-    .from("tender_document_analysis_jobs")
-    .select("id,tender_id,company_id,selected_document_ids,status,attempt_count")
-    .eq("id", jobId)
-    .single();
-
-  if (jobError || !job) throw new Error("Analysis job not found");
-
-  const model = Deno.env.get("ANTHROPIC_MODEL");
-  if (!model) {
-    throw new Error("ANTHROPIC_MODEL secret is missing");
-  }
-
-  await adminClient
-    .from("tender_document_analysis_jobs")
-    .update({
-      status: "processing",
-      started_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      attempt_count: Number(job.attempt_count || 0) + 1,
-      model_name: model,
-      error_code: null,
-      error_message: null,
-    })
-    .eq("id", jobId);
-
-  await adminClient
-    .from("tenders")
-    .update({
-      document_analysis_status: "processing",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", job.tender_id);
-
-  const selectedIds = (job.selected_document_ids || [])
-    .slice(0, MAX_DOCUMENTS)
-    .map(Number);
-
-  const { data: documents, error: documentError } = await adminClient
-    .from("tender_documents")
-    .select("id,title,file_name,file_url,mime_type,document_type,language_code")
-    .in("id", selectedIds)
-    .eq("tender_id", job.tender_id)
-    .eq("is_active", true);
-
-  if (documentError) throw new Error(documentError.message);
-
-  const usableDocuments = (documents || []).filter((document: any) =>
-    SUPPORTED_MIME_TYPES.has(String(document.mime_type || "").toLowerCase()) &&
-    isSafeHttpsUrl(String(document.file_url || ""))
-  );
-
-  if (!usableDocuments.length) {
-    throw new Error(
-      "No supported HTTPS PDF, CSV or text tender documents are registered",
-    );
-  }
-
-  const documentMap = usableDocuments.map((document: any) => ({
-    document_id: document.id,
-    file_name:
-      document.file_name || document.title || `Document ${document.id}`,
-    document_type: document.document_type,
-    language_code: document.language_code,
-  }));
-
-  const content = await buildClaudeContent(usableDocuments, documentMap);
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": anthropicKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 6000,
-      temperature: 0,
-      system:
-        "You extract medical procurement facts conservatively. You never fabricate missing tender data and you return JSON only.",
-      messages: [{ role: "user", content }],
-    }),
-  });
-
-  const responseData = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      responseData?.error?.message ||
-        `Anthropic request failed (${response.status})`,
-    );
-  }
-
-  const rawOutput = stripJsonFence(extractClaudeText(responseData));
-  if (!rawOutput) throw new Error("Claude returned an empty analysis");
-
-  let analysis: AnalysisOutput;
-  try {
-    analysis = JSON.parse(rawOutput);
-  } catch {
-    throw new Error("Claude returned invalid JSON");
-  }
-
-  analysis.document_confidence_score = clampScore(
-    analysis.document_confidence_score,
-  );
-  analysis.data_completeness_score = clampScore(
-    analysis.data_completeness_score,
-  );
-
-  analysis.products = (analysis.products || []).map((product) => ({
-    ...product,
-    confidence_score: clampScore(product.confidence_score),
-    evidence: (product.evidence || [])
-      .filter((item) => selectedIds.includes(Number(item.document_id)))
-      .map((item) => ({
-        ...item,
-        confidence_score: clampScore(item.confidence_score),
-        source_quote: String(item.source_quote || "").slice(0, 600),
-        extracted_value: String(item.extracted_value || "").slice(0, 500),
-      })),
-  }));
-
-  await adminClient
-    .from("tender_document_evidence")
-    .delete()
-    .eq("job_id", jobId);
-
-  const evidenceRows: any[] = [];
-  for (const product of analysis.products) {
-    for (const evidence of product.evidence || []) {
-      evidenceRows.push({
-        tender_id: job.tender_id,
-        document_id: evidence.document_id,
-        job_id: jobId,
-        evidence_type: "product_field",
-        product_name: product.product_name,
-        field_name: evidence.field_name,
-        extracted_value: evidence.extracted_value,
-        quantity_value:
-          evidence.field_name === "quantity" ? product.quantity_value : null,
-        quantity_unit:
-          evidence.field_name === "quantity" ? product.quantity_unit : null,
-        lot_number: product.lot_number,
-        page_number: evidence.page_number,
-        sheet_name: evidence.sheet_name,
-        cell_range: evidence.cell_range,
-        source_quote: evidence.source_quote,
-        confidence_score: evidence.confidence_score,
-      });
-    }
-  }
-
-  if (evidenceRows.length) {
-    const { error: evidenceError } = await adminClient
-      .from("tender_document_evidence")
-      .insert(evidenceRows);
-    if (evidenceError) throw new Error(evidenceError.message);
-  }
-
-  const finalStatus =
-    analysis.analysis_status === "completed" ? "completed" : "partial";
-
-  const { error: tenderUpdateError } = await adminClient
-    .from("tenders")
-    .update({
-      document_analysis_status: finalStatus,
-      document_confidence_score: analysis.document_confidence_score,
-      data_completeness_score: analysis.data_completeness_score,
-      analyzed_document_count: usableDocuments.length,
-      extracted_products: analysis.products,
-      missing_information: analysis.missing_information || [],
-      document_analysis_notes: analysis.summary,
-      last_document_analysis_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", job.tender_id);
-
-  if (tenderUpdateError) throw new Error(tenderUpdateError.message);
-
-  await adminClient
-    .from("tender_document_analysis_jobs")
-    .update({
-      status: finalStatus,
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", jobId);
-
-  const { data: companyMatches } = await adminClient
-    .from("opportunity_matches")
-    .select("company_id")
-    .eq("tender_id", job.tender_id);
-
-  const companyIds = [
-    ...new Set((companyMatches || []).map((row: any) => Number(row.company_id))),
-  ];
-
-  for (const companyId of companyIds) {
-    await adminClient.rpc("refresh_explainable_tender_matches", {
-      p_company_id: companyId,
-    });
-  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -484,7 +126,8 @@ Deno.serve(async (req: Request) => {
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !anthropicKey) {
-    return json(req, { error: "Claude document engine is not configured." }, 500);
+    console.error("Missing required Edge Function secrets");
+    return json(req, { error: "AI service is not configured." }, 500);
   }
 
   const authHeader = req.headers.get("authorization") ?? "";
@@ -493,11 +136,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const token = authHeader.slice(7).trim();
-
   const authClient = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -511,91 +152,172 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid or expired session." }, 401);
   }
 
-  let payload: QueuePayload;
+  let payload: Payload;
   try {
     payload = await req.json();
   } catch {
     return json(req, { error: "Invalid JSON body." }, 400);
   }
 
-  const tenderId = Number(payload.tender_id);
-  const companyId = Number(payload.company_id);
+  const requestedMode = cleanText(payload.mode, 80) || "general";
+  const mode = ALLOWED_MODES.has(requestedMode) ? requestedMode : "general";
+  const instruction = cleanText(payload.instruction, MAX_INSTRUCTION_CHARS);
+  // portal.html sends "prompt"; newer clients may send "input". Accept both.
+  const input = cleanText(payload.input ?? payload.prompt, MAX_INPUT_CHARS);
+  const context = payload.context && typeof payload.context === "object"
+    ? payload.context
+    : {};
 
-  if (!Number.isInteger(tenderId) || !Number.isInteger(companyId)) {
-    return json(req, {
-      error: "Valid tender_id and company_id are required.",
-    }, 400);
+  if (!input) {
+    return json(req, { error: "Please enter a request." }, 400);
   }
 
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  if (payload.action === "status") {
-    const { data, error } = await userClient.rpc(
-      "get_tender_document_analysis_status",
-      { p_tender_id: tenderId, p_company_id: companyId },
-    );
-
-    if (error) return json(req, { error: error.message }, 400);
-
-    return json(req, {
-      job: Array.isArray(data) ? data[0] ?? null : data,
-    });
-  }
-
-  const { data: queued, error: queueError } = await userClient.rpc(
-    "queue_tender_document_analysis",
-    { p_tender_id: tenderId, p_company_id: companyId },
+  const dailyLimit = getDailyLimit();
+  const { data: reservation, error: reserveError } = await adminClient.rpc(
+    "reserve_medichall_ai_request",
+    {
+      p_user_id: user.id,
+      p_mode: mode,
+      p_role: cleanText((context as Record<string, unknown>).role, 80) || null,
+      p_input_chars: input.length,
+      p_daily_limit: dailyLimit,
+    },
   );
 
-  if (queueError) {
-    return json(req, { error: queueError.message }, 400);
+  if (reserveError) {
+    console.error("AI reservation error", reserveError);
+    return json(req, { error: "Could not verify AI usage limit." }, 500);
   }
 
-  const job = Array.isArray(queued) ? queued[0] : queued;
-
-  if (!job?.id) {
-    return json(req, { error: "Could not create analysis job." }, 500);
-  }
-
-  EdgeRuntime.waitUntil(
-    processJob(adminClient, anthropicKey, Number(job.id)).catch(
-      async (error) => {
-        console.error("Claude tender analysis failed", error);
-
-        await adminClient
-          .from("tender_document_analysis_jobs")
-          .update({
-            status: "failed",
-            error_code: "CLAUDE_DOCUMENT_ANALYSIS_FAILED",
-            error_message: String(error?.message || error).slice(0, 1000),
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", job.id);
-
-        await adminClient
-          .from("tenders")
-          .update({
-            document_analysis_status: "failed",
-            document_analysis_notes: String(error?.message || error).slice(
-              0,
-              1000,
-            ),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", tenderId);
+  const reservationRow = Array.isArray(reservation) ? reservation[0] : reservation;
+  if (!reservationRow?.allowed) {
+    return json(
+      req,
+      {
+        error: "Daily AI usage limit reached.",
+        code: "DAILY_LIMIT_REACHED",
+        daily_limit: dailyLimit,
+        used_today: reservationRow?.used_today ?? dailyLimit,
       },
-    ),
+      429,
+    );
+  }
+
+  const usageId = reservationRow.usage_id as number;
+  const remaining = Math.max(
+    0,
+    dailyLimit - Number(reservationRow.used_today ?? dailyLimit),
   );
 
-  return json(req, {
-    ok: true,
-    job_id: job.id,
-    status: job.status,
-    engine: "claude",
-    message: "Tender document analysis has been queued.",
-  }, 202);
+  const systemPrompt = [
+    "You are MedicHall AI, an assistant for a B2B medical marketplace.",
+    "Help medical-device buyers, manufacturers, and distributors with sourcing, RFQs, tender analysis, supplier matching, and export communication.",
+    "Never invent certifications, approvals, tender clauses, prices, legal requirements, or company facts.",
+    "When evidence is missing, state exactly what must be verified.",
+    "Do not provide a final legal, regulatory, clinical, or procurement compliance decision.",
+    "Be concise, practical, and business-oriented. Use clear headings and action items.",
+    "Reply in the same language the user writes in.",
+  ].join("\n");
+
+  const userPrompt = JSON.stringify(
+    {
+      mode,
+      instruction: instruction || "Complete the requested MedicHall task.",
+      input,
+      context,
+    },
+    null,
+    2,
+  );
+
+  try {
+    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: Deno.env.get("ANTHROPIC_MODEL") || DEFAULT_MODEL,
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+
+    const data = (await anthropicResponse.json()) as AnthropicResponse;
+    if (!anthropicResponse.ok) {
+      const providerMessage = cleanText(data?.error?.message, 500);
+      console.error(
+        "Anthropic request failed",
+        anthropicResponse.status,
+        providerMessage,
+      );
+      await adminClient.rpc("finish_medichall_ai_request", {
+        p_usage_id: usageId,
+        p_status: "failed",
+        p_output_chars: 0,
+        p_prompt_tokens: null,
+        p_completion_tokens: null,
+        p_total_tokens: null,
+        p_error_code: `ANTHROPIC_${anthropicResponse.status}`,
+      });
+      return json(req, { error: "AI provider request failed. Please try again." }, 502);
+    }
+
+    const result = extractOutputText(data);
+    const promptTokens = data.usage?.input_tokens ?? null;
+    const completionTokens = data.usage?.output_tokens ?? null;
+    const totalTokens = promptTokens !== null && completionTokens !== null
+      ? promptTokens + completionTokens
+      : null;
+
+    if (!result) {
+      await adminClient.rpc("finish_medichall_ai_request", {
+        p_usage_id: usageId,
+        p_status: "failed",
+        p_output_chars: 0,
+        p_prompt_tokens: promptTokens,
+        p_completion_tokens: completionTokens,
+        p_total_tokens: totalTokens,
+        p_error_code: "EMPTY_RESPONSE",
+      });
+      return json(req, { error: "AI returned an empty response." }, 502);
+    }
+
+    const finish = await adminClient.rpc("finish_medichall_ai_request", {
+      p_usage_id: usageId,
+      p_status: "completed",
+      p_output_chars: result.length,
+      p_prompt_tokens: promptTokens,
+      p_completion_tokens: completionTokens,
+      p_total_tokens: totalTokens,
+      p_error_code: null,
+    });
+
+    if (finish.error) console.error("AI usage finalization error", finish.error);
+
+    // portal.html reads "answer"; keep "result" for newer clients.
+    return json(req, {
+      answer: result,
+      result,
+      remaining_today: remaining,
+      daily_limit: dailyLimit,
+    });
+  } catch (error) {
+    console.error("Unexpected AI error", error);
+    await adminClient.rpc("finish_medichall_ai_request", {
+      p_usage_id: usageId,
+      p_status: "failed",
+      p_output_chars: 0,
+      p_prompt_tokens: null,
+      p_completion_tokens: null,
+      p_total_tokens: null,
+      p_error_code: "UNEXPECTED_ERROR",
+    });
+    return json(req, { error: "Unexpected AI error. Please try again." }, 500);
+  }
 });
