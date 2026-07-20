@@ -1,4 +1,10 @@
-// MedicHall TED Sync — v1.4
+// MedicHall TED Sync — v1.5
+//
+// v1.5 (2026-07-20): İngilizce normalize katmanı — adım 4c. pending ihalelerin
+//   başlık+açıklaması Haiku'yla İngilizceye çevrilip title_en/description_en'e
+//   yazılır (makine çevirisi; arama + keyword skorlaması için). Gerekli yeni
+//   migration: 202607200002_english_normalization.sql. Yanıta translated /
+//   translate_error alanları eklendi. Backfill: {"translate_backlog":600}.
 //
 // v1.4 DEĞİŞİKLİKLERİ (2026-07-17):
 //   [KRİTİK HATA] v1.3'te ülke kısıtı kaldırılırken, `company_match_profiles`
@@ -350,6 +356,90 @@ async function handle(req: Request): Promise<Response> {
     fxError = String(e).slice(0, 200);
   }
 
+  // 4c) İngilizce normalize katmanı (v1.5 YENİ)
+  //     translation_status='pending' satırların başlık+açıklamasını Haiku'ya
+  //     TOPLU çevirtir (10 ihale/çağrı), title_en/description_en'e yazar.
+  //     Maliyet ölçümü: ~20 ihale/gün × ~700 kr ≈ ~1 $/ay (Haiku 1$/5$ MTok).
+  //     Koşu başına tavan: normal 60 satır; backfill için body override:
+  //     {"translate_backlog": 600}. Patlarsa sync SÜRER; satır 'pending'
+  //     kalır ve ertesi koşuda yeniden denenir. Çeviri makine çevirisidir ve
+  //     UI'da öyle etiketlenir — kanıt/ispat değeri orijinal metindedir.
+  let translated = 0;
+  let translateError: string | null = null;
+  const translateCap = Math.min(600, Math.max(0,
+    Number((bodyOverride as Record<string, unknown>).translate_backlog ?? 60)));
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+  if (!anthropicKey) {
+    translateError = "ANTHROPIC_API_KEY yok — çeviri atlandı";
+  } else if (translateCap > 0) {
+    try {
+      const { data: pendingRows, error: pendErr } = await admin
+        .from("tenders")
+        .select("id,title,description")
+        .or("translation_status.is.null,translation_status.eq.pending")
+        .eq("status", "open")
+        .order("publication_date", { ascending: false })
+        .limit(translateCap);
+      if (pendErr) throw new Error(pendErr.message);
+
+      const model = Deno.env.get("TRANSLATE_MODEL") ??
+        Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-4-5";
+      const BATCH = 10;
+      for (let i = 0; i < (pendingRows ?? []).length; i += BATCH) {
+        const batch = (pendingRows ?? []).slice(i, i + BATCH).map((r) => ({
+          id: r.id,
+          title: String(r.title ?? "").slice(0, 600),
+          description: String(r.description ?? "").slice(0, 2500),
+        }));
+        try {
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": anthropicKey,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: 6000,
+              system:
+                "You translate public procurement notice texts to English for search indexing. " +
+                "Translate faithfully; do not summarize, embellish, or invent. Keep numbers, codes " +
+                "and certification names unchanged. If a text is already English, return it as is. " +
+                "Reply with ONLY a JSON array [{\"id\":...,\"title_en\":\"...\",\"description_en\":\"...\"}] " +
+                "— no markdown fences, no commentary.",
+              messages: [{ role: "user", content: JSON.stringify(batch) }],
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(`Anthropic HTTP ${res.status}`);
+          if (data.stop_reason === "max_tokens") throw new Error("çeviri çıktısı kesildi");
+          const text = (data.content ?? [])
+            .filter((b: { type: string }) => b.type === "text")
+            .map((b: { text: string }) => b.text).join("\n")
+            .replace(/```json|```/g, "").trim();
+          const items = JSON.parse(text) as
+            { id: number; title_en?: string; description_en?: string }[];
+          const validIds = new Set(batch.map((b) => b.id));
+          for (const it of items) {
+            if (!validIds.has(it.id)) continue; // model kimlik uydurmasın
+            const { error: upErr } = await admin.from("tenders").update({
+              title_en: String(it.title_en ?? "").slice(0, 600) || null,
+              description_en: String(it.description_en ?? "").slice(0, 3000) || null,
+              translation_status: "done",
+            }).eq("id", it.id);
+            if (!upErr) translated++;
+          }
+        } catch (e) {
+          // Bu parti pending kalır, sonraki koşu yeniden dener; sync sürer.
+          translateError = String(e).slice(0, 200);
+        }
+      }
+    } catch (e) {
+      translateError = String(e).slice(0, 200);
+    }
+  }
+
   // 5) Refresh matches for every company with a profile.
   //    v1.4 KRİTİK DÜZELTME: `profiles` v1.3'te tanımsız kalmıştı (ülke kısıtı
   //    temizlenirken bu sorgu da silinmiş, döngü kalmıştı) → her koşu
@@ -379,6 +469,8 @@ async function handle(req: Request): Promise<Response> {
       fx_rates_updated: fxUpdated,
       fx_as_of: fxAsOf,
       fx_error: fxError,
+      translated,
+      translate_error: translateError,
       companies_refreshed: refreshed,
       refresh_errors: refreshErrors,
       skipped_rows: skipped.length,

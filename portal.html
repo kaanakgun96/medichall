@@ -254,12 +254,35 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .ff-unknown{display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--ink-soft);margin-top:7px;cursor:pointer}
 .ff-unknown input{width:auto;margin:0;accent-color:var(--teal)}
 .ff-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px}
+/* ---- Saved searches (Sprint C) ---- */
+.saved-bar{display:none;flex-wrap:wrap;gap:8px;margin:0 0 14px;align-items:center}
+.saved-bar.on{display:flex}
+.saved-bar .sb-label{font-size:.72rem;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+.saved-chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:6px 8px 6px 13px;font-size:.8rem;cursor:pointer}
+.saved-chip:hover{border-color:var(--teal)}
+.saved-chip .sc-name{font-weight:600;color:var(--ink)}
+.saved-chip .sc-mail{font-size:.72rem;cursor:pointer;opacity:.85}
+.saved-chip .sc-del{border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:.85rem;padding:0 3px;line-height:1}
+.saved-chip .sc-del:hover{color:#c0392b}
 .ff-hint{font-size:.72rem;color:var(--ink-soft)}
 .ff-toggle{background:none;border:1.5px solid var(--line);border-radius:100px;padding:9px 14px;font-size:.8rem;font-weight:600;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
 .ff-toggle:hover,.ff-toggle.active{border-color:var(--teal);color:var(--teal)}
 .ff-toggle .cnt{display:inline-block;min-width:17px;padding:0 4px;border-radius:100px;background:var(--teal);color:#fff;font-size:.68rem;margin-left:5px}
 .opp-eur{color:var(--ink-soft)}
 .opp-eur b{color:var(--ink);font-weight:600}
+/* ---- CPV picker (profil formu) ---- */
+.cpv-picker{display:none;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-top:8px}
+.cpv-picker.open{display:block}
+.cpv-picker input{width:100%;padding:8px 10px;font-size:.84rem;margin:0 0 8px}
+.cpv-tree{max-height:280px;overflow-y:auto;font-size:.84rem}
+.cpv-group{font-weight:700;color:var(--teal-deep);margin:10px 0 4px;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+.cpv-row{display:flex;gap:8px;align-items:center;padding:4px 2px;border-radius:6px;cursor:pointer}
+.cpv-row:hover{background:var(--mist)}
+.cpv-row input{width:auto;margin:0;accent-color:var(--teal)}
+.cpv-row .cnt{margin-left:auto;font-size:.74rem;color:var(--ink-soft);white-space:nowrap}
+.cpv-row .cnt b{color:var(--teal-deep)}
+.cpv-row.sub{padding-left:22px}
+.cpv-foot{font-size:.72rem;color:var(--ink-soft);margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
 .opp-empty{text-align:center;padding:48px 20px;border:1.5px dashed var(--line);border-radius:14px;background:#fff}
 .opp-empty .icon{font-size:2rem;margin-bottom:7px}
 .opp-empty b{display:block;font-size:1rem;margin-bottom:5px}
@@ -587,7 +610,16 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           <div class="grid2">
             <div>
               <label for="mp-cpv">CPV codes (optional, comma separated)</label>
-              <input id="mp-cpv" placeholder="e.g. 33140000, 33169000">
+              <div style="display:flex;gap:8px">
+                <input id="mp-cpv" placeholder="e.g. 33140000, 33169000" style="flex:1;min-width:0">
+                <button type="button" class="ff-toggle" id="cpvPickBtn" onclick="toggleCpvPicker()" style="margin:0">Browse catalog</button>
+              </div>
+              <!-- CPV seçici: resmi AB CPV 2008 kataloğu + beslemedeki CANLI ihale sayıları -->
+              <div class="cpv-picker" id="cpvPicker">
+                <input id="cpvSearch" placeholder="Search product groups — e.g. gloves, imaging, furniture…" oninput="renderCpvTree()">
+                <div class="cpv-tree" id="cpvTree"><div class="loading">Loading catalog…</div></div>
+                <div class="cpv-foot">Counts show open tenders currently in the feed for each family. Selecting a family also matches its sub-codes.</div>
+              </div>
             </div>
             <div>
               <label for="mp-minscore">Minimum match score (0–100)</label>
@@ -654,9 +686,14 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           </div>
           <div class="ff-foot">
             <span class="ff-hint" id="ffFxHint"></span>
-            <button class="btn btn-ghost btn-sm" onclick="clearFeedFilters()">Clear filters</button>
+            <span style="display:flex;gap:8px">
+              <button class="btn btn-solid btn-sm" onclick="saveCurrentSearch()">💾 Save this search</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearFeedFilters()">Clear filters</button>
+            </span>
           </div>
         </div>
+        <!-- Sprint C: kayıtlı aramalar — çip barı (yalnız feed modunda dolar) -->
+        <div class="saved-bar" id="savedBar"></div>
         <div id="oppList"><div class="card pad" style="color:var(--ink-soft)">Save your matching profile and click <b>Find matches</b> to see tender and distributor opportunities here.</div></div>
       </div>
 
@@ -2053,6 +2090,7 @@ function switchOppMode(mode){
     minSel.style.display = "none";            // beslemede skor yok
     ffBtn.style.display = "";                 // gelişmiş filtreler yalnız beslemede
     fillFeedFacets();
+    loadSavedSearches();                      // Sprint C: çip barı
     loadFeed(true);
   }else{
     search.placeholder = "Search matches…";
@@ -2190,6 +2228,9 @@ async function loadFeed(reset){
   const cards = rows.map(t =>
     '<div class="opp-card">'
     + '<div class="opp-top"><div class="opp-title"><span class="opp-type">Tender · feed</span><br>📄 ' + esc(t.title || "Tender")
+    // İngilizce normalize katmanı: makine çevirisi olduğu AÇIKÇA etiketlenir,
+    // orijinal başlık her zaman üstte kalır (kanıt/ispat orijinaldedir).
+    + (t.title_en && t.title_en !== t.title ? '<div class="opp-meta" style="margin-top:2px;font-style:italic">EN (machine translation): ' + esc(t.title_en) + '</div>' : '')
     + '<div class="opp-meta">' + esc([
         t.country_name,
         t.buyer_name,
@@ -2772,6 +2813,164 @@ async function translateChunk(payload){
   }
   const raw = String(data.answer || data.result || "").replace(/```json|```/g, "").trim();
   return JSON.parse(raw);
+}
+
+// ---- CPV seçici (profil formu) ------------------------------------------
+// Resmi AB CPV 2008 kataloğu (cpv_catalog tablosu) + her aile için beslemedeki
+// GERÇEK açık ihale sayısı. Seçimler mevcut #mp-cpv metin kutusuna CSV yazılır
+// — kaydet/yükle akışına DOKUNULMADI, elle düzenleme de çalışmaya devam eder.
+let CPV_CATALOG = null;   // null = yüklenmedi, [] = katalog kurulu değil
+
+function cpvSelectedSet(){
+  return new Set((document.getElementById("mp-cpv").value || "")
+    .split(",").map(s => s.replace(/[^0-9]/g, "").slice(0, 8)).filter(Boolean));
+}
+
+function cpvWriteSelection(set){
+  document.getElementById("mp-cpv").value = [...set].sort().join(", ");
+}
+
+async function toggleCpvPicker(){
+  const panel = document.getElementById("cpvPicker");
+  panel.classList.toggle("open");
+  document.getElementById("cpvPickBtn").classList.toggle("active", panel.classList.contains("open"));
+  if(panel.classList.contains("open") && CPV_CATALOG === null){
+    try{
+      CPV_CATALOG = await db("rpc/cpv_catalog_with_counts", { method: "POST", body: JSON.stringify({ p_max_depth: 5 }) }) || [];
+    }catch(e){
+      CPV_CATALOG = [];
+    }
+    renderCpvTree();
+  }
+}
+
+function cpvToggleCode(code){
+  const sel = cpvSelectedSet();
+  if(sel.has(code)) sel.delete(code); else sel.add(code);
+  cpvWriteSelection(sel);
+  renderCpvTree();
+}
+
+function renderCpvTree(){
+  const box = document.getElementById("cpvTree");
+  if(!CPV_CATALOG || !CPV_CATALOG.length){
+    box.innerHTML = '<div class="opp-meta" style="padding:6px 2px">Catalog not installed on this database yet (run 202607200001_cpv_catalog.sql). You can still type CPV codes manually above.</div>';
+    return;
+  }
+  const q = (document.getElementById("cpvSearch").value || "").trim().toLowerCase();
+  const sel = cpvSelectedSet();
+  // depth<=3: grup başlığı; depth 4-5: seçilebilir satır
+  const groups = CPV_CATALOG.filter(c => c.depth <= 3);
+  const items  = CPV_CATALOG.filter(c => c.depth >= 4);
+  let html = "";
+  for(const g of groups){
+    const children = items.filter(c =>
+      (c.parent_code === g.code || (c.parent_code && c.parent_code.startsWith(g.code.replace(/0+$/, ""))))
+      && (!q || c.label_en.toLowerCase().includes(q) || c.code.includes(q)));
+    if(q && !children.length && !g.label_en.toLowerCase().includes(q)) continue;
+    const rows = (q ? children : items.filter(c => c.parent_code === g.code || (c.parent_code && c.parent_code.startsWith(g.code.replace(/0+$/, "")))));
+    if(!rows.length) continue;
+    html += '<div class="cpv-group">' + esc(g.label_en) + '</div>';
+    for(const c of rows){
+      const checked = sel.has(c.code) ? " checked" : "";
+      const cnt = Number(c.open_tender_count || 0);
+      html += '<label class="cpv-row' + (c.depth >= 5 ? ' sub' : '') + '">'
+        + '<input type="checkbox"' + checked + ' onchange="cpvToggleCode(\'' + c.code + '\')">'
+        + '<span>' + esc(c.label_en) + ' <span style="color:var(--ink-soft)">(' + esc(c.code_full) + ')</span></span>'
+        + '<span class="cnt">' + (cnt ? '<b>' + cnt.toLocaleString() + '</b> open' : '0 open') + '</span>'
+        + '</label>';
+    }
+  }
+  box.innerHTML = html || '<div class="opp-meta" style="padding:6px 2px">No product group matches this search.</div>';
+}
+
+// ---- Kayıtlı aramalar (Sprint C) -----------------------------------------
+// saved_searches tablosu (RLS: herkes kendi kayıtları). Çipe tıkla → filtreler
+// uygulanır; 🔔/🔕 → günlük e-posta digest aç/kapa; × → sil.
+let SAVED_SEARCHES = null;
+
+async function loadSavedSearches(){
+  try{
+    SAVED_SEARCHES = await db("saved_searches?select=*&order=created_at.asc") || [];
+  }catch(e){ SAVED_SEARCHES = []; }   // migration kurulu değilse bar hiç görünmez
+  renderSavedBar();
+}
+
+function renderSavedBar(){
+  const bar = document.getElementById("savedBar");
+  if(OPP_MODE !== "feed" || !SAVED_SEARCHES || !SAVED_SEARCHES.length){
+    bar.classList.remove("on"); bar.innerHTML = ""; return;
+  }
+  bar.classList.add("on");
+  bar.innerHTML = '<span class="sb-label">Saved searches</span>' + SAVED_SEARCHES.map(s =>
+    '<span class="saved-chip">'
+    + '<span class="sc-name" onclick="applySavedSearch(' + s.id + ')" title="Apply this search">' + esc(s.name) + '</span>'
+    + '<span class="sc-mail" onclick="toggleSavedAlert(' + s.id + ')" title="' + (s.email_alerts ? 'Daily email ON — click to turn off' : 'Daily email OFF — click to turn on') + '">' + (s.email_alerts ? '🔔' : '🔕') + '</span>'
+    + '<button class="sc-del" onclick="deleteSavedSearch(' + s.id + ')" title="Delete">×</button>'
+    + '</span>').join("");
+}
+
+async function saveCurrentSearch(){
+  const f = feedFilterValues();
+  if(!f.q && !f.country && !f.cpv && !f.deadline && !f.notice && f.valMin === null && f.valMax === null){
+    toast("Set at least one filter before saving."); return;
+  }
+  const name = prompt("Name this search (it will appear as a chip, and in your daily email):",
+    f.cpv ? ("CPV " + f.cpv) : (f.q || f.country || "My search"));
+  if(!name || !name.trim()) return;
+  try{
+    await db("saved_searches", { method: "POST", body: JSON.stringify({
+      name: name.trim().slice(0, 80),
+      query: f.q || null,
+      countries: f.country ? [f.country] : null,
+      cpv: f.cpv ? f.cpv.split(/[,;]/).map(s=>s.trim()).filter(Boolean) : null,
+      notice_types: f.notice ? [f.notice] : null,
+      deadline_days: f.deadline ? Number(f.deadline) : null,
+      value_min_eur: f.valMin,
+      value_max_eur: f.valMax,
+      include_unknown_value: f.inclUnknown
+    })});
+    toast("Saved. Daily email alerts are ON for this search (🔔 to toggle).");
+    await loadSavedSearches();
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+function applySavedSearch(id){
+  const s = (SAVED_SEARCHES || []).find(x => x.id === id);
+  if(!s) return;
+  document.getElementById("oppSearch").value = s.query || "";
+  document.getElementById("oppCountry").value = (s.countries && s.countries[0]) || "";
+  document.getElementById("ffCpv").value = (s.cpv || []).join(", ");
+  document.getElementById("ffDeadline").value = s.deadline_days ? String(s.deadline_days) : "";
+  document.getElementById("ffNotice").value = (s.notice_types && s.notice_types[0]) || "";
+  document.getElementById("ffValMin").value = s.value_min_eur ?? "";
+  document.getElementById("ffValMax").value = s.value_max_eur ?? "";
+  document.getElementById("ffUnknown").checked = s.include_unknown_value !== false;
+  document.getElementById("feedFilters").classList.add("open");
+  document.getElementById("ffToggle").classList.add("active");
+  loadFeed(true);
+}
+
+async function toggleSavedAlert(id){
+  const s = (SAVED_SEARCHES || []).find(x => x.id === id);
+  if(!s) return;
+  try{
+    await db("saved_searches?id=eq." + id, { method: "PATCH",
+      body: JSON.stringify({ email_alerts: !s.email_alerts }) });
+    s.email_alerts = !s.email_alerts;
+    renderSavedBar();
+    toast(s.email_alerts ? "Daily email ON for \"" + s.name + "\"" : "Daily email OFF for \"" + s.name + "\"");
+  }catch(e){ toast(friendlyError(e)); }
+}
+
+async function deleteSavedSearch(id){
+  const s = (SAVED_SEARCHES || []).find(x => x.id === id);
+  if(!s || !confirm('Delete saved search "' + s.name + '"?')) return;
+  try{
+    await db("saved_searches?id=eq." + id, { method: "DELETE" });
+    SAVED_SEARCHES = SAVED_SEARCHES.filter(x => x.id !== id);
+    renderSavedBar();
+  }catch(e){ toast(friendlyError(e)); }
 }
 
 async function translateDeep(matchId){
