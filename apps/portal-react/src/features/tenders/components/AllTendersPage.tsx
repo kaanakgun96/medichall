@@ -1,11 +1,10 @@
-import { ArrowLeft, Database, Globe2, ShieldCheck } from "lucide-react";
+import { Database, Globe2, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { filtersToSavedSearch, savedSearchToFilters, suggestedSavedSearchName } from "../../saved-searches/types";
 import { SaveSearchDialog } from "../../saved-searches/components/SaveSearchDialog";
 import { SavedSearchesBar } from "../../saved-searches/components/SavedSearchesBar";
 import { useSavedSearches } from "../../saved-searches/hooks/useSavedSearches";
 import type { SavedSearch } from "../../saved-searches/types";
-import { Brand } from "../../../shared/components/Brand";
 import { Toast, type ToastMessage } from "../../../shared/components/Toast";
 import { useTenderFacets } from "../hooks/useTenderFacets";
 import { useTenderSearch } from "../hooks/useTenderSearch";
@@ -24,7 +23,6 @@ export function AllTendersPage() {
   const tenderSearch = useTenderSearch(filters);
   const { facets, status: facetsStatus } = useTenderFacets();
   const savedSearches = useSavedSearches();
-  const legacyPortalUrl = String(import.meta.env.VITE_LEGACY_PORTAL_URL ?? "/portal.html");
 
   const showToast = useCallback((text: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -88,20 +86,7 @@ export function AllTendersPage() {
   };
 
   return (
-    <div className="app-shell">
-      <header className="site-header">
-        <div className="page-width site-header__inner">
-          <Brand />
-          <div className="site-header__actions">
-            <span className="migration-badge">React migration · 01</span>
-            <a className="header-link" href={legacyPortalUrl}>
-              <ArrowLeft size={16} aria-hidden="true" /> Current Partner Portal
-            </a>
-          </div>
-        </div>
-      </header>
-
-      <main>
+    <>
         <section className="hero">
           <div className="page-width hero__inner">
             <div className="hero__copy">
@@ -133,7 +118,7 @@ export function AllTendersPage() {
             searches={savedSearches.searches}
             error={savedSearches.error}
             mutatingId={savedSearches.mutatingId}
-            legacyPortalUrl={legacyPortalUrl}
+            legacyPortalUrl={String(import.meta.env.VITE_LEGACY_PORTAL_URL ?? "/portal.html")}
             onApply={applySavedSearch}
             onToggleAlert={(search) => void toggleSavedAlert(search)}
             onDelete={(search) => void removeSavedSearch(search)}
@@ -147,11 +132,6 @@ export function AllTendersPage() {
             onReset={() => setFilters(DEFAULT_TENDER_FILTERS)}
           />
         </div>
-      </main>
-
-      <footer className="site-footer">
-        <div className="page-width">MedicHall Tender Intelligence · Data sourced from official procurement notices.</div>
-      </footer>
 
       <SaveSearchDialog
         open={saveDialogOpen}
@@ -162,6 +142,6 @@ export function AllTendersPage() {
         onSave={(name) => void saveSearch(name)}
       />
       <Toast message={toast} onDismiss={() => setToast(null)} />
-    </div>
+    </>
   );
 }

@@ -47,9 +47,11 @@ app includes:
   explicitly label machine-translated English titles, mark ECB conversion with
   `≈`, display up to four CPV codes, and link only to HTTP(S) source URLs.
 
-Not migrated yet: login/registration, dashboards, company profiles, products,
-RFQs, matched opportunities, AI assistant, deep tender analysis, document
-uploads, buyer tools, admin, public catalog pages, or matchmaking.
+My Opportunities was migrated in the next isolated step documented in
+`REACT_MY_OPPORTUNITIES_MIGRATION.md`. Still not migrated: login/registration,
+dashboards, company and matching-profile editing, products, RFQs, AI assistant,
+deep tender analysis, document uploads, buyer tools, admin, public catalog
+pages, or the separate matchmaking product.
 
 ## 3. Existing Supabase compatibility
 
@@ -213,7 +215,8 @@ There is no data migration to reverse and no production HTML file to restore.
 
 ## 9. Next migration step
 
-Migrate one portal feature at a time into `apps/portal-react/src/features/`.
+Continue migrating one portal feature at a time into
+`apps/portal-react/src/features/`.
 Before each step, record its current PostgREST/RPC/session contract, keep the
 legacy route live, add compatibility tests, stage it separately, and change a
 production route only after explicit acceptance.
