@@ -1,5 +1,4 @@
 import type { Tender } from "../types";
-export { safeExternalUrl } from "../../../shared/utils/safe-external-url";
 
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
@@ -18,4 +17,14 @@ export function formatTenderValue(tender: Tender): string | null {
     return `${original} (≈ ${numberFormatter.format(Number(tender.estimated_value_eur))} EUR)`;
   }
   return original;
+}
+
+export function safeExternalUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
