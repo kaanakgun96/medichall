@@ -2748,57 +2748,55 @@ function toggleDeepLang(matchId){
   paintDeepResult(matchId);
 }
 
+// Çeviri v2 (2026-07-20): tek dev istek yerine PARÇALI çeviri.
+// Neden: eski sürüm özet+lotlar+ürünleri tek JSON'da gönderiyordu; büyük
+// ihalede Haiku'nun yanıtı max_tokens'a çarpıp ortadan kesiliyor, JSON.parse
+// "Unterminated string" ile patlıyordu. Şimdi:
+//   Parça 1: özet + fit_narrative + missing_information + lotlar (metinler)
+//   Parça 2: ürün tablosu (yalnız ürün VARSA — yoksa çağrı hiç yapılmaz)
+// Her parça küçük → kesilme pratikte biter. Bir parça patlarsa diğeri yine
+// uygulanır; patlayan kısım orijinal dilde kalır ve kullanıcı bilgilendirilir.
+// Kanıt alıntıları (evidence) tasarım gereği ASLA çevrilmez.
+const TRANSLATE_INSTRUCTION = "Translate every text value in this JSON to English. Keep numbers, units, codes and certification names (CE, MDR, ISO 13485, UNE, EN) unchanged. Do NOT add, remove or reorder items. Reply with ONLY the JSON, no markdown fences, no commentary.";
+
+async function translateChunk(payload){
+  const data = await callMedicHallAI({
+    mode: "translate",                       // v2.1 fonksiyonunda gerçek mod; eski fonksiyonda "general"a düşer
+    instruction: TRANSLATE_INSTRUCTION,
+    prompt: JSON.stringify(payload),
+    context: { role: "manufacturer", task: "translate" }   // eski fonksiyon için geriye uyumlu tespit
+  });
+  if(data && data.truncated){
+    // v2.1 fonksiyonu kesilmeyi açıkça bildirir — yarım metni parse etmeye çalışma.
+    throw new Error("translation output was cut off (too long)");
+  }
+  const raw = String(data.answer || data.result || "").replace(/```json|```/g, "").trim();
+  return JSON.parse(raw);
+}
+
 async function translateDeep(matchId){
   const c = DEEP_CACHE[matchId];
   if(!c || c.busy || c.en) return;
   c.busy = true; paintDeepResult(matchId);
+
+  const base = c.base;
+  const en = JSON.parse(JSON.stringify(base));           // çeviri bu kopyaya işlenir
+  en._match = JSON.parse(JSON.stringify(base._match || {}));
+  let okParts = 0, failedParts = [];
+
+  // ---- Parça 1: metinler (özet, narrative, eksik bilgi, lot başlık/gerekçe)
   try{
-    const base = c.base;
-    const prods = (Array.isArray(base.extracted_products) ? base.extracted_products : []).slice(0, 15);
-    const payload = {
-      products: prods.map((p, i) => ({
-        i,
-        product_name: p.product_name || "",
-        dimensions: p.dimensions || "",
-        material: p.material || "",
-        sterility: p.sterility || "",
-        lot_number: p.lot_number || "",
-        quantity_unit: p.quantity_unit || "",
-        required_certifications: p.required_certifications || []
-      })),
-      missing_information: Array.isArray(base.missing_information) ? base.missing_information.slice(0, 8) : [],
+    const tr = await translateChunk({
       summary: base.document_analysis_notes || "",
       fit_narrative: (base._match && base._match.fit_narrative) || "",
+      missing_information: Array.isArray(base.missing_information) ? base.missing_information.slice(0, 8) : [],
       lots: (Array.isArray(base.ai_lots) ? base.ai_lots : []).slice(0, 30).map((l, i) => ({ i, lot_title: l.lot_title || "", fit_reason: l.fit_reason || "" }))
-    };
-    const data = await callMedicHallAI({
-      mode: "general",
-      instruction: "Translate every text value in this JSON to English. Keep numbers, units, codes and certification names (CE, MDR, ISO 13485, UNE, EN) unchanged. Do NOT add, remove or reorder items. Reply with ONLY the JSON, no markdown fences, no commentary.",
-      prompt: JSON.stringify(payload),
-      context: { role: "manufacturer", task: "translate" }
     });
-    const raw = String(data.answer || data.result || "").replace(/```json|```/g, "").trim();
-    const tr = JSON.parse(raw);
-    // Çeviriyi derin kopyaya uygula (evidence orijinal kalır)
-    const en = JSON.parse(JSON.stringify(base));
-    const list = Array.isArray(en.extracted_products) ? en.extracted_products : [];
-    for(const tp of (tr.products || [])){
-      const p = list[tp.i];
-      if(!p) continue;
-      if(tp.product_name) p.product_name = tp.product_name;
-      if(tp.dimensions) p.dimensions = tp.dimensions;
-      if(tp.material) p.material = tp.material;
-      if(tp.sterility) p.sterility = tp.sterility;
-      if(tp.lot_number) p.lot_number = tp.lot_number;
-      if(tp.quantity_unit) p.quantity_unit = tp.quantity_unit;
-      if(Array.isArray(tp.required_certifications) && tp.required_certifications.length) p.required_certifications = tp.required_certifications;
-    }
+    if(tr.summary) en.document_analysis_notes = tr.summary;
+    if(tr.fit_narrative) en._match.fit_narrative = tr.fit_narrative;
     if(Array.isArray(tr.missing_information) && tr.missing_information.length){
       en.missing_information = tr.missing_information;
     }
-    if(tr.summary) en.document_analysis_notes = tr.summary;
-    en._match = JSON.parse(JSON.stringify(base._match || {}));
-    if(tr.fit_narrative) en._match.fit_narrative = tr.fit_narrative;
     const enLots = Array.isArray(en.ai_lots) ? en.ai_lots : [];
     for(const tl of (tr.lots || [])){
       const l = enLots[tl.i];
@@ -2806,12 +2804,51 @@ async function translateDeep(matchId){
       if(tl.lot_title) l.lot_title = tl.lot_title;
       if(tl.fit_reason) l.fit_reason = tl.fit_reason;
     }
-    c.en = en; c.showing = "en";
-  }catch(e){
-    toast("Translation failed: " + friendlyError(e));
-  }finally{
-    c.busy = false; paintDeepResult(matchId);
+    okParts++;
+  }catch(e){ failedParts.push("summary & lots (" + friendlyError(e) + ")"); }
+
+  // ---- Parça 2: ürün tablosu — yalnız ürün varsa (yoksa AI hakkı harcanmaz)
+  const prods = (Array.isArray(base.extracted_products) ? base.extracted_products : []).slice(0, 15);
+  if(prods.length){
+    try{
+      const tr = await translateChunk({
+        products: prods.map((p, i) => ({
+          i,
+          product_name: p.product_name || "",
+          dimensions: p.dimensions || "",
+          material: p.material || "",
+          sterility: p.sterility || "",
+          lot_number: p.lot_number || "",
+          quantity_unit: p.quantity_unit || "",
+          required_certifications: p.required_certifications || []
+        }))
+      });
+      const list = Array.isArray(en.extracted_products) ? en.extracted_products : [];
+      for(const tp of (tr.products || [])){
+        const p = list[tp.i];
+        if(!p) continue;
+        if(tp.product_name) p.product_name = tp.product_name;
+        if(tp.dimensions) p.dimensions = tp.dimensions;
+        if(tp.material) p.material = tp.material;
+        if(tp.sterility) p.sterility = tp.sterility;
+        if(tp.lot_number) p.lot_number = tp.lot_number;
+        if(tp.quantity_unit) p.quantity_unit = tp.quantity_unit;
+        if(Array.isArray(tp.required_certifications) && tp.required_certifications.length) p.required_certifications = tp.required_certifications;
+      }
+      okParts++;
+    }catch(e){ failedParts.push("product table (" + friendlyError(e) + ")"); }
   }
+
+  // ---- Sonuç: en az bir parça çevrildiyse EN görünümüne geç
+  if(okParts > 0){
+    c.en = en; c.showing = "en";
+    if(failedParts.length){
+      toast("Partially translated — kept original for: " + failedParts.join("; "));
+    }
+  }else{
+    toast("Translation failed: " + (failedParts[0] || "unknown error"));
+  }
+  c.busy = false; paintDeepResult(matchId);
 }
 
 function showPanel(name){

@@ -1,4 +1,19 @@
-// MedicHall AI Edge Function — v2.0 (Claude / Anthropic API)
+// MedicHall AI Edge Function — v2.1 (Claude / Anthropic API)
+//
+// v2.1 DEĞİŞİKLİKLERİ (2026-07-20) — "Translation failed: Unterminated string" düzeltmesi:
+//   Kök neden 1: max_tokens sabit 1000 idi. Çeviri, girdiyle aynı boyda çıktı
+//     üretmek zorunda; büyük ihalelerde Haiku'nun JSON'u ortada kesiliyordu
+//     → JSON.parse "Unterminated string". Artık mod bazlı bütçe:
+//     translate → 6000 token, diğerleri → 1000 (maliyet koruması aynen durur).
+//   Kök neden 2: MAX_INPUT_CHARS=12000 her mod için tekti; büyük çeviri
+//     payload'ı sessizce kırpılıp Haiku'ya YARIM JSON gidebiliyordu.
+//     translate için sınır 24000 karakter. (portal.html v2 çeviriyi zaten
+//     parçalara böldüğü için pratikte bu sınıra yaklaşılmaz — çifte emniyet.)
+//   Yeni: "translate" artık gerçek bir mode (loglarda da ayrışır) ve yanıt
+//     stop_reason'a göre truncated bayrağı taşır — istemci yarım çıktıyı
+//     JSON.parse'a sokmadan anlaşılır hata gösterebilir.
+//   Geriye uyumluluk: eski portal mode:"general" + context.task:"translate"
+//     gönderiyordu; o kombinasyon da translate bütçesi alır.
 //
 // Drop-in replacement for the OpenAI version:
 // - Same auth (Supabase JWT), same daily limits, same usage logging RPCs.
@@ -20,9 +35,12 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const MAX_INPUT_CHARS = 12_000;
+const MAX_INPUT_CHARS_TRANSLATE = 24_000;   // v2.1: çeviri payload'ı kırpılmasın
 const MAX_INSTRUCTION_CHARS = 1_500;
 const DAILY_LIMIT_DEFAULT = 20;
 const DEFAULT_MODEL = "claude-haiku-4-5";
+const MAX_TOKENS_DEFAULT = 1000;
+const MAX_TOKENS_TRANSLATE = 6000;          // v2.1: çeviri çıktısı girdi kadar uzun olabilir
 
 const ALLOWED_MODES = new Set([
   "general",
@@ -30,6 +48,7 @@ const ALLOWED_MODES = new Set([
   "tender_match",
   "sales_email",
   "buyer_assistant",
+  "translate",            // v2.1: çeviri artık birinci sınıf mod
   // reserved names for future modules
   "tender-analysis",
   "rfq-builder",
@@ -53,6 +72,7 @@ type AnthropicContentBlock = {
 
 type AnthropicResponse = {
   content?: AnthropicContentBlock[];
+  stop_reason?: string;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -162,11 +182,21 @@ Deno.serve(async (req: Request) => {
   const requestedMode = cleanText(payload.mode, 80) || "general";
   const mode = ALLOWED_MODES.has(requestedMode) ? requestedMode : "general";
   const instruction = cleanText(payload.instruction, MAX_INSTRUCTION_CHARS);
-  // portal.html sends "prompt"; newer clients may send "input". Accept both.
-  const input = cleanText(payload.input ?? payload.prompt, MAX_INPUT_CHARS);
   const context = payload.context && typeof payload.context === "object"
     ? payload.context
     : {};
+
+  // v2.1: çeviri tespiti — yeni istemci mode:"translate" gönderir; eski
+  // istemci mode:"general" + context.task:"translate" gönderiyordu. İkisi de
+  // çeviri bütçesi alır.
+  const isTranslate = mode === "translate" ||
+    cleanText((context as Record<string, unknown>).task, 40) === "translate";
+
+  // portal.html sends "prompt"; newer clients may send "input". Accept both.
+  const input = cleanText(
+    payload.input ?? payload.prompt,
+    isTranslate ? MAX_INPUT_CHARS_TRANSLATE : MAX_INPUT_CHARS,
+  );
 
   if (!input) {
     return json(req, { error: "Please enter a request." }, 400);
@@ -240,7 +270,9 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: Deno.env.get("ANTHROPIC_MODEL") || DEFAULT_MODEL,
-        max_tokens: 1000,
+        // v2.1: mod bazlı çıktı bütçesi. Çeviri girdiyle aynı boyda çıktı
+        // üretir; 1000 token büyük ihalede JSON'u ortadan kesiyordu.
+        max_tokens: isTranslate ? MAX_TOKENS_TRANSLATE : MAX_TOKENS_DEFAULT,
         system: systemPrompt,
         messages: [
           { role: "user", content: userPrompt },
@@ -288,6 +320,11 @@ Deno.serve(async (req: Request) => {
       return json(req, { error: "AI returned an empty response." }, 502);
     }
 
+    // v2.1: çıktı token sınırına çarptıysa istemciye açıkça söyle — istemci
+    // yarım metni JSON.parse'a sokup şifreli hata üretmek yerine anlaşılır
+    // mesaj gösterebilir.
+    const truncated = data.stop_reason === "max_tokens";
+
     const finish = await adminClient.rpc("finish_medichall_ai_request", {
       p_usage_id: usageId,
       p_status: "completed",
@@ -295,7 +332,7 @@ Deno.serve(async (req: Request) => {
       p_prompt_tokens: promptTokens,
       p_completion_tokens: completionTokens,
       p_total_tokens: totalTokens,
-      p_error_code: null,
+      p_error_code: truncated ? "TRUNCATED_OUTPUT" : null,
     });
 
     if (finish.error) console.error("AI usage finalization error", finish.error);
@@ -304,6 +341,7 @@ Deno.serve(async (req: Request) => {
     return json(req, {
       answer: result,
       result,
+      truncated,
       remaining_today: remaining,
       daily_limit: dailyLimit,
     });
