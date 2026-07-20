@@ -113,6 +113,7 @@ Yapıldı ve canlıda (17-20 Temmuz): GitHub tam senkronu ✓ · Sprint A (filtr
 - [ ] products tablosundan matchmaking'e gerçek ürün adları.
 - [ ] Küçük boyut için logo varyantı (favicon'da H okunmuyor olabilir).
 - Rafta (bilerek): Win Probability / Competitor Intelligence (gerçek sonuç verisi birikince), PWA/mobil, pricing sayfası.
+- Rafta (bilerek, 20 Tem kararı — B şıkkı): **React portal taşıması** — GPT `apps/portal-react/` altında All Tenders + My Opportunities'i React'e taşıdı (disiplinli iş: canlıya dokunmadı, kurallara uydu, rollback dokümanı bile yazdı). Ali Kaan kararıyla develop'tan revert edildi ve `experiment/react-portal` dalında EKSIKSIZ korunuyor. Gerekçe: build zinciri (pnpm/Vite) "Ali Kaan tek başına cPanel'den deploy eder" bağımsızlığını kırar + çift bakım yükü; trafiği olmayan siteye bugün erken. Yeniden açılma tetiği: gerçek kullanıcı trafiği + düzenli build alacak biri. develop = canlının gerçeği sözleşmesi geçerli.
 
 ## 9. BİLİNEN HASSAS NOKTALAR
 
