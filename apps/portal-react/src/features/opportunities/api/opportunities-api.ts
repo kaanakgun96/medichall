@@ -42,6 +42,8 @@ type AuthUser = {
 type CompanyRow = {
   id: number;
   name: string | null;
+  description: string | null;
+  certifications: string | null;
 };
 
 export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser> {
@@ -53,13 +55,20 @@ export async function fetchOwnedCompany(
   signal?: AbortSignal,
 ): Promise<PartnerCompany | null> {
   const parameters = new URLSearchParams({
-    select: "id,name",
+    select: "id,name,description,certifications",
     owner_id: `eq.${userId}`,
     limit: "1",
   });
   const rows = await supabaseRequest<CompanyRow[]>(`/rest/v1/companies?${parameters}`, { signal });
   const company = rows[0];
-  return company ? { id: Number(company.id), name: company.name } : null;
+  return company
+    ? {
+        id: Number(company.id),
+        name: company.name,
+        description: company.description,
+        certifications: company.certifications,
+      }
+    : null;
 }
 
 export type OpportunityPage = {

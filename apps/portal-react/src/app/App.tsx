@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DashboardPage } from "../features/dashboard/components/DashboardPage";
 import { OpportunitiesPage } from "../features/opportunities/components/OpportunitiesPage";
 import { AllTendersPage } from "../features/tenders/components/AllTendersPage";
 import { PortalHeader } from "../shared/components/PortalHeader";
@@ -19,7 +20,9 @@ export function App() {
     <div className="app-shell">
       <PortalHeader activeRoute={route} legacyPortalUrl={legacyPortalUrl} />
       <main>
-        {route === "my-opportunities" ? (
+        {route === "dashboard" ? (
+          <DashboardPage legacyPortalUrl={legacyPortalUrl} />
+        ) : route === "my-opportunities" ? (
           <OpportunitiesPage legacyPortalUrl={legacyPortalUrl} />
         ) : (
           <AllTendersPage />

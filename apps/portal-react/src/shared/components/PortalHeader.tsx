@@ -15,7 +15,7 @@ export function PortalHeader({ activeRoute, legacyPortalUrl }: PortalHeaderProps
         <Brand />
         <PortalNavigation activeRoute={activeRoute} />
         <div className="site-header__actions">
-          <span className="migration-badge">React migration · 02</span>
+          <span className="migration-badge">React migration · 03</span>
           <a className="header-link" href={legacyPortalUrl}>
             <ArrowLeft size={16} aria-hidden="true" />
             <span>Current Partner Portal</span>

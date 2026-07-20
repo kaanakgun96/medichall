@@ -5,6 +5,8 @@ export type ConfidenceLevel = "low" | "medium" | "high";
 export type PartnerCompany = {
   id: number;
   name: string | null;
+  description: string | null;
+  certifications: string | null;
 };
 
 export type OpportunityEvidence = {

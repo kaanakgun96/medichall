@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Globe2 } from "lucide-react";
+import { BriefcaseBusiness, Gauge, Globe2 } from "lucide-react";
 import type { PortalRoute } from "../routing/portal-routes";
 import { routeHref } from "../routing/portal-routes";
 
@@ -11,13 +11,14 @@ const links: Array<{
   label: string;
   icon: typeof Globe2;
 }> = [
+  { route: "dashboard", label: "Dashboard", icon: Gauge },
   { route: "all-tenders", label: "All Tenders", icon: Globe2 },
   { route: "my-opportunities", label: "My Opportunities", icon: BriefcaseBusiness },
 ];
 
 export function PortalNavigation({ activeRoute }: PortalNavigationProps) {
   return (
-    <nav className="portal-navigation" aria-label="Tender Intelligence">
+    <nav className="portal-navigation" aria-label="Partner portal">
       {links.map(({ route, label, icon: Icon }) => (
         <a
           key={route}
