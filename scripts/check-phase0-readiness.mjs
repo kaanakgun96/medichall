@@ -171,21 +171,102 @@ const manifest = JSON.parse(
 const phaseZeroMigration = read(
   "supabase/migrations/202607230001_matching_phase_zero_observability.sql",
 );
+const backendV2 = JSON.parse(
+  read("supabase/observability/backend-v2-deployment.json"),
+);
+const supersededPhaseZeroSources = new Set([
+  ...backendV2.functions.map((entry) => entry.entrypoint),
+  ...backendV2.shared_sources.map((entry) => entry.path),
+]);
 for (const version of manifest.versions) {
   for (const [sourcePath, expectedHash] of Object.entries(version.sources)) {
     check(existsSync(repositoryPath(sourcePath)), `missing version source: ${sourcePath}`);
     if (!existsSync(repositoryPath(sourcePath))) continue;
-    const actualHash = sha256(sourcePath);
-    check(
-      actualHash === expectedHash,
-      `hash mismatch for ${sourcePath}: expected ${expectedHash}, got ${actualHash}`,
-    );
+    if (!supersededPhaseZeroSources.has(sourcePath)) {
+      const actualHash = sha256(sourcePath);
+      check(
+        actualHash === expectedHash,
+        `hash mismatch for ${sourcePath}: expected ${expectedHash}, got ${actualHash}`,
+      );
+    }
     check(
       phaseZeroMigration.includes(expectedHash),
       `Phase 0 migration does not record the manifest hash for ${sourcePath}`,
     );
   }
 }
+
+check(
+  backendV2.branch === "react-migration",
+  "Backend v2 deployment manifest targets the wrong branch",
+);
+check(
+  JSON.stringify(backendV2.migrations) === JSON.stringify([
+    "supabase/migrations/202607230002_document_intelligence_v2.sql",
+    "supabase/migrations/202607230003_match_score_v2.sql",
+  ]),
+  "Backend v2 deployment manifest has an unexpected migration scope",
+);
+const expectedV2Functions = new Map([
+  ["tender-attachment-discovery", true],
+  ["tender-document-engine", true],
+]);
+check(
+  backendV2.functions.length === expectedV2Functions.size,
+  "Backend v2 deployment manifest has an unexpected function count",
+);
+for (const entry of backendV2.functions) {
+  check(
+    expectedV2Functions.has(entry.name),
+    `unexpected Backend v2 function: ${entry.name}`,
+  );
+  check(
+    entry.verify_jwt === expectedV2Functions.get(entry.name),
+    `unexpected Backend v2 verify_jwt value for ${entry.name}`,
+  );
+  check(
+    entry.entrypoint === `supabase/functions/${entry.name}/index.ts`,
+    `Backend v2 function must use the root entrypoint: ${entry.name}`,
+  );
+  check(
+    sha256(entry.entrypoint) === entry.sha256,
+    `Backend v2 function hash mismatch: ${entry.entrypoint}`,
+  );
+}
+for (const source of backendV2.shared_sources) {
+  check(existsSync(repositoryPath(source.path)), `missing Backend v2 source: ${source.path}`);
+  if (!existsSync(repositoryPath(source.path))) continue;
+  check(
+    sha256(source.path) === source.sha256,
+    `Backend v2 source hash mismatch: ${source.path}`,
+  );
+}
+const backendV2Text = JSON.stringify(backendV2);
+check(
+  !/[A-Z_]+_SHA256/.test(backendV2Text),
+  "Backend v2 deployment manifest contains an unresolved hash placeholder",
+);
+for (const migration of backendV2.migrations) {
+  const content = read(migration);
+  check(
+    !/[A-Z_]+_SHA256/.test(content),
+    `${migration} contains an unresolved hash placeholder`,
+  );
+}
+const matchScoreV2 = JSON.parse(
+  read("supabase/observability/match-score-v2.json"),
+);
+check(
+  matchScoreV2.components.reduce(
+    (total, component) => total + Number(component.weight || 0),
+    0,
+  ) === 100,
+  "Match Score v2 component weights must total 100",
+);
+check(
+  matchScoreV2.activation?.maximum_company_batch === 100,
+  "Match Score v2 maximum company batch must remain 100",
+);
 
 const activeSqlInputs = [
   ...walk("supabase/migrations"),

@@ -1,0 +1,100 @@
+{
+  "version": "matching-score-v2.0.0",
+  "legacy_score_behavior": "unchanged",
+  "activation": {
+    "automatic_full_recompute": false,
+    "single_opportunity_rpc": "refresh_opportunity_match_score_v2",
+    "bounded_company_rpc": "refresh_company_match_scores_v2",
+    "maximum_company_batch": 100
+  },
+  "components": [
+    {
+      "name": "exact_product",
+      "weight": 24,
+      "missing": "not_applicable",
+      "source": "active company product names, profile product keywords, and document-extracted tender product names"
+    },
+    {
+      "name": "normalized_text",
+      "weight": 14,
+      "missing": "not_applicable",
+      "source": "normalized company product/profile terms and tender product/title terms"
+    },
+    {
+      "name": "cpv",
+      "weight": 14,
+      "missing": "not_applicable",
+      "source": "exact 8-digit CPV or documented prefix hierarchy"
+    },
+    {
+      "name": "semantic_similarity",
+      "weight": 8,
+      "missing": "not_applicable",
+      "source": "deterministic trigram plus token-set similarity; no embedding is claimed"
+    },
+    {
+      "name": "technical_specification",
+      "weight": 10,
+      "missing": "not_applicable",
+      "source": "company product descriptions and document-extracted technical requirements"
+    },
+    {
+      "name": "country",
+      "weight": 8,
+      "missing": "not_applicable",
+      "source": "company target countries and tender country"
+    },
+    {
+      "name": "certification",
+      "weight": 8,
+      "missing": "not_applicable",
+      "source": "company certificates and document-extracted certification requirements"
+    },
+    {
+      "name": "quantity_capacity",
+      "weight": 5,
+      "missing": "not_applicable",
+      "source": "reserved for comparable quantity and company-capacity units; current backend has no capacity unit"
+    },
+    {
+      "name": "packaging_unit",
+      "weight": 3,
+      "missing": "not_applicable",
+      "source": "company product descriptions and document-extracted packaging requirements"
+    },
+    {
+      "name": "supplier_profile",
+      "weight": 2,
+      "missing": "not_applicable",
+      "source": "company role/OEM/private-label capability and explicit tender wording"
+    },
+    {
+      "name": "engagement_signal",
+      "weight": 4,
+      "missing": "not_applicable",
+      "source": "saved, contacted, applied, or dismissed opportunity workflow state"
+    }
+  ],
+  "score_rule": "weighted mean across applicable components only",
+  "data_completeness_rule": "sum of weights for applicable components",
+  "confidence_rule": "data completeness multiplied by a deterministic document-evidence factor",
+  "document_evidence": {
+    "available": "at least one persisted evidence row references a tender document",
+    "pending": "no persisted document evidence exists",
+    "missing_evidence_effect": "document-derived components are null and confidence is reduced"
+  },
+  "cpv_hierarchy_scores": {
+    "exact_8_digits": 100,
+    "same_first_5_digits": 80,
+    "same_first_4_digits": 65,
+    "same_first_3_digits": 50,
+    "same_first_2_digits": 30,
+    "unrelated": 0
+  },
+  "quantity_rule": {
+    "compatible_capacity": 100,
+    "insufficient_capacity": "bounded proportional score with a floor of 10",
+    "missing_or_incomparable_units": null
+  },
+  "tenant_boundary": "RLS exposes only the owning company's v2 score rows to authenticated partners"
+}

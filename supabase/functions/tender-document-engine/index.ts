@@ -1,11 +1,22 @@
 /// <reference path="../_shared/edge-runtime.d.ts" />
 
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
+import mammoth from "npm:mammoth@1.9.0";
+import * as XLSX from "npm:xlsx@0.18.5";
+import { normalizePublicUrl } from "../_shared/attachment-discovery.ts";
 import {
-  PIPELINE_VERSIONS,
-  type PipelineRunHandle,
+  DOCUMENT_EXTRACTION_VERSION,
+  DOCUMENT_PROMPT_SCHEMA_VERSION,
+  estimatePdfPageCount,
+  type NormalizedDocumentAnalysis,
+  normalizeDocumentAnalysis,
+  shouldApplyExtraction,
+} from "../_shared/document-extraction-v2.ts";
+import {
   finishPipelineRun,
   finishPipelineStage,
+  PIPELINE_VERSIONS,
+  type PipelineRunHandle,
   recordDocumentAccessAttempt,
   sanitizeMessage,
   stableVersionHash,
@@ -22,10 +33,18 @@ const ALLOWED_ORIGINS = new Set([
 
 const MAX_DOCUMENTS = 6;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+const MAX_PDF_PAGES = 100;
+const DOWNLOAD_TIMEOUT_MS = 20_000;
+const PROVIDER_TIMEOUT_MS = 90_000;
+const MAX_TEXT_CHARACTERS = 200_000;
 const SUPPORTED_MIME_TYPES = new Set([
   "application/pdf",
   "text/plain",
   "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
 ]);
 
 type QueuePayload = {
@@ -44,40 +63,6 @@ type TenderDocumentRecord = {
   language_code?: string | null;
   source_confidence?: string | null;
   __inline_text?: string;
-};
-
-type AnalysisOutput = {
-  analysis_status: "completed" | "partial";
-  lots?: Array<Record<string, unknown>>;
-  fit_narrative?: string | null;
-  document_confidence_score: number;
-  data_completeness_score: number;
-  summary: string;
-  missing_information: string[];
-  products: Array<{
-    product_name: string;
-    normalized_product_name: string | null;
-    lot_number: string | null;
-    quantity_value: number | null;
-    quantity_unit: string | null;
-    packaging: string | null;
-    sterility: string | null;
-    material: string | null;
-    dimensions: string | null;
-    required_certifications: string[];
-    technical_requirements: string[];
-    confidence_score: number;
-    evidence: Array<{
-      document_id: number;
-      page_number: number | null;
-      sheet_name: string | null;
-      cell_range: string | null;
-      source_quote: string;
-      field_name: string;
-      extracted_value: string;
-      confidence_score: number;
-    }>;
-  }>;
 };
 
 function corsHeaders(req: Request): HeadersInit {
@@ -105,18 +90,8 @@ function json(req: Request, body: unknown, status = 200): Response {
   });
 }
 
-function clampScore(value: unknown): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(100, Math.round(parsed)));
-}
-
 function isSafeHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
+  return normalizePublicUrl(value)?.protocol === "https:";
 }
 
 function extractClaudeText(data: any): string {
@@ -139,11 +114,36 @@ function stripJsonFence(value: string): string {
 async function fetchAsBase64(url: string): Promise<{
   data: string;
   mimeType: string;
+  resolvedUrl: string;
+  redirectCount: number;
 }> {
-  const response = await fetch(url, {
-    redirect: "follow",
-    headers: { "User-Agent": "MedicHall-Tender-Document-Engine/1.0" },
-  });
+  let current = normalizePublicUrl(url);
+  if (!current || current.protocol !== "https:") {
+    throw new Error("Document URL is not a permitted public HTTPS URL");
+  }
+  let response: Response | null = null;
+  let redirectCount = 0;
+  while (true) {
+    response = await fetch(current.href, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      headers: { "User-Agent": "MedicHall-Tender-Document-Engine/2.0" },
+    });
+    if (response.status < 300 || response.status >= 400) break;
+    const location = response.headers.get("location");
+    if (!location) break;
+    if (redirectCount >= MAX_REDIRECTS) {
+      throw new Error("Document download exceeded the redirect limit");
+    }
+    const next = normalizePublicUrl(location, current.href);
+    if (!next || next.protocol !== "https:") {
+      throw new Error(
+        "Document redirect target is not a permitted public HTTPS URL",
+      );
+    }
+    current = next;
+    redirectCount++;
+  }
 
   if (!response.ok) {
     const error = new Error(`Could not download document (${response.status})`);
@@ -152,8 +152,9 @@ async function fetchAsBase64(url: string): Promise<{
         httpStatus: response.status,
         contentType: response.headers.get("content-type"),
         contentLength: Number(response.headers.get("content-length") || 0),
-        url: response.url || url,
+        url: response.url || current.href,
         isDirectFile: true,
+        redirectCount,
         error,
       },
     });
@@ -167,25 +168,68 @@ async function fetchAsBase64(url: string): Promise<{
       documentAccessClassification: {
         contentType: response.headers.get("content-type"),
         contentLength,
-        url: response.url || url,
+        url: response.url || current.href,
         isDirectFile: true,
         fileTooLarge: true,
+        redirectCount,
         error,
       },
     });
     throw error;
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!response.body) throw new Error("Document response has no body");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_FILE_BYTES) {
+      await reader.cancel();
+      const error = new Error("Document exceeds the configured size limit");
+      Object.assign(error, {
+        documentAccessClassification: {
+          contentType: response.headers.get("content-type"),
+          contentLength: totalBytes,
+          url: response.url || current.href,
+          isDirectFile: true,
+          fileTooLarge: true,
+          redirectCount,
+          error,
+        },
+      });
+      throw error;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let writeOffset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, writeOffset);
+    writeOffset += chunk.byteLength;
+  }
+  const responseMimeType = response.headers.get("content-type")?.split(";")[0]
+    .trim().toLowerCase() || "";
+  if (responseMimeType === "application/pdf") {
+    const pageCount = estimatePdfPageCount(bytes);
+    if (pageCount && pageCount > MAX_PDF_PAGES) {
+      throw new Error(
+        `PDF exceeds the configured ${MAX_PDF_PAGES}-page processing limit`,
+      );
+    }
+  }
   if (bytes.byteLength > MAX_FILE_BYTES) {
     const error = new Error("Document exceeds the configured size limit");
     Object.assign(error, {
       documentAccessClassification: {
         contentType: response.headers.get("content-type"),
         contentLength: bytes.byteLength,
-        url: response.url || url,
+        url: response.url || current.href,
         isDirectFile: true,
         fileTooLarge: true,
+        redirectCount,
         error,
       },
     });
@@ -200,13 +244,17 @@ async function fetchAsBase64(url: string): Promise<{
 
   return {
     data: btoa(binary),
-    mimeType:
-      response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ||
-      "application/pdf",
+    mimeType: responseMimeType || "application/pdf",
+    resolvedUrl: response.url || current.href,
+    redirectCount,
   };
 }
 
-async function buildClaudeContent(documents: any[], documentMap: any[], companyContext: any) {
+async function buildClaudeContent(
+  documents: any[],
+  documentMap: any[],
+  companyContext: any,
+) {
   const content: any[] = [];
 
   for (const document of documents) {
@@ -253,8 +301,11 @@ async function buildClaudeContent(documents: any[], documentMap: any[], companyC
           media_type: "application/pdf",
           data: downloaded.data,
         },
-        title: document.file_name || document.title || `Document ${document.id}`,
-        context: `MedicHall tender document ID: ${document.id}. Type: ${document.document_type || "other"}.`,
+        title: document.file_name || document.title ||
+          `Document ${document.id}`,
+        context: `MedicHall tender document ID: ${document.id}. Type: ${
+          document.document_type || "other"
+        }.`,
         citations: { enabled: true },
       });
       continue;
@@ -267,8 +318,67 @@ async function buildClaudeContent(documents: any[], documentMap: any[], companyC
       content.push({
         type: "text",
         text: [
-          `<document id="${document.id}" filename="${document.file_name || ""}">`,
-          decoded.slice(0, 200_000),
+          `<document id="${document.id}" filename="${
+            document.file_name || ""
+          }">`,
+          decoded.slice(0, MAX_TEXT_CHARACTERS),
+          "</document>",
+        ].join("\n"),
+      });
+      continue;
+    }
+
+    const bytes = Uint8Array.from(
+      atob(downloaded.data),
+      (character) => character.charCodeAt(0),
+    );
+    if (
+      mimeType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      const result = await mammoth.extractRawText({
+        arrayBuffer: Uint8Array.from(bytes).buffer,
+      });
+      content.push({
+        type: "text",
+        text: [
+          `<document id="${document.id}" filename="${
+            document.file_name || ""
+          }" converted_from="docx">`,
+          String(result.value || "").slice(0, MAX_TEXT_CHARACTERS),
+          "</document>",
+        ].join("\n"),
+      });
+      continue;
+    }
+
+    if (
+      mimeType ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      mimeType === "application/vnd.ms-excel"
+    ) {
+      const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+      const sheets: string[] = [];
+      let remaining = MAX_TEXT_CHARACTERS;
+      for (const sheetName of workbook.SheetNames.slice(0, 20)) {
+        if (remaining <= 0) break;
+        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], {
+          blankrows: false,
+        });
+        if (!csv.trim()) continue;
+        const block = `<sheet name="${
+          sheetName.replaceAll('"', "")
+        }">\n${csv}\n</sheet>`;
+        sheets.push(block.slice(0, remaining));
+        remaining -= block.length;
+      }
+      content.push({
+        type: "text",
+        text: [
+          `<document id="${document.id}" filename="${
+            document.file_name || ""
+          }" converted_from="spreadsheet">`,
+          ...sheets,
           "</document>",
         ].join("\n"),
       });
@@ -299,9 +409,12 @@ STRICT RULES:
    - or extraction confidence is limited.
 11. Confidence represents evidence strength, not how plausible the result sounds.
 12. Return JSON only. Do not add markdown or commentary outside JSON.
-13. "lots": list each lot the documents explicitly define (max 30). catalog_fit_score compares the lot against the COMPANY PROFILE below (keyword overlap, certifications, product family) — 0 if the profile is empty or clearly unrelated. fit_reason is one short sentence.
-14. "fit_narrative": 2-3 sentences addressed to the company ("Your company ..."), based ONLY on the COMPANY PROFILE below and facts extracted from the documents. Null if the profile is empty.
-15. "summary": 2-4 plain-language sentences a busy sales manager can read in 15 seconds: what is being bought, by whom, how big, key requirements.
+13. Preserve original-language values and provide a conservative English-normalized value only when the source proves the meaning.
+14. Normalize decimal separators and units without changing quantity meaning. Quantity and package size are separate fields. Never multiply them.
+15. Mark each requirement mandatory, descriptive, or unknown exactly as the document states.
+16. "lots": list each lot the documents explicitly define (max 30). Lots are tender-global factual data and MUST NOT contain company fit scores.
+17. "fit_narrative": 2-3 sentences addressed to the company ("Your company ..."), based ONLY on the COMPANY PROFILE below and proven tender facts. Null if the profile is empty. This value is stored only on the requesting company's match.
+18. "summary": 2-4 plain-language sentences a busy sales manager can read in 15 seconds: what is being bought, by whom, how big, and key requirements.
 
 COMPANY PROFILE (for lots.catalog_fit_score and fit_narrative ONLY — never treat it as tender evidence):
 ${JSON.stringify(companyContext || {}, null, 2)}
@@ -316,19 +429,51 @@ Return this exact JSON structure:
   "data_completeness_score": 0-100,
   "summary": "brief factual summary",
   "missing_information": ["..."],
+  "tender": {
+    "title_original": "exact source title or null",
+    "title_normalized_en": "conservative English normalization or null",
+    "authority_original": "exact contracting authority or null",
+    "authority_normalized_en": "conservative English normalization or null",
+    "country_code": "ISO-2 code only when proven or null",
+    "country_name_original": "exact country wording or null",
+    "publication_date": "ISO date or null",
+    "deadline_at": "ISO timestamp with source timezone when available or null",
+    "cpv_codes": ["8-digit CPV codes only"],
+    "estimated_value": number or null,
+    "currency": "ISO currency or null",
+    "delivery_requirements": ["explicit facts only"],
+    "submission_languages": ["explicit facts only"],
+    "document_languages": ["languages evidenced by the supplied documents"]
+  },
   "products": [
     {
       "product_name": "exact document wording",
       "normalized_product_name": "optional conservative English normalization or null",
+      "product_description_original": "exact source description or null",
+      "product_description_normalized_en": "conservative English normalization or null",
       "lot_number": "lot identifier or null",
       "quantity_value": number or null,
       "quantity_unit": "original unit or null",
+      "quantity_scope": "annual|contract|estimated|minimum|package|lot|unknown",
       "packaging": "explicit packaging information or null",
+      "packaging_details": {
+        "package_quantity": number or null,
+        "package_unit": "box|pack|carton or original unit, or null",
+        "units_per_package": number or null
+      },
       "sterility": "explicit sterility requirement or null",
       "material": "explicit material or null",
       "dimensions": "explicit dimensions or null",
       "required_certifications": ["only explicit requirements"],
       "technical_requirements": ["only explicit requirements"],
+      "requirements": [
+        {
+          "name": "exact requirement name",
+          "value": "exact source value or null",
+          "normalized_value": "conservative normalized value or null",
+          "status": "mandatory|descriptive|unknown"
+        }
+      ],
       "confidence_score": 0-100,
       "evidence": [
         {
@@ -337,8 +482,11 @@ Return this exact JSON structure:
           "sheet_name": null,
           "cell_range": null,
           "source_quote": "short exact quote",
-          "field_name": "product_name|quantity|packaging|sterility|material|dimensions|certification|technical_requirement",
+          "field_name": "buyer|certification|country|currency|deadline|delivery|dimensions|language|material|packaging|product_name|publication_date|quantity|sterility|technical_requirement|tender_title|value",
           "extracted_value": "value proven by quote",
+          "normalized_value": "conservative normalized value or null",
+          "requirement_status": "mandatory|descriptive|unknown",
+          "source_language": "ISO language code or null",
           "confidence_score": 0-100
         }
       ]
@@ -351,9 +499,7 @@ Return this exact JSON structure:
       "estimated_quantity": number or null,
       "quantity_unit": "string or null",
       "estimated_value": number or null,
-      "currency": "string or null",
-      "catalog_fit_score": 0-100,
-      "fit_reason": "one short sentence"
+      "currency": "string or null"
     }
   ],
   "fit_narrative": "2-3 sentences or null"
@@ -372,11 +518,21 @@ async function processJob(
 ) {
   const { data: job, error: jobError } = await adminClient
     .from("tender_document_analysis_jobs")
-    .select("id,tender_id,company_id,selected_document_ids,status,attempt_count")
+    .select(
+      "id,tender_id,company_id,selected_document_ids,status,attempt_count",
+    )
     .eq("id", jobId)
     .single();
 
   if (jobError || !job) throw new Error("Analysis job not found");
+
+  const { data: existingTender } = await adminClient
+    .from("tenders")
+    .select(
+      "document_analysis_status,document_confidence_score,last_document_analysis_at,ai_extraction_version,document_analysis_trace_id",
+    )
+    .eq("id", job.tender_id)
+    .single();
 
   const model = Deno.env.get("DOC_ENGINE_MODEL") ||
     Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
@@ -393,8 +549,8 @@ async function processJob(
       attempt_count: Number(job.attempt_count || 0) + 1,
       model_name: model,
       trace_id: pipelineRun.traceId,
-      extraction_version: PIPELINE_VERSIONS.aiExtraction,
-      prompt_schema_version: PIPELINE_VERSIONS.aiExtraction,
+      extraction_version: DOCUMENT_EXTRACTION_VERSION,
+      prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION,
       error_code: null,
       error_message: null,
     })
@@ -404,12 +560,17 @@ async function processJob(
     .from("tenders")
     .update({
       document_analysis_status: "processing",
-      document_parser_version: PIPELINE_VERSIONS.documentParsing,
-      ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+      document_parser_version: PIPELINE_VERSIONS.documentParsingV2,
       document_analysis_trace_id: pipelineRun.traceId,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", job.tender_id);
+    .eq("id", job.tender_id)
+    .in("document_analysis_status", [
+      "not_started",
+      "queued",
+      "processing",
+      "failed",
+    ]);
 
   const selectedIds = (job.selected_document_ids || [])
     .slice(0, MAX_DOCUMENTS)
@@ -417,7 +578,9 @@ async function processJob(
 
   const { data: documents, error: documentError } = await adminClient
     .from("tender_documents")
-    .select("id,title,file_name,file_url,mime_type,document_type,language_code,source_confidence")
+    .select(
+      "id,title,file_name,file_url,mime_type,document_type,language_code,source_confidence",
+    )
     .in("id", selectedIds)
     .eq("tender_id", job.tender_id)
     .eq("is_active", true);
@@ -426,7 +589,9 @@ async function processJob(
 
   const usableDocuments: TenderDocumentRecord[] =
     ((documents || []) as TenderDocumentRecord[]).filter((document) =>
-      SUPPORTED_MIME_TYPES.has(String(document.mime_type || "").toLowerCase()) &&
+      SUPPORTED_MIME_TYPES.has(
+        String(document.mime_type || "").toLowerCase(),
+      ) &&
       isSafeHttpsUrl(String(document.file_url || ""))
     );
 
@@ -440,18 +605,30 @@ async function processJob(
     // returns an empty HTML shell, so scraping it never works.)
     const { data: tenderRow } = await adminClient
       .from("tenders")
-      .select("source_url,source_notice_id,title,description,buyer_name,country_name,cpv_codes,deadline_at,estimated_value,currency,raw_payload")
+      .select(
+        "source_url,source_notice_id,title,description,buyer_name,country_name,cpv_codes,deadline_at,estimated_value,currency,raw_payload",
+      )
       .eq("id", job.tender_id)
       .single();
 
     const collect = (value: unknown, out: string[], depth = 0) => {
       if (value == null || depth > 6 || out.join(" ").length > 50_000) return;
-      if (typeof value === "string") { if (value.trim()) out.push(value.trim()); return; }
-      if (typeof value === "number" || typeof value === "boolean") { out.push(String(value)); return; }
-      if (Array.isArray(value)) { for (const v of value) collect(v, out, depth + 1); return; }
+      if (typeof value === "string") {
+        if (value.trim()) out.push(value.trim());
+        return;
+      }
+      if (typeof value === "number" || typeof value === "boolean") {
+        out.push(String(value));
+        return;
+      }
+      if (Array.isArray(value)) {
+        for (const v of value) collect(v, out, depth + 1);
+        return;
+      }
       if (typeof value === "object") {
         for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          out.push(k + ":"); collect(v, out, depth + 1);
+          out.push(k + ":");
+          collect(v, out, depth + 1);
         }
       }
     };
@@ -459,40 +636,65 @@ async function processJob(
     const chunks: string[] = [];
     if (tenderRow?.title) chunks.push("TITLE: " + tenderRow.title);
     if (tenderRow?.buyer_name) chunks.push("BUYER: " + tenderRow.buyer_name);
-    if (tenderRow?.country_name) chunks.push("COUNTRY: " + tenderRow.country_name);
-    if (tenderRow?.deadline_at) chunks.push("DEADLINE: " + tenderRow.deadline_at);
-    if (tenderRow?.estimated_value) chunks.push("ESTIMATED VALUE: " + tenderRow.estimated_value + " " + (tenderRow.currency || ""));
-    if (Array.isArray(tenderRow?.cpv_codes) && tenderRow.cpv_codes.length) chunks.push("CPV: " + tenderRow.cpv_codes.join(", "));
-    if (tenderRow?.description) chunks.push("DESCRIPTION: " + tenderRow.description);
+    if (tenderRow?.country_name) {
+      chunks.push("COUNTRY: " + tenderRow.country_name);
+    }
+    if (tenderRow?.deadline_at) {
+      chunks.push("DEADLINE: " + tenderRow.deadline_at);
+    }
+    if (tenderRow?.estimated_value) {
+      chunks.push(
+        "ESTIMATED VALUE: " + tenderRow.estimated_value + " " +
+          (tenderRow.currency || ""),
+      );
+    }
+    if (Array.isArray(tenderRow?.cpv_codes) && tenderRow.cpv_codes.length) {
+      chunks.push("CPV: " + tenderRow.cpv_codes.join(", "));
+    }
+    if (tenderRow?.description) {
+      chunks.push("DESCRIPTION: " + tenderRow.description);
+    }
 
     // Enrich via TED Search API v3 (JSON, public, reliable)
     const pub = String(tenderRow?.source_notice_id || "").trim();
     if (/^\d{1,10}-\d{4}$/.test(pub)) {
       try {
-        const apiRes = await fetch("https://api.ted.europa.eu/v3/notices/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: `publication-number IN (${pub})`,
-            fields: [
-              "notice-title", "description-proc", "description-lot", "title-lot",
-              "buyer-name", "buyer-country", "classification-cpv",
-              "deadline-receipt-tender-date-lot",
-              "estimated-value-proc", "estimated-value-cur-proc",
-              "estimated-value-lot", "place-of-performance",
-            ],
-            page: 1,
-            limit: 1,
-            checkQuerySyntax: false,
-          }),
-        });
+        const apiRes = await fetch(
+          "https://api.ted.europa.eu/v3/notices/search",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: `publication-number IN (${pub})`,
+              fields: [
+                "notice-title",
+                "description-proc",
+                "description-lot",
+                "title-lot",
+                "buyer-name",
+                "buyer-country",
+                "classification-cpv",
+                "deadline-receipt-tender-date-lot",
+                "estimated-value-proc",
+                "estimated-value-cur-proc",
+                "estimated-value-lot",
+                "place-of-performance",
+              ],
+              page: 1,
+              limit: 1,
+              checkQuerySyntax: false,
+            }),
+          },
+        );
         if (apiRes.ok) {
           const apiData = await apiRes.json();
           const notice = (apiData.notices ?? apiData.results ?? [])[0];
           if (notice) {
             const apiChunks: string[] = [];
             collect(notice, apiChunks);
-            if (apiChunks.length) chunks.push("[OFFICIAL TED NOTICE DATA]\n" + apiChunks.join(" "));
+            if (apiChunks.length) {
+              chunks.push("[OFFICIAL TED NOTICE DATA]\n" + apiChunks.join(" "));
+            }
           }
         }
       } catch (_) { /* enrichment is best-effort */ }
@@ -505,9 +707,14 @@ async function processJob(
       if (rawChunks.length) chunks.push("[FEED DATA]\n" + rawChunks.join(" "));
     }
 
-    const text = chunks.join("\n\n").replace(/\s+/g, " ").trim().slice(0, 60_000);
+    const text = chunks.join("\n\n").replace(/\s+/g, " ").trim().slice(
+      0,
+      60_000,
+    );
     if (text.length < 200) {
-      throw new Error("No documents registered and no notice data is available for this tender");
+      throw new Error(
+        "No documents registered and no notice data is available for this tender",
+      );
     }
     const noticeUrl = String(tenderRow?.source_url || "https://ted.europa.eu");
     noticeOnly = true;
@@ -517,7 +724,10 @@ async function processJob(
     if (/^\d{1,10}-\d{4}$/.test(pub)) {
       try {
         const pdfUrl = `https://ted.europa.eu/en/notice/${pub}/pdf`;
-        const head = await fetch(pdfUrl, { method: "GET", headers: { "Range": "bytes=0-3" } });
+        const head = await fetch(pdfUrl, {
+          method: "GET",
+          headers: { "Range": "bytes=0-3" },
+        });
         const okPdf = head.ok || head.status === 206;
         if (okPdf) {
           usableDocuments.push({
@@ -534,7 +744,8 @@ async function processJob(
     }
     usableDocuments.push({
       id: 0,
-      title: "Official TED notice (fallback — no attachments were downloadable)",
+      title:
+        "Official TED notice (fallback — no attachments were downloadable)",
       file_name: "ted-notice.txt",
       file_url: noticeUrl,
       mime_type: "text/plain",
@@ -546,8 +757,8 @@ async function processJob(
 
   const documentMap = usableDocuments.map((document: any) => ({
     document_id: document.id,
-    file_name:
-      document.file_name || document.title || `Document ${document.id}`,
+    file_name: document.file_name || document.title ||
+      `Document ${document.id}`,
     document_type: document.document_type,
     language_code: document.language_code,
   }));
@@ -555,8 +766,11 @@ async function processJob(
   let companyContext: any = null;
   try {
     const [{ data: comp }, { data: prof }] = await Promise.all([
-      adminClient.from("companies").select("name,description,certifications").eq("id", job.company_id).single(),
-      adminClient.from("company_match_profiles").select("product_keywords,certifications,target_countries,oem_available,private_label_available").eq("company_id", job.company_id).single(),
+      adminClient.from("companies").select("name,description,certifications")
+        .eq("id", job.company_id).single(),
+      adminClient.from("company_match_profiles").select(
+        "product_keywords,certifications,target_countries,oem_available,private_label_available",
+      ).eq("company_id", job.company_id).single(),
     ]);
     companyContext = {
       company_name: comp?.name || null,
@@ -578,21 +792,63 @@ async function processJob(
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
 
+  const { data: reusableJob } = await adminClient
+    .from("tender_document_analysis_jobs")
+    .select("id,status,normalized_result")
+    .eq("tender_id", job.tender_id)
+    .eq("company_id", job.company_id)
+    .eq("input_snapshot_hash", inputSnapshotHash)
+    .eq("extraction_version", DOCUMENT_EXTRACTION_VERSION)
+    .in("status", ["completed", "partial"])
+    .neq("id", jobId)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (reusableJob?.id) {
+    await adminClient.from("tender_document_analysis_jobs").update({
+      status: reusableJob.status,
+      normalized_result: reusableJob.normalized_result || {},
+      result_applied: false,
+      reused_job_id: reusableJob.id,
+      duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", jobId);
+    await finishPipelineRun(adminClient, pipelineRun, "completed", {
+      metadata: {
+        idempotent_reuse: true,
+        reused_job_id: Number(reusableJob.id),
+      },
+    });
+    return;
+  }
+
   const downloadStage = await startPipelineStage(adminClient, {
     traceId: pipelineRun.traceId,
     stageName: "document_download",
-    pipelineVersion: PIPELINE_VERSIONS.documentRetrieval,
+    pipelineVersion: PIPELINE_VERSIONS.documentRetrievalV2,
     tenderId: Number(job.tender_id),
     companyId: Number(job.company_id) || null,
-    source: noticeOnly ? "official_ted_fallback" : "registered_tender_documents",
-    metadata: { document_count: usableDocuments.length, notice_only: noticeOnly },
+    source: noticeOnly
+      ? "official_ted_fallback"
+      : "registered_tender_documents",
+    metadata: {
+      document_count: usableDocuments.length,
+      notice_only: noticeOnly,
+    },
   });
   let content: any[];
   try {
-    content = await buildClaudeContent(usableDocuments, documentMap, companyContext);
+    content = await buildClaudeContent(
+      usableDocuments,
+      documentMap,
+      companyContext,
+    );
     for (const document of usableDocuments) {
       const inline = Boolean(document.__inline_text);
-      const positiveDocumentId = Number(document.id) > 0 ? Number(document.id) : null;
+      const positiveDocumentId = Number(document.id) > 0
+        ? Number(document.id)
+        : null;
       const accessStatus = await recordDocumentAccessAttempt(adminClient, {
         traceId: pipelineRun.traceId,
         stageId: downloadStage.stageId,
@@ -600,7 +856,9 @@ async function processJob(
         companyId: Number(job.company_id) || null,
         documentId: positiveDocumentId,
         url: String(document.file_url || ""),
-        sourceType: noticeOnly ? "official_ted_fallback" : "registered_tender_document",
+        sourceType: noticeOnly
+          ? "official_ted_fallback"
+          : "registered_tender_document",
         sourceConfidence: noticeOnly
           ? "official_verified"
           : document.source_confidence || "unknown",
@@ -614,15 +872,18 @@ async function processJob(
         await adminClient.from("tender_documents").update({
           access_status: accessStatus,
           access_checked_at: new Date().toISOString(),
-          retrieval_version: PIPELINE_VERSIONS.documentRetrieval,
-          parser_version: PIPELINE_VERSIONS.documentParsing,
+          retrieval_version: PIPELINE_VERSIONS.documentRetrievalV2,
+          parser_version: PIPELINE_VERSIONS.documentParsingV2,
           pipeline_trace_id: pipelineRun.traceId,
           updated_at: new Date().toISOString(),
         }).eq("id", positiveDocumentId);
       }
     }
     await finishPipelineStage(adminClient, downloadStage, "completed", {
-      metadata: { document_count: usableDocuments.length, notice_only: noticeOnly },
+      metadata: {
+        document_count: usableDocuments.length,
+        notice_only: noticeOnly,
+      },
     });
   } catch (error) {
     const access = (error as {
@@ -662,10 +923,12 @@ async function processJob(
   const parsingStage = await startPipelineStage(adminClient, {
     traceId: pipelineRun.traceId,
     stageName: "parsing",
-    pipelineVersion: PIPELINE_VERSIONS.documentParsing,
+    pipelineVersion: PIPELINE_VERSIONS.documentParsingV2,
     tenderId: Number(job.tender_id),
     companyId: Number(job.company_id) || null,
-    source: noticeOnly ? "official_ted_fallback" : "registered_tender_documents",
+    source: noticeOnly
+      ? "official_ted_fallback"
+      : "registered_tender_documents",
   });
   await finishPipelineStage(adminClient, parsingStage, "completed", {
     metadata: {
@@ -681,7 +944,7 @@ async function processJob(
   const ocrStage = await startPipelineStage(adminClient, {
     traceId: pipelineRun.traceId,
     stageName: "ocr_eligibility",
-    pipelineVersion: PIPELINE_VERSIONS.documentParsing,
+    pipelineVersion: PIPELINE_VERSIONS.documentParsingV2,
     tenderId: Number(job.tender_id),
     companyId: Number(job.company_id) || null,
     source: "tender-document-engine",
@@ -704,6 +967,7 @@ async function processJob(
   const callClaude = async (extraInstruction: string, maxTokens: number) => {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       headers: {
         "x-api-key": anthropicKey,
         "anthropic-version": "2023-06-01",
@@ -731,14 +995,17 @@ async function processJob(
     return responseData;
   };
 
-  const tryParse = (responseData: any): AnalysisOutput | null => {
+  const tryParse = (responseData: any): Record<string, unknown> | null => {
     let raw = stripJsonFence(extractClaudeText(responseData)) || "";
     const a = raw.indexOf("{");
     const b = raw.lastIndexOf("}");
     if (a >= 0 && b > a) raw = raw.slice(a, b + 1);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as AnalysisOutput;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null;
     } catch {
       return null;
     }
@@ -747,20 +1014,20 @@ async function processJob(
   const aiStage = await startPipelineStage(adminClient, {
     traceId: pipelineRun.traceId,
     stageName: "ai_extraction",
-    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    pipelineVersion: PIPELINE_VERSIONS.aiExtractionV2,
     tenderId: Number(job.tender_id),
     companyId: Number(job.company_id) || null,
     source: "Anthropic Messages API",
   });
   let responseData: any;
-  let analysis: AnalysisOutput | null = null;
+  let rawAnalysis: Record<string, unknown> | null = null;
   let providerAttempts = 0;
   try {
     providerAttempts++;
     responseData = await callClaude("", 16000);
-    analysis = tryParse(responseData);
+    rawAnalysis = tryParse(responseData);
 
-    if (!analysis) {
+    if (!rawAnalysis) {
       const truncated = responseData?.stop_reason === "max_tokens";
       // 2. deneme: daha az lot, daha kısa kanıt — kesilme ihtimalini bitir
       providerAttempts++;
@@ -770,10 +1037,10 @@ async function processJob(
           : "CRITICAL: Reply with ONLY one valid JSON object and nothing else.",
         16000,
       );
-      analysis = tryParse(responseData);
+      rawAnalysis = tryParse(responseData);
     }
 
-    if (!analysis) {
+    if (!rawAnalysis) {
       throw new Error(
         responseData?.stop_reason === "max_tokens"
           ? "The tender is too large — the analysis was truncated twice. Try again; if it persists this tender needs manual review."
@@ -800,47 +1067,72 @@ async function processJob(
     });
     throw error;
   }
-  if (!analysis) {
+  if (!rawAnalysis) {
     throw new Error("AI response validation failed");
   }
 
   const validationStage = await startPipelineStage(adminClient, {
     traceId: pipelineRun.traceId,
     stageName: "structured_validation",
-    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    pipelineVersion: PIPELINE_VERSIONS.aiExtractionV2,
     tenderId: Number(job.tender_id),
     companyId: Number(job.company_id) || null,
     source: "tender-document-engine",
   });
+  let analysis: NormalizedDocumentAnalysis;
   try {
-    analysis.document_confidence_score = clampScore(
-      analysis.document_confidence_score,
+    analysis = normalizeDocumentAnalysis(
+      rawAnalysis,
+      new Set(usableDocuments.map((document) => Number(document.id))),
     );
-    analysis.data_completeness_score = clampScore(
-      analysis.data_completeness_score,
-    );
-
-    analysis.products = (analysis.products || []).map((product) => ({
-      ...product,
-      confidence_score: clampScore(product.confidence_score),
-      evidence: (product.evidence || [])
-        .filter((item) => selectedIds.includes(Number(item.document_id)))
-        .map((item) => ({
-          ...item,
-          confidence_score: clampScore(item.confidence_score),
-          source_quote: String(item.source_quote || "").slice(0, 600),
-          extracted_value: String(item.extracted_value || "").slice(0, 500),
-        })),
-    }));
     await finishPipelineStage(adminClient, validationStage, "completed", {
       metadata: {
         product_count: analysis.products.length,
-        validation_level: "phase0_shape_and_bounds_only",
+        evidence_count: analysis.evidence_count,
+        validation_level: DOCUMENT_PROMPT_SCHEMA_VERSION,
       },
     });
   } catch (error) {
-    await finishPipelineStage(adminClient, validationStage, "failed", { error });
+    await finishPipelineStage(adminClient, validationStage, "failed", {
+      error,
+    });
     throw error;
+  }
+
+  const finalStatus = analysis.analysis_status === "completed"
+    ? "completed"
+    : "partial";
+  const applyResult = shouldApplyExtraction({
+    confidenceScore: Number(existingTender?.document_confidence_score || 0),
+    extractionVersion: existingTender?.ai_extraction_version || null,
+    analyzedAt: existingTender?.last_document_analysis_at || null,
+  }, {
+    confidenceScore: analysis.document_confidence_score,
+    extractionVersion: DOCUMENT_EXTRACTION_VERSION,
+  });
+
+  await adminClient.from("tender_document_analysis_jobs").update({
+    normalized_result: analysis,
+    result_applied: applyResult,
+    superseded_by_confidence: !applyResult,
+    updated_at: new Date().toISOString(),
+  }).eq("id", jobId);
+
+  if (!applyResult) {
+    await adminClient.from("tender_document_analysis_jobs").update({
+      status: finalStatus,
+      duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", jobId);
+    await finishPipelineRun(adminClient, pipelineRun, "completed", {
+      metadata: {
+        analysis_status: finalStatus,
+        result_applied: false,
+        retained_higher_confidence_result: true,
+      },
+    });
+    return;
   }
 
   await adminClient
@@ -851,6 +1143,7 @@ async function processJob(
   const evidenceRows: any[] = [];
   for (const product of analysis.products) {
     for (const evidence of product.evidence || []) {
+      if (Number(evidence.document_id) <= 0) continue;
       evidenceRows.push({
         tender_id: job.tender_id,
         document_id: evidence.document_id,
@@ -859,10 +1152,16 @@ async function processJob(
         product_name: product.product_name,
         field_name: evidence.field_name,
         extracted_value: evidence.extracted_value,
-        quantity_value:
-          evidence.field_name === "quantity" ? product.quantity_value : null,
-        quantity_unit:
-          evidence.field_name === "quantity" ? product.quantity_unit : null,
+        normalized_value: evidence.normalized_value,
+        requirement_status: evidence.requirement_status,
+        source_language: evidence.source_language,
+        extraction_version: DOCUMENT_EXTRACTION_VERSION,
+        quantity_value: evidence.field_name === "quantity"
+          ? product.quantity_value
+          : null,
+        quantity_unit: evidence.field_name === "quantity"
+          ? product.quantity_unit
+          : null,
         lot_number: product.lot_number,
         page_number: evidence.page_number,
         sheet_name: evidence.sheet_name,
@@ -880,9 +1179,6 @@ async function processJob(
     if (evidenceError) throw new Error(evidenceError.message);
   }
 
-  const finalStatus =
-    analysis.analysis_status === "completed" ? "completed" : "partial";
-
   const { error: tenderUpdateError } = await adminClient
     .from("tenders")
     .update({
@@ -894,8 +1190,13 @@ async function processJob(
       missing_information: analysis.missing_information || [],
       document_analysis_notes: analysis.summary,
       ai_lots: Array.isArray(analysis.lots) ? analysis.lots.slice(0, 30) : [],
-      document_parser_version: PIPELINE_VERSIONS.documentParsing,
-      ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+      document_extraction_v2: {
+        ...analysis,
+        fit_narrative: null,
+      },
+      document_evidence_count: evidenceRows.length,
+      document_parser_version: PIPELINE_VERSIONS.documentParsingV2,
+      ai_extraction_version: DOCUMENT_EXTRACTION_VERSION,
       document_analysis_trace_id: pipelineRun.traceId,
       last_document_analysis_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -914,14 +1215,9 @@ async function processJob(
     })
     .eq("id", jobId);
 
-  const { data: companyMatches } = await adminClient
-    .from("opportunity_matches")
-    .select("company_id")
-    .eq("tender_id", job.tender_id);
-
-  const companyIds: number[] = [
-    ...new Set<number>((companyMatches || []).map((row: any) => Number(row.company_id))),
-  ];
+  const companyIds: number[] = Number.isInteger(Number(job.company_id))
+    ? [Number(job.company_id)]
+    : [];
 
   const explanationErrors: string[] = [];
   for (const companyId of companyIds) {
@@ -931,13 +1227,12 @@ async function processJob(
       pipelineVersion: PIPELINE_VERSIONS.explanation,
       tenderId: Number(job.tender_id),
       companyId,
-      source: "refresh_explainable_tender_matches",
+      source: "refresh_explainable_tender_match",
       metadata: {
         combined_rpc_stages: [
-          "candidate_generation",
-          "score_calculation",
           "explanation_generation",
-          "opportunity_upsert",
+          "targeted_legacy_score_compatibility",
+          "targeted_v2_score",
         ],
       },
     });
@@ -951,25 +1246,24 @@ async function processJob(
         .eq("company_id", job.company_id)
         .eq("tender_id", job.tender_id)
       : Promise.resolve({ error: null }));
-    const refreshResult = await adminClient.rpc("refresh_explainable_tender_matches", {
-      p_company_id: companyId,
-    });
-    const scoreStamp = await adminClient.rpc("stamp_company_match_observability", {
-      p_company_id: companyId,
-      p_trace_id: pipelineRun.traceId,
-      p_candidate_version: PIPELINE_VERSIONS.candidateGeneration,
-      p_scoring_version: PIPELINE_VERSIONS.scoring,
-    });
-    const explanationStamp = await adminClient.rpc(
-      "stamp_explainable_match_observability",
+    const refreshResult = await adminClient.rpc(
+      "refresh_explainable_tender_match",
       {
         p_company_id: companyId,
+        p_tender_id: Number(job.tender_id),
         p_trace_id: pipelineRun.traceId,
-        p_explanation_version: PIPELINE_VERSIONS.explanation,
+      },
+    );
+    const v2ScoreResult = await adminClient.rpc(
+      "refresh_opportunity_match_score_v2",
+      {
+        p_company_id: companyId,
+        p_tender_id: Number(job.tender_id),
+        p_trace_id: pipelineRun.traceId,
       },
     );
     const stageError = narrativeResult.error || refreshResult.error ||
-      scoreStamp.error || explanationStamp.error;
+      v2ScoreResult.error;
     if (stageError) explanationErrors.push(sanitizeMessage(stageError.message));
     await finishPipelineStage(
       adminClient,
@@ -977,7 +1271,10 @@ async function processJob(
       stageError ? "partial" : "completed",
       {
         error: stageError?.message,
-        metadata: { observability_resolution: "combined_existing_rpc" },
+        metadata: {
+          observability_resolution: "targeted_single_opportunity_rpcs",
+          match_score_v2_targeted: !v2ScoreResult.error,
+        },
       },
     );
   }
@@ -1016,7 +1313,11 @@ Deno.serve(async (req: Request) => {
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !anthropicKey) {
-    return json(req, { error: "Claude document engine is not configured." }, 500);
+    return json(
+      req,
+      { error: "Claude document engine is not configured." },
+      500,
+    );
   }
 
   const authHeader = req.headers.get("authorization") ?? "";
@@ -1093,7 +1394,7 @@ Deno.serve(async (req: Request) => {
   }
   const pipelineRun = await startPipelineRun(adminClient, {
     component: "ai_extraction",
-    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    pipelineVersion: PIPELINE_VERSIONS.aiExtractionV2,
     source: "tender-document-engine",
     metadata: { analysis_job_id: Number(job.id) },
   });
@@ -1121,12 +1422,18 @@ Deno.serve(async (req: Request) => {
           .update({
             document_analysis_status: "failed",
             document_analysis_notes: sanitizeMessage(error),
-            document_parser_version: PIPELINE_VERSIONS.documentParsing,
-            ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+            document_parser_version: PIPELINE_VERSIONS.documentParsingV2,
+            ai_extraction_version: DOCUMENT_EXTRACTION_VERSION,
             document_analysis_trace_id: pipelineRun.traceId,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", tenderId);
+          .eq("id", tenderId)
+          .in("document_analysis_status", [
+            "not_started",
+            "queued",
+            "processing",
+            "failed",
+          ]);
       },
     ),
   );
@@ -1137,7 +1444,7 @@ Deno.serve(async (req: Request) => {
     status: job.status,
     engine: "claude",
     trace_id: pipelineRun.traceId,
-    extraction_version: PIPELINE_VERSIONS.aiExtraction,
+    extraction_version: DOCUMENT_EXTRACTION_VERSION,
     message: "Tender document analysis has been queued.",
   }, 202);
 });

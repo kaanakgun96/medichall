@@ -1,0 +1,59 @@
+{
+  "scope": "document intelligence v2 and Match Score v2 controlled deployment",
+  "branch": "react-migration",
+  "migrations": [
+    "supabase/migrations/202607230002_document_intelligence_v2.sql",
+    "supabase/migrations/202607230003_match_score_v2.sql"
+  ],
+  "functions": [
+    {
+      "name": "tender-attachment-discovery",
+      "entrypoint": "supabase/functions/tender-attachment-discovery/index.ts",
+      "verify_jwt": true,
+      "sha256": "a71fddc68c08f25861d0fea9809de9f98f127eccabb796436fa77a5154990823"
+    },
+    {
+      "name": "tender-document-engine",
+      "entrypoint": "supabase/functions/tender-document-engine/index.ts",
+      "verify_jwt": true,
+      "sha256": "49b2e9210b37c001877f113c15c802dbe122d51b309ee896c099145f44e3daa8"
+    }
+  ],
+  "shared_sources": [
+    {
+      "path": "supabase/functions/_shared/attachment-discovery.ts",
+      "sha256": "98f5ece0ec16612bb1378cacd19668b3f112c5599bbf9f5ed04bcbc62e4e3769"
+    },
+    {
+      "path": "supabase/functions/_shared/document-extraction-v2.ts",
+      "sha256": "3a1454c1b56964a01c1c9c1507b770039a2ba6e643b80a11353dfaacd2524918"
+    },
+    {
+      "path": "supabase/functions/_shared/matching-observability.ts",
+      "sha256": "4855a7401086dafc4213149eaa820e5355bc9fb774c7b043519d1d315d7df992"
+    },
+    {
+      "path": "supabase/observability/match-score-v2.json",
+      "sha256": "e3748c62defc19a8db6b4837ced21360863537926b2206c2267efb8738d656f5"
+    }
+  ],
+  "cron": {
+    "configuration": "supabase/setup/CONFIGURE-CRON.sql",
+    "job_names": [
+      "medichall-ted-sync",
+      "medichall-tender-digest"
+    ],
+    "vault_secret_names": [
+      "medichall_project_url",
+      "medichall_cron_secret"
+    ]
+  },
+  "excluded": [
+    "supabase/functions/medichall-ai",
+    "supabase/functions/medichall-ai/**",
+    "Supabase authentication",
+    "Supabase storage policies",
+    "existing legacy matching RPC signatures",
+    "production HTML files"
+  ]
+}

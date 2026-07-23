@@ -4,6 +4,11 @@ export const PIPELINE_VERSIONS = {
   documentRetrieval: "document-retrieval-v1+phase0.1",
   documentParsing: "document-parsing-v1+phase0.1",
   aiExtraction: "tender-extraction-prompt-v1+phase0.1",
+  documentDiscoveryV2: "document-discovery-v2.0.0",
+  documentRetrievalV2: "document-retrieval-v2.0.0",
+  documentParsingV2: "document-parsing-v2.0.0",
+  aiExtractionV2: "tender-extraction-v2.0.0",
+  scoringV2: "matching-score-v2.0.0",
   candidateGeneration: "candidate-generation-202607200002",
   scoring: "matching-score-202607200002",
   explanation: "explainable-match-202607100005",
@@ -85,6 +90,7 @@ export type DocumentAccessInput = {
   httpStatus?: number | null;
   contentType?: string | null;
   contentLength?: number | null;
+  redirectCount?: number | null;
   bodySample?: string | null;
   url?: string | null;
   error?: unknown;
@@ -153,7 +159,9 @@ function textFromUnknown(value: unknown): string {
   }
 }
 
-export function sanitizePortalUrl(value: string | null | undefined): string | null {
+export function sanitizePortalUrl(
+  value: string | null | undefined,
+): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
@@ -195,7 +203,9 @@ export function sanitizeMetadata(
   depth = 0,
 ): unknown {
   if (depth > 5) return "[TRUNCATED]";
-  if (value == null || typeof value === "boolean" || typeof value === "number") {
+  if (
+    value == null || typeof value === "boolean" || typeof value === "number"
+  ) {
     return value;
   }
   if (typeof value === "string") return sanitizeMessage(value, 500);
@@ -204,7 +214,10 @@ export function sanitizeMetadata(
   }
   if (typeof value === "object") {
     const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 50)) {
+    for (
+      const [key, item] of Object.entries(value as Record<string, unknown>)
+        .slice(0, 50)
+    ) {
       output[key] = SECRET_KEY_PATTERN.test(key)
         ? "[REDACTED]"
         : sanitizeMetadata(item, depth + 1);
@@ -218,11 +231,17 @@ export function classifyError(value: unknown): ErrorCategory {
   const message = textFromUnknown(value).toLowerCase();
   if (/captcha|recaptcha|hcaptcha|turnstile/.test(message)) return "captcha";
   if (/membership|member only|subscription/.test(message)) return "membership";
-  if (/payment|paid access|paywall|purchase required/.test(message)) return "payment";
+  if (/payment|paid access|paywall|purchase required/.test(message)) {
+    return "payment";
+  }
   if (/terms (?:must|need to) be accepted|accept .*terms/.test(message)) {
     return "terms_acceptance";
   }
-  if (/login|sign in|authentication|required session|unauthenticated|401/.test(message)) {
+  if (
+    /login|sign in|authentication|required session|unauthenticated|401/.test(
+      message,
+    )
+  ) {
     return "authentication";
   }
   if (/forbidden|not authorized|access denied|permission|403/.test(message)) {
@@ -236,56 +255,84 @@ export function classifyError(value: unknown): ErrorCategory {
   if (/invalid url|malformed url|unsupported protocol/.test(message)) {
     return "malformed_url";
   }
-  if (/archive|zip|unzip|compressed|decompress/.test(message)) return "archive_error";
+  if (/archive|zip|unzip|compressed|decompress/.test(message)) {
+    return "archive_error";
+  }
   if (/ocr|scanned image/.test(message)) return "ocr_needed";
-  if (/parse|parser|encoding|invalid document/.test(message)) return "parser_error";
+  if (/parse|parser|encoding|invalid document/.test(message)) {
+    return "parser_error";
+  }
   if (/unsupported (?:file|format|mime)|file type/.test(message)) {
     return "unsupported_format";
   }
-  if (/invalid json|schema validation|ai response|structured output/.test(message)) {
+  if (
+    /invalid json|schema validation|ai response|structured output/.test(message)
+  ) {
     return "ai_response_validation";
   }
   if (/anthropic|openai|claude|ai provider|model request/.test(message)) {
     return "ai_provider";
   }
-  if (/database|postgres|postgrest|supabase|relation |constraint |rpc /.test(message)) {
+  if (
+    /database|postgres|postgrest|supabase|relation |constraint |rpc /.test(
+      message,
+    )
+  ) {
     return "database";
   }
   if (/score|scoring|match refresh/.test(message)) return "scoring";
   if (/stale|version mismatch|out of date/.test(message)) return "stale_data";
-  if (/missing .*config|not configured|environment variable|secret is missing/.test(message)) {
+  if (
+    /missing .*config|not configured|environment variable|secret is missing/
+      .test(message)
+  ) {
     return "configuration";
   }
-  if (/fetch failed|network|dns|connection|socket|econn/.test(message)) return "network";
-  if (/not found|gone|unavailable|404|410/.test(message)) return "unavailable_resource";
+  if (/fetch failed|network|dns|connection|socket|econn/.test(message)) {
+    return "network";
+  }
+  if (/not found|gone|unavailable|404|410/.test(message)) {
+    return "unavailable_resource";
+  }
   return "unknown";
 }
 
-export function accessClassForStatus(status: DocumentAccessStatus): AccessClass {
+export function accessClassForStatus(
+  status: DocumentAccessStatus,
+): AccessClass {
   if (["downloaded", "parsed"].includes(status)) return "processed";
-  if ([
-    "session_required",
-    "login_required",
-    "membership_required",
-    "paid_access_required",
-    "captcha_required",
-    "terms_acceptance_required",
-    "access_forbidden",
-  ].includes(status)) return "restricted";
+  if (
+    [
+      "session_required",
+      "login_required",
+      "membership_required",
+      "paid_access_required",
+      "captcha_required",
+      "terms_acceptance_required",
+      "access_forbidden",
+    ].includes(status)
+  ) return "restricted";
   if (status === "manual_review_required") return "manual";
-  if ([
-    "dynamic_javascript_required",
-    "unsupported_file_type",
-    "file_too_large",
-    "archive_processing_required",
-  ].includes(status)) return "publicly_accessible_but_unsupported";
-  if (["public_direct_download", "public_detail_page", "redirect_required"].includes(status)) {
+  if (
+    [
+      "dynamic_javascript_required",
+      "unsupported_file_type",
+      "file_too_large",
+      "archive_processing_required",
+    ].includes(status)
+  ) return "publicly_accessible_but_unsupported";
+  if (
+    ["public_direct_download", "public_detail_page", "redirect_required"]
+      .includes(status)
+  ) {
     return "public";
   }
   return "technical_failure";
 }
 
-export function classifyDocumentAccess(input: DocumentAccessInput): DocumentAccessStatus {
+export function classifyDocumentAccess(
+  input: DocumentAccessInput,
+): DocumentAccessStatus {
   if (input.parsed) return "parsed";
   if (input.parsingFailed) return "parsing_failed";
   if (input.downloaded) return "downloaded";
@@ -301,49 +348,74 @@ export function classifyDocumentAccess(input: DocumentAccessInput): DocumentAcce
     input.url || "",
   ].join(" ").toLowerCase();
 
-  if (/captcha|recaptcha|hcaptcha|turnstile|verify you are human/.test(sample)) {
+  if (
+    /captcha|recaptcha|hcaptcha|turnstile|verify you are human/.test(sample)
+  ) {
     return "captcha_required";
   }
-  if (/membership|members only|member login|subscription required/.test(sample)) {
+  if (
+    /membership|members only|member login|subscription required/.test(sample)
+  ) {
     return "membership_required";
   }
-  if (/paywall|payment required|paid access|purchase access/.test(sample) || status === 402) {
+  if (
+    /paywall|payment required|paid access|purchase access/.test(sample) ||
+    status === 402
+  ) {
     return "paid_access_required";
   }
-  if (/accept (?:the )?terms|terms (?:and conditions )?must be accepted/.test(sample)) {
+  if (
+    /accept (?:the )?terms|terms (?:and conditions )?must be accepted/.test(
+      sample,
+    )
+  ) {
     return "terms_acceptance_required";
   }
-  if (/login required|sign in to|log in to|authentication required/.test(sample)) {
+  if (
+    /login required|sign in to|log in to|authentication required/.test(sample)
+  ) {
     return "login_required";
   }
-  if (/session (?:has )?expired|session required/.test(sample)) return "session_required";
-  if (/enable javascript|javascript is required|requires javascript/.test(sample)) {
+  if (/session (?:has )?expired|session required/.test(sample)) {
+    return "session_required";
+  }
+  if (
+    /enable javascript|javascript is required|requires javascript/.test(sample)
+  ) {
     return "dynamic_javascript_required";
   }
   if (/timeout|timed out|aborterror/.test(sample)) return "download_timeout";
   if (status === 401) return "login_required";
   if (status === 403) return "access_forbidden";
   if (status === 429) return "rate_limited";
-  if (status === 410 || /expired link|link expired/.test(sample)) return "expired_link";
+  if (status === 410 || /expired link|link expired/.test(sample)) {
+    return "expired_link";
+  }
   if (status === 404) return "broken_link";
   if (status >= 300 && status < 400) return "redirect_required";
   if (status >= 500 || input.error) return "broken_link";
   if (status >= 200 && status < 300) {
     return input.isDirectFile ? "public_direct_download" : "public_detail_page";
   }
-  return input.isDirectFile ? "public_direct_download" : "manual_review_required";
+  return input.isDirectFile
+    ? "public_direct_download"
+    : "manual_review_required";
 }
 
 function canonicalize(value: unknown): string {
   if (value === null) return "null";
-  if (typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
   if (typeof value === "string") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map(
-      (key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`,
-    ).join(",")}}`;
+    return `{${
+      Object.keys(record).sort().map(
+        (key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`,
+      ).join(",")
+    }}`;
   }
   return JSON.stringify(String(value));
 }
@@ -365,7 +437,8 @@ export function canAdjudicateBenchmark(
   annotations: Array<{ annotatorId: string; label: unknown }>,
 ): boolean {
   const valid = annotations.filter(
-    (annotation) => annotation.annotatorId && isBenchmarkLabel(annotation.label),
+    (annotation) =>
+      annotation.annotatorId && isBenchmarkLabel(annotation.label),
   );
   return new Set(valid.map((annotation) => annotation.annotatorId)).size >= 2;
 }
@@ -394,7 +467,10 @@ async function safeInsert(
   try {
     const { error } = await traceTable(client, table).insert(value);
     if (error) {
-      console.warn("Observability insert skipped", sanitizeMessage(error.message));
+      console.warn(
+        "Observability insert skipped",
+        sanitizeMessage(error.message),
+      );
       return false;
     }
     return true;
@@ -412,9 +488,15 @@ async function safeUpdate(
   value: unknown,
 ): Promise<boolean> {
   try {
-    const { error } = await traceTable(client, table).update(value).eq(idColumn, id);
+    const { error } = await traceTable(client, table).update(value).eq(
+      idColumn,
+      id,
+    );
     if (error) {
-      console.warn("Observability update skipped", sanitizeMessage(error.message));
+      console.warn(
+        "Observability update skipped",
+        sanitizeMessage(error.message),
+      );
       return false;
     }
     return true;
@@ -523,7 +605,13 @@ export async function startPipelineStage(
 export async function finishPipelineStage(
   client: TraceClient,
   stage: PipelineStageHandle,
-  status: "completed" | "partial" | "failed" | "restricted" | "manual_review" | "skipped",
+  status:
+    | "completed"
+    | "partial"
+    | "failed"
+    | "restricted"
+    | "manual_review"
+    | "skipped",
   input: { error?: unknown; metadata?: unknown } = {},
 ): Promise<void> {
   if (!stage.persisted) return;
@@ -572,6 +660,7 @@ export async function recordDocumentAccessAttempt(
     http_status: input.classification.httpStatus || null,
     content_type: input.classification.contentType || null,
     content_length_bytes: input.classification.contentLength || null,
+    redirect_count: Math.max(0, input.classification.redirectCount || 0),
     attempt_number: Math.max(1, input.attemptNumber || 1),
     error_category: input.classification.error
       ? classifyError(input.classification.error)
