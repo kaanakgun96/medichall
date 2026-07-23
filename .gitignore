@@ -10,3 +10,4 @@ Thumbs.db
 dist/
 coverage/
 supabase/baseline/live/
+supabase/.temp/
