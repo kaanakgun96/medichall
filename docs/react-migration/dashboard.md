@@ -196,8 +196,10 @@ pnpm build
   management, RFQ inbox/actions, matching-profile editing, manual Find matches,
   AI tools, catalogs, certificates, and document analysis remain in
   `portal.html`.
-- Product setup has no supported legacy hash deep link, so its readiness item
-  opens the current Partner Portal root; the HTML portal remains untouched.
+- Company details, certifications, product keywords, and target-country
+  readiness actions open the later `#/company-profile` migration. Product
+  setup still opens the current Partner Portal root because product editing
+  remains legacy; the HTML portal remains untouched.
 - The Total matches label still means the first 50 non-dismissed ordered rows,
   because that is the production Dashboard contract.
 - Dashboard is a read-only snapshot. Refreshing/generating matches remains in

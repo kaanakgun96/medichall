@@ -58,13 +58,13 @@ export function dashboardReadiness(
       id: "description" as const,
       complete: Boolean(company.description && company.description.length > 30),
       label: "Add a company description",
-      href: `${legacyBase}#profile`,
+      href: "#/company-profile",
     },
     {
       id: "certifications" as const,
       complete: Boolean(company.certifications),
       label: "List your certifications",
-      href: `${legacyBase}#profile`,
+      href: "#/company-profile",
     },
     {
       id: "products" as const,
@@ -76,13 +76,13 @@ export function dashboardReadiness(
       id: "keywords" as const,
       complete: hasProfileValues(data.matchProfile?.productKeywords),
       label: "Set product keywords for matching",
-      href: `${legacyBase}#opportunities`,
+      href: "#/company-profile",
     },
     {
       id: "countries" as const,
       complete: hasProfileValues(data.matchProfile?.targetCountries),
       label: "Choose target countries",
-      href: `${legacyBase}#opportunities`,
+      href: "#/company-profile",
     },
   ];
   const completedCount = items.filter((item) => item.complete).length;

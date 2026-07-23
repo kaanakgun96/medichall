@@ -8,16 +8,42 @@ import { parseCpvInput, withCpvCode } from "../utils/tender-filters";
 type CpvSelectorProps = {
   value: string;
   onChange: (value: string) => void;
+  inputId?: string;
+  inputDescriptionId?: string;
+  inputInvalid?: boolean;
+  placeholder?: string;
+  browseLabel?: string;
+  selectedLabel?: string;
+  selectedCodes?: string[];
+  onToggleCode?: (code: string) => void;
+  disabled?: boolean;
 };
 
 type CatalogStatus = "idle" | "loading" | "success" | "error";
 
-export function CpvSelector({ value, onChange }: CpvSelectorProps) {
+export function CpvSelector({
+  value,
+  onChange,
+  inputId = "cpv-filter",
+  inputDescriptionId,
+  inputInvalid = false,
+  placeholder = "e.g. 3319 or 33190000",
+  browseLabel = "Browse",
+  selectedLabel = "Selected CPV families",
+  selectedCodes,
+  onToggleCode,
+  disabled = false,
+}: CpvSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [catalog, setCatalog] = useState<CpvCatalogItem[]>([]);
   const [status, setStatus] = useState<CatalogStatus>("idle");
-  const selected = useMemo(() => new Set(parseCpvInput(value)), [value]);
+  const selected = useMemo(
+    () => new Set(selectedCodes ?? parseCpvInput(value)),
+    [selectedCodes, value],
+  );
+  const dialogTitleId = `${inputId}-dialog-title`;
+  const catalogSearchId = `${inputId}-catalog-search`;
 
   useEffect(() => {
     if (!open || status !== "idle") return;
@@ -57,27 +83,44 @@ export function CpvSelector({ value, onChange }: CpvSelectorProps) {
       );
   }, [catalog, query]);
 
-  const toggleCode = (code: string) => onChange(withCpvCode(value, code));
+  const toggleCode = (code: string) => {
+    if (onToggleCode) onToggleCode(code);
+    else onChange(withCpvCode(value, code));
+  };
 
   return (
     <div className="cpv-control">
       <div className="cpv-control__input-row">
         <input
-          id="cpv-filter"
+          id={inputId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="e.g. 3319 or 33190000"
+          placeholder={placeholder}
           inputMode="numeric"
+          aria-describedby={inputDescriptionId}
+          aria-invalid={inputInvalid || undefined}
+          disabled={disabled}
         />
-        <Button size="small" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <Button
+          size="small"
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          disabled={disabled}
+        >
           <Tags size={16} aria-hidden="true" />
-          Browse
+          {browseLabel}
         </Button>
       </div>
       {selected.size ? (
-        <div className="cpv-control__chips" aria-label="Selected CPV families">
+        <div className="cpv-control__chips" aria-label={selectedLabel}>
           {[...selected].map((code) => (
-            <button key={code} type="button" onClick={() => toggleCode(code)} title={`Remove CPV ${code}`}>
+            <button
+              key={code}
+              type="button"
+              onClick={() => toggleCode(code)}
+              title={`Remove CPV ${code}`}
+              disabled={disabled}
+            >
               {code}
               <X size={12} aria-hidden="true" />
             </button>
@@ -87,21 +130,21 @@ export function CpvSelector({ value, onChange }: CpvSelectorProps) {
 
       {open ? (
         <div className="dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-          <section className="cpv-dialog" role="dialog" aria-modal="true" aria-labelledby="cpv-dialog-title">
+          <section className="cpv-dialog" role="dialog" aria-modal="true" aria-labelledby={dialogTitleId}>
             <header className="dialog-header">
               <div>
                 <span className="eyebrow">Official EU CPV 2008 catalog</span>
-                <h2 id="cpv-dialog-title">Select product families</h2>
+                <h2 id={dialogTitleId}>Select product families</h2>
               </div>
               <button className="icon-button" type="button" onClick={() => setOpen(false)} aria-label="Close CPV selector">
                 <X size={20} aria-hidden="true" />
               </button>
             </header>
 
-            <label className="search-field search-field--dialog" htmlFor="cpv-catalog-search">
+            <label className="search-field search-field--dialog" htmlFor={catalogSearchId}>
               <Search size={18} aria-hidden="true" />
               <input
-                id="cpv-catalog-search"
+                id={catalogSearchId}
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}

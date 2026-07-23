@@ -88,6 +88,10 @@ describe("legacy-compatible match readiness", () => {
       keywords: true,
       countries: false,
     });
+    expect(readiness.items.find((item) => item.id === "description")?.href)
+      .toBe("#/company-profile");
+    expect(readiness.items.find((item) => item.id === "products")?.href)
+      .toBe("/portal.html");
   });
 
   it("requires a company description longer than 30 characters", () => {
