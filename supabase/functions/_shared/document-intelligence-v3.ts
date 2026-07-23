@@ -49,6 +49,7 @@ export type PdfPageSignal = {
   matchedKeywords: string[];
   sectionTitle: string | null;
   excerpt: string;
+  textLength?: number;
 };
 
 export type RankedPageRange = {
@@ -78,6 +79,9 @@ export type PdfChunkPlan = {
   pageNumbers: number[];
   priorityScore: number;
   reasons: string[];
+  processingOrder?: number;
+  densityScore?: number;
+  estimatedInputTokens?: number;
 };
 
 export type ChunkMergeInput = {
@@ -105,6 +109,7 @@ export type MergedDocumentAnalysisV3 = NormalizedDocumentAnalysis & {
     product_count: number;
     evidence_count: number;
     ambiguity_count: number;
+    duplicate_facts_removed: number;
   };
 };
 
@@ -1000,6 +1005,17 @@ export function mergeChunkAnalyses(
     (total, product) => total + product.evidence.length,
     0,
   );
+  const sourceFactCount = ordered.reduce(
+    (total, chunk) =>
+      total +
+      chunk.analysis.products.length +
+      chunk.analysis.products.reduce(
+        (evidenceTotal, product) => evidenceTotal + product.evidence.length,
+        0,
+      ),
+    0,
+  );
+  const mergedFactCount = products.length + evidenceCount;
   const confidenceWeight = ordered.reduce(
     (total, chunk) => total + Math.max(1, chunk.analysis.evidence_count),
     0,
@@ -1050,6 +1066,7 @@ export function mergeChunkAnalyses(
       product_count: products.length,
       evidence_count: evidenceCount,
       ambiguity_count: ambiguities.length,
+      duplicate_facts_removed: Math.max(0, sourceFactCount - mergedFactCount),
     },
   };
 }

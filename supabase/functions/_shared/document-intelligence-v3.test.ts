@@ -199,6 +199,7 @@ test("deterministically deduplicates evidence and preserves conflicts", () => {
   assert.ok(
     merged.ambiguities.some((item) => item.field.endsWith(".quantity_value")),
   );
+  assert.ok(merged.merge_statistics.duplicate_facts_removed > 0);
   assert.equal(merged.analysis_status, "partial");
 });
 

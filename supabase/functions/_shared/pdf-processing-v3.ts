@@ -201,6 +201,7 @@ async function inspectWithPdfJs(
           matchedKeywords: scored.matchedKeywords,
           sectionTitle,
           excerpt: text.slice(0, 500),
+          textLength: text.length,
         });
         page.cleanup();
       } catch {
@@ -322,13 +323,7 @@ async function materializePlan(
   source: PDFDocument,
   plan: PdfChunkPlan,
   maxBytes: number,
-): Promise<
-  Array<
-    Omit<MaterializedPdfChunk, "plan"> & {
-      plan: Omit<PdfChunkPlan, "chunkIndex">;
-    }
-  >
-> {
+): Promise<MaterializedPdfChunk[]> {
   const bytes = await slicePdfPages(source, plan.pageNumbers);
   if (bytes.byteLength <= maxBytes) {
     return [{ bytes, plan }];
@@ -343,11 +338,7 @@ async function materializePlan(
     plan.pageNumbers.slice(0, midpoint),
     plan.pageNumbers.slice(midpoint),
   ];
-  const output: Array<
-    Omit<MaterializedPdfChunk, "plan"> & {
-      plan: Omit<PdfChunkPlan, "chunkIndex">;
-    }
-  > = [];
+  const output: MaterializedPdfChunk[] = [];
   for (const pages of halves) {
     output.push(
       ...await materializePlan(source, {
@@ -357,6 +348,9 @@ async function materializePlan(
         pageNumbers: pages,
         priorityScore: plan.priorityScore,
         reasons: [...new Set([...plan.reasons, "byte_limit_split"])],
+        processingOrder: plan.processingOrder,
+        densityScore: plan.densityScore,
+        estimatedInputTokens: plan.estimatedInputTokens,
       }, maxBytes),
     );
   }
@@ -398,6 +392,35 @@ export async function materializePdfChunks(
     .map((chunk, chunkIndex) => ({
       ...chunk,
       plan: { ...chunk.plan, chunkIndex },
+    }));
+}
+
+export async function materializePdfChunkPlans(
+  sourceBytes: Uint8Array,
+  plans: readonly PdfChunkPlan[],
+  maxBytes: number,
+): Promise<MaterializedPdfChunk[]> {
+  const source = await PDFDocument.load(sourceBytes, {
+    ignoreEncryption: false,
+    updateMetadata: false,
+    throwOnInvalidObject: false,
+  });
+  const materialized = [];
+  for (const plan of plans) {
+    materialized.push(...await materializePlan(source, plan, maxBytes));
+  }
+  return materialized
+    .sort((left, right) =>
+      left.plan.priorityScore === right.plan.priorityScore
+        ? left.plan.startPage - right.plan.startPage
+        : right.plan.priorityScore - left.plan.priorityScore
+    )
+    .map((chunk, processingOrder) => ({
+      ...chunk,
+      plan: {
+        ...chunk.plan,
+        processingOrder,
+      },
     }));
 }
 

@@ -1,0 +1,116 @@
+{
+  "scope": "Document Intelligence v3.1 performance, cost, cache, progress, and quality observability",
+  "branch": "react-migration",
+  "migrations": [
+    {
+      "path": "supabase/migrations/202607230006_document_intelligence_v3_1_performance.sql",
+      "sha256": "4abdc47abe7722a2a21f6f8526b15fc8b0f49cb2a8e2d4c17cb5491d0539989a"
+    }
+  ],
+  "functions": [
+    {
+      "name": "tender-document-engine",
+      "entrypoint": "supabase/functions/tender-document-engine/index.ts",
+      "verify_jwt": true,
+      "sha256": "a57b60c5c0727a7e9cc879359b0330bcd21d7a3b15b076764b76ae0c9bcfcbfc"
+    }
+  ],
+  "shared_sources": [
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3.ts",
+      "sha256": "675fd9cd234556f3f86431d28424c32e000a7f1f87ef4fe222d83d8da87a5fcc",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3-1.ts",
+      "sha256": "044ae02bd2db91a4524f957bbbcdfbaee6cb19a507add8e0861e4582a87ecd8c",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/pdf-processing-v3.ts",
+      "sha256": "914fc2350531aa35733ecd56daac020ef0b887afec256c2fca6f9cc0484bfe1d",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/document-extraction-v2.ts",
+      "sha256": "3a1454c1b56964a01c1c9c1507b770039a2ba6e643b80a11353dfaacd2524918",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/_shared/matching-observability.ts",
+      "sha256": "ea8da698500b0fe12553839b57d4f59b91ab190b7b283d889a16afd3dfb30983",
+      "recorded_in_migration": false
+    }
+  ],
+  "runtime_inputs": [
+    {
+      "path": "supabase/functions/deno.json",
+      "sha256": "c84bbda11ef7a05a62ebcbad2e153e2267844ee80e1cb54ac3de352ea34d89e3"
+    },
+    {
+      "path": "supabase/functions/deno.lock",
+      "sha256": "11342798bfbcd32f9b188d5a4358abc2bb6ac5e3be0a83878c6e0a52bf942cf0"
+    }
+  ],
+  "tests": [
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3-1.test.ts",
+      "sha256": "5485e55071c27bf577582795dab45cdf097534fa28d69fbf8643f41f7d5d557e"
+    },
+    {
+      "path": "supabase/tests/document_intelligence_v3_1.sql",
+      "sha256": "337f2949c3ab31f7f270a4c63fb342e1de88ad6c604bd2dbdfefade4fb5ea895"
+    }
+  ],
+  "versions": {
+    "inspection": "document-inspection-v3.0.0",
+    "chunking": "document-chunking-v3.1.0",
+    "extraction": "tender-extraction-v3.1.0",
+    "prompt_schema": "medichall-tender-facts-v3",
+    "cache": "document-cache-v3.1.0"
+  },
+  "configuration": {
+    "MAX_PARALLEL_CHUNKS": 4,
+    "MAX_AI_COST_PER_DOCUMENT": 5,
+    "MAX_AI_REQUESTS": 20,
+    "MAX_TOTAL_TOKENS": 250000,
+    "EARLY_COMPLETION_THRESHOLD": 88,
+    "EARLY_COMPLETION_STABLE_WAVES": 1,
+    "CACHE_TTL": 2592000,
+    "CHUNK_PRIORITY_ENABLED": true,
+    "ADAPTIVE_CHUNKING_ENABLED": true,
+    "MIN_CHUNK_SIZE": 8,
+    "TARGET_CHUNK_TOKENS": 12000,
+    "BENCHMARK_MODE": false
+  },
+  "safety": {
+    "page_count_rejection": false,
+    "whole_large_pdf_sent_to_provider": false,
+    "bounded_parallelism": true,
+    "individual_chunk_retries": true,
+    "deterministic_merge": true,
+    "whole_document_cache": true,
+    "metadata_only_change_reuse": true,
+    "evidence_document_id_rebinding": true,
+    "partial_result_on_guardrail": true,
+    "legacy_prompt_schema_changed": false,
+    "legacy_queue_status_rpc_signatures_changed": false,
+    "frontend_changed": false
+  },
+  "deployment": {
+    "migration_count": 1,
+    "function_count": 1,
+    "backend_only": true,
+    "production_data_recomputation": false
+  },
+  "excluded": [
+    "apps/portal-react",
+    "portal.html",
+    "all production HTML",
+    "Supabase authentication",
+    "Supabase Storage",
+    "Supabase cron and Vault",
+    "all unrelated Edge Functions",
+    "broad production extraction or score recomputation"
+  ]
+}

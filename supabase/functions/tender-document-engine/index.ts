@@ -10,22 +10,35 @@ import {
   shouldApplyExtraction,
 } from "../_shared/document-extraction-v2.ts";
 import {
-  DOCUMENT_CHUNKING_VERSION,
-  DOCUMENT_EXTRACTION_VERSION_V3,
   DOCUMENT_INSPECTION_VERSION,
-  DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-  type DocumentIntelligenceConfig,
   estimateAiCost,
-  mapWithConcurrency,
   mergeChunkAnalyses,
   type PdfInspection,
-  publicConfigSnapshot,
-  readDocumentIntelligenceConfig,
   rebaseRawEvidencePages,
 } from "../_shared/document-intelligence-v3.ts";
 import {
+  createExecutionBudgetState,
+  DOCUMENT_CACHE_VERSION_V31,
+  DOCUMENT_CHUNKING_VERSION_V31 as DOCUMENT_CHUNKING_VERSION,
+  DOCUMENT_EXTRACTION_VERSION_V31 as DOCUMENT_EXTRACTION_VERSION_V3,
+  DOCUMENT_PROMPT_SCHEMA_VERSION_V31 as DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+  type DocumentIntelligenceV31Config,
+  type DocumentProgressStage,
+  evaluateEarlyCompletion,
+  type ExecutionBudgetState,
+  executionGuardrailReason,
+  extractionQualityMetrics,
+  planPrioritizedAdaptiveChunks,
+  progressEstimate,
+  publicV31ConfigSnapshot,
+  readDocumentIntelligenceV31Config,
+  rebindAnalysisDocumentId,
+  recordExecutionUsage,
+  reserveAiRequest,
+} from "../_shared/document-intelligence-v3-1.ts";
+import {
   inspectPdfBytes,
-  materializePdfChunks,
+  materializePdfChunkPlans,
   sha256Bytes,
 } from "../_shared/pdf-processing-v3.ts";
 import {
@@ -98,6 +111,30 @@ type ChunkWork = {
   mimeType: string;
   title: string;
   inputHash: string;
+  priorityScore: number;
+  processingOrder: number;
+  densityScore: number;
+  estimatedInputTokens: number;
+};
+
+type ChunkExecutionResult = {
+  status: "completed" | "failed" | "skipped" | "guardrail";
+  analysis: NormalizedDocumentAnalysis | null;
+  guardrailReason: string | null;
+  aiRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  providerDurationMs: number;
+};
+
+type BenchmarkTimings = {
+  inspectionMs: number;
+  chunkGenerationMs: number;
+  aiMs: number;
+  mergeMs: number;
+  databaseMs: number;
+  networkMs: number;
 };
 
 function corsHeaders(req: Request): HeadersInit {
@@ -164,9 +201,16 @@ function parseClaudeJson(data: any): Record<string, unknown> | null {
   }
 }
 
+class AiGuardrailError extends Error {
+  constructor(readonly reason: string) {
+    super(`AI execution stopped by ${reason}`);
+    this.name = "AiGuardrailError";
+  }
+}
+
 async function downloadDocument(
   url: string,
-  config: DocumentIntelligenceConfig,
+  config: DocumentIntelligenceV31Config,
 ): Promise<DownloadedDocument> {
   let current = normalizePublicUrl(url);
   if (!current || current.protocol !== "https:") {
@@ -527,12 +571,15 @@ async function callClaudeForChunk(
   anthropicKey: string,
   model: string,
   work: ChunkWork,
-  config: DocumentIntelligenceConfig,
+  config: DocumentIntelligenceV31Config,
+  budget: ExecutionBudgetState,
 ): Promise<{
   raw: Record<string, unknown>;
   requestId: string | null;
   usage: Record<string, number>;
   attempts: number;
+  estimatedCostUsd: number;
+  durationMs: number;
 }> {
   const content: any[] = [];
   if (work.bytes) {
@@ -566,7 +613,16 @@ async function callClaudeForChunk(
     ),
   });
   let lastResponse: any = null;
+  const aggregateUsage: Record<string, number> = {};
+  let aggregateCost = 0;
+  const startedAt = performance.now();
   for (let attempt = 1; attempt <= 2; attempt++) {
+    const guardrail = reserveAiRequest(
+      budget,
+      work.sourceDocumentKey,
+      config,
+    );
+    if (guardrail) throw new AiGuardrailError(guardrail);
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: AbortSignal.timeout(config.providerTimeoutMs),
@@ -588,6 +644,24 @@ async function callClaudeForChunk(
       }),
     });
     lastResponse = await response.json();
+    const responseUsage = (lastResponse?.usage || {}) as Record<string, number>;
+    const responseCost = estimateAiCost(responseUsage, config);
+    for (
+      const key of [
+        "input_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "output_tokens",
+      ]
+    ) {
+      aggregateUsage[key] = Number(aggregateUsage[key] || 0) +
+        Number(responseUsage[key] || 0);
+    }
+    aggregateCost = Number((aggregateCost + responseCost).toFixed(6));
+    recordExecutionUsage(budget, work.sourceDocumentKey, {
+      ...responseUsage,
+      estimated_cost_usd: responseCost,
+    });
     if (!response.ok) {
       throw new Error(
         lastResponse?.error?.message ||
@@ -599,8 +673,10 @@ async function callClaudeForChunk(
       return {
         raw: parsed,
         requestId: lastResponse?.id || null,
-        usage: lastResponse?.usage || {},
+        usage: aggregateUsage,
         attempts: attempt,
+        estimatedCostUsd: aggregateCost,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       };
     }
   }
@@ -637,7 +713,7 @@ async function findOrCreateInspection(
   sourceKey: string,
   contentHash: string,
   bytes: Uint8Array,
-  config: DocumentIntelligenceConfig,
+  config: DocumentIntelligenceV31Config,
 ): Promise<{ id: number; inspection: PdfInspection; reused: boolean }> {
   const { data: existing } = await adminClient
     .from("tender_document_inspections")
@@ -666,7 +742,7 @@ async function findOrCreateInspection(
       inspection_version: DOCUMENT_INSPECTION_VERSION,
       status: "failed",
       scanned_page_count: 0,
-      config_snapshot: publicConfigSnapshot(config),
+      config_snapshot: publicV31ConfigSnapshot(config),
       processing_duration_ms: 0,
       error_message: sanitizeMessage(error),
       updated_at: new Date().toISOString(),
@@ -691,7 +767,7 @@ async function findOrCreateInspection(
       table_of_contents_pages: inspection.tableOfContentsPages,
       page_signals: inspection.pageSignals,
       ranked_page_ranges: inspection.rankedRanges,
-      config_snapshot: publicConfigSnapshot(config),
+      config_snapshot: publicV31ConfigSnapshot(config),
       processing_duration_ms: inspection.durationMs,
       error_message: null,
       updated_at: new Date().toISOString(),
@@ -740,11 +816,15 @@ async function reuseChunkIfAvailable(
     .limit(1)
     .maybeSingle();
   if (!reusable?.id) return false;
+  const rebound = rebindAnalysisDocumentId(
+    reusable.normalized_result as NormalizedDocumentAnalysis,
+    Number(chunk.document_id || 0),
+  );
   const { error } = await adminClient
     .from("tender_document_analysis_chunks")
     .update({
       status: "completed",
-      normalized_result: reusable.normalized_result || {},
+      normalized_result: rebound,
       confidence_score: reusable.confidence_score,
       provider_usage: {
         reused: true,
@@ -754,6 +834,10 @@ async function reuseChunkIfAvailable(
       output_tokens: 0,
       estimated_cost_usd: 0,
       reused_from_chunk_id: reusable.id,
+      cache_hit: true,
+      cache_key: chunk.input_hash,
+      ai_request_count: 0,
+      provider_duration_ms: 0,
       lease_expires_at: null,
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -770,8 +854,9 @@ async function executeChunk(
   model: string,
   jobId: number,
   work: ChunkWork,
-  config: DocumentIntelligenceConfig,
-): Promise<"completed" | "failed" | "skipped"> {
+  config: DocumentIntelligenceV31Config,
+  budget: ExecutionBudgetState,
+): Promise<ChunkExecutionResult> {
   const { data: claimed, error: claimError } = await adminClient.rpc(
     "claim_tender_document_analysis_chunk_v3",
     {
@@ -785,13 +870,25 @@ async function executeChunk(
     },
   );
   if (claimError) throw new Error(claimError.message);
-  if (!claimed?.id) return "skipped";
+  if (!claimed?.id) {
+    return {
+      status: "skipped",
+      analysis: null,
+      guardrailReason: null,
+      aiRequests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+      providerDurationMs: 0,
+    };
+  }
   try {
     const provider = await callClaudeForChunk(
       anthropicKey,
       model,
       work,
       config,
+      budget,
     );
     const rebased = work.bytes
       ? rebaseRawEvidencePages(
@@ -805,7 +902,7 @@ async function executeChunk(
       new Set([work.documentId ?? 0]),
     );
     const usage = provider.usage || {};
-    const cost = estimateAiCost(usage, config);
+    const cost = provider.estimatedCostUsd;
     const { error } = await adminClient
       .from("tender_document_analysis_chunks")
       .update({
@@ -818,6 +915,9 @@ async function executeChunk(
         input_tokens: Number(usage.input_tokens || 0),
         output_tokens: Number(usage.output_tokens || 0),
         estimated_cost_usd: cost,
+        provider_name: "Anthropic",
+        provider_duration_ms: provider.durationMs,
+        ai_request_count: provider.attempts,
         error_code: null,
         error_message: null,
         lease_expires_at: null,
@@ -827,13 +927,29 @@ async function executeChunk(
       .eq("id", work.chunkId)
       .eq("job_id", jobId);
     if (error) throw new Error(error.message);
-    return "completed";
+    return {
+      status: "completed",
+      analysis,
+      guardrailReason: null,
+      aiRequests: provider.attempts,
+      inputTokens: Number(usage.input_tokens || 0) +
+        Number(usage.cache_creation_input_tokens || 0) +
+        Number(usage.cache_read_input_tokens || 0),
+      outputTokens: Number(usage.output_tokens || 0),
+      estimatedCostUsd: cost,
+      providerDurationMs: provider.durationMs,
+    };
   } catch (error) {
+    const guardrailReason = error instanceof AiGuardrailError
+      ? error.reason
+      : null;
     await adminClient
       .from("tender_document_analysis_chunks")
       .update({
-        status: "failed",
-        error_code: "DOCUMENT_CHUNK_EXTRACTION_FAILED",
+        status: guardrailReason ? "ignored" : "failed",
+        ignored_reason: guardrailReason,
+        error_code: guardrailReason ||
+          "DOCUMENT_CHUNK_EXTRACTION_FAILED",
         error_message: sanitizeMessage(error),
         lease_expires_at: null,
         completed_at: new Date().toISOString(),
@@ -841,8 +957,190 @@ async function executeChunk(
       })
       .eq("id", work.chunkId)
       .eq("job_id", jobId);
-    return "failed";
+    return {
+      status: guardrailReason ? "guardrail" : "failed",
+      analysis: null,
+      guardrailReason,
+      aiRequests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+      providerDurationMs: 0,
+    };
   }
+}
+
+async function executeChunkWithRetry(
+  adminClient: AdminClient,
+  anthropicKey: string,
+  model: string,
+  jobId: number,
+  work: ChunkWork,
+  config: DocumentIntelligenceV31Config,
+  budget: ExecutionBudgetState,
+): Promise<ChunkExecutionResult> {
+  let result: ChunkExecutionResult | null = null;
+  for (let attempt = 0; attempt < config.maxChunkAttempts; attempt++) {
+    result = await executeChunk(
+      adminClient,
+      anthropicKey,
+      model,
+      jobId,
+      work,
+      config,
+      budget,
+    );
+    if (result.status !== "failed") return result;
+  }
+  return result!;
+}
+
+async function updateProgress(
+  adminClient: AdminClient,
+  job: { id: number; tender_id: number; company_id?: number | null },
+  stage: DocumentProgressStage,
+  startedMs: number,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  const estimate = progressEstimate(stage, Date.now() - startedMs);
+  const now = new Date().toISOString();
+  const { error: updateError } = await adminClient
+    .from("tender_document_analysis_jobs")
+    .update({
+      progress_stage: stage,
+      progress_percent: estimate.percent,
+      estimated_remaining_seconds: estimate.estimatedRemainingSeconds,
+      updated_at: now,
+    })
+    .eq("id", job.id);
+  if (updateError) throw new Error(updateError.message);
+  const { error: eventError } = await adminClient
+    .from("tender_document_analysis_progress_events")
+    .insert({
+      job_id: job.id,
+      tender_id: job.tender_id,
+      company_id: Number(job.company_id) || null,
+      stage,
+      progress_percent: estimate.percent,
+      estimated_remaining_seconds: estimate.estimatedRemainingSeconds,
+      metadata,
+      created_at: now,
+    });
+  if (eventError) throw new Error(eventError.message);
+}
+
+async function findCachedDocumentExtraction(
+  adminClient: AdminClient,
+  contentSha256: string,
+  model: string,
+): Promise<any | null> {
+  const { data, error } = await adminClient
+    .from("tender_document_extraction_cache")
+    .select("*")
+    .eq("content_sha256", contentSha256)
+    .eq("cache_version", DOCUMENT_CACHE_VERSION_V31)
+    .eq("extraction_version", DOCUMENT_EXTRACTION_VERSION_V3)
+    .eq("prompt_schema_version", DOCUMENT_PROMPT_SCHEMA_VERSION_V3)
+    .eq("model_name", model)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.id) return null;
+  const { error: hitError } = await adminClient
+    .from("tender_document_extraction_cache")
+    .update({
+      hit_count: Number(data.hit_count || 0) + 1,
+      last_hit_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.id);
+  if (hitError) throw new Error(hitError.message);
+  return data;
+}
+
+async function persistDocumentCaches(
+  adminClient: AdminClient,
+  jobId: number,
+  chunks: readonly any[],
+  model: string,
+  cacheTtlSeconds: number,
+  pageCountByDocument: ReadonlyMap<string, number>,
+): Promise<number> {
+  const byDocument = new Map<string, any[]>();
+  for (const chunk of chunks) {
+    if (
+      chunk.status !== "completed" ||
+      !chunk.normalized_result ||
+      chunk.cache_hit
+    ) continue;
+    const key = String(chunk.source_document_key);
+    byDocument.set(key, [...(byDocument.get(key) || []), chunk]);
+  }
+  let persisted = 0;
+  for (const documentChunks of byDocument.values()) {
+    const merged = mergeChunkAnalyses(documentChunks.map((chunk) => ({
+      chunkId: chunk.id,
+      startPage: Number(chunk.page_start || 1),
+      endPage: Number(chunk.page_end || chunk.page_start || 1),
+      analysis: chunk.normalized_result as NormalizedDocumentAnalysis,
+    })));
+    const quality = extractionQualityMetrics(merged);
+    const first = documentChunks[0];
+    const expiresAt = new Date(
+      Date.now() + cacheTtlSeconds * 1_000,
+    ).toISOString();
+    const { error } = await adminClient
+      .from("tender_document_extraction_cache")
+      .upsert({
+        content_sha256: first.content_sha256,
+        cache_version: DOCUMENT_CACHE_VERSION_V31,
+        extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+        prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+        model_name: model,
+        normalized_result: merged,
+        page_count: Math.max(
+          1,
+          Number(pageCountByDocument.get(String(first.source_document_key))) ||
+            0,
+          ...documentChunks.map((chunk) => Number(chunk.page_end || 1)),
+        ),
+        confidence_score: quality.confidenceScore,
+        products_extracted: quality.productsExtracted,
+        requirements_extracted: quality.requirementsExtracted,
+        evidence_count: quality.evidenceCount,
+        source_job_id: jobId,
+        source_document_id: Number(first.document_id) || null,
+        provider_name: "Anthropic",
+        ai_request_count: documentChunks.reduce(
+          (total, chunk) => total + Number(chunk.ai_request_count || 0),
+          0,
+        ),
+        input_tokens: documentChunks.reduce(
+          (total, chunk) => total + Number(chunk.input_tokens || 0),
+          0,
+        ),
+        output_tokens: documentChunks.reduce(
+          (total, chunk) => total + Number(chunk.output_tokens || 0),
+          0,
+        ),
+        estimated_cost_usd: Number(
+          documentChunks.reduce(
+            (total, chunk) => total + Number(chunk.estimated_cost_usd || 0),
+            0,
+          ).toFixed(6),
+        ),
+        expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict:
+          "content_sha256,cache_version,extraction_version,prompt_schema_version,model_name",
+      });
+    if (error) throw new Error(error.message);
+    persisted++;
+  }
+  return persisted;
 }
 
 async function persistEvidence(
@@ -948,8 +1246,18 @@ async function processJob(
   jobId: number,
   pipelineRun: PipelineRunHandle,
 ): Promise<void> {
-  const config = readDocumentIntelligenceConfig();
-  const configSnapshot = publicConfigSnapshot(config);
+  const config = readDocumentIntelligenceV31Config();
+  const configSnapshot = publicV31ConfigSnapshot(config);
+  const budgetState = createExecutionBudgetState();
+  const timings: BenchmarkTimings = {
+    inspectionMs: 0,
+    chunkGenerationMs: 0,
+    aiMs: 0,
+    mergeMs: 0,
+    databaseMs: 0,
+    networkMs: 0,
+  };
+  const processStartedMs = Date.now();
   const { data: job, error: jobError } = await adminClient
     .from("tender_document_analysis_jobs")
     .select(
@@ -958,6 +1266,26 @@ async function processJob(
     .eq("id", jobId)
     .single();
   if (jobError || !job) throw new Error("Analysis job not found");
+  const { data: priorUsage, error: priorUsageError } = await adminClient
+    .from("tender_document_analysis_chunks")
+    .select(
+      "source_document_key,ai_request_count,input_tokens,output_tokens,estimated_cost_usd",
+    )
+    .eq("job_id", jobId);
+  if (priorUsageError) throw new Error(priorUsageError.message);
+  for (const usage of priorUsage || []) {
+    budgetState.aiRequests += Number(usage.ai_request_count || 0);
+    budgetState.inputTokens += Number(usage.input_tokens || 0);
+    budgetState.outputTokens += Number(usage.output_tokens || 0);
+    const cost = Number(usage.estimated_cost_usd || 0);
+    budgetState.estimatedCostUsd = Number(
+      (budgetState.estimatedCostUsd + cost).toFixed(6),
+    );
+    const sourceKey = String(usage.source_document_key || "");
+    budgetState.costByDocument[sourceKey] = Number(
+      (Number(budgetState.costByDocument[sourceKey] || 0) + cost).toFixed(6),
+    );
+  }
   const { data: existingTender } = await adminClient
     .from("tenders")
     .select(
@@ -979,6 +1307,13 @@ async function processJob(
     trace_id: pipelineRun.traceId,
     extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
     prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+    provider_name: "Anthropic",
+    benchmark_mode: config.benchmarkMode,
+    progress_stage: "downloading_attachments",
+    progress_percent: 5,
+    estimated_remaining_seconds: null,
+    early_completion_reason: null,
+    termination_reason: null,
     error_code: null,
     error_message: null,
   }).eq("id", jobId);
@@ -993,6 +1328,13 @@ async function processJob(
     "processing",
     "failed",
   ]);
+  await updateProgress(
+    adminClient,
+    job,
+    "downloading_attachments",
+    processStartedMs,
+    { document_limit: config.maxDocuments },
+  );
 
   const selectedIds = (job.selected_document_ids || [])
     .map(Number)
@@ -1056,12 +1398,22 @@ async function processJob(
     source: "document-intelligence-v3",
     metadata: configSnapshot,
   });
+  await updateProgress(
+    adminClient,
+    job,
+    "inspecting_document",
+    processStartedMs,
+  );
   const work: ChunkWork[] = [];
   let totalPages = 0;
   let selectedPages = 0;
   let inspectionsReused = 0;
   let documentsFailed = 0;
   let chunksReused = 0;
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let documentsCached = 0;
+  const pageCountByDocument = new Map<string, number>();
   let remainingAiPages = config.maxTotalAiPages;
   let remainingChunkExecutions = config.maxChunksPerRun;
   const documentErrors: string[] = [];
@@ -1076,6 +1428,7 @@ async function processJob(
     const documentId = Number(document.id) > 0 ? Number(document.id) : null;
     const configuredMime = String(document.mime_type || "").toLowerCase();
     try {
+      const downloadStartedAt = performance.now();
       const downloaded = document.__inline_text
         ? {
           bytes: new TextEncoder().encode(document.__inline_text),
@@ -1084,6 +1437,10 @@ async function processJob(
           redirectCount: 0,
         }
         : await downloadDocument(String(document.file_url || ""), config);
+      timings.networkMs += Math.max(
+        0,
+        Math.round(performance.now() - downloadStartedAt),
+      );
       const mimeType = SUPPORTED_MIME_TYPES.has(configuredMime)
         ? configuredMime
         : downloaded.mimeType;
@@ -1111,7 +1468,93 @@ async function processJob(
         },
         metadata: { mime_type: mimeType },
       });
+      const cached = await findCachedDocumentExtraction(
+        adminClient,
+        contentHash,
+        model,
+      );
+      if (cached?.normalized_result) {
+        cacheHits++;
+        documentsCached++;
+        const cachedPageCount = Math.max(1, Number(cached.page_count || 1));
+        const cachedAnalysis = rebindAnalysisDocumentId(
+          cached.normalized_result as NormalizedDocumentAnalysis,
+          documentId || 0,
+        );
+        const cacheInputHash = await stableVersionHash({
+          content_sha256: contentHash,
+          cache_version: DOCUMENT_CACHE_VERSION_V31,
+          extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+          prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+          model,
+        });
+        await upsertChunk(adminClient, {
+          job_id: jobId,
+          inspection_id: null,
+          tender_id: job.tender_id,
+          document_id: documentId,
+          source_document_key: sourceKey,
+          content_sha256: contentHash,
+          chunk_index: 0,
+          page_start: 1,
+          page_end: cachedPageCount,
+          page_numbers: [],
+          priority_score: 999,
+          selection_reasons: ["document_hash_cache_hit"],
+          input_hash: cacheInputHash,
+          model_name: model,
+          extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+          prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+          status: "completed",
+          normalized_result: cachedAnalysis,
+          confidence_score: cachedAnalysis.document_confidence_score,
+          provider_name: cached.provider_name || "Anthropic",
+          provider_usage: {
+            document_cache_hit: true,
+            source_cache_id: cached.id,
+          },
+          input_tokens: 0,
+          output_tokens: 0,
+          estimated_cost_usd: 0,
+          cache_key: cacheInputHash,
+          cache_hit: true,
+          processing_order: 0,
+          ai_request_count: 0,
+          provider_duration_ms: 0,
+          reused_from_chunk_id: null,
+          ignored_reason: null,
+          error_code: null,
+          error_message: null,
+          lease_expires_at: null,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        totalPages += cachedPageCount;
+        selectedPages += cachedPageCount;
+        remainingAiPages = Math.max(
+          0,
+          remainingAiPages - cachedPageCount,
+        );
+        if (documentId) {
+          await adminClient.from("tender_documents").update({
+            content_sha256: contentHash,
+            page_count: cachedPageCount,
+            inspection_status: "completed",
+            inspection_version: DOCUMENT_INSPECTION_VERSION,
+            last_inspected_at: new Date().toISOString(),
+            access_status: "parsed",
+            access_checked_at: new Date().toISOString(),
+            retrieval_version: PIPELINE_VERSIONS.documentRetrievalV2,
+            parser_version: DOCUMENT_CHUNKING_VERSION,
+            pipeline_trace_id: pipelineRun.traceId,
+            updated_at: new Date().toISOString(),
+          }).eq("id", documentId);
+        }
+        continue;
+      }
+      cacheMisses++;
       if (mimeType === "application/pdf") {
+        const inspectionStartedAt = performance.now();
         const inspectionRecord = await findOrCreateInspection(
           adminClient,
           Number(job.tender_id),
@@ -1121,8 +1564,13 @@ async function processJob(
           downloaded.bytes,
           config,
         );
+        timings.inspectionMs += Math.max(
+          0,
+          Math.round(performance.now() - inspectionStartedAt),
+        );
         if (inspectionRecord.reused) inspectionsReused++;
         const inspection = inspectionRecord.inspection;
+        pageCountByDocument.set(sourceKey, inspection.pageCount);
         totalPages += inspection.pageCount;
         if (documentId) {
           await adminClient.from("tender_documents").update({
@@ -1149,23 +1597,37 @@ async function processJob(
           1,
           Math.floor(remainingAiPages / documentsRemaining),
         );
-        const chunks = await materializePdfChunks(
+        await updateProgress(
+          adminClient,
+          job,
+          "finding_technical_sections",
+          processStartedMs,
+          { document_index: documentIndex + 1 },
+        );
+        const generationStartedAt = performance.now();
+        const plans = planPrioritizedAdaptiveChunks(inspection, {
+          ...config,
+          maxTotalAiPages: Math.min(config.maxTotalAiPages, budget),
+        });
+        const chunks = await materializePdfChunkPlans(
           downloaded.bytes,
-          inspection,
-          config,
-          budget,
+          plans,
+          config.maxAiChunkBytes,
+        );
+        timings.chunkGenerationMs += Math.max(
+          0,
+          Math.round(performance.now() - generationStartedAt),
         );
         for (const chunk of chunks) {
           const chunkBytesHash = await sha256Bytes(chunk.bytes);
           const inputHash = await stableVersionHash({
             content_sha256: contentHash,
             chunk_bytes_sha256: chunkBytesHash,
-            source_document_key: sourceKey,
             page_numbers: chunk.plan.pageNumbers,
             model,
             extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
             prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-            config: configSnapshot,
+            max_chunk_output_tokens: config.maxChunkOutputTokens,
           });
           const row = await upsertChunk(adminClient, {
             job_id: jobId,
@@ -1180,6 +1642,10 @@ async function processJob(
             page_numbers: chunk.plan.pageNumbers,
             priority_score: chunk.plan.priorityScore,
             selection_reasons: chunk.plan.reasons,
+            processing_order: chunk.plan.processingOrder ??
+              chunk.plan.chunkIndex,
+            density_score: chunk.plan.densityScore ?? 0,
+            estimated_input_tokens: chunk.plan.estimatedInputTokens ?? 0,
             input_hash: inputHash,
             model_name: model,
             extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
@@ -1207,14 +1673,18 @@ async function processJob(
               title: document.file_name || document.title ||
                 `Document ${document.id}`,
               inputHash,
+              priorityScore: chunk.plan.priorityScore,
+              processingOrder: chunk.plan.processingOrder ??
+                chunk.plan.chunkIndex,
+              densityScore: chunk.plan.densityScore ?? 0,
+              estimatedInputTokens: chunk.plan.estimatedInputTokens ?? 0,
             });
             remainingChunkExecutions--;
           }
         }
-        const plannedPages = chunks.reduce(
-          (sum, chunk) => sum + chunk.plan.pageNumbers.length,
-          0,
-        );
+        const plannedPages = new Set(
+          chunks.flatMap((chunk) => chunk.plan.pageNumbers),
+        ).size;
         selectedPages += plannedPages;
         remainingAiPages = Math.max(0, remainingAiPages - plannedPages);
       } else {
@@ -1240,16 +1710,16 @@ async function processJob(
           }).eq("id", documentId);
         }
         totalPages += 1;
+        pageCountByDocument.set(sourceKey, 1);
         selectedPages += 1;
         remainingAiPages = Math.max(0, remainingAiPages - 1);
         const inputHash = await stableVersionHash({
           content_sha256: contentHash,
-          source_document_key: sourceKey,
           text,
           model,
           extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
           prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-          config: configSnapshot,
+          max_chunk_output_tokens: config.maxChunkOutputTokens,
         });
         const row = await upsertChunk(adminClient, {
           job_id: jobId,
@@ -1264,6 +1734,9 @@ async function processJob(
           page_numbers: [],
           priority_score: 1,
           selection_reasons: ["structured_text_document"],
+          processing_order: work.length,
+          density_score: 0,
+          estimated_input_tokens: Math.max(1, Math.round(text.length / 4)),
           input_hash: inputHash,
           model_name: model,
           extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
@@ -1288,6 +1761,10 @@ async function processJob(
             title: document.file_name || document.title ||
               `Document ${document.id}`,
             inputHash,
+            priorityScore: 1,
+            processingOrder: work.length,
+            densityScore: 0,
+            estimatedInputTokens: Math.max(1, Math.round(text.length / 4)),
           });
           remainingChunkExecutions--;
         }
@@ -1382,28 +1859,148 @@ async function processJob(
       max_parallel_chunks: config.maxParallelChunks,
     },
   });
-  const results = await mapWithConcurrency(
-    work,
-    config.maxParallelChunks,
-    (chunk) =>
-      executeChunk(
-        adminClient,
-        anthropicKey,
-        model,
-        jobId,
-        chunk,
-        config,
-      ),
+  await updateProgress(
+    adminClient,
+    job,
+    "reading_specifications",
+    processStartedMs,
+    { chunks_scheduled: work.length },
   );
+  const orderedWork = [...work].sort((left, right) =>
+    left.processingOrder - right.processingOrder ||
+    right.priorityScore - left.priorityScore ||
+    left.startPage - right.startPage
+  );
+  const results: ChunkExecutionResult[] = [];
+  let earlyState = {
+    previousFactFingerprint: null as string | null,
+    stableWaves: 0,
+  };
+  let terminationReason: string | null = null;
+  for (
+    let cursor = 0;
+    cursor < orderedWork.length;
+    cursor += config.maxParallelChunks
+  ) {
+    const pendingGuardrail = executionGuardrailReason(
+      budgetState,
+      orderedWork[cursor].sourceDocumentKey,
+      config,
+    );
+    if (pendingGuardrail) {
+      terminationReason = pendingGuardrail;
+      break;
+    }
+    await updateProgress(
+      adminClient,
+      job,
+      "extracting_products",
+      processStartedMs,
+      {
+        chunks_completed_this_run: results.filter((result) =>
+          result.status === "completed"
+        ).length,
+        chunks_scheduled: orderedWork.length,
+      },
+    );
+    const wave = orderedWork.slice(
+      cursor,
+      cursor + config.maxParallelChunks,
+    );
+    const aiStartedAt = performance.now();
+    const waveResults = await Promise.all(
+      wave.map((chunk) =>
+        executeChunkWithRetry(
+          adminClient,
+          anthropicKey,
+          model,
+          jobId,
+          chunk,
+          config,
+          budgetState,
+        )
+      ),
+    );
+    timings.aiMs += Math.max(0, Math.round(performance.now() - aiStartedAt));
+    results.push(...waveResults);
+    const waveGuardrail = waveResults.find((result) =>
+      result.status === "guardrail"
+    )?.guardrailReason;
+    if (waveGuardrail) {
+      terminationReason = waveGuardrail;
+      break;
+    }
+    const { data: earlyRows, error: earlyError } = await adminClient
+      .from("tender_document_analysis_chunks")
+      .select(
+        "id,page_start,page_end,status,normalized_result",
+      )
+      .eq("job_id", jobId)
+      .eq("extraction_version", DOCUMENT_EXTRACTION_VERSION_V3)
+      .eq("status", "completed")
+      .order("id");
+    if (earlyError) throw new Error(earlyError.message);
+    if ((earlyRows || []).length && cursor + wave.length < orderedWork.length) {
+      const earlyMerged = mergeChunkAnalyses((earlyRows || []).map(
+        (chunk: any) => ({
+          chunkId: chunk.id,
+          startPage: Number(chunk.page_start || 1),
+          endPage: Number(chunk.page_end || chunk.page_start || 1),
+          analysis: chunk.normalized_result as NormalizedDocumentAnalysis,
+        }),
+      ));
+      const decision = evaluateEarlyCompletion(
+        earlyMerged,
+        earlyState,
+        config,
+      );
+      earlyState = decision.state;
+      if (decision.complete) {
+        terminationReason = decision.reason;
+        break;
+      }
+    }
+  }
+  if (terminationReason) {
+    const executedIds = new Set(
+      orderedWork.slice(0, results.length).map((chunk) => chunk.chunkId),
+    );
+    const ignoredIds = orderedWork
+      .filter((chunk) => !executedIds.has(chunk.chunkId))
+      .map((chunk) => chunk.chunkId);
+    if (ignoredIds.length) {
+      const { error } = await adminClient
+        .from("tender_document_analysis_chunks")
+        .update({
+          status: "ignored",
+          ignored_reason: terminationReason,
+          error_code: terminationReason,
+          error_message:
+            `Chunk skipped after safe termination: ${terminationReason}`,
+          lease_expires_at: null,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("job_id", jobId)
+        .in("id", ignoredIds)
+        .eq("status", "queued");
+      if (error) throw new Error(error.message);
+    }
+  }
   await finishPipelineStage(
     adminClient,
     extractionStage,
-    results.some((status) => status === "failed") ? "partial" : "completed",
+    results.some((result) => result.status === "failed")
+      ? "partial"
+      : "completed",
     {
       metadata: {
-        completed: results.filter((status) => status === "completed").length,
-        failed: results.filter((status) => status === "failed").length,
-        skipped: results.filter((status) => status === "skipped").length,
+        completed:
+          results.filter((result) => result.status === "completed").length,
+        failed: results.filter((result) => result.status === "failed").length,
+        skipped: results.filter((result) => result.status === "skipped").length,
+        termination_reason: terminationReason,
+        ai_requests: budgetState.aiRequests,
       },
     },
   );
@@ -1411,7 +2008,7 @@ async function processJob(
   const { data: chunkRows, error: chunksError } = await adminClient
     .from("tender_document_analysis_chunks")
     .select(
-      "id,input_hash,page_start,page_end,page_numbers,status,normalized_result,reused_from_chunk_id,input_tokens,output_tokens,estimated_cost_usd",
+      "id,input_hash,page_start,page_end,page_numbers,status,normalized_result,reused_from_chunk_id,input_tokens,output_tokens,estimated_cost_usd,source_document_key,content_sha256,document_id,cache_hit,ai_request_count,provider_duration_ms",
     )
     .eq("job_id", jobId)
     .eq("extraction_version", DOCUMENT_EXTRACTION_VERSION_V3)
@@ -1431,15 +2028,27 @@ async function processJob(
     companyId: Number(job.company_id) || null,
     source: "document-intelligence-v3",
   });
+  const mergeStartedAt = performance.now();
   const merged = mergeChunkAnalyses(completed.map((chunk: any) => ({
     chunkId: chunk.id,
     startPage: Number(chunk.page_start || 1),
     endPage: Number(chunk.page_end || chunk.page_start || 1),
     analysis: chunk.normalized_result as NormalizedDocumentAnalysis,
   })));
+  timings.mergeMs += Math.max(
+    0,
+    Math.round(performance.now() - mergeStartedAt),
+  );
   const incomplete =
-    (chunkRows || []).some((chunk: any) => chunk.status !== "completed") ||
-    documentsFailed > 0;
+    (chunkRows || []).some((chunk: any) =>
+      ["queued", "processing", "failed"].includes(chunk.status) ||
+      (
+        chunk.status === "ignored" &&
+        terminationReason !== "EARLY_COMPLETION"
+      )
+    ) ||
+    documentsFailed > 0 ||
+    Boolean(terminationReason && terminationReason !== "EARLY_COMPLETION");
   const analysis = {
     ...merged,
     analysis_status: incomplete ? "partial" : merged.analysis_status,
@@ -1447,7 +2056,9 @@ async function processJob(
       ? [
         ...new Set([
           ...merged.missing_information,
-          "One or more document chunks are pending or failed",
+          terminationReason
+            ? `Analysis stopped safely: ${terminationReason}`
+            : "One or more document chunks are pending or failed",
         ]),
       ]
       : merged.missing_information,
@@ -1468,16 +2079,71 @@ async function processJob(
   const aiPagesProcessed = completed.reduce(
     (sum: number, chunk: any) =>
       sum +
-      (Array.isArray(chunk.page_numbers) && chunk.page_numbers.length
-        ? chunk.page_numbers.length
-        : 1),
+      (chunk.cache_hit || chunk.reused_from_chunk_id
+        ? 0
+        : (Array.isArray(chunk.page_numbers) && chunk.page_numbers.length
+          ? chunk.page_numbers.length
+          : 1)),
     0,
   );
-  const estimatedCost = Number(
+  const chunkEstimatedCost = Number(
     completed.reduce(
       (sum: number, chunk: any) => sum + Number(chunk.estimated_cost_usd || 0),
       0,
     ).toFixed(6),
+  );
+  const estimatedCost = Math.max(
+    chunkEstimatedCost,
+    budgetState.estimatedCostUsd,
+  );
+  const chunkAiRequestCount = completed.reduce(
+    (sum: number, chunk: any) => sum + Number(chunk.ai_request_count || 0),
+    0,
+  );
+  const aiRequestCount = Math.max(
+    chunkAiRequestCount,
+    budgetState.aiRequests,
+  );
+  const chunkInputTokens = completed.reduce(
+    (sum: number, chunk: any) => sum + Number(chunk.input_tokens || 0),
+    0,
+  );
+  const totalInputTokens = Math.max(
+    chunkInputTokens,
+    budgetState.inputTokens,
+  );
+  const chunkOutputTokens = completed.reduce(
+    (sum: number, chunk: any) => sum + Number(chunk.output_tokens || 0),
+    0,
+  );
+  const totalOutputTokens = Math.max(
+    chunkOutputTokens,
+    budgetState.outputTokens,
+  );
+  const providerDurationMs = completed.reduce(
+    (sum: number, chunk: any) => sum + Number(chunk.provider_duration_ms || 0),
+    0,
+  );
+  const chunksIgnored =
+    (chunkRows || []).filter((chunk: any) => chunk.status === "ignored").length;
+  const quality = extractionQualityMetrics(analysis);
+  const cacheStartedAt = performance.now();
+  const cacheEligible = chunksFailed === 0 &&
+    documentsFailed === 0 &&
+    (!terminationReason || terminationReason === "EARLY_COMPLETION");
+  const cachesPersisted = cacheEligible
+    ? await persistDocumentCaches(
+      adminClient,
+      jobId,
+      chunkRows || [],
+      model,
+      config.cacheTtlSeconds,
+      pageCountByDocument,
+    )
+    : 0;
+  timings.databaseMs += Math.max(
+    0,
+    Math.round(performance.now() - cacheStartedAt),
   );
   const planHash = await stableVersionHash({
     chunk_inputs: (chunkRows || []).map((chunk: any) => chunk.input_hash),
@@ -1494,6 +2160,29 @@ async function processJob(
   const finalStatus = analysis.analysis_status === "completed"
     ? "completed"
     : "partial";
+  const totalDurationMs = Math.max(0, Date.now() - processStartedMs);
+  const benchmarkResult = {
+    total_runtime_ms: totalDurationMs,
+    inspection_ms: timings.inspectionMs,
+    chunk_generation_ms: timings.chunkGenerationMs,
+    ai_ms: providerDurationMs || timings.aiMs,
+    merge_ms: timings.mergeMs,
+    database_ms: timings.databaseMs,
+    network_ms: timings.networkMs,
+    configured_parallelism: config.maxParallelChunks,
+    chunks_scheduled: work.length,
+    chunks_completed: chunksCompleted,
+    cache_hits: cacheHits,
+    early_completion: terminationReason === "EARLY_COMPLETION",
+  };
+  await updateProgress(
+    adminClient,
+    job,
+    "matching_supplier",
+    processStartedMs,
+    { products_extracted: quality.productsExtracted },
+  );
+  const finalDatabaseStartedAt = performance.now();
   await adminClient.from("tender_document_analysis_jobs").update({
     status: finalStatus,
     normalized_result: analysis,
@@ -1507,22 +2196,68 @@ async function processJob(
     chunks_total: (chunkRows || []).length,
     chunks_completed: chunksCompleted,
     chunks_failed: chunksFailed,
+    chunks_ignored: chunksIgnored,
     chunks_reused: Math.max(chunksReused, currentReused),
     estimated_ai_cost_usd: estimatedCost,
+    ai_request_count: aiRequestCount,
+    total_input_tokens: totalInputTokens,
+    total_output_tokens: totalOutputTokens,
+    total_tokens: totalInputTokens + totalOutputTokens,
+    provider_name: "Anthropic",
+    ai_duration_ms: providerDurationMs || timings.aiMs,
+    inspection_duration_ms: timings.inspectionMs,
+    chunk_generation_duration_ms: timings.chunkGenerationMs,
+    merge_duration_ms: timings.mergeMs,
+    database_duration_ms: timings.databaseMs,
+    network_duration_ms: timings.networkMs,
+    early_completion_reason: terminationReason === "EARLY_COMPLETION"
+      ? terminationReason
+      : null,
+    termination_reason: terminationReason,
+    benchmark_mode: config.benchmarkMode,
+    benchmark_result: config.benchmarkMode ? benchmarkResult : {
+      total_runtime_ms: totalDurationMs,
+      configured_parallelism: config.maxParallelChunks,
+    },
+    cache_hit_count: cacheHits,
+    cache_miss_count: cacheMisses,
+    documents_cached: documentsCached,
+    duplicate_facts_removed: analysis.merge_statistics.duplicate_facts_removed,
+    conflicts_detected: quality.conflictsDetected,
+    products_extracted: quality.productsExtracted,
+    requirements_extracted: quality.requirementsExtracted,
     processing_statistics: {
       config: configSnapshot,
       documents_total: documents.length,
       documents_failed: documentsFailed,
       inspections_reused: inspectionsReused,
       chunks_executed_this_run: work.length,
-      chunks_pending: (chunkRows || []).length - chunksCompleted - chunksFailed,
+      chunks_pending: Math.max(
+        0,
+        (chunkRows || []).length -
+          chunksCompleted -
+          chunksFailed -
+          chunksIgnored,
+      ),
       ambiguities: analysis.ambiguities.length,
+      cache_entries_written: cachesPersisted,
+      termination_reason: terminationReason,
+      budget: {
+        ai_requests: aiRequestCount,
+        total_tokens: totalInputTokens + totalOutputTokens,
+        estimated_cost_usd: estimatedCost,
+      },
+      quality,
     },
     v3_plan_hash: planHash,
-    duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
+    duration_ms: totalDurationMs,
     completed_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
+  timings.databaseMs += Math.max(
+    0,
+    Math.round(performance.now() - finalDatabaseStartedAt),
+  );
 
   let evidenceCount = 0;
   if (applyResult) {
@@ -1547,9 +2282,23 @@ async function processJob(
     }).eq("id", job.tender_id);
     if (error) throw new Error(error.message);
   }
+  await updateProgress(
+    adminClient,
+    job,
+    "calculating_score",
+    processStartedMs,
+    { result_applied: applyResult },
+  );
   const matchErrors = applyResult
     ? await refreshRequestingCompanyMatch(adminClient, job, pipelineRun)
     : [];
+  await updateProgress(
+    adminClient,
+    job,
+    "generating_summary",
+    processStartedMs,
+    { match_refresh_error_count: matchErrors.length },
+  );
   await finishPipelineRun(
     adminClient,
     pipelineRun,
@@ -1568,6 +2317,16 @@ async function processJob(
         evidence_count: evidenceCount,
         match_refresh_error_count: matchErrors.length,
       },
+    },
+  );
+  await updateProgress(
+    adminClient,
+    job,
+    "complete",
+    processStartedMs,
+    {
+      status: finalStatus,
+      termination_reason: terminationReason,
     },
   );
 }
@@ -1650,7 +2409,7 @@ Deno.serve(async (req: Request) => {
     component: "ai_extraction",
     pipelineVersion: DOCUMENT_EXTRACTION_VERSION_V3,
     source: "tender-document-engine",
-    metadata: { analysis_job_id: Number(job.id), engine_generation: 3 },
+    metadata: { analysis_job_id: Number(job.id), engine_generation: "3.1" },
   });
   EdgeRuntime.waitUntil(
     processJob(
@@ -1663,7 +2422,7 @@ Deno.serve(async (req: Request) => {
       await finishPipelineRun(adminClient, pipelineRun, "failed", { error });
       await adminClient.from("tender_document_analysis_jobs").update({
         status: "failed",
-        error_code: "DOCUMENT_INTELLIGENCE_V3_FAILED",
+        error_code: "DOCUMENT_INTELLIGENCE_V31_FAILED",
         error_message: sanitizeMessage(error),
         duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
         completed_at: new Date().toISOString(),

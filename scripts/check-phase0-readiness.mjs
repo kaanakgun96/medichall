@@ -37,10 +37,19 @@ function walk(path) {
 const documentIntelligenceV3 = JSON.parse(
   read("supabase/observability/document-intelligence-v3.json"),
 );
+const documentIntelligenceV31 = JSON.parse(
+  read("supabase/observability/document-intelligence-v3-1.json"),
+);
+const v31SourcePaths = new Set([
+  ...documentIntelligenceV31.functions.map((entry) => entry.entrypoint),
+  ...documentIntelligenceV31.shared_sources.map((entry) => entry.path),
+  ...documentIntelligenceV31.runtime_inputs.map((entry) => entry.path),
+]);
 const v3SourcePaths = new Set([
   ...documentIntelligenceV3.functions.map((entry) => entry.entrypoint),
   ...documentIntelligenceV3.shared_sources.map((entry) => entry.path),
   ...documentIntelligenceV3.runtime_inputs.map((entry) => entry.path),
+  ...v31SourcePaths,
 ]);
 
 const currentBranch = execFileSync(
@@ -295,10 +304,12 @@ for (const entry of [
 ]) {
   check(existsSync(repositoryPath(entry.path)), `missing v3 input: ${entry.path}`);
   if (!existsSync(repositoryPath(entry.path))) continue;
-  check(
-    sha256(entry.path) === entry.sha256,
-    `Document Intelligence v3 hash mismatch: ${entry.path}`,
-  );
+  if (!v31SourcePaths.has(entry.path)) {
+    check(
+      sha256(entry.path) === entry.sha256,
+      `Document Intelligence v3 hash mismatch: ${entry.path}`,
+    );
+  }
 }
 const v3Migration = documentIntelligenceV3.migrations.map(read).join("\n");
 const v3ManifestText = JSON.stringify(documentIntelligenceV3);
@@ -342,6 +353,76 @@ check(
 check(
   documentIntelligenceV3.safety?.whole_large_pdf_sent_to_provider === false,
   "Document Intelligence v3 must not send whole large PDFs to the provider",
+);
+check(
+  documentIntelligenceV31.branch === "react-migration",
+  "Document Intelligence v3.1 manifest targets the wrong branch",
+);
+check(
+  documentIntelligenceV31.migrations.length === 1 &&
+    documentIntelligenceV31.migrations[0]?.path ===
+      "supabase/migrations/202607230006_document_intelligence_v3_1_performance.sql",
+  "Document Intelligence v3.1 manifest has an unexpected migration scope",
+);
+check(
+  documentIntelligenceV31.functions.length === 1 &&
+    documentIntelligenceV31.functions[0]?.name ===
+      "tender-document-engine" &&
+    documentIntelligenceV31.functions[0]?.verify_jwt === true,
+  "Document Intelligence v3.1 must deploy only the JWT-protected canonical engine",
+);
+for (const entry of [
+  ...documentIntelligenceV31.migrations,
+  ...documentIntelligenceV31.functions.map((item) => ({
+    path: item.entrypoint,
+    sha256: item.sha256,
+  })),
+  ...documentIntelligenceV31.shared_sources,
+  ...documentIntelligenceV31.runtime_inputs,
+  ...documentIntelligenceV31.tests,
+]) {
+  check(
+    existsSync(repositoryPath(entry.path)),
+    `missing Document Intelligence v3.1 input: ${entry.path}`,
+  );
+  if (!existsSync(repositoryPath(entry.path))) continue;
+  check(
+    sha256(entry.path) === entry.sha256,
+    `Document Intelligence v3.1 hash mismatch: ${entry.path}`,
+  );
+}
+const v31Migration = documentIntelligenceV31.migrations.map((item) =>
+  read(item.path)
+).join("\n");
+for (const entry of [
+  ...documentIntelligenceV31.functions.map((item) => ({
+    path: item.entrypoint,
+    sha256: item.sha256,
+  })),
+  ...documentIntelligenceV31.shared_sources.filter((item) =>
+    item.recorded_in_migration
+  ),
+]) {
+  check(
+    v31Migration.includes(entry.sha256),
+    `Document Intelligence v3.1 migration does not record ${entry.path}`,
+  );
+}
+check(
+  !/[A-Z][A-Z0-9_]+_SHA256/.test(JSON.stringify(documentIntelligenceV31)) &&
+    !/[A-Z][A-Z0-9_]+_SHA256/.test(v31Migration),
+  "Document Intelligence v3.1 contains an unresolved hash placeholder",
+);
+check(
+  documentIntelligenceV31.configuration?.MAX_PARALLEL_CHUNKS === 4,
+  "Document Intelligence v3.1 must default to four parallel workers",
+);
+check(
+  documentIntelligenceV31.safety?.legacy_prompt_schema_changed === false &&
+    documentIntelligenceV31.safety
+        ?.legacy_queue_status_rpc_signatures_changed === false &&
+    documentIntelligenceV31.safety?.frontend_changed === false,
+  "Document Intelligence v3.1 compatibility boundaries changed",
 );
 const matchScoreV2 = JSON.parse(
   read("supabase/observability/match-score-v2.json"),

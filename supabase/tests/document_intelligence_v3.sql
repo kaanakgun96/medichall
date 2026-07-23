@@ -1,4 +1,5 @@
--- Run after 202607230004_document_intelligence_v3.sql.
+-- Run after the current Document Intelligence migrations through
+-- 202607230006_document_intelligence_v3_1_performance.sql.
 -- All fixtures and chunk-state transitions are transaction-local.
 
 begin;
@@ -69,11 +70,11 @@ begin
   from public.pipeline_versions
   where is_repository_current
     and (component, version_identifier) in (
-      ('document_parsing', 'document-chunking-v3.0.0'),
-      ('ai_extraction', 'tender-extraction-v3.0.0')
+      ('document_parsing', 'document-chunking-v3.1.0'),
+      ('ai_extraction', 'tender-extraction-v3.1.0')
     );
   if v_current_versions <> 2 then
-    raise exception 'Expected two repository-current v3 versions';
+    raise exception 'Expected two repository-current v3.1 versions';
   end if;
 
   if has_function_privilege(
