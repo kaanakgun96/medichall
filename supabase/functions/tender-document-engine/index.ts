@@ -1,4 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  PIPELINE_VERSIONS,
+  type PipelineRunHandle,
+  finishPipelineRun,
+  finishPipelineStage,
+  recordDocumentAccessAttempt,
+  sanitizeMessage,
+  stableVersionHash,
+  startPipelineRun,
+  startPipelineStage,
+} from "../_shared/matching-observability.ts";
 
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",
@@ -121,17 +132,50 @@ async function fetchAsBase64(url: string): Promise<{
   });
 
   if (!response.ok) {
-    throw new Error(`Could not download document (${response.status})`);
+    const error = new Error(`Could not download document (${response.status})`);
+    Object.assign(error, {
+      documentAccessClassification: {
+        httpStatus: response.status,
+        contentType: response.headers.get("content-type"),
+        contentLength: Number(response.headers.get("content-length") || 0),
+        url: response.url || url,
+        isDirectFile: true,
+        error,
+      },
+    });
+    throw error;
   }
 
   const contentLength = Number(response.headers.get("content-length") || 0);
   if (contentLength > MAX_FILE_BYTES) {
-    throw new Error("Document exceeds the configured size limit");
+    const error = new Error("Document exceeds the configured size limit");
+    Object.assign(error, {
+      documentAccessClassification: {
+        contentType: response.headers.get("content-type"),
+        contentLength,
+        url: response.url || url,
+        isDirectFile: true,
+        fileTooLarge: true,
+        error,
+      },
+    });
+    throw error;
   }
 
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MAX_FILE_BYTES) {
-    throw new Error("Document exceeds the configured size limit");
+    const error = new Error("Document exceeds the configured size limit");
+    Object.assign(error, {
+      documentAccessClassification: {
+        contentType: response.headers.get("content-type"),
+        contentLength: bytes.byteLength,
+        url: response.url || url,
+        isDirectFile: true,
+        fileTooLarge: true,
+        error,
+      },
+    });
+    throw error;
   }
 
   let binary = "";
@@ -160,7 +204,32 @@ async function buildClaudeContent(documents: any[], documentMap: any[], companyC
       });
       continue;
     }
-    const downloaded = await fetchAsBase64(document.file_url);
+    let downloaded;
+    try {
+      downloaded = await fetchAsBase64(document.file_url);
+    } catch (error) {
+      const enrichedError = error instanceof Error
+        ? error
+        : new Error(String(error));
+      const providerClassification = (error as {
+        documentAccessClassification?: Record<string, unknown>;
+      })?.documentAccessClassification;
+      Object.assign(enrichedError, {
+        documentAccess: {
+          documentId: Number(document.id) > 0 ? Number(document.id) : null,
+          url: String(document.file_url || ""),
+          sourceConfidence: document.source_confidence || "unknown",
+          classification: {
+            ...providerClassification,
+            error,
+            url: String(document.file_url || ""),
+            isDirectFile: true,
+            fileTooLarge: /size limit/i.test(String(error)),
+          },
+        },
+      });
+      throw enrichedError;
+    }
 
     if (mimeType === "application/pdf") {
       content.push({
@@ -285,6 +354,7 @@ async function processJob(
   adminClient: ReturnType<typeof createClient>,
   anthropicKey: string,
   jobId: number,
+  pipelineRun: PipelineRunHandle,
 ) {
   const { data: job, error: jobError } = await adminClient
     .from("tender_document_analysis_jobs")
@@ -308,6 +378,9 @@ async function processJob(
       updated_at: new Date().toISOString(),
       attempt_count: Number(job.attempt_count || 0) + 1,
       model_name: model,
+      trace_id: pipelineRun.traceId,
+      extraction_version: PIPELINE_VERSIONS.aiExtraction,
+      prompt_schema_version: PIPELINE_VERSIONS.aiExtraction,
       error_code: null,
       error_message: null,
     })
@@ -317,6 +390,9 @@ async function processJob(
     .from("tenders")
     .update({
       document_analysis_status: "processing",
+      document_parser_version: PIPELINE_VERSIONS.documentParsing,
+      ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+      document_analysis_trace_id: pipelineRun.traceId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", job.tender_id);
@@ -327,7 +403,7 @@ async function processJob(
 
   const { data: documents, error: documentError } = await adminClient
     .from("tender_documents")
-    .select("id,title,file_name,file_url,mime_type,document_type,language_code")
+    .select("id,title,file_name,file_url,mime_type,document_type,language_code,source_confidence")
     .in("id", selectedIds)
     .eq("tender_id", job.tender_id)
     .eq("is_active", true);
@@ -478,7 +554,131 @@ async function processJob(
     };
   } catch (_) { /* profil yoksa fit alanları null döner */ }
 
-  const content = await buildClaudeContent(usableDocuments, documentMap, companyContext);
+  const inputSnapshotHash = await stableVersionHash({
+    document_map: documentMap,
+    company_context: companyContext,
+  });
+  await adminClient.from("tender_document_analysis_jobs").update({
+    input_snapshot_hash: inputSnapshotHash,
+    updated_at: new Date().toISOString(),
+  }).eq("id", jobId);
+
+  const downloadStage = await startPipelineStage(adminClient, {
+    traceId: pipelineRun.traceId,
+    stageName: "document_download",
+    pipelineVersion: PIPELINE_VERSIONS.documentRetrieval,
+    tenderId: Number(job.tender_id),
+    companyId: Number(job.company_id) || null,
+    source: noticeOnly ? "official_ted_fallback" : "registered_tender_documents",
+    metadata: { document_count: usableDocuments.length, notice_only: noticeOnly },
+  });
+  let content: any[];
+  try {
+    content = await buildClaudeContent(usableDocuments, documentMap, companyContext);
+    for (const document of usableDocuments) {
+      const inline = Boolean(document.__inline_text);
+      const positiveDocumentId = Number(document.id) > 0 ? Number(document.id) : null;
+      const accessStatus = await recordDocumentAccessAttempt(adminClient, {
+        traceId: pipelineRun.traceId,
+        stageId: downloadStage.stageId,
+        tenderId: Number(job.tender_id),
+        companyId: Number(job.company_id) || null,
+        documentId: positiveDocumentId,
+        url: String(document.file_url || ""),
+        sourceType: noticeOnly ? "official_ted_fallback" : "registered_tender_document",
+        sourceConfidence: noticeOnly
+          ? "official_verified"
+          : document.source_confidence || "unknown",
+        classification: inline ? { parsed: true } : { downloaded: true },
+        metadata: {
+          mime_type: document.mime_type,
+          fallback_document_id: Number(document.id) <= 0 ? document.id : null,
+        },
+      });
+      if (positiveDocumentId) {
+        await adminClient.from("tender_documents").update({
+          access_status: accessStatus,
+          access_checked_at: new Date().toISOString(),
+          retrieval_version: PIPELINE_VERSIONS.documentRetrieval,
+          parser_version: PIPELINE_VERSIONS.documentParsing,
+          pipeline_trace_id: pipelineRun.traceId,
+          updated_at: new Date().toISOString(),
+        }).eq("id", positiveDocumentId);
+      }
+    }
+    await finishPipelineStage(adminClient, downloadStage, "completed", {
+      metadata: { document_count: usableDocuments.length, notice_only: noticeOnly },
+    });
+  } catch (error) {
+    const access = (error as {
+      documentAccess?: {
+        documentId?: number | null;
+        url?: string;
+        sourceConfidence?: string;
+        classification?: {
+          error?: unknown;
+          url?: string;
+          isDirectFile?: boolean;
+          fileTooLarge?: boolean;
+        };
+      };
+    }).documentAccess;
+    if (access?.classification) {
+      await recordDocumentAccessAttempt(adminClient, {
+        traceId: pipelineRun.traceId,
+        stageId: downloadStage.stageId,
+        tenderId: Number(job.tender_id),
+        companyId: Number(job.company_id) || null,
+        documentId: access.documentId || null,
+        url: access.url || null,
+        sourceType: noticeOnly
+          ? "official_ted_fallback"
+          : "registered_tender_document",
+        sourceConfidence: noticeOnly
+          ? "official_verified"
+          : access.sourceConfidence || "unknown",
+        classification: access.classification,
+      });
+    }
+    await finishPipelineStage(adminClient, downloadStage, "failed", { error });
+    throw error;
+  }
+
+  const parsingStage = await startPipelineStage(adminClient, {
+    traceId: pipelineRun.traceId,
+    stageName: "parsing",
+    pipelineVersion: PIPELINE_VERSIONS.documentParsing,
+    tenderId: Number(job.tender_id),
+    companyId: Number(job.company_id) || null,
+    source: noticeOnly ? "official_ted_fallback" : "registered_tender_documents",
+  });
+  await finishPipelineStage(adminClient, parsingStage, "completed", {
+    metadata: {
+      parser_modes: usableDocuments.map((document) =>
+        String(document.mime_type || "") === "application/pdf"
+          ? "provider_native_pdf"
+          : document.__inline_text
+          ? "inline_notice_text"
+          : "utf8_text_decode"
+      ),
+    },
+  });
+  const ocrStage = await startPipelineStage(adminClient, {
+    traceId: pipelineRun.traceId,
+    stageName: "ocr_eligibility",
+    pipelineVersion: PIPELINE_VERSIONS.documentParsing,
+    tenderId: Number(job.tender_id),
+    companyId: Number(job.company_id) || null,
+    source: "tender-document-engine",
+  });
+  await finishPipelineStage(adminClient, ocrStage, "skipped", {
+    metadata: {
+      decision: "ocr_not_implemented",
+      pdf_count: usableDocuments.filter((document) =>
+        String(document.mime_type || "") === "application/pdf"
+      ).length,
+    },
+  });
 
   // Büyük ihaleler için sağlamlaştırılmış çağrı:
   // 1) max_tokens 6000 → 16000 (çok lotlu ihalelerde JSON yarıda kesiliyordu)
@@ -529,48 +729,104 @@ async function processJob(
     }
   };
 
-  let responseData = await callClaude("", 16000);
-  let analysis = tryParse(responseData);
-
-  if (!analysis) {
-    const truncated = responseData?.stop_reason === "max_tokens";
-    // 2. deneme: daha az lot, daha kısa kanıt — kesilme ihtimalini bitir
-    responseData = await callClaude(
-      truncated
-        ? "CRITICAL: Your previous answer was cut off. Return at most 12 lots, keep each evidence quote under 15 words, and keep the JSON as short as possible."
-        : "CRITICAL: Reply with ONLY one valid JSON object and nothing else.",
-      16000,
-    );
+  const aiStage = await startPipelineStage(adminClient, {
+    traceId: pipelineRun.traceId,
+    stageName: "ai_extraction",
+    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    tenderId: Number(job.tender_id),
+    companyId: Number(job.company_id) || null,
+    source: "Anthropic Messages API",
+  });
+  let responseData: any;
+  let analysis: AnalysisOutput | null = null;
+  let providerAttempts = 0;
+  try {
+    providerAttempts++;
+    responseData = await callClaude("", 16000);
     analysis = tryParse(responseData);
-  }
 
+    if (!analysis) {
+      const truncated = responseData?.stop_reason === "max_tokens";
+      // 2. deneme: daha az lot, daha kısa kanıt — kesilme ihtimalini bitir
+      providerAttempts++;
+      responseData = await callClaude(
+        truncated
+          ? "CRITICAL: Your previous answer was cut off. Return at most 12 lots, keep each evidence quote under 15 words, and keep the JSON as short as possible."
+          : "CRITICAL: Reply with ONLY one valid JSON object and nothing else.",
+        16000,
+      );
+      analysis = tryParse(responseData);
+    }
+
+    if (!analysis) {
+      throw new Error(
+        responseData?.stop_reason === "max_tokens"
+          ? "The tender is too large — the analysis was truncated twice. Try again; if it persists this tender needs manual review."
+          : "Claude returned invalid JSON",
+      );
+    }
+    await adminClient.from("tender_document_analysis_jobs").update({
+      provider_request_id: responseData?.id || null,
+      provider_usage: responseData?.usage || {},
+      updated_at: new Date().toISOString(),
+    }).eq("id", jobId);
+    await finishPipelineStage(adminClient, aiStage, "completed", {
+      metadata: {
+        provider_attempts: providerAttempts,
+        provider_request_id: responseData?.id || null,
+        stop_reason: responseData?.stop_reason || null,
+        usage: responseData?.usage || {},
+      },
+    });
+  } catch (error) {
+    await finishPipelineStage(adminClient, aiStage, "failed", {
+      error,
+      metadata: { provider_attempts: providerAttempts },
+    });
+    throw error;
+  }
   if (!analysis) {
-    throw new Error(
-      responseData?.stop_reason === "max_tokens"
-        ? "The tender is too large — the analysis was truncated twice. Try again; if it persists this tender needs manual review."
-        : "Claude returned invalid JSON",
-    );
+    throw new Error("AI response validation failed");
   }
 
-  analysis.document_confidence_score = clampScore(
-    analysis.document_confidence_score,
-  );
-  analysis.data_completeness_score = clampScore(
-    analysis.data_completeness_score,
-  );
+  const validationStage = await startPipelineStage(adminClient, {
+    traceId: pipelineRun.traceId,
+    stageName: "structured_validation",
+    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    tenderId: Number(job.tender_id),
+    companyId: Number(job.company_id) || null,
+    source: "tender-document-engine",
+  });
+  try {
+    analysis.document_confidence_score = clampScore(
+      analysis.document_confidence_score,
+    );
+    analysis.data_completeness_score = clampScore(
+      analysis.data_completeness_score,
+    );
 
-  analysis.products = (analysis.products || []).map((product) => ({
-    ...product,
-    confidence_score: clampScore(product.confidence_score),
-    evidence: (product.evidence || [])
-      .filter((item) => selectedIds.includes(Number(item.document_id)))
-      .map((item) => ({
-        ...item,
-        confidence_score: clampScore(item.confidence_score),
-        source_quote: String(item.source_quote || "").slice(0, 600),
-        extracted_value: String(item.extracted_value || "").slice(0, 500),
-      })),
-  }));
+    analysis.products = (analysis.products || []).map((product) => ({
+      ...product,
+      confidence_score: clampScore(product.confidence_score),
+      evidence: (product.evidence || [])
+        .filter((item) => selectedIds.includes(Number(item.document_id)))
+        .map((item) => ({
+          ...item,
+          confidence_score: clampScore(item.confidence_score),
+          source_quote: String(item.source_quote || "").slice(0, 600),
+          extracted_value: String(item.extracted_value || "").slice(0, 500),
+        })),
+    }));
+    await finishPipelineStage(adminClient, validationStage, "completed", {
+      metadata: {
+        product_count: analysis.products.length,
+        validation_level: "phase0_shape_and_bounds_only",
+      },
+    });
+  } catch (error) {
+    await finishPipelineStage(adminClient, validationStage, "failed", { error });
+    throw error;
+  }
 
   await adminClient
     .from("tender_document_evidence")
@@ -623,6 +879,9 @@ async function processJob(
       missing_information: analysis.missing_information || [],
       document_analysis_notes: analysis.summary,
       ai_lots: Array.isArray(analysis.lots) ? analysis.lots.slice(0, 30) : [],
+      document_parser_version: PIPELINE_VERSIONS.documentParsing,
+      ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+      document_analysis_trace_id: pipelineRun.traceId,
       last_document_analysis_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -634,6 +893,7 @@ async function processJob(
     .from("tender_document_analysis_jobs")
     .update({
       status: finalStatus,
+      duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -644,23 +904,81 @@ async function processJob(
     .select("company_id")
     .eq("tender_id", job.tender_id);
 
-  const companyIds = [
-    ...new Set((companyMatches || []).map((row: any) => Number(row.company_id))),
+  const companyIds: number[] = [
+    ...new Set<number>((companyMatches || []).map((row: any) => Number(row.company_id))),
   ];
 
+  const explanationErrors: string[] = [];
   for (const companyId of companyIds) {
-    await (analysis.fit_narrative
-    ? adminClient
+    const explanationStage = await startPipelineStage(adminClient, {
+      traceId: pipelineRun.traceId,
+      stageName: "explanation_generation",
+      pipelineVersion: PIPELINE_VERSIONS.explanation,
+      tenderId: Number(job.tender_id),
+      companyId,
+      source: "refresh_explainable_tender_matches",
+      metadata: {
+        combined_rpc_stages: [
+          "candidate_generation",
+          "score_calculation",
+          "explanation_generation",
+          "opportunity_upsert",
+        ],
+      },
+    });
+    const narrativeResult = await (analysis.fit_narrative
+      ? adminClient
         .from("opportunity_matches")
-        .update({ fit_narrative: String(analysis.fit_narrative).slice(0, 1200), updated_at: new Date().toISOString() })
+        .update({
+          fit_narrative: String(analysis.fit_narrative).slice(0, 1200),
+          updated_at: new Date().toISOString(),
+        })
         .eq("company_id", job.company_id)
         .eq("tender_id", job.tender_id)
-    : Promise.resolve({ error: null })
-  );
-  await adminClient.rpc("refresh_explainable_tender_matches", {
+      : Promise.resolve({ error: null }));
+    const refreshResult = await adminClient.rpc("refresh_explainable_tender_matches", {
       p_company_id: companyId,
     });
+    const scoreStamp = await adminClient.rpc("stamp_company_match_observability", {
+      p_company_id: companyId,
+      p_trace_id: pipelineRun.traceId,
+      p_candidate_version: PIPELINE_VERSIONS.candidateGeneration,
+      p_scoring_version: PIPELINE_VERSIONS.scoring,
+    });
+    const explanationStamp = await adminClient.rpc(
+      "stamp_explainable_match_observability",
+      {
+        p_company_id: companyId,
+        p_trace_id: pipelineRun.traceId,
+        p_explanation_version: PIPELINE_VERSIONS.explanation,
+      },
+    );
+    const stageError = narrativeResult.error || refreshResult.error ||
+      scoreStamp.error || explanationStamp.error;
+    if (stageError) explanationErrors.push(sanitizeMessage(stageError.message));
+    await finishPipelineStage(
+      adminClient,
+      explanationStage,
+      stageError ? "partial" : "completed",
+      {
+        error: stageError?.message,
+        metadata: { observability_resolution: "combined_existing_rpc" },
+      },
+    );
   }
+  await finishPipelineRun(
+    adminClient,
+    pipelineRun,
+    explanationErrors.length ? "partial" : "completed",
+    {
+      metadata: {
+        analysis_status: finalStatus,
+        document_count: usableDocuments.length,
+        product_count: analysis.products.length,
+        explanation_error_count: explanationErrors.length,
+      },
+    },
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -758,18 +1076,26 @@ Deno.serve(async (req: Request) => {
   if (!job?.id) {
     return json(req, { error: "Could not create analysis job." }, 500);
   }
+  const pipelineRun = await startPipelineRun(adminClient, {
+    component: "ai_extraction",
+    pipelineVersion: PIPELINE_VERSIONS.aiExtraction,
+    source: "tender-document-engine",
+    metadata: { analysis_job_id: Number(job.id) },
+  });
 
   EdgeRuntime.waitUntil(
-    processJob(adminClient, anthropicKey, Number(job.id)).catch(
+    processJob(adminClient, anthropicKey, Number(job.id), pipelineRun).catch(
       async (error) => {
-        console.error("Claude tender analysis failed", error);
+        console.error("Claude tender analysis failed", sanitizeMessage(error));
+        await finishPipelineRun(adminClient, pipelineRun, "failed", { error });
 
         await adminClient
           .from("tender_document_analysis_jobs")
           .update({
             status: "failed",
             error_code: "CLAUDE_DOCUMENT_ANALYSIS_FAILED",
-            error_message: String(error?.message || error).slice(0, 1000),
+            error_message: sanitizeMessage(error),
+            duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -779,10 +1105,10 @@ Deno.serve(async (req: Request) => {
           .from("tenders")
           .update({
             document_analysis_status: "failed",
-            document_analysis_notes: String(error?.message || error).slice(
-              0,
-              1000,
-            ),
+            document_analysis_notes: sanitizeMessage(error),
+            document_parser_version: PIPELINE_VERSIONS.documentParsing,
+            ai_extraction_version: PIPELINE_VERSIONS.aiExtraction,
+            document_analysis_trace_id: pipelineRun.traceId,
             updated_at: new Date().toISOString(),
           })
           .eq("id", tenderId);
@@ -795,6 +1121,8 @@ Deno.serve(async (req: Request) => {
     job_id: job.id,
     status: job.status,
     engine: "claude",
+    trace_id: pipelineRun.traceId,
+    extraction_version: PIPELINE_VERSIONS.aiExtraction,
     message: "Tender document analysis has been queued.",
   }, 202);
 });

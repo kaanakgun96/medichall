@@ -1,0 +1,64 @@
+{
+  "scope": "repository definitions; not proof of live deployment",
+  "versions": [
+    {
+      "component": "tender_ingestion",
+      "version": "ted-sync-v1.5+phase0.1",
+      "sources": {
+        "supabase/functions/ted-sync/index.ts": "64d5331f3e6903994f8ca8e4811cb4f136df42da1e4ed944342e20241027c12a"
+      }
+    },
+    {
+      "component": "document_discovery",
+      "version": "document-discovery-v1+phase0.1",
+      "sources": {
+        "supabase/functions/tender-attachment-discovery/index.ts": "9daa1c0b705c99b33750f176da954cf19a40f6c9cab34612b3afc3cfffe7d1a8",
+        "supabase/functions/ted-notice-resolver/index.ts": "8fe782572898e3b8c1e20048931d1a6708258cedc7d534462605c5edec734451"
+      }
+    },
+    {
+      "component": "document_retrieval",
+      "version": "document-retrieval-v1+phase0.1",
+      "sources": {
+        "supabase/functions/_shared/matching-observability.ts": "ce909fa2d9d6c5bda01de0a5aa7b6716ee6c28e30fd8e0b1edc36b41a425db99"
+      }
+    },
+    {
+      "component": "document_parsing",
+      "version": "document-parsing-v1+phase0.1",
+      "sources": {
+        "supabase/functions/tender-document-engine/index.ts": "a1bcb941d44240fc444183cb8e85af804e9158b7b8e15c964fd31b2dee2c315d",
+        "supabase/functions/tender-archive-worker/index.ts": "0b1d8aa608c32a6cc65c182bea2d0ee5da1551ef7e24b735db78ecbffd6924ca"
+      }
+    },
+    {
+      "component": "ai_extraction",
+      "version": "tender-extraction-prompt-v1+phase0.1",
+      "sources": {
+        "supabase/functions/tender-document-engine/index.ts": "a1bcb941d44240fc444183cb8e85af804e9158b7b8e15c964fd31b2dee2c315d"
+      }
+    },
+    {
+      "component": "candidate_generation",
+      "version": "candidate-generation-202607200002",
+      "sources": {
+        "supabase/migrations/202607200002_english_normalization.sql": "18c2109170b057adf050b1e5b6b3e49553b6e3379b0da3d38913f0fbad202120"
+      }
+    },
+    {
+      "component": "scoring",
+      "version": "matching-score-202607200002",
+      "sources": {
+        "supabase/migrations/202607200002_english_normalization.sql": "18c2109170b057adf050b1e5b6b3e49553b6e3379b0da3d38913f0fbad202120"
+      },
+      "confidence": "conflicting"
+    },
+    {
+      "component": "explanation_generation",
+      "version": "explainable-match-202607100005",
+      "sources": {
+        "supabase/migrations/202607100005_explainable_match_engine.sql": "f77d662ea3018b14065f55428f98f6829bf503636926b215d1af549dd3f1d65d"
+      }
+    }
+  ]
+}

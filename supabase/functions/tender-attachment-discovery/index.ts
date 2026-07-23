@@ -1,4 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  PIPELINE_VERSIONS,
+  accessClassForStatus,
+  type DocumentAccessInput,
+  type DocumentAccessStatus,
+  finishPipelineRun,
+  finishPipelineStage,
+  recordDocumentAccessAttempt,
+  sanitizeMessage,
+  startPipelineRun,
+  startPipelineStage,
+} from "../_shared/matching-observability.ts";
 
 const ORIGINS = new Set([
   "https://medichall.com",
@@ -9,6 +21,22 @@ const ORIGINS = new Set([
 const MAX_PAGES = 8;
 const MAX_LINKS = 180;
 const MAX_HTML_BYTES = 4 * 1024 * 1024;
+
+type Candidate = {url:string,title:string,source:string};
+type DiscoveredDocumentRow = {
+  file_url:string;
+  title:string|null;
+  file_name:string|null;
+  mime_type:string|null;
+  document_type:string;
+  source_page_url:string;
+  is_active:boolean;
+  updated_at:string;
+};
+type InspectionResult =
+  | {kind:"document";access:DocumentAccessInput;row:DiscoveredDocumentRow}
+  | {kind:"page";access:DocumentAccessInput;candidate:Candidate}
+  | {kind:"failure";access:DocumentAccessInput;candidate:Candidate};
 
 const MIME_BY_EXT: Record<string,string> = {
   pdf:"application/pdf",
@@ -72,7 +100,7 @@ function docType(title:string,url:string){
   return "other";
 }
 function candidates(body:string,pageUrl:string){
-  const out=new Map<string,{url:string,title:string,source:string}>();
+  const out=new Map<string,Candidate>();
   const a=/<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
   for(const m of body.matchAll(a)){
     const u=safeUrl(decode(m[2]),pageUrl); if(!u) continue;
@@ -98,17 +126,35 @@ async function fetchText(url:string){
       "Accept":"text/html,application/xhtml+xml,application/xml,text/xml,*/*;q=0.8",
     }
   });
-  if(!r.ok) throw new Error(`Page request failed (${r.status})`);
   const n=Number(r.headers.get("content-length")||0);
   if(n>MAX_HTML_BYTES) throw new Error("Page too large");
   const b=new Uint8Array(await r.arrayBuffer());
   if(b.byteLength>MAX_HTML_BYTES) throw new Error("Page too large");
-  return {body:new TextDecoder().decode(b),url:r.url||url};
+  const body=new TextDecoder().decode(b);
+  if(!r.ok){
+    const error=new Error(`Page request failed (${r.status})`);
+    Object.assign(error,{access:{
+      httpStatus:r.status,
+      contentType:r.headers.get("content-type"),
+      contentLength:b.byteLength,
+      bodySample:body.slice(0,4000),
+      url:r.url||url,
+      error,
+    }});
+    throw error;
+  }
+  return {
+    body,
+    url:r.url||url,
+    httpStatus:r.status,
+    contentType:r.headers.get("content-type"),
+    contentLength:b.byteLength,
+  };
 }
-async function inspect(c:{url:string,title:string,source:string}){
+async function inspect(c:Candidate):Promise<InspectionResult>{
   const e=extInfo(c.url);
   if(e.mime){
-    return {kind:"document",row:{
+    return {kind:"document",access:{url:c.url,isDirectFile:false},row:{
       file_url:c.url,title:c.title||e.name,file_name:e.name,mime_type:e.mime,
       document_type:docType(c.title,c.url),source_page_url:c.source,is_active:true,
       updated_at:new Date().toISOString()
@@ -121,62 +167,182 @@ async function inspect(c:{url:string,title:string,source:string}){
       r=await fetch(c.url,{method:"GET",redirect:"follow",
         headers:{"User-Agent":"MedicHall-Tender-Attachment-Discovery/1.0","Range":"bytes=0-1024"}});
     }
-    if(!r.ok&&r.status!==206) return null;
+    if(!r.ok&&r.status!==206) return {
+      kind:"failure",candidate:c,
+      access:{httpStatus:r.status,url:r.url||c.url,isDirectFile:true}
+    };
     const ct=(r.headers.get("content-type")||"").split(";")[0].toLowerCase();
     const final=r.url||c.url, info=extInfo(final);
     if(ct&&!ct.includes("html")&&!ct.includes("xml")&&
        (ct.includes("pdf")||ct.includes("word")||ct.includes("excel")||
         ct.includes("spreadsheet")||ct.includes("csv")||ct.includes("zip")||
         ct==="text/plain"||ct==="application/octet-stream")){
-      return {kind:"document",row:{
+      return {kind:"document",access:{
+        httpStatus:r.status,
+        contentType:ct,
+        contentLength:Number(r.headers.get("content-length")||0),
+        url:final,
+        isDirectFile:true,
+      },row:{
         file_url:final,title:c.title||info.name,file_name:info.name,
         mime_type:ct==="application/octet-stream"?info.mime:ct,
         document_type:docType(c.title,final),source_page_url:c.source,is_active:true,
         updated_at:new Date().toISOString()
       }};
     }
-    return {kind:"page",candidate:c};
-  }catch{return {kind:"page",candidate:c}}
+    return {kind:"page",candidate:c,access:{
+      httpStatus:r.status,
+      contentType:ct,
+      url:final,
+      isDirectFile:false,
+    }};
+  }catch(error){
+    // Preserve the legacy GET fallback when HEAD itself fails. The failed HEAD
+    // remains observable, and the queued page GET performs the real access
+    // classification before links are parsed.
+    return {kind:"page",candidate:c,access:{error,url:c.url,isDirectFile:false}}
+  }
 }
 async function run(admin:any,jobId:number){
   const {data:job,error}=await admin.from("tender_document_discovery_jobs")
     .select("id,tender_id,company_id,source_url").eq("id",jobId).single();
   if(error||!job) throw new Error("Discovery job not found");
+  const pipelineRun=await startPipelineRun(admin,{
+    component:"document_discovery",
+    pipelineVersion:PIPELINE_VERSIONS.documentDiscovery,
+    source:"contracting_authority_portal",
+    metadata:{discovery_job_id:jobId}
+  });
+  const discoveryStage=await startPipelineStage(admin,{
+    traceId:pipelineRun.traceId,
+    stageName:"document_link_discovery",
+    pipelineVersion:PIPELINE_VERSIONS.documentDiscovery,
+    tenderId:Number(job.tender_id),
+    companyId:Number(job.company_id)||null,
+    source:"contracting_authority_portal"
+  });
   await admin.from("tender_document_discovery_jobs").update({
-    status:"processing",started_at:new Date().toISOString(),updated_at:new Date().toISOString()
+    status:"processing",started_at:new Date().toISOString(),updated_at:new Date().toISOString(),
+    trace_id:pipelineRun.traceId,pipeline_version:PIPELINE_VERSIONS.documentDiscovery
   }).eq("id",jobId);
 
-  const source=safeUrl(job.source_url); if(!source) throw new Error("Invalid source URL");
-  const queue=[{url:source.href,title:"Tender source",source:source.href}];
-  const pages=new Set<string>(),links=new Set<string>();
-  const docs=new Map<string,any>(); let examined=0;
+  try{
+    const source=safeUrl(job.source_url); if(!source) throw new Error("Invalid source URL");
+    const queue=[{url:source.href,title:"Tender source",source:source.href}];
+    const pages=new Set<string>(),links=new Set<string>();
+    const docs=new Map<string,any>(); let examined=0;
+    const accessStatuses:DocumentAccessStatus[]=[];
 
-  while(queue.length&&pages.size<MAX_PAGES){
-    const p=queue.shift()!; if(pages.has(p.url)) continue; pages.add(p.url);
-    let page; try{page=await fetchText(p.url)}catch{continue}
-    for(const c of candidates(page.body,page.url)){
-      if(examined>=MAX_LINKS) break;
-      if(links.has(c.url)) continue; links.add(c.url); examined++;
-      const result=await inspect(c); if(!result) continue;
-      if(result.kind==="document"){docs.set(result.row.file_url,result.row);continue}
-      const u=safeUrl(result.candidate.url); if(!u) continue;
-      const useful=/(document|download|attachment|procurement|tender|appalto|march|vergabe|licit)/i
-        .test(u.href+" "+result.candidate.title);
-      if((u.hostname===source.hostname||useful)&&!pages.has(u.href)) queue.push(result.candidate);
+    while(queue.length&&pages.size<MAX_PAGES){
+      const p=queue.shift()!; if(pages.has(p.url)) continue; pages.add(p.url);
+      let page;
+      const pageStarted=Date.now();
+      try{
+        page=await fetchText(p.url);
+        const pageStatus=await recordDocumentAccessAttempt(admin,{
+          traceId:pipelineRun.traceId,stageId:discoveryStage.stageId,
+          tenderId:Number(job.tender_id),companyId:Number(job.company_id)||null,
+          url:page.url,sourceType:"contracting_authority_public_page",
+          sourceConfidence:"official_unverified",
+          classification:{
+            httpStatus:page.httpStatus,contentType:page.contentType,
+            contentLength:page.contentLength,bodySample:page.body.slice(0,4000),
+            url:page.url,isDirectFile:false
+          },
+          durationMs:Date.now()-pageStarted
+        });
+        accessStatuses.push(pageStatus);
+        if(accessClassForStatus(pageStatus)==="restricted"||
+           pageStatus==="dynamic_javascript_required") continue;
+      }catch(error){
+        const classification=(
+          (error as {access?:DocumentAccessInput}).access||
+          {error,url:p.url,isDirectFile:false}
+        ) satisfies DocumentAccessInput;
+        const pageStatus=await recordDocumentAccessAttempt(admin,{
+          traceId:pipelineRun.traceId,stageId:discoveryStage.stageId,
+          tenderId:Number(job.tender_id),companyId:Number(job.company_id)||null,
+          url:p.url,sourceType:"contracting_authority_public_page",
+          sourceConfidence:"official_unverified",classification,
+          durationMs:Date.now()-pageStarted
+        });
+        accessStatuses.push(pageStatus);
+        continue;
+      }
+      for(const c of candidates(page.body,page.url)){
+        if(examined>=MAX_LINKS) break;
+        if(links.has(c.url)) continue; links.add(c.url); examined++;
+        const result=await inspect(c);
+        const linkStatus=await recordDocumentAccessAttempt(admin,{
+          traceId:pipelineRun.traceId,stageId:discoveryStage.stageId,
+          tenderId:Number(job.tender_id),companyId:Number(job.company_id)||null,
+          url:c.url,sourceType:"contracting_authority_link",
+          sourceConfidence:"official_unverified",classification:result.access,
+          metadata:{link_title:c.title}
+        });
+        accessStatuses.push(linkStatus);
+        if(result.kind==="failure") continue;
+        if(result.kind==="document"){
+          docs.set(result.row.file_url,{
+            ...result.row,
+            access_status:linkStatus,
+            access_checked_at:new Date().toISOString(),
+            access_source:"contracting_authority_link",
+            source_confidence:"official_unverified",
+            retrieval_version:PIPELINE_VERSIONS.documentRetrieval,
+            pipeline_trace_id:pipelineRun.traceId
+          });
+          continue;
+        }
+        const u=safeUrl(result.candidate.url); if(!u) continue;
+        const useful=/(document|download|attachment|procurement|tender|appalto|march|vergabe|licit)/i
+          .test(u.href+" "+result.candidate.title);
+        if((u.hostname===source.hostname||useful)&&!pages.has(u.href)) queue.push(result.candidate);
+      }
     }
+    const rows=[...docs.values()].map(r=>({...r,tender_id:job.tender_id}));
+    const restricted=accessStatuses.some(status=>accessClassForStatus(status)==="restricted");
+    if(rows.length){
+      const {error:e}=await admin.from("tender_documents").upsert(rows,{onConflict:"tender_id,file_url"});
+      if(e) throw new Error(e.message);
+    }else if(!restricted){
+      await recordDocumentAccessAttempt(admin,{
+        traceId:pipelineRun.traceId,stageId:discoveryStage.stageId,
+        tenderId:Number(job.tender_id),companyId:Number(job.company_id)||null,
+        url:source.href,sourceType:"contracting_authority_public_page",
+        sourceConfidence:"official_unverified",classification:{noLinkFound:true},
+        metadata:{pages_scanned:pages.size,links_examined:examined}
+      });
+    }
+    const finalStatus=rows.length?"completed":restricted?"failed":"partial";
+    const humanStatus=rows.length?"completed":restricted?"restricted":"partial";
+    await admin.from("tender_document_discovery_jobs").update({
+      status:finalStatus,
+      pages_scanned:pages.size,links_examined:examined,documents_found:rows.length,
+      error_message:rows.length?null:restricted
+        ?"Document access is restricted and requires lawful manual action."
+        :"No public document links were found or supported.",
+      completed_at:new Date().toISOString(),updated_at:new Date().toISOString()
+    }).eq("id",jobId);
+    await admin.from("tenders").update({
+      document_discovery_version:PIPELINE_VERSIONS.documentDiscovery,
+      document_discovery_trace_id:pipelineRun.traceId,
+      updated_at:new Date().toISOString()
+    }).eq("id",job.tender_id);
+    await finishPipelineStage(admin,discoveryStage,humanStatus,{
+      metadata:{
+        pages_scanned:pages.size,links_examined:examined,
+        documents_found:rows.length,restricted_access:restricted
+      }
+    });
+    await finishPipelineRun(admin,pipelineRun,rows.length?"completed":"partial",{
+      metadata:{documents_found:rows.length,restricted_access:restricted}
+    });
+  }catch(error){
+    await finishPipelineStage(admin,discoveryStage,"failed",{error});
+    await finishPipelineRun(admin,pipelineRun,"failed",{error});
+    throw error;
   }
-  const rows=[...docs.values()].map(r=>({...r,tender_id:job.tender_id}));
-  if(rows.length){
-    const {error:e}=await admin.from("tender_documents").upsert(rows,{onConflict:"tender_id,file_url"});
-    if(e) throw new Error(e.message);
-  }
-  await admin.from("tender_document_discovery_jobs").update({
-    status:rows.length?"completed":"partial",
-    pages_scanned:pages.size,links_examined:examined,documents_found:rows.length,
-    error_message:rows.length?null:
-      "No open document links found. The portal may require login, JavaScript, CAPTCHA or manual URLs.",
-    completed_at:new Date().toISOString(),updated_at:new Date().toISOString()
-  }).eq("id",jobId);
 }
 
 Deno.serve(async(req)=>{
@@ -216,7 +382,7 @@ Deno.serve(async(req)=>{
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   EdgeRuntime.waitUntil(run(admin,Number(job.id)).catch(async(e)=>{
     await admin.from("tender_document_discovery_jobs").update({
-      status:"failed",error_message:String(e?.message||e).slice(0,1000),
+      status:"failed",error_message:sanitizeMessage(e),
       completed_at:new Date().toISOString(),updated_at:new Date().toISOString()
     }).eq("id",job.id);
   }));

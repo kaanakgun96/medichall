@@ -26,7 +26,7 @@ select cron.schedule(
     url     := 'https://azdmuarzntzqdyirysux.supabase.co/functions/v1/ted-sync',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-cron-secret', 'mh_ted_9f3kQz71LpXw2026'
+      'x-cron-secret', 'BURAYA_CRON_SECRET_YAZ'
     ),
     body    := '{}'::jsonb
   );

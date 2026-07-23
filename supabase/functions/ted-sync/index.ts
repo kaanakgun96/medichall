@@ -32,6 +32,16 @@
 //                    TED_MAX_PAGES          (default 2, 250 notices per page)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  PIPELINE_VERSIONS,
+  classifyError,
+  finishPipelineRun,
+  finishPipelineStage,
+  sanitizeMessage,
+  stableVersionHash,
+  startPipelineRun,
+  startPipelineStage,
+} from "../_shared/matching-observability.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 // Exact CPV codes (TED matches codes exactly; wildcards are unreliable).
@@ -131,6 +141,12 @@ async function handle(req: Request): Promise<Response> {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const pipelineRun = await startPipelineRun(admin, {
+    component: "tender_ingestion",
+    pipelineVersion: PIPELINE_VERSIONS.tenderIngestion,
+    source: "TED",
+    metadata: { trigger: "cron_or_authorized_post" },
+  });
 
   // Elle tetiklemede gövdeden geçici ayar alınabilir: {"lookback_days":30,"max_pages":5}
   let bodyOverride: { lookback_days?: number; max_pages?: number } = {};
@@ -193,6 +209,13 @@ async function handle(req: Request): Promise<Response> {
   const notices: TedNotice[] = [];
   const attemptLog: { query: string; status: string; got: number }[] = [];
   let usedQuery = "";
+  const sourceFetchStage = await startPipelineStage(admin, {
+    traceId: pipelineRun.traceId,
+    stageName: "source_fetch",
+    pipelineVersion: PIPELINE_VERSIONS.tenderIngestion,
+    source: "TED Search API v3",
+    metadata: { lookback_days: lookbackDays, max_pages: maxPages },
+  });
 
   for (const query of attempts) {
     let attemptNotices: TedNotice[] = [];
@@ -241,6 +264,19 @@ async function handle(req: Request): Promise<Response> {
   const tedError = notices.length
     ? null
     : "All query attempts returned no notices — see attempts log";
+  await finishPipelineStage(
+    admin,
+    sourceFetchStage,
+    notices.length ? "completed" : "partial",
+    {
+      error: tedError,
+      metadata: {
+        attempts: attemptLog,
+        fetched_count: notices.length,
+        used_query: usedQuery || null,
+      },
+    },
+  );
 
   // 3) Map + upsert into public.tenders (bad rows are skipped, never crash).
   const skipped: string[] = [];
@@ -282,28 +318,65 @@ async function handle(req: Request): Promise<Response> {
       return [];
     }
   });
+  for (const row of rows) {
+    Object.assign(row, {
+      ingestion_version: PIPELINE_VERSIONS.tenderIngestion,
+      ingestion_trace_id: pipelineRun.traceId,
+      source_snapshot_hash: await stableVersionHash(row.raw_payload),
+    });
+  }
 
   let upserted = 0;
+  const ingestionStage = await startPipelineStage(admin, {
+    traceId: pipelineRun.traceId,
+    stageName: "tender_ingestion",
+    pipelineVersion: PIPELINE_VERSIONS.tenderIngestion,
+    source: "TED",
+    metadata: { mapped_count: rows.length, skipped_count: skipped.length },
+  });
   if (rows.length) {
     const { error: upErr, count } = await admin
       .from("tenders")
       .upsert(rows, { onConflict: "source,source_notice_id", count: "exact" });
     if (upErr) {
+      await finishPipelineStage(admin, ingestionStage, "failed", { error: upErr.message });
+      await finishPipelineRun(admin, pipelineRun, "failed", { error: upErr.message });
       return new Response(
-        JSON.stringify({ error: "Tender upsert failed", detail: upErr.message, ted_error: tedError }),
+        JSON.stringify({
+          error: "Tender upsert failed",
+          detail: sanitizeMessage(upErr.message),
+          ted_error: tedError,
+          trace_id: pipelineRun.traceId,
+        }),
         { status: 500 },
       );
     }
     upserted = count ?? rows.length;
   }
+  await finishPipelineStage(admin, ingestionStage, "completed", {
+    metadata: { upserted_count: upserted, skipped_count: skipped.length },
+  });
 
   // 4) Close tenders whose deadline has passed.
-  await admin
+  const updateStage = await startPipelineStage(admin, {
+    traceId: pipelineRun.traceId,
+    stageName: "tender_update",
+    pipelineVersion: PIPELINE_VERSIONS.tenderIngestion,
+    source: "TED",
+    metadata: { operation: "close_expired_tenders" },
+  });
+  const { error: closeError } = await admin
     .from("tenders")
     .update({ status: "closed", updated_at: new Date().toISOString() })
     .eq("status", "open")
     .not("deadline_at", "is", null)
     .lt("deadline_at", new Date().toISOString());
+  await finishPipelineStage(
+    admin,
+    updateStage,
+    closeError ? "partial" : "completed",
+    { error: closeError?.message },
+  );
 
   // 4b) ECB resmi günlük referans kurları → public.fx_rates  (v1.4 YENİ)
   //     Kaynak: ECB euro foreign exchange reference rates (resmi, ücretsiz,
@@ -452,12 +525,64 @@ async function handle(req: Request): Promise<Response> {
   const refreshErrors: string[] = [];
   if (profErr) refreshErrors.push(`profil listesi alınamadı: ${profErr.message}`);
   for (const p of profiles ?? []) {
+    const refreshStage = await startPipelineStage(admin, {
+      traceId: pipelineRun.traceId,
+      stageName: "candidate_generation",
+      pipelineVersion: PIPELINE_VERSIONS.candidateGeneration,
+      source: "refresh_company_opportunity_matches",
+      companyId: Number(p.company_id),
+      metadata: {
+        combined_rpc_stages: [
+          "candidate_generation",
+          "score_calculation",
+          "opportunity_upsert",
+        ],
+      },
+    });
     const { error } = await admin.rpc("refresh_company_opportunity_matches", {
       p_company_id: p.company_id,
     });
-    if (error) refreshErrors.push(`company ${p.company_id}: ${error.message}`);
-    else refreshed++;
+    if (error) {
+      refreshErrors.push(`company ${p.company_id}: ${sanitizeMessage(error.message)}`);
+      await finishPipelineStage(admin, refreshStage, "failed", { error: error.message });
+    } else {
+      refreshed++;
+      const { error: stampError } = await admin.rpc(
+        "stamp_company_match_observability",
+        {
+          p_company_id: p.company_id,
+          p_trace_id: pipelineRun.traceId,
+          p_candidate_version: PIPELINE_VERSIONS.candidateGeneration,
+          p_scoring_version: PIPELINE_VERSIONS.scoring,
+        },
+      );
+      await finishPipelineStage(
+        admin,
+        refreshStage,
+        stampError ? "partial" : "completed",
+        {
+          error: stampError?.message,
+          metadata: {
+            score_version: PIPELINE_VERSIONS.scoring,
+            observability_resolution: "combined_existing_rpc",
+          },
+        },
+      );
+    }
   }
+
+  const runStatus = tedError || refreshErrors.length || closeError
+    ? "partial"
+    : "completed";
+  await finishPipelineRun(admin, pipelineRun, runStatus, {
+    metadata: {
+      fetched_count: notices.length,
+      upserted_count: upserted,
+      skipped_count: skipped.length,
+      companies_refreshed: refreshed,
+      refresh_error_count: refreshErrors.length,
+    },
+  });
 
   return new Response(
     JSON.stringify({
@@ -475,6 +600,8 @@ async function handle(req: Request): Promise<Response> {
       refresh_errors: refreshErrors,
       skipped_rows: skipped.length,
       ted_error: tedError,
+      trace_id: pipelineRun.traceId,
+      pipeline_version: PIPELINE_VERSIONS.tenderIngestion,
       generated_at: new Date().toISOString(),
     }),
     { headers: { "Content-Type": "application/json" } },
@@ -485,12 +612,14 @@ Deno.serve(async (req: Request) => {
   try {
     return await handle(req);
   } catch (e) {
-    // Never return a bare 500 — always ship a diagnosable JSON body.
+    // Keep the client response diagnosable without exposing stack traces,
+    // credentials, URLs containing tokens, or provider payloads.
     return new Response(
       JSON.stringify({
         ok: false,
-        fatal: String(e),
-        stack: (e as Error)?.stack?.slice(0, 600) ?? null,
+        error: "TED sync failed",
+        error_category: classifyError(e),
+        detail: sanitizeMessage(e),
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
