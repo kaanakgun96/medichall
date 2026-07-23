@@ -8,6 +8,8 @@ export const PIPELINE_VERSIONS = {
   documentRetrievalV2: "document-retrieval-v2.0.0",
   documentParsingV2: "document-parsing-v2.0.0",
   aiExtractionV2: "tender-extraction-v2.0.0",
+  documentParsingV3: "document-chunking-v3.0.0",
+  aiExtractionV3: "tender-extraction-v3.0.0",
   scoringV2: "matching-score-v2.0.0",
   candidateGeneration: "candidate-generation-202607200002",
   scoring: "matching-score-202607200002",

@@ -1,0 +1,92 @@
+{
+  "scope": "Document Intelligence v3 large-PDF inspection, selection, resumable extraction, and deterministic merge",
+  "branch": "react-migration",
+  "migrations": [
+    "supabase/migrations/202607230004_document_intelligence_v3.sql"
+  ],
+  "functions": [
+    {
+      "name": "tender-document-engine",
+      "entrypoint": "supabase/functions/tender-document-engine/index.ts",
+      "verify_jwt": true,
+      "sha256": "24a8ee04fb054e8ed1786f7bd2bbaf8b10743d722c93b993b886946bea735e6c"
+    }
+  ],
+  "shared_sources": [
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3.ts",
+      "sha256": "8cc9093646608470a2377a733cbae3ff3499aad55485eb5de177e428e58439d4",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/pdf-processing-v3.ts",
+      "sha256": "32622c0ccceadb0caee04d65848a31a297d3bb3b3f230637ad4ca3e3ca3ddd1b",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/document-extraction-v2.ts",
+      "sha256": "3a1454c1b56964a01c1c9c1507b770039a2ba6e643b80a11353dfaacd2524918",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/_shared/matching-observability.ts",
+      "sha256": "ea8da698500b0fe12553839b57d4f59b91ab190b7b283d889a16afd3dfb30983",
+      "recorded_in_migration": false
+    }
+  ],
+  "runtime_inputs": [
+    {
+      "path": "supabase/functions/deno.json",
+      "sha256": "c84bbda11ef7a05a62ebcbad2e153e2267844ee80e1cb54ac3de352ea34d89e3"
+    },
+    {
+      "path": "supabase/functions/deno.lock",
+      "sha256": "7130afbb27555228952881d4cabf815bb6a64edfb5776d3fd8a5bdbb6ff23975"
+    }
+  ],
+  "versions": {
+    "inspection": "document-inspection-v3.0.0",
+    "chunking": "document-chunking-v3.0.0",
+    "extraction": "tender-extraction-v3.0.0",
+    "prompt_schema": "medichall-tender-facts-v3"
+  },
+  "configuration": {
+    "MAX_DOCUMENTS": 6,
+    "MAX_DOCUMENT_BYTES": 67108864,
+    "MAX_PDF_PAGES": 2000,
+    "MAX_TOTAL_AI_PAGES": 120,
+    "MAX_CHUNK_SIZE": 24,
+    "CHUNK_OVERLAP_PAGES": 2,
+    "MAX_PARALLEL_CHUNKS": 2,
+    "MAX_CHUNKS_PER_RUN": 12,
+    "MAX_CHUNK_ATTEMPTS": 3,
+    "KEYWORD_SCAN_LIMIT": 2000,
+    "INSPECTION_TIMEOUT": 60000,
+    "DOWNLOAD_TIMEOUT": 30000,
+    "PROVIDER_TIMEOUT": 90000,
+    "MAX_TEXT_CHARACTERS": 200000,
+    "MAX_CHUNK_OUTPUT_TOKENS": 8000,
+    "MAX_AI_CHUNK_BYTES": 25165824
+  },
+  "safety": {
+    "page_count_rejection": false,
+    "whole_large_pdf_sent_to_provider": false,
+    "bounded_parallelism": true,
+    "completed_chunk_reuse": true,
+    "atomic_chunk_claims": true,
+    "deterministic_merge": true,
+    "legacy_queue_status_rpc_signatures_changed": false,
+    "frontend_changed": false
+  },
+  "excluded": [
+    "apps/portal-react",
+    "portal.html",
+    "all production HTML",
+    "Supabase authentication",
+    "Supabase Storage",
+    "Supabase cron and Vault",
+    "supabase/functions/medichall-ai",
+    "all unrelated Edge Functions",
+    "broad production extraction or score recomputation"
+  ]
+}

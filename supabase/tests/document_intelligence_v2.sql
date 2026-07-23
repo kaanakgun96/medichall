@@ -41,11 +41,11 @@ begin
     and (component, version_identifier) in (
       ('document_discovery', 'document-discovery-v2.0.0'),
       ('document_retrieval', 'document-retrieval-v2.0.0'),
-      ('document_parsing', 'document-parsing-v2.0.0'),
-      ('ai_extraction', 'tender-extraction-v2.0.0')
+      ('document_parsing', 'document-chunking-v3.0.0'),
+      ('ai_extraction', 'tender-extraction-v3.0.0')
     );
   if v_current_versions <> 4 then
-    raise exception 'Expected four repository-current document v2 versions';
+    raise exception 'Expected the compatible current document pipeline versions';
   end if;
 
   if exists (

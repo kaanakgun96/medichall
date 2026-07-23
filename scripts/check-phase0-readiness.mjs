@@ -34,6 +34,15 @@ function walk(path) {
   });
 }
 
+const documentIntelligenceV3 = JSON.parse(
+  read("supabase/observability/document-intelligence-v3.json"),
+);
+const v3SourcePaths = new Set([
+  ...documentIntelligenceV3.functions.map((entry) => entry.entrypoint),
+  ...documentIntelligenceV3.shared_sources.map((entry) => entry.path),
+  ...documentIntelligenceV3.runtime_inputs.map((entry) => entry.path),
+]);
+
 const currentBranch = execFileSync(
   "git",
   ["rev-parse", "--abbrev-ref", "HEAD"],
@@ -111,7 +120,8 @@ for (const runtimeInput of [
   );
   if (!existsSync(repositoryPath(runtimeInput.path))) continue;
   check(
-    sha256(runtimeInput.path) === runtimeInput.sha256,
+    v3SourcePaths.has(runtimeInput.path) ||
+      sha256(runtimeInput.path) === runtimeInput.sha256,
     `hash mismatch for runtime input ${runtimeInput.path}`,
   );
 }
@@ -228,18 +238,22 @@ for (const entry of backendV2.functions) {
     entry.entrypoint === `supabase/functions/${entry.name}/index.ts`,
     `Backend v2 function must use the root entrypoint: ${entry.name}`,
   );
-  check(
-    sha256(entry.entrypoint) === entry.sha256,
-    `Backend v2 function hash mismatch: ${entry.entrypoint}`,
-  );
+  if (!v3SourcePaths.has(entry.entrypoint)) {
+    check(
+      sha256(entry.entrypoint) === entry.sha256,
+      `Backend v2 function hash mismatch: ${entry.entrypoint}`,
+    );
+  }
 }
 for (const source of backendV2.shared_sources) {
   check(existsSync(repositoryPath(source.path)), `missing Backend v2 source: ${source.path}`);
   if (!existsSync(repositoryPath(source.path))) continue;
-  check(
-    sha256(source.path) === source.sha256,
-    `Backend v2 source hash mismatch: ${source.path}`,
-  );
+  if (!v3SourcePaths.has(source.path)) {
+    check(
+      sha256(source.path) === source.sha256,
+      `Backend v2 source hash mismatch: ${source.path}`,
+    );
+  }
 }
 const backendV2Text = JSON.stringify(backendV2);
 check(
@@ -253,6 +267,82 @@ for (const migration of backendV2.migrations) {
     `${migration} contains an unresolved hash placeholder`,
   );
 }
+
+check(
+  documentIntelligenceV3.branch === "react-migration",
+  "Document Intelligence v3 manifest targets the wrong branch",
+);
+check(
+  JSON.stringify(documentIntelligenceV3.migrations) === JSON.stringify([
+    "supabase/migrations/202607230004_document_intelligence_v3.sql",
+    "supabase/migrations/202607230005_document_intelligence_v3_runtime_compatibility.sql",
+  ]),
+  "Document Intelligence v3 manifest has an unexpected migration scope",
+);
+check(
+  documentIntelligenceV3.functions.length === 1 &&
+    documentIntelligenceV3.functions[0]?.name === "tender-document-engine" &&
+    documentIntelligenceV3.functions[0]?.verify_jwt === true,
+  "Document Intelligence v3 must deploy only the JWT-protected canonical engine",
+);
+for (const entry of [
+  ...documentIntelligenceV3.functions.map((item) => ({
+    path: item.entrypoint,
+    sha256: item.sha256,
+  })),
+  ...documentIntelligenceV3.shared_sources,
+  ...documentIntelligenceV3.runtime_inputs,
+]) {
+  check(existsSync(repositoryPath(entry.path)), `missing v3 input: ${entry.path}`);
+  if (!existsSync(repositoryPath(entry.path))) continue;
+  check(
+    sha256(entry.path) === entry.sha256,
+    `Document Intelligence v3 hash mismatch: ${entry.path}`,
+  );
+}
+const v3Migration = documentIntelligenceV3.migrations.map(read).join("\n");
+const v3ManifestText = JSON.stringify(documentIntelligenceV3);
+check(
+  !/[A-Z][A-Z0-9_]+_SHA256/.test(v3ManifestText),
+  "Document Intelligence v3 manifest contains an unresolved hash placeholder",
+);
+check(
+  !/[A-Z][A-Z0-9_]+_SHA256/.test(v3Migration),
+  "Document Intelligence v3 migration contains an unresolved hash placeholder",
+);
+check(
+  existsSync(repositoryPath(documentIntelligenceV3.bootstrap_manifest?.path)),
+  "Document Intelligence v3 bootstrap manifest is missing",
+);
+if (existsSync(repositoryPath(documentIntelligenceV3.bootstrap_manifest?.path))) {
+  check(
+    sha256(documentIntelligenceV3.bootstrap_manifest.path) ===
+      documentIntelligenceV3.bootstrap_manifest.sha256,
+    "Document Intelligence v3 bootstrap manifest hash mismatch",
+  );
+}
+for (const entry of [
+  ...documentIntelligenceV3.functions.map((item) => ({
+    path: item.entrypoint,
+    sha256: item.sha256,
+  })),
+  ...documentIntelligenceV3.shared_sources.filter((item) =>
+    item.recorded_in_migration
+  ),
+]) {
+  check(
+    v3Migration.includes(entry.sha256),
+    `Document Intelligence v3 migration does not record ${entry.path}`,
+  );
+}
+check(
+  documentIntelligenceV3.safety?.page_count_rejection === false,
+  "Document Intelligence v3 must not reject by page count",
+);
+check(
+  documentIntelligenceV3.safety?.whole_large_pdf_sent_to_provider === false,
+  "Document Intelligence v3 must not send whole large PDFs to the provider",
+);
 const matchScoreV2 = JSON.parse(
   read("supabase/observability/match-score-v2.json"),
 );
