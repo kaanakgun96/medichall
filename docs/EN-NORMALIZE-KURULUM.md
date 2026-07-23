@@ -45,7 +45,7 @@ alanları.
 ### 3. Backfill (tek seferlik, ~1 $)
 Mevcut ~600 kaydı doldurmak için elle tetikle:
 ```bash
-curl -X POST 'https://azdmuarzntzqdyirysux.supabase.co/functions/v1/ted-sync' \
+curl -X POST '<SUPABASE_PROJECT_URL>/functions/v1/ted-sync' \
   -H 'x-cron-secret: <CRON_SECRET>' -H 'Content-Type: application/json' \
   -d '{"lookback_days":1,"max_pages":1,"translate_backlog":600}'
 ```

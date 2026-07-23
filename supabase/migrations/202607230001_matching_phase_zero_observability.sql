@@ -160,7 +160,7 @@ values
     'tender_ingestion',
     'ted-sync-v1.5+phase0.1',
     '1.5.0-phase0.1',
-    '64d5331f3e6903994f8ca8e4811cb4f136df42da1e4ed944342e20241027c12a',
+    'ea38bac44627fc17938a51c126260a1ff6386d33004d39029d1073ad86ae60f6',
     'supabase/functions/ted-sync/index.ts',
     null,
     true,
@@ -171,18 +171,18 @@ values
     'document_discovery',
     'document-discovery-v1+phase0.1',
     '1.0.0-phase0.1',
-    '9daa1c0b705c99b33750f176da954cf19a40f6c9cab34612b3afc3cfffe7d1a8',
+    'a8c84be9bfc953cc3cf8511745761a1a5bf834a046e5d6833972231947d2682e',
     'supabase/functions/tender-attachment-discovery/index.ts',
     'supabase/migrations/202607100007_tender_attachment_discovery.sql',
     true,
     'repository_only',
-    '{"expected_caller":"authorized partner Edge Function request","related_source_hashes":{"supabase/functions/ted-notice-resolver/index.ts":"8fe782572898e3b8c1e20048931d1a6708258cedc7d534462605c5edec734451"}}'::jsonb
+    '{"expected_caller":"authorized partner Edge Function request","related_source_hashes":{"supabase/functions/ted-notice-resolver/index.ts":"0583e60867380f04c7426a3638842f9ad420b69b9e8901d515f33c36dceb9f98","supabase/functions/_shared/edge-runtime.d.ts":"78cdc974b4060e83237a4756f72cbd9c716ace2b7906ab3fcb47627e962acf3c"}}'::jsonb
   ),
   (
     'document_retrieval',
     'document-retrieval-v1+phase0.1',
     '1.0.0-phase0.1',
-    'ce909fa2d9d6c5bda01de0a5aa7b6716ee6c28e30fd8e0b1edc36b41a425db99',
+    'b16db831fd5d374b11890cac3c5128716f98943dc34bdbbb08e19b32d19a2be5',
     'supabase/functions/_shared/matching-observability.ts',
     null,
     true,
@@ -193,23 +193,23 @@ values
     'document_parsing',
     'document-parsing-v1+phase0.1',
     '1.0.0-phase0.1',
-    'a1bcb941d44240fc444183cb8e85af804e9158b7b8e15c964fd31b2dee2c315d',
+    '8d87b8be8d25b3645d58b6d7ab9ddcce748aa66683669ad977e5243b587f7a30',
     'supabase/functions/tender-document-engine/index.ts',
     'supabase/migrations/202607100006_tender_document_engine.sql',
     true,
     'repository_only',
-    '{"parsers":["provider-native PDF","UTF-8 text","UTF-8 CSV","archive worker Office conversion"],"related_source_hashes":{"supabase/functions/tender-archive-worker/index.ts":"0b1d8aa608c32a6cc65c182bea2d0ee5da1551ef7e24b735db78ecbffd6924ca"}}'::jsonb
+    '{"parsers":["provider-native PDF","UTF-8 text","UTF-8 CSV","archive worker Office conversion"],"related_source_hashes":{"supabase/functions/tender-archive-worker/index.ts":"2ed9d66e72db0c07957a62f5956b95e286db2cfcf5e12e7a3e6eb79db8d8497c","supabase/functions/_shared/edge-runtime.d.ts":"78cdc974b4060e83237a4756f72cbd9c716ace2b7906ab3fcb47627e962acf3c"}}'::jsonb
   ),
   (
     'ai_extraction',
     'tender-extraction-prompt-v1+phase0.1',
     '1.0.0-phase0.1',
-    'a1bcb941d44240fc444183cb8e85af804e9158b7b8e15c964fd31b2dee2c315d',
+    '8d87b8be8d25b3645d58b6d7ab9ddcce748aa66683669ad977e5243b587f7a30',
     'supabase/functions/tender-document-engine/index.ts',
     'supabase/migrations/202607100005_explainable_match_engine.sql',
     true,
     'repository_only',
-    '{"provider":"Anthropic","prompt_behavior_changed":false}'::jsonb
+    '{"provider":"Anthropic","prompt_behavior_changed":false,"related_source_hashes":{"supabase/functions/_shared/edge-runtime.d.ts":"78cdc974b4060e83237a4756f72cbd9c716ace2b7906ab3fcb47627e962acf3c"}}'::jsonb
   ),
   (
     'candidate_generation',
@@ -237,7 +237,7 @@ values
     'explanation_generation',
     'explainable-match-202607100005',
     '202607100005',
-    'f77d662ea3018b14065f55428f98f6829bf503636926b215d1af549dd3f1d65d',
+    '16547aa91e25e7b8f6eb2894e1b7796e452fa376ebf8d288d187a4033d9ae68e',
     null,
     'supabase/migrations/202607100005_explainable_match_engine.sql',
     true,

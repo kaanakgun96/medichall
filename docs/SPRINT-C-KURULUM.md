@@ -39,27 +39,35 @@ Edge Functions → Secrets:
   gönderimler 403 alır.
 
 ### 1. Migration
-SQL Editor → dosyayı aç, **önce içindeki `BURAYA_CRON_SECRET_YAZ` metnini
-kendi CRON_SECRET değerinle değiştir** (en altta, 1 yerde) → Run.
-Kurduğu şeyler: `saved_searches` tablosu (RLS: herkes yalnız kendi kayıtları;
-kullanıcı başına 20 tavan), **search_tenders v4** (`p_created_after` — digest
-"yenileri" bununla çeker; portal çağrıları etkilenmez), digest RPC'leri,
-07:00 UTC pg_cron zamanlaması.
+`202607200003_saved_searches.sql` dosyasını normal migration akışıyla uygula.
+Dosyaya URL veya secret yazma. Migration; `saved_searches` tablosunu (RLS:
+herkes yalnız kendi kayıtları; kullanıcı başına 20 tavan), **search_tenders
+v4** RPC'sini (`p_created_after` — digest "yenileri" bununla çeker; portal
+çağrıları etkilenmez) ve digest RPC'lerini kurar.
 
 ### 2. tender-digest fonksiyonu
 Edge Functions → **yeni fonksiyon** oluştur, adı `tender-digest` →
 `tender-digest.ts` içeriğini yapıştır → Deploy.
 ### 🚨 Verify JWT: **KAPALI** (ted-sync gibi x-cron-secret ile korunur)
 
-### 3. portal.html
+### 3. Güvenli cron yapılandırması
+
+Edge Function `CRON_SECRET` değerini güvenli kaynaktan oluştur. Supabase Vault'a
+`medichall_project_url` ve aynı cron değerini taşıyan
+`medichall_cron_secret` kayıtlarını yetkili kanal üzerinden ekle. Ardından
+`supabase/setup/CONFIGURE-CRON.sql` dosyasını çalıştır. Betik TED sync'i 06:30
+UTC, digest'i 07:00 UTC için kurar; çözülmüş secret değeri `cron.job` komutuna
+yazılmaz.
+
+### 4. portal.html
 GoDaddy → üzerine yaz → Ctrl+F5. (Taban: EN normalize'lı son sürüm — bugüne
 kadarki her şey tek dosyada.)
 
-### 4. İlk test (cron'u beklemeden)
+### 5. İlk test (cron'u beklemeden)
 Portal → All tenders → bir filtre kur (ör. CPV 3314) → **Save this search**.
 Sonra elle tetikle:
 ```bash
-curl -X POST 'https://azdmuarzntzqdyirysux.supabase.co/functions/v1/tender-digest' \
+curl -X POST '<SUPABASE_PROJECT_URL>/functions/v1/tender-digest' \
   -H 'x-cron-secret: <CRON_SECRET>' -H 'Content-Type: application/json' -d '{}'
 ```
 İlk çağrıda büyük ihtimalle `emails_sent: 0` görürsün — **bu doğru
@@ -82,9 +90,9 @@ update saved_searches set last_digest_at = now() - interval '1 day';
 
 ## Test edildi
 
-- ✅ Migration tam yığında 2 kez (idempotent) — cron bloğu hariç: pg_cron
-  uzantısı yerelde yok (Supabase'e özgü), o blok canlıdaki ted_cron ile
-  birebir aynı desen
+- ✅ Migration tam yığında 2 kez (idempotent)
+- ⚠️ Vault-backed cron yapılandırması yalnız yetkili Supabase staging
+  projesinde doğrulanmalı; migration'ın parçası değildir
 - ✅ RLS: kullanıcı yalnız kendi aramalarını görüyor (2 kullanıcılı test)
 - ✅ Digest seçimi yalnız email_alerts=true olanları döndürüyor
 - ✅ `p_created_after`: yeni ihale geliyor, eskiler elenmiyor/eleniyor ayrımı doğru

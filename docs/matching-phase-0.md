@@ -23,9 +23,9 @@ operation.
 
 ## 2. Current live-access status
 
-Live Supabase access was unavailable in the task environment. No Supabase CLI,
-linked project reference, database URL, access token, or Deno runtime was
-present. Therefore:
+Live Supabase access is intentionally outside this repository-readiness task.
+No project was linked and no access token, project reference, database URL, or
+secret value was used. Therefore:
 
 - no live schema, function, RPC, cron, bucket, RLS, or Edge Function definition
   was exported;
@@ -37,6 +37,11 @@ The authorized owner-run procedure is in
 `docs/supabase-live-baseline.md`. Its output is structural only and is ignored
 by Git.
 
+Local repository validation now passes for the canonical Phase 0 sources. Run
+`node scripts/check-phase0-readiness.mjs` before any staging preview. The
+machine-readable deployment scope is
+`supabase/observability/phase-zero-deployment.json`.
+
 ## 3. Canonical runtime inventory
 
 This inventory distinguishes repository evidence from live proof. “Deployment
@@ -46,24 +51,26 @@ are limited to `verified_live`, `repository_only`, `conflicting`, and
 
 | Logical component | Repository path | SQL / RPC | Edge Function | Migration | Manual dependency | Version | Expected caller | Observed frontend caller | Deployment status | Live verification | Confidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Tender ingestion | `supabase/functions/ted-sync/index.ts` | `refresh_tender_eur_values`, then `refresh_company_opportunity_matches` | `ted-sync` | tender/filter and matching migrations | `202607100006_ted_cron.sql` scheduling | `ted-sync-v1.5+phase0.1` | authorized cron or manual POST | none | repository candidate | not verified | `repository_only` |
+| Tender ingestion | `supabase/functions/ted-sync/index.ts` | `refresh_tender_eur_values`, then `refresh_company_opportunity_matches` | `ted-sync` | tender/filter and matching migrations | Vault-backed `supabase/setup/CONFIGURE-CRON.sql` | `ted-sync-v1.5+phase0.1` | authorized cron or manual POST | none | canonical root candidate | not verified | `repository_only` |
 | TED notice URL resolution | `supabase/functions/ted-notice-resolver/index.ts` | direct table reads/writes | `ted-notice-resolver` | `202607100008_tender_automation.sql` | none known | discovery version | authenticated partner request | no current React caller; not called by legacy `deepAnalyze` | repository candidate | not verified | `repository_only` |
-| Attachment discovery | `supabase/functions/tender-attachment-discovery/index.ts` | `queue_tender_document_discovery`, `get_tender_document_discovery_status` | `tender-attachment-discovery` | `202607100007_tender_attachment_discovery.sql` | nested duplicate under `medichall-ai` | `document-discovery-v1+phase0.1` | authenticated partner request | no current React caller; not called by legacy `deepAnalyze` | root candidate conflicts with duplicate | not verified | `conflicting` |
+| Attachment discovery | `supabase/functions/tender-attachment-discovery/index.ts` | `queue_tender_document_discovery`, `get_tender_document_discovery_status` | `tender-attachment-discovery` | `202607100007_tender_attachment_discovery.sql` | nested legacy source under `medichall-ai` is explicitly excluded | `document-discovery-v1+phase0.1` | authenticated partner request | no current React caller; not called by legacy `deepAnalyze` | canonical root candidate | not verified | `repository_only` |
 | Document queueing | root document/discovery/archive Edge Functions | queue/status RPCs | three root functions | `202607100006`, `202607100007`, `202607100008` | none for standard queueing | component version inherited by job | authenticated company owner | legacy calls `tender-document-engine`; React has no document-analysis UI | repository candidate | not verified | `repository_only` |
-| Archive and Office parsing | `supabase/functions/tender-archive-worker/index.ts` | `queue_tender_archive_jobs`, `get_tender_archive_status` | `tender-archive-worker` | `202607100008_tender_automation.sql` | nested duplicate under `medichall-ai` | `document-parsing-v1+phase0.1` | authenticated partner request | no current direct caller | root candidate conflicts with duplicate | not verified | `conflicting` |
-| PDF/text document parsing | `supabase/functions/tender-document-engine/index.ts` | `queue_tender_document_analysis`, status RPC | `tender-document-engine` | `202607100006_tender_document_engine.sql` | nested engine differs materially | `document-parsing-v1+phase0.1` | authenticated partner request | legacy `portal.html::deepAnalyze` | root candidate conflicts with nested copy | not verified | `conflicting` |
-| AI extraction | `supabase/functions/tender-document-engine/index.ts` | writes jobs, tender extraction, evidence | `tender-document-engine` | document/explainable migrations | Anthropic runtime secret and model config | `tender-extraction-prompt-v1+phase0.1` | document engine | legacy deep-analysis flow | repository candidate | not verified | `conflicting` |
+| Archive and Office parsing | `supabase/functions/tender-archive-worker/index.ts` | `queue_tender_archive_jobs`, `get_tender_archive_status` | `tender-archive-worker` | `202607100008_tender_automation.sql` | nested legacy source under `medichall-ai` is explicitly excluded | `document-parsing-v1+phase0.1` | authenticated partner request | no current direct caller | canonical root candidate | not verified | `repository_only` |
+| PDF/text document parsing | `supabase/functions/tender-document-engine/index.ts` | `queue_tender_document_analysis`, status RPC | `tender-document-engine` | `202607100006_tender_document_engine.sql` | nested legacy source under `medichall-ai` is explicitly excluded | `document-parsing-v1+phase0.1` | authenticated partner request | legacy `portal.html::deepAnalyze` | canonical root candidate | not verified | `repository_only` |
+| AI extraction | `supabase/functions/tender-document-engine/index.ts` | writes jobs, tender extraction, evidence | `tender-document-engine` | document/explainable migrations | Anthropic runtime secret and model config | `tender-extraction-prompt-v1+phase0.1` | document engine | legacy deep-analysis flow | canonical root candidate | not verified | `repository_only` |
 | Candidate generation and scoring | `202607200002_english_normalization.sql` | `refresh_company_opportunity_matches` | none | `202607200002_english_normalization.sql` | `supabase/setup/CPV-YAMA.sql` can replace the RPC | candidate `candidate-generation-202607200002`; score `matching-score-202607200002` | TED sync, partner refresh, explainable refresh | legacy and React opportunities refresh | multiple competing definitions | not verified | `conflicting` |
 | Explainable matching | `202607100005_explainable_match_engine.sql` | `refresh_explainable_tender_matches` | invoked by document engine | `202607100005_explainable_match_engine.sql` | assumes active base refresh RPC | `explainable-match-202607100005` | document engine or authorized RPC | no direct React caller | repository candidate | not verified | `repository_only` |
 | Opportunity storage | schema plus matching migrations | `public.opportunity_matches` | none | `202607100003` onward | later migrations add fields | schema lineage is recorded per row | matching RPCs | legacy and React query REST table | repository candidate | not verified | `repository_only` |
 | Tender search | React tender API and legacy portal | `search_tenders` | none | latest: `202607200003_saved_searches.sql` | prior definitions in filter/normalization migrations | migration identifier | browser and digest function | legacy All Tenders, React `#/all-tenders` | several sequential definitions | not verified | `conflicting` |
 | Profile refresh | legacy and React company-profile code | REST upsert to `company_match_profiles`; no refresh RPC | none | foundation schema | company row defaults and manual portal behavior | row `updated_at` snapshot | authenticated company owner | legacy and React profile forms | repository behavior only | not verified | `repository_only` |
-| Scheduled execution | `202607100006_ted_cron.sql` | `cron.schedule`, `net.http_post` | calls `ted-sync` | manual cron SQL | live secret, URL, and cron job must be owner-configured | cron definition has no live proof | `pg_cron` | none | template only | not verified | `unknown` |
+| Scheduled execution | `supabase/setup/CONFIGURE-CRON.sql` | `cron.schedule`, `net.http_post`, Vault reads | calls `ted-sync` and `tender-digest` | outside migration chain by design | live Vault entries and Edge Function secret must be owner-configured | cron definition has no live proof | `pg_cron` | none | Vault-backed setup candidate | not verified | `unknown` |
 | Frontend retrieval | legacy/React opportunity and dashboard APIs | PostgREST on `opportunity_matches`, `tenders`, company tables | none | RLS in existing migrations | legacy session bridge | not yet emitted as a backend stage | browser | both portals | observable only in browser today | not verified | `unknown` |
 
 The root and `supabase/functions/medichall-ai/*` document implementations are
-not assumed to be aliases. Until the live Edge inventory and deployed source
-are compared, the duplicate functions remain a deployment conflict.
+not assumed to be aliases. For Phase 0, the repository deployment manifest
+selects only the five root entrypoints and explicitly excludes the nested
+legacy tree. The deployed live source still must be captured before a staging
+change, but the repository deployment input is no longer ambiguous.
 
 ## 4. Versioning strategy
 
@@ -327,20 +334,26 @@ versions on the tender/document/job. No trigger launches a bulk refresh.
 
 No deployment was performed. Staging order:
 
-1. revoke and rotate the exposed cron secret; update the authorized live cron
-   job without committing the value;
-2. run the owner baseline export and compare live objects;
-3. resolve which duplicate Edge Function paths are actually deployed;
-4. back up the staging database and test migration rollback;
-5. apply `202607230001_matching_phase_zero_observability.sql` to staging;
-6. deploy the shared module and instrumented **root** Edge Functions to
-   staging;
-7. run one controlled ingestion, one public document, one restricted document,
-   one archive, and one notice-only analysis;
-8. verify trace relationships, sanitization, RLS, status classification, and
-   unchanged scores;
-9. capture before/after RPC definitions and representative score rows;
-10. obtain explicit production approval in a separate task.
+1. run `node scripts/check-phase0-readiness.mjs`;
+2. run `deno check --frozen` for the shared module and five root entrypoints,
+   then
+   `deno test --frozen supabase/functions/_shared/matching-observability.test.ts`;
+3. revoke and rotate the exposed cron secret through an authorized secret
+   channel; do not commit or print the value;
+4. run the owner baseline export and compare live objects;
+5. compare the deployed function inventory with the root entrypoints listed in
+   `supabase/observability/phase-zero-deployment.json`;
+6. preview migration history and stop unless the only intended new database
+   change is `202607230001_matching_phase_zero_observability.sql`;
+7. back up the staging database and test migration rollback;
+8. apply that migration to staging;
+9. deploy only the five manifest-listed **root** Edge Functions to staging;
+10. run one controlled ingestion, one public document, one restricted
+    document, one archive, and one notice-only analysis;
+11. verify trace relationships, sanitization, RLS, status classification, and
+    unchanged scores;
+12. capture before/after RPC definitions and representative score rows;
+13. obtain explicit production approval in a separate task.
 
 The migration must precede the Edge functions so trace tables and stamping RPCs
 exist. Although trace helpers fail safely, version columns on business writes
@@ -366,7 +379,8 @@ deleting production data.
 ## 18. Known limitations
 
 - No live deployment state is verified.
-- Duplicate root/nested document Edge Functions remain unresolved.
+- Nested `medichall-ai` copies remain as legacy references, but are excluded
+  from the Phase 0 deployment manifest.
 - Candidate/scoring RPC definitions conflict across migrations/manual setup.
 - Active legacy deep analysis still skips discovery and archive functions.
 - Frontend retrieval is not traced.
@@ -379,11 +393,26 @@ deleting production data.
 - Duplicate-rate measurement needs insert/update differentiation.
 - No benchmark cases have been labeled.
 - Historical unversioned rows are intentionally stale.
+- The full migration chain and SQL assertions still require an isolated
+  Supabase/PostgreSQL environment with project extensions; repository checks
+  cannot replace that staging gate.
 
-## 19. Next recommended remediation
+## 19. Repository readiness status
 
-The evidence-based next task is to export and reconcile the **live** RPC, Edge
-Function, cron, storage, and RLS definitions against this repository. That is
-the prerequisite for selecting a canonical scoring function and activating any
-retrieval improvement safely. Do not change weights until the active live
-scoring definition is proven and the first benchmark is adjudicated.
+The repository-side Phase 0 blockers are resolved:
+
+- migration versions are unique;
+- the historical scoring migration is consolidated without changing its SQL;
+- project-specific cron literals are removed from active SQL;
+- Vault-backed cron configuration is separate from schema migration;
+- Supabase client imports are pinned;
+- Deno configuration and transitive dependencies are locked;
+- the Edge Runtime declaration is explicit;
+- all five canonical root functions pass Deno type checking;
+- source hashes and the deployment manifest are machine-verified.
+
+The next step is an authorized **staging-only** baseline and migration preview.
+That is an environment gate, not permission to deploy. Reconcile the live RPC,
+Edge Function, cron, storage, and RLS definitions before any change. Do not
+change weights until the active live scoring definition is proven and the
+first benchmark is adjudicated.

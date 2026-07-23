@@ -1,0 +1,10 @@
+-- ARCHIVED MIGRATION MARKER
+--
+-- This former migration shared version 202607100006 with
+-- 202607100006_tender_document_engine.sql and contained environment-specific
+-- cron configuration. It is intentionally outside supabase/migrations and is
+-- not executable.
+--
+-- The original content remains recoverable from Git history for audit needs.
+-- Configure the jobs with supabase/setup/CONFIGURE-CRON.sql, which reads the
+-- project URL and cron credential from Supabase Vault at execution time.

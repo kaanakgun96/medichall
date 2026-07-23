@@ -98,17 +98,24 @@ export type DocumentAccessInput = {
   fileTooLarge?: boolean;
 };
 
-type TraceClient = {
-  from: (table: string) => {
-    insert: (value: unknown) => PromiseLike<{ error?: { message?: string } | null }>;
-    update: (value: unknown) => {
-      eq: (
-        column: string,
-        value: unknown,
-      ) => PromiseLike<{ error?: { message?: string } | null }>;
-    };
+type TraceMutationResult = PromiseLike<{
+  error?: { message?: string } | null;
+}>;
+
+type TraceTable = {
+  insert: (value: unknown) => TraceMutationResult;
+  update: (value: unknown) => {
+    eq: (column: string, value: unknown) => TraceMutationResult;
   };
 };
+
+type TraceClient = {
+  from: (table: string) => unknown;
+};
+
+function traceTable(client: TraceClient, table: string): TraceTable {
+  return client.from(table) as TraceTable;
+}
 
 export type PipelineRunHandle = {
   traceId: string;
@@ -385,7 +392,7 @@ async function safeInsert(
   value: unknown,
 ): Promise<boolean> {
   try {
-    const { error } = await client.from(table).insert(value);
+    const { error } = await traceTable(client, table).insert(value);
     if (error) {
       console.warn("Observability insert skipped", sanitizeMessage(error.message));
       return false;
@@ -405,7 +412,7 @@ async function safeUpdate(
   value: unknown,
 ): Promise<boolean> {
   try {
-    const { error } = await client.from(table).update(value).eq(idColumn, id);
+    const { error } = await traceTable(client, table).update(value).eq(idColumn, id);
     if (error) {
       console.warn("Observability update skipped", sanitizeMessage(error.message));
       return false;

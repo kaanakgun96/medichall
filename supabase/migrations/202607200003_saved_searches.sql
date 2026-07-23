@@ -201,31 +201,10 @@ grant execute on function public.digest_due_saved_searches() to service_role;
 grant execute on function public.mark_saved_search_digested(bigint[]) to service_role;
 
 -- ---------------------------------------------------------------------------
--- 4) DIGEST ZAMANLAMASI (pg_cron — ted-sync ile aynı desen)
---    07:00 UTC: sync (06:30) bitmiş, yeni ihaleler çevrilmiş ve skorlanmış olur.
---    !!! 'BURAYA_CRON_SECRET_YAZ' metnini kendi CRON_SECRET'ınla değiştir !!!
+-- 4) DIGEST ZAMANLAMASI
 -- ---------------------------------------------------------------------------
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
-do $$
-begin
-  perform cron.unschedule('medichall-tender-digest');
-exception when others then
-  null;
-end $$;
-
-select cron.schedule(
-  'medichall-tender-digest',
-  '0 7 * * *',
-  $cron$
-  select net.http_post(
-    url     := 'https://azdmuarzntzqdyirysux.supabase.co/functions/v1/tender-digest',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-cron-secret', 'BURAYA_CRON_SECRET_YAZ'
-    ),
-    body    := '{}'::jsonb
-  );
-  $cron$
-);
+-- Cron is intentionally not installed by a schema migration. Project URLs
+-- and credentials are environment configuration, not schema. After the
+-- required Vault entries exist, run supabase/setup/CONFIGURE-CRON.sql through
+-- an authorized administrative session. That script configures both the TED
+-- sync and digest jobs without storing a credential literal in cron.job.

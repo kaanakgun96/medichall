@@ -1,4 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+/// <reference path="../_shared/edge-runtime.d.ts" />
+
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   PIPELINE_VERSIONS,
   type PipelineRunHandle,
@@ -30,6 +32,18 @@ type QueuePayload = {
   action?: "queue" | "status";
   tender_id?: number;
   company_id?: number;
+};
+
+type TenderDocumentRecord = {
+  id: number;
+  title?: string | null;
+  file_name?: string | null;
+  file_url?: string | null;
+  mime_type?: string | null;
+  document_type?: string | null;
+  language_code?: string | null;
+  source_confidence?: string | null;
+  __inline_text?: string;
 };
 
 type AnalysisOutput = {
@@ -351,7 +365,7 @@ Return this exact JSON structure:
 }
 
 async function processJob(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: ReturnType<typeof createClient<any>>,
   anthropicKey: string,
   jobId: number,
   pipelineRun: PipelineRunHandle,
@@ -410,10 +424,11 @@ async function processJob(
 
   if (documentError) throw new Error(documentError.message);
 
-  const usableDocuments = (documents || []).filter((document: any) =>
-    SUPPORTED_MIME_TYPES.has(String(document.mime_type || "").toLowerCase()) &&
-    isSafeHttpsUrl(String(document.file_url || ""))
-  );
+  const usableDocuments: TenderDocumentRecord[] =
+    ((documents || []) as TenderDocumentRecord[]).filter((document) =>
+      SUPPORTED_MIME_TYPES.has(String(document.mime_type || "").toLowerCase()) &&
+      isSafeHttpsUrl(String(document.file_url || ""))
+    );
 
   let noticeOnly = false;
   if (!usableDocuments.length) {

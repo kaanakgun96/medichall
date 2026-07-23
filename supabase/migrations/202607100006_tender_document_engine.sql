@@ -1,5 +1,10 @@
 -- MedicHall Tender Document Engine v1
 -- Run after 202607100005_explainable_match_engine.sql
+--
+-- This file is the canonical 202607100006 migration. The former TED cron file
+-- with the same numeric version is retained under supabase/migration-archive
+-- for audit history. Configure cron jobs separately with the Vault-backed
+-- supabase/setup/CONFIGURE-CRON.sql script.
 
 begin;
 

@@ -1,4 +1,6 @@
 -- MedicHall Match Engine v2 scoring
+-- ARCHIVED: consolidated into
+-- supabase/migrations/202607100005_explainable_match_engine.sql.
 -- Fixes three weaknesses of the v1.1 rules:
 --  1) Keyword matching was exact array equality ("probe cover" did not match
 --     "ultrasound probe cover"). Now keywords are searched inside the tender

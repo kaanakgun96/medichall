@@ -1,4 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+/// <reference path="../_shared/edge-runtime.d.ts" />
+
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   PIPELINE_VERSIONS,
   accessClassForStatus,

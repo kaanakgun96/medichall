@@ -31,7 +31,7 @@
 //                    TED_LOOKBACK_DAYS      (default 2)
 //                    TED_MAX_PAGES          (default 2, 250 notices per page)
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   PIPELINE_VERSIONS,
   classifyError,

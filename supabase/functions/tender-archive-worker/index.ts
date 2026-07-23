@@ -1,4 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+/// <reference path="../_shared/edge-runtime.d.ts" />
+
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import { unzipSync } from "npm:fflate@0.8.2";
 import * as XLSX from "npm:xlsx@0.18.5";
 import mammoth from "npm:mammoth@1.9.0";

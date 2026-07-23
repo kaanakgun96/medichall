@@ -1,0 +1,49 @@
+{
+  "scope": "Phase 0 repository deployment inputs; not proof of live deployment",
+  "branch": "react-migration",
+  "migration": "supabase/migrations/202607230001_matching_phase_zero_observability.sql",
+  "runtime": {
+    "supabase_js": "2.110.8",
+    "deno_config": {
+      "path": "supabase/functions/deno.json",
+      "sha256": "c84bbda11ef7a05a62ebcbad2e153e2267844ee80e1cb54ac3de352ea34d89e3"
+    },
+    "deno_lock": {
+      "path": "supabase/functions/deno.lock",
+      "sha256": "e1d5f71be16bf8cb3d352ac5decd77d7ae75bbf2abf40138b130873b5cb053ef"
+    }
+  },
+  "functions": [
+    {
+      "name": "ted-sync",
+      "entrypoint": "supabase/functions/ted-sync/index.ts",
+      "verify_jwt": false
+    },
+    {
+      "name": "ted-notice-resolver",
+      "entrypoint": "supabase/functions/ted-notice-resolver/index.ts",
+      "verify_jwt": true
+    },
+    {
+      "name": "tender-attachment-discovery",
+      "entrypoint": "supabase/functions/tender-attachment-discovery/index.ts",
+      "verify_jwt": true
+    },
+    {
+      "name": "tender-archive-worker",
+      "entrypoint": "supabase/functions/tender-archive-worker/index.ts",
+      "verify_jwt": true
+    },
+    {
+      "name": "tender-document-engine",
+      "entrypoint": "supabase/functions/tender-document-engine/index.ts",
+      "verify_jwt": true
+    }
+  ],
+  "excluded_source_tree": "supabase/functions/medichall-ai",
+  "notes": [
+    "Deploy only the exact root entrypoints listed above.",
+    "The nested medichall-ai copies are legacy source references and are not Phase 0 deployment inputs.",
+    "Live target verification and explicit production approval remain mandatory."
+  ]
+}

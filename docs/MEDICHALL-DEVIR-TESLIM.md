@@ -61,7 +61,13 @@
 
 Secrets: `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY`; opsiyonel: `ANTHROPIC_MODEL`, `DOC_ENGINE_MODEL`, `TRANSLATE_MODEL`, `TED_COUNTRIES`, `TED_LOOKBACK_DAYS`, `TED_MAX_PAGES`, `TED_CPV`, `PUBLIC_AI_MODEL/IP_LIMIT/WINDOW_MIN`, `DIGEST_FROM`, `DIGEST_MAX_HITS_PER_SEARCH`, `AI_DAILY_LIMIT`.
 
-**⚠️ Supabase Secrets arayüzü değerin kendisini DEĞİL, SHA-256 özetini gösterir** — oradan kopyalanan 64 haneli dizi curl'de Unauthorized yer. Gerçek CRON_SECRET'a `select command from cron.job;` ile ulaşılır (ya da repo `202607100006_ted_cron.sql`). Not: bu secret repo+sohbetlerde açığa çıktı; bir temizlik günü rotasyonu yapılacak (Secrets + cron.job BİRLİKTE güncellenir).
+**⚠️ Supabase Secrets arayüzü değerin kendisini değil özetini gösterir.**
+`cron.job` içinden secret kurtarmaya çalışma ve değeri SQL, repo, sohbet veya
+terminal geçmişine yazma. Eski değer repo/sohbetlerde açığa çıktığı için
+yetkili kişi tarafından döndürülmeli. Yeni değer Edge Function `CRON_SECRET`
+ve Vault `medichall_cron_secret` girdisine güvenli kanaldan yazılır;
+`medichall_project_url` ile birlikte
+`supabase/setup/CONFIGURE-CRON.sql` çalıştırılarak işler yeniden kurulur.
 
 ## 5. VERİTABANI (kurulu migration/RPC özeti)
 
@@ -76,7 +82,7 @@ Secrets: `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY`; opsiyonel: `ANTHR
 - **Sprint A (202607170001):** `tenders.notice_type` (raw_payload'dan geriye dönük dolduruldu — TED'i yeniden taramadan), `cpv_codes_norm` generated column + GIN, `fx_rates` (ECB günlük kurlar), `estimated_value_eur`+`eur_rate_as_of`, `search_tenders()` (tüm filtreler tek RPC), `tender_filter_facets()`.
 - **CPV kataloğu (202607200001):** `cpv_catalog` — 655 medikal kod, etiketler resmi AB CPV 2008 XLSX'inden birebir; `cpv_catalog_with_counts()` canlı ihale sayaçlı seçici beslemesi.
 - **İngilizce normalize (202607200002):** `tenders.title_en/description_en/translation_status`; `search_tenders` v3 EN kolonlarını da tarar; `refresh_company_opportunity_matches` keyword samanlığına EN kolonları eklendi (fonksiyon metni 202607100005'ten birebir, yalnız 2 ifade genişletildi). Kanıtlı sonuç: İngilizce keyword × Almanca ihale — keyword 0→50, toplam 30→55.
-- **Sprint C (202607200003):** `saved_searches` (RLS: kendi kayıtları, 20/kullanıcı), `search_tenders` v4 (`p_created_after`), `digest_due_saved_searches()`, `mark_saved_search_digested()`, pg_cron 07:00 UTC digest zamanlaması.
+- **Sprint C (202607200003):** `saved_searches` (RLS: kendi kayıtları, 20/kullanıcı), `search_tenders` v4 (`p_created_after`), `digest_due_saved_searches()`, `mark_saved_search_digested()`. Vault-backed 07:00 UTC digest zamanlaması migration dışında `supabase/setup/CONFIGURE-CRON.sql` ile kurulur.
 
 ## 6. ÖNEMLİ ÜRÜN KARARLARI (değiştirme!)
 
@@ -101,7 +107,10 @@ Secrets: `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY`; opsiyonel: `ANTHR
 Yapıldı ve canlıda (17-20 Temmuz): GitHub tam senkronu ✓ · Sprint A (filtre veri katmanı + ted-sync v1.4 kritik düzeltme) ✓ · Sprint B (filtre UI) ✓ · Çeviri hotfix (medichall-ai v2.1 + parçalı translateDeep) ✓ · CPV kataloğu + profil seçicisi ✓ · İngilizce normalize katmanı (ted-sync v1.5) ✓ · Sprint C (saved searches + günlük digest) ✓ · ARCHITECTURE.md ✓
 
 - [ ] **Backfill teyidi:** çeviri backfill'i 100'erlik turlarla sürüyor (600 tek seferde worker limitine takıldı). `pending=0` görülecek, ardından "ultrasound" arama testi + digest elle tetiği (`send_errors` kontrolü — doluysa çoğu kez Resend domain doğrulamasıdır).
-- [ ] **CRON_SECRET rotasyonu** (temizlik günü): secret repo+sohbetlerde açığa çıktı; Secrets + cron.job birlikte yenilenecek.
+- [ ] **CRON_SECRET rotasyonu (dağıtımdan önce zorunlu):** eski değer
+      repo+sohbetlerde açığa çıktı. Yetkili kişi yeni değeri Edge Function
+      secret'ına ve Vault'a güvenli kanaldan yazıp
+      `supabase/setup/CONFIGURE-CRON.sql` ile cron işlerini yeniden kurmalı.
 - [ ] **Sprint D:** CSV/PDF export + deadline→Google/Outlook takvim.
 - [ ] Products boş durum tasarımı ("Request a Product" formu + kategori köprüleri).
 - [ ] Matchmaking karşılıklı ilgi akışı (A ilgi → B onay → iletişim açılır) — en büyük kalem, tek başına sprint.
