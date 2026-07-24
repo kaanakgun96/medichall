@@ -2463,6 +2463,50 @@ async function edgeCall(fn, body){
 }
 const sleep = (ms)=>new Promise(r=>setTimeout(r, ms));
 
+const DP_STAGE_LABELS = {
+  downloading_attachments: "Downloading documents",
+  inspecting_document: "Inspecting documents",
+  finding_technical_sections: "Finding technical sections",
+  reading_specifications: "Reading specifications",
+  extracting_products: "Extracting products",
+  matching_supplier: "Matching against your profile",
+  calculating_score: "Calculating match score",
+  generating_summary: "Generating summary",
+  complete: "Finishing up"
+};
+async function dpProgress(tenderId){
+  try{
+    return await db("rpc/get_tender_document_analysis_progress_v3", {
+      method: "POST",
+      body: JSON.stringify({ p_tender_id: tenderId, p_company_id: COMPANY.id })
+    });
+  }catch(_){ return null; }
+}
+function dpProgressMessage(prog, secs){
+  if(!prog || !prog.job_id) return "MedicHall AI is reading… (" + secs + "s)";
+  if(prog.status === "queued"){
+    return prog.termination_reason
+      ? "MedicHall AI is resuming the analysis… (" + secs + "s)"
+      : "Waiting for an analysis worker… (" + secs + "s)";
+  }
+  const label = DP_STAGE_LABELS[prog.stage] || "Analyzing documents";
+  const pct = prog.progress_percent != null ? " — " + Math.round(prog.progress_percent) + "%" : "";
+  const eta = prog.estimated_remaining_seconds != null
+    ? ", ~" + Math.max(1, Math.round(prog.estimated_remaining_seconds)) + "s left"
+    : "";
+  return "MedicHall AI: " + label + pct + " (" + secs + "s" + eta + ")";
+}
+function dpFailureMessage(job, prog){
+  const reason = (prog && prog.termination_reason) || "";
+  if(reason === "STALE_WORKER_LOST_MAX_ATTEMPTS"){
+    return "The analysis stopped after repeated timeouts and gave up. Any partial results were kept — please try again later.";
+  }
+  if(job && ["queued","processing"].includes(job.status)){
+    return "The analysis is taking longer than expected. It is still running in the background — reopen Deep analysis in a few minutes to see the result.";
+  }
+  return (job && job.error_message) || "Document analysis did not finish";
+}
+
 function dpStepsHtml(mid){
   return '<div class="dp-steps">'
     + '<span class="dp-step" id="dps1-' + mid + '"><i></i>Find documents</span>'
@@ -2495,17 +2539,22 @@ async function deepAnalyze(matchId){
     await edgeCall("tender-document-engine", ids);
     dpSet(matchId, 1, "ok");
     dpSet(matchId, 3, "run", "MedicHall AI is reading the notice… (~30-60 seconds)");
-    let job = null;
+    let job = null, prog = null;
     const startedAt = Date.now();
-    for(let i = 0; i < 60; i++){
+    for(let i = 0; i < 150; i++){
       await sleep(4000);
       const s = await edgeCall("tender-document-engine", { ...ids, action:"status" });
       job = s.job || s;
+      prog = await dpProgress(t.id);
       if(job && ["completed","partial","failed"].includes(job.status)) break;
-      dpSet(matchId, 3, "run", "MedicHall AI is reading… (" + Math.round((Date.now()-startedAt)/1000) + "s)");
+      if(prog && ["completed","partial","failed"].includes(prog.status)) break;
+      dpSet(matchId, 3, "run", dpProgressMessage(prog, Math.round((Date.now()-startedAt)/1000)));
     }
-    if(!job || job.status === "failed"){
-      throw new Error(job?.error_message || "Document analysis did not finish");
+    if(prog && ["completed","partial","failed"].includes(prog.status) && (!job || !["completed","partial","failed"].includes(job.status))){
+      job = { status: prog.status, error_message: null };
+    }
+    if(!job || !["completed","partial"].includes(job.status)){
+      throw new Error(dpFailureMessage(job, prog));
     }
     dpSet(matchId, 3, "ok", "Analysis " + job.status + ".");
     await renderDeepResult(matchId, t.id);

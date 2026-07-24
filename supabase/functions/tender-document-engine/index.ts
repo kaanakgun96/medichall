@@ -218,12 +218,40 @@ async function downloadDocument(
   }
   let response: Response;
   let redirectCount = 0;
+  let acceptedRetries = 0;
   while (true) {
     response = await fetch(current.href, {
       redirect: "manual",
       signal: AbortSignal.timeout(config.downloadTimeoutMs),
       headers: { "User-Agent": "MedicHall-Tender-Document-Engine/3.0" },
     });
+    if (response.status === 202) {
+      // TED renders notice PDFs asynchronously: the endpoint returns
+      // 202 with an empty body until the PDF is generated. Poll briefly
+      // and otherwise fail as retriable so a later invocation retries.
+      await response.body?.cancel();
+      if (acceptedRetries < 3) {
+        acceptedRetries++;
+        await new Promise((resolve) => setTimeout(resolve, 4_000));
+        continue;
+      }
+      const error = new Error(
+        "The document host is still generating this file (HTTP 202)",
+      );
+      Object.assign(error, {
+        retriableDownload: true,
+        documentAccessClassification: {
+          httpStatus: 202,
+          contentType: response.headers.get("content-type"),
+          contentLength: 0,
+          url: response.url || current.href,
+          isDirectFile: true,
+          redirectCount,
+          error,
+        },
+      });
+      throw error;
+    }
     if (response.status < 300 || response.status >= 400) break;
     const location = response.headers.get("location");
     if (!location) break;
@@ -573,6 +601,7 @@ async function callClaudeForChunk(
   work: ChunkWork,
   config: DocumentIntelligenceV31Config,
   budget: ExecutionBudgetState,
+  deadlineMs: number,
 ): Promise<{
   raw: Record<string, unknown>;
   requestId: string | null;
@@ -617,6 +646,17 @@ async function callClaudeForChunk(
   let aggregateCost = 0;
   const startedAt = performance.now();
   for (let attempt = 1; attempt <= 2; attempt++) {
+    // The provider call must finish inside the invocation time budget;
+    // an in-flight call at worker kill time leaves an orphaned lease.
+    const providerTimeoutMs = Math.min(
+      config.providerTimeoutMs,
+      deadlineMs - Date.now() - 8_000,
+    );
+    if (providerTimeoutMs < 15_000) {
+      throw new Error(
+        "TIME_BUDGET_EXCEEDED: not enough invocation time left for an AI request",
+      );
+    }
     const guardrail = reserveAiRequest(
       budget,
       work.sourceDocumentKey,
@@ -625,7 +665,7 @@ async function callClaudeForChunk(
     if (guardrail) throw new AiGuardrailError(guardrail);
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      signal: AbortSignal.timeout(config.providerTimeoutMs),
+      signal: AbortSignal.timeout(providerTimeoutMs),
       headers: {
         "x-api-key": anthropicKey,
         "anthropic-version": "2023-06-01",
@@ -856,6 +896,7 @@ async function executeChunk(
   work: ChunkWork,
   config: DocumentIntelligenceV31Config,
   budget: ExecutionBudgetState,
+  deadlineMs: number,
 ): Promise<ChunkExecutionResult> {
   const { data: claimed, error: claimError } = await adminClient.rpc(
     "claim_tender_document_analysis_chunk_v3",
@@ -889,6 +930,7 @@ async function executeChunk(
       work,
       config,
       budget,
+      deadlineMs,
     );
     const rebased = work.bytes
       ? rebaseRawEvidencePages(
@@ -978,9 +1020,24 @@ async function executeChunkWithRetry(
   work: ChunkWork,
   config: DocumentIntelligenceV31Config,
   budget: ExecutionBudgetState,
+  deadlineMs: number,
 ): Promise<ChunkExecutionResult> {
   let result: ChunkExecutionResult | null = null;
   for (let attempt = 0; attempt < config.maxChunkAttempts; attempt++) {
+    if (deadlineMs - Date.now() < 30_000) {
+      // Leave the chunk claimable for the next invocation instead of
+      // starting work that cannot finish inside the time budget.
+      return result ?? {
+        status: "skipped",
+        analysis: null,
+        guardrailReason: null,
+        aiRequests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        providerDurationMs: 0,
+      };
+    }
     result = await executeChunk(
       adminClient,
       anthropicKey,
@@ -989,6 +1046,7 @@ async function executeChunkWithRetry(
       work,
       config,
       budget,
+      deadlineMs,
     );
     if (result.status !== "failed") return result;
   }
@@ -1245,8 +1303,11 @@ async function processJob(
   anthropicKey: string,
   jobId: number,
   pipelineRun: PipelineRunHandle,
+  invocationStartedMs: number,
 ): Promise<void> {
   const config = readDocumentIntelligenceV31Config();
+  const invocationDeadlineMs = invocationStartedMs +
+    config.invocationTimeBudgetMs;
   const configSnapshot = publicV31ConfigSnapshot(config);
   const budgetState = createExecutionBudgetState();
   const timings: BenchmarkTimings = {
@@ -1266,6 +1327,32 @@ async function processJob(
     .eq("id", jobId)
     .single();
   if (jobError || !job) throw new Error("Analysis job not found");
+  // Atomic claim: only one worker may run a job. A 'processing' job is
+  // reclaimable once its updated_at is older than the worker's maximum
+  // possible lifetime (the ~150s WallClockTime kill measured on prod).
+  const { data: claimedJob, error: claimJobError } = await adminClient.rpc(
+    "claim_tender_document_analysis_job_v3",
+    { p_job_id: jobId, p_stale_seconds: 150 },
+  );
+  if (claimJobError) throw new Error(claimJobError.message);
+  if (!claimedJob?.id) {
+    console.log(
+      `Analysis job ${jobId} is already owned by a live worker; skipping.`,
+    );
+    return;
+  }
+  // Chunk leases orphaned by a killed worker must become claimable,
+  // otherwise a resumed job silently skips them forever.
+  await adminClient
+    .from("tender_document_analysis_chunks")
+    .update({
+      status: "queued",
+      lease_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("job_id", jobId)
+    .eq("status", "processing")
+    .lt("lease_expires_at", new Date().toISOString());
   const { data: priorUsage, error: priorUsageError } = await adminClient
     .from("tender_document_analysis_chunks")
     .select(
@@ -1295,14 +1382,9 @@ async function processJob(
     .single();
   const model = Deno.env.get("DOC_ENGINE_MODEL") ||
     Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
-  const resumed = Number(job.attempt_count || 0) > 0;
   await adminClient.from("tender_document_analysis_jobs").update({
     status: "processing",
-    started_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    attempt_count: Number(job.attempt_count || 0) + 1,
-    resume_count: Number(job.resume_count || 0) + (resumed ? 1 : 0),
-    last_resumed_at: resumed ? new Date().toISOString() : null,
     model_name: model,
     trace_id: pipelineRun.traceId,
     extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
@@ -1417,13 +1499,31 @@ async function processJob(
   let remainingAiPages = config.maxTotalAiPages;
   let remainingChunkExecutions = config.maxChunksPerRun;
   const documentErrors: string[] = [];
+  const currentChunkIds: number[] = [];
+  let timeBudgetExhausted = false;
+  let documentPhaseComplete = true;
+  let fallbackPdfHandled = false;
+  let retriableDocumentFailure = false;
 
   for (
     let documentIndex = 0;
     documentIndex < documents.length;
     documentIndex++
   ) {
+    if (invocationDeadlineMs - Date.now() < 35_000) {
+      timeBudgetExhausted = true;
+      documentPhaseComplete = false;
+      break;
+    }
     const document = documents[documentIndex];
+    if (noticeOnly && document.__inline_text && fallbackPdfHandled) {
+      // The inline notice text duplicates the official notice PDF that
+      // was just processed. Extracting it costs one giant AI call whose
+      // output regularly exceeds the worker wall clock (measured
+      // "Signal timed out." on every stuck production job), so it is
+      // only used when the notice PDF itself is unavailable.
+      continue;
+    }
     const sourceKey = sourceDocumentKey(document);
     const documentId = Number(document.id) > 0 ? Number(document.id) : null;
     const configuredMime = String(document.mime_type || "").toLowerCase();
@@ -1488,7 +1588,7 @@ async function processJob(
           prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
           model,
         });
-        await upsertChunk(adminClient, {
+        const cacheRow = await upsertChunk(adminClient, {
           job_id: jobId,
           inspection_id: null,
           tender_id: job.tender_id,
@@ -1529,6 +1629,7 @@ async function processJob(
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
+        currentChunkIds.push(Number(cacheRow.id));
         totalPages += cachedPageCount;
         selectedPages += cachedPageCount;
         remainingAiPages = Math.max(
@@ -1549,6 +1650,9 @@ async function processJob(
             pipeline_trace_id: pipelineRun.traceId,
             updated_at: new Date().toISOString(),
           }).eq("id", documentId);
+        }
+        if (noticeOnly && Number(document.id) === -1) {
+          fallbackPdfHandled = true;
         }
         continue;
       }
@@ -1651,7 +1755,12 @@ async function processJob(
             extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
             prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
           });
-          const reused = await reuseChunkIfAvailable(adminClient, jobId, row);
+          currentChunkIds.push(Number(row.id));
+          const reused = await reuseChunkIfAvailable(
+            adminClient,
+            jobId,
+            row,
+          );
           if (reused && row.status !== "completed") chunksReused++;
           if (
             !reused && remainingChunkExecutions > 0 &&
@@ -1742,6 +1851,7 @@ async function processJob(
           extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
           prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
         });
+        currentChunkIds.push(Number(row.id));
         const reused = await reuseChunkIfAvailable(adminClient, jobId, row);
         if (reused && row.status !== "completed") chunksReused++;
         if (!reused && remainingChunkExecutions > 0) {
@@ -1769,9 +1879,15 @@ async function processJob(
           remainingChunkExecutions--;
         }
       }
+      if (noticeOnly && Number(document.id) === -1) {
+        fallbackPdfHandled = true;
+      }
     } catch (error) {
       documentsFailed++;
       documentErrors.push(sanitizeMessage(error));
+      if ((error as { retriableDownload?: boolean }).retriableDownload) {
+        retriableDocumentFailure = true;
+      }
       const classification = (error as {
         documentAccessClassification?: Record<string, unknown>;
       }).documentAccessClassification;
@@ -1838,7 +1954,29 @@ async function processJob(
       },
     },
   );
-  if (!work.length) {
+  if (documentPhaseComplete && currentChunkIds.length) {
+    // Pending chunks from an earlier attempt that are no longer part of
+    // the current plan (the TED fallback text is not byte-stable across
+    // attempts, so its input hash changes) would otherwise stay queued
+    // forever and permanently block a completed result.
+    const { error: supersedeError } = await adminClient
+      .from("tender_document_analysis_chunks")
+      .update({
+        status: "ignored",
+        ignored_reason: "SUPERSEDED_BY_NEW_PLAN",
+        error_code: "SUPERSEDED_BY_NEW_PLAN",
+        error_message:
+          "The chunk plan changed on resume; a newer chunk set replaced this chunk.",
+        lease_expires_at: null,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("job_id", jobId)
+      .in("status", ["queued", "failed", "processing"])
+      .not("id", "in", `(${currentChunkIds.join(",")})`);
+    if (supersedeError) throw new Error(supersedeError.message);
+  }
+  if (!work.length && documentPhaseComplete) {
     const { count } = await adminClient
       .from("tender_document_analysis_chunks")
       .select("id", { count: "exact", head: true })
@@ -1882,6 +2020,12 @@ async function processJob(
     cursor < orderedWork.length;
     cursor += config.maxParallelChunks
   ) {
+    if (invocationDeadlineMs - Date.now() < 30_000) {
+      // Stop scheduling waves and hand the rest to the next invocation
+      // instead of being killed mid-flight at the worker wall clock.
+      timeBudgetExhausted = true;
+      break;
+    }
     const pendingGuardrail = executionGuardrailReason(
       budgetState,
       orderedWork[cursor].sourceDocumentKey,
@@ -1918,6 +2062,7 @@ async function processJob(
           chunk,
           config,
           budgetState,
+          invocationDeadlineMs,
         )
       ),
     );
@@ -2008,7 +2153,7 @@ async function processJob(
   const { data: chunkRows, error: chunksError } = await adminClient
     .from("tender_document_analysis_chunks")
     .select(
-      "id,input_hash,page_start,page_end,page_numbers,status,normalized_result,reused_from_chunk_id,input_tokens,output_tokens,estimated_cost_usd,source_document_key,content_sha256,document_id,cache_hit,ai_request_count,provider_duration_ms",
+      "id,input_hash,page_start,page_end,page_numbers,status,normalized_result,reused_from_chunk_id,input_tokens,output_tokens,estimated_cost_usd,source_document_key,content_sha256,document_id,cache_hit,ai_request_count,provider_duration_ms,attempt_count,ignored_reason",
     )
     .eq("job_id", jobId)
     .eq("extraction_version", DOCUMENT_EXTRACTION_VERSION_V3)
@@ -2017,6 +2162,68 @@ async function processJob(
   const completed = (chunkRows || []).filter((chunk: any) =>
     chunk.status === "completed" && chunk.normalized_result
   );
+  const retriablePending = (chunkRows || []).filter((chunk: any) =>
+    ["queued", "failed"].includes(chunk.status) &&
+    Number(chunk.attempt_count || 0) < config.maxChunkAttempts
+  );
+  const jobAttemptCount = Number(claimedJob.attempt_count || 1);
+  if (
+    (retriablePending.length || !documentPhaseComplete ||
+      retriableDocumentFailure) && jobAttemptCount < 4
+  ) {
+    // Time-boxed hand-off: persist progress, requeue the job, and ask
+    // for a fresh invocation. The pg_cron sweeper re-dispatches the job
+    // if this worker dies before the hand-off lands.
+    const continuationReason = timeBudgetExhausted
+      ? "TIME_BUDGET_CONTINUATION"
+      : "PENDING_CHUNKS_CONTINUATION";
+    await updateProgress(
+      adminClient,
+      job,
+      "extracting_products",
+      processStartedMs,
+      {
+        continuation: true,
+        continuation_reason: continuationReason,
+        pending_chunks: retriablePending.length,
+        chunks_completed_so_far: completed.length,
+      },
+    );
+    await adminClient.from("tender_document_analysis_jobs").update({
+      status: "queued",
+      termination_reason: continuationReason,
+      updated_at: new Date().toISOString(),
+    }).eq("id", jobId);
+    await finishPipelineRun(adminClient, pipelineRun, "partial", {
+      metadata: {
+        continuation: true,
+        continuation_reason: continuationReason,
+        pending_chunks: retriablePending.length,
+        chunks_completed_so_far: completed.length,
+      },
+    });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const cronSecret = Deno.env.get("CRON_SECRET") || "";
+    if (supabaseUrl && cronSecret) {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/tender-document-engine`, {
+          method: "POST",
+          signal: AbortSignal.timeout(10_000),
+          headers: {
+            "Content-Type": "application/json",
+            "x-cron-secret": cronSecret,
+          },
+          body: JSON.stringify({ action: "resume", job_id: jobId }),
+        });
+      } catch (error) {
+        console.error(
+          "Self-continuation dispatch failed; cron sweeper will retry",
+          sanitizeMessage(error),
+        );
+      }
+    }
+    return;
+  }
   if (!completed.length) {
     throw new Error("No document chunk completed successfully");
   }
@@ -2044,6 +2251,7 @@ async function processJob(
       ["queued", "processing", "failed"].includes(chunk.status) ||
       (
         chunk.status === "ignored" &&
+        chunk.ignored_reason !== "SUPERSEDED_BY_NEW_PLAN" &&
         terminationReason !== "EARLY_COMPLETION"
       )
     ) ||
@@ -2157,7 +2365,16 @@ async function processJob(
     confidenceScore: analysis.document_confidence_score,
     extractionVersion: DOCUMENT_EXTRACTION_VERSION_V3,
   });
-  const finalStatus = analysis.analysis_status === "completed"
+  // The job status reflects pipeline completion: every planned chunk
+  // was processed and evidence-backed products were extracted. The
+  // model's own chunk-local completeness verdict stays available in
+  // normalized_result.analysis_status and the confidence scores —
+  // gating the job on it made 'completed' unreachable, because the
+  // chunk prompt template pre-fills "partial" and any hedged chunk
+  // demoted the whole job.
+  const finalStatus = !incomplete &&
+      analysis.products.length > 0 &&
+      quality.evidenceCount > 0
     ? "completed"
     : "partial";
   const totalDurationMs = Math.max(0, Date.now() - processStartedMs);
@@ -2331,7 +2548,52 @@ async function processJob(
   );
 }
 
+function launchJob(
+  adminClient: AdminClient,
+  anthropicKey: string,
+  jobId: number,
+  tenderId: number,
+  pipelineRun: PipelineRunHandle,
+  invocationStartedMs: number,
+): void {
+  EdgeRuntime.waitUntil(
+    processJob(
+      adminClient,
+      anthropicKey,
+      jobId,
+      pipelineRun,
+      invocationStartedMs,
+    ).catch(async (error) => {
+      console.error("Tender document analysis failed", sanitizeMessage(error));
+      await finishPipelineRun(adminClient, pipelineRun, "failed", { error });
+      await adminClient.from("tender_document_analysis_jobs").update({
+        status: "failed",
+        error_code: "DOCUMENT_INTELLIGENCE_V31_FAILED",
+        error_message: sanitizeMessage(error),
+        termination_reason: null,
+        duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", jobId);
+      await adminClient.from("tenders").update({
+        document_analysis_status: "failed",
+        document_analysis_notes: sanitizeMessage(error),
+        document_parser_version: DOCUMENT_CHUNKING_VERSION,
+        ai_extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+        document_analysis_trace_id: pipelineRun.traceId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", tenderId).in("document_analysis_status", [
+        "not_started",
+        "queued",
+        "processing",
+        "failed",
+      ]);
+    }),
+  );
+}
+
 Deno.serve(async (req: Request) => {
+  const invocationStartedMs = Date.now();
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders(req) });
   }
@@ -2353,15 +2615,89 @@ Deno.serve(async (req: Request) => {
       500,
     );
   }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  // Internal path: pg_cron sweeper and self-continuation hand-offs
+  // authenticate with the shared cron secret instead of a user session.
+  const cronSecret = Deno.env.get("CRON_SECRET") || "";
+  const givenCronSecret = req.headers.get("x-cron-secret") || "";
+  if (givenCronSecret) {
+    if (!cronSecret || givenCronSecret !== cronSecret) {
+      return json(req, { error: "Invalid cron secret." }, 401);
+    }
+    let internalPayload: { action?: string; job_id?: number } = {};
+    try {
+      internalPayload = await req.json();
+    } catch {
+      // An empty body means a plain resume sweep.
+    }
+    if (internalPayload.action !== "resume") {
+      return json(req, { error: "Unsupported internal action." }, 400);
+    }
+    const { data: recovery, error: recoveryError } = await adminClient.rpc(
+      "recover_stale_tender_document_analysis_jobs",
+      {},
+    );
+    if (recoveryError) {
+      console.error("Stale job recovery failed", recoveryError.message);
+    }
+    let resumeJobId = Number(internalPayload.job_id) || 0;
+    if (!resumeJobId) {
+      const { data: queuedJobs, error: queuedError } = await adminClient
+        .from("tender_document_analysis_jobs")
+        .select("id")
+        .eq("status", "queued")
+        .lt("updated_at", new Date(Date.now() - 30_000).toISOString())
+        .order("updated_at", { ascending: true })
+        .limit(1);
+      if (queuedError) return json(req, { error: queuedError.message }, 500);
+      resumeJobId = Number(queuedJobs?.[0]?.id) || 0;
+    }
+    if (!resumeJobId) {
+      return json(req, { ok: true, resumed: null, recovery: recovery ?? null });
+    }
+    const { data: resumeJob, error: resumeJobError } = await adminClient
+      .from("tender_document_analysis_jobs")
+      .select("id,tender_id,status")
+      .eq("id", resumeJobId)
+      .maybeSingle();
+    if (resumeJobError) {
+      return json(req, { error: resumeJobError.message }, 500);
+    }
+    if (!resumeJob?.id || !["queued", "processing"].includes(resumeJob.status)) {
+      return json(req, { ok: true, resumed: null, recovery: recovery ?? null });
+    }
+    const pipelineRun = await startPipelineRun(adminClient, {
+      component: "ai_extraction",
+      pipelineVersion: DOCUMENT_EXTRACTION_VERSION_V3,
+      source: "tender-document-engine",
+      metadata: {
+        analysis_job_id: Number(resumeJob.id),
+        engine_generation: "3.1",
+        invocation: "internal_resume",
+      },
+    });
+    launchJob(
+      adminClient,
+      anthropicKey,
+      Number(resumeJob.id),
+      Number(resumeJob.tender_id),
+      pipelineRun,
+      invocationStartedMs,
+    );
+    return json(req, {
+      ok: true,
+      resumed: Number(resumeJob.id),
+      recovery: recovery ?? null,
+    }, 202);
+  }
   const authHeader = req.headers.get("authorization") ?? "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) {
     return json(req, { error: "Authentication required." }, 401);
   }
   const token = authHeader.slice(7).trim();
   const authClient = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const {
@@ -2396,6 +2732,15 @@ Deno.serve(async (req: Request) => {
     if (error) return json(req, { error: error.message }, 400);
     return json(req, { job: Array.isArray(data) ? data[0] ?? null : data });
   }
+  // Recover stale jobs before queueing so a job orphaned by a killed
+  // worker is requeued (or finalized) instead of blocking this tender.
+  const { error: recoveryError } = await adminClient.rpc(
+    "recover_stale_tender_document_analysis_jobs",
+    {},
+  );
+  if (recoveryError) {
+    console.error("Stale job recovery failed", recoveryError.message);
+  }
   const { data: queued, error: queueError } = await userClient.rpc(
     "queue_tender_document_analysis",
     { p_tender_id: tenderId, p_company_id: companyId },
@@ -2411,37 +2756,13 @@ Deno.serve(async (req: Request) => {
     source: "tender-document-engine",
     metadata: { analysis_job_id: Number(job.id), engine_generation: "3.1" },
   });
-  EdgeRuntime.waitUntil(
-    processJob(
-      adminClient,
-      anthropicKey,
-      Number(job.id),
-      pipelineRun,
-    ).catch(async (error) => {
-      console.error("Tender document analysis failed", sanitizeMessage(error));
-      await finishPipelineRun(adminClient, pipelineRun, "failed", { error });
-      await adminClient.from("tender_document_analysis_jobs").update({
-        status: "failed",
-        error_code: "DOCUMENT_INTELLIGENCE_V31_FAILED",
-        error_message: sanitizeMessage(error),
-        duration_ms: Math.max(0, Date.now() - pipelineRun.startedMs),
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq("id", job.id);
-      await adminClient.from("tenders").update({
-        document_analysis_status: "failed",
-        document_analysis_notes: sanitizeMessage(error),
-        document_parser_version: DOCUMENT_CHUNKING_VERSION,
-        ai_extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
-        document_analysis_trace_id: pipelineRun.traceId,
-        updated_at: new Date().toISOString(),
-      }).eq("id", tenderId).in("document_analysis_status", [
-        "not_started",
-        "queued",
-        "processing",
-        "failed",
-      ]);
-    }),
+  launchJob(
+    adminClient,
+    anthropicKey,
+    Number(job.id),
+    tenderId,
+    pipelineRun,
+    invocationStartedMs,
   );
   return json(req, {
     ok: true,

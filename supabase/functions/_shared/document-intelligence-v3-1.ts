@@ -27,6 +27,7 @@ export const PROGRESS_STAGES = [
 export type DocumentProgressStage = (typeof PROGRESS_STAGES)[number];
 
 export type DocumentIntelligenceV31Config = DocumentIntelligenceConfig & {
+  invocationTimeBudgetMs: number;
   maxAiCostPerDocument: number;
   maxAiRequests: number;
   maxTotalTokens: number;
@@ -141,9 +142,22 @@ export function readDocumentIntelligenceV31Config(
   );
   return {
     ...base,
+    // Measured on production 2026-07-24: the edge worker is killed at
+    // ~150s wall clock (function_logs shutdown reason "WallClockTime",
+    // cpu_time_used 521ms, memory 38MB), so wall clock — not CPU or
+    // memory — is the binding limit. Every invocation must finish its
+    // own work and hand off within this budget.
+    invocationTimeBudgetMs: boundedInteger(
+      getEnvironment("INVOCATION_TIME_BUDGET_MS"),
+      110_000,
+      30_000,
+      140_000,
+    ),
+    // Conservative default of 2 until the resource ceiling under
+    // parallel provider calls is measured; raise via env once verified.
     maxParallelChunks: boundedInteger(
       getEnvironment("MAX_PARALLEL_CHUNKS"),
-      4,
+      2,
       1,
       8,
     ),
@@ -206,6 +220,7 @@ export function publicV31ConfigSnapshot(
   config: DocumentIntelligenceV31Config,
 ): Record<string, unknown> {
   return {
+    invocation_time_budget_ms: config.invocationTimeBudgetMs,
     max_parallel_chunks: config.maxParallelChunks,
     max_ai_cost_per_document: config.maxAiCostPerDocument,
     max_ai_requests: config.maxAiRequests,

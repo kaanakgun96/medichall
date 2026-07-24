@@ -13,5 +13,9 @@ verify_jwt = true
 [functions.tender-archive-worker]
 verify_jwt = true
 
+# JWT verification happens in-function: user requests are validated via
+# auth.getUser, and the pg_cron sweeper / self-continuation hand-offs
+# authenticate with the x-cron-secret header (which the platform-level
+# JWT check would otherwise reject).
 [functions.tender-document-engine]
-verify_jwt = true
+verify_jwt = false
