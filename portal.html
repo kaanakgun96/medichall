@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Google Analytics 4 (GA4) — G-BH9F6Y3PN7 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BH9F6Y3PN7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BH9F6Y3PN7');
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Partner Portal — MedicHall</title>
@@ -866,7 +874,19 @@ let USER = null;      // {id, email}
 let COMPANY = null;   // company row
 let PRODUCTS = [], RFQS = [];
 
-async function api(path, options={}){
+// Supabase, süresi dolmuş/geçersiz token için 401 DEĞİL, çoğu zaman
+// 403 + error_code:"bad_jwt" döndürür. Eskiden bu durum hiçbir yerde
+// tanınmıyordu: ham JSON ekrana basılıyor, sayfa boş kalıyor, ne oturum
+// yenileniyor ne düzgün çıkış yapılıyordu.
+function isAuthFailure(status, bodyText){
+  if(status === 401) return true;
+  if(status !== 403) return false;
+  const t = String(bodyText || "");
+  return t.includes("bad_jwt") || t.includes("invalid JWT")
+      || t.includes("JWT expired") || t.includes("token is expired");
+}
+
+async function api(path, options={}, _retried){
   const res = await fetch(SUPABASE_URL + path, {
     ...options,
     headers: {
@@ -876,10 +896,19 @@ async function api(path, options={}){
       ...(options.headers||{})
     }
   });
-  if(res.status===401){ logout(); throw new Error("Session expired — please log in again."); }
-  if(!res.ok){ throw new Error(await res.text()); }
-  const t = await res.text();
-  return t ? JSON.parse(t) : null;
+  if(res.ok){
+    const t = await res.text();
+    return t ? JSON.parse(t) : null;
+  }
+  const bodyText = await res.text();
+  if(isAuthFailure(res.status, bodyText)){
+    // Önce oturumu yenilemeyi dene — eskiden api() bunu HİÇ denemiyordu,
+    // geçerli bir refresh token dururken bile kullanıcıyı dışarı atıyordu.
+    if(!_retried && await refreshSession()) return api(path, options, true);
+    sessionExpired();
+    throw new Error("Session expired — please sign in again.");
+  }
+  throw new Error(bodyText);
 }
 const db = (p,o) => api("/rest/v1/" + p, o);
 
@@ -1836,10 +1865,11 @@ async function callMedicHallAI(payload){
     body: JSON.stringify(payload)
   });
   let data = await res.json().catch(()=>({}));
-  if(res.status === 401 && await refreshSession()){
+  const authFail1 = isAuthFailure(res.status, JSON.stringify(data));
+  if(authFail1 && await refreshSession()){
     return callMedicHallAI(payload);
   }
-  if(res.status === 401){ sessionExpired(); }
+  if(authFail1){ sessionExpired(); }
   if(!res.ok) throw new Error(data.error || data.message || "AI request failed");
   return data;
 }
@@ -2281,7 +2311,7 @@ async function byodUpload(matchId, input){
         headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type": "application/pdf", "x-upsert": "true" },
         body: f
       });
-      if(up.status === 401 && await refreshSession()){
+      if((up.status === 401 || up.status === 403) && await refreshSession()){
         i--; continue; // token yenilendi, aynı dosyayı tekrar dene
       }
       if(!up.ok){ throw new Error("Upload failed for " + f.name + " (HTTP " + up.status + ")"); }
@@ -2443,7 +2473,7 @@ async function edgeCall(fn, body){
     body: JSON.stringify(body)
   });
   let data = await res.json().catch(()=>({}));
-  if(res.status === 401){
+  if(isAuthFailure(res.status, JSON.stringify(data))){
     if(await refreshSession()){
       const res2 = await fetch(SUPABASE_URL + "/functions/v1/" + fn, {
         method:"POST",
@@ -2452,7 +2482,7 @@ async function edgeCall(fn, body){
       });
       data = await res2.json().catch(()=>({}));
       if(res2.ok) return data;
-      if(res2.status === 401){ sessionExpired(); }
+      if(isAuthFailure(res2.status, JSON.stringify(data))){ sessionExpired(); }
       throw new Error(data.error || data.message || (fn + " failed (HTTP " + res2.status + ")"));
     }
     sessionExpired();
@@ -2462,6 +2492,50 @@ async function edgeCall(fn, body){
   return data;
 }
 const sleep = (ms)=>new Promise(r=>setTimeout(r, ms));
+
+const DP_STAGE_LABELS = {
+  downloading_attachments: "Downloading documents",
+  inspecting_document: "Inspecting documents",
+  finding_technical_sections: "Finding technical sections",
+  reading_specifications: "Reading specifications",
+  extracting_products: "Extracting products",
+  matching_supplier: "Matching against your profile",
+  calculating_score: "Calculating match score",
+  generating_summary: "Generating summary",
+  complete: "Finishing up"
+};
+async function dpProgress(tenderId){
+  try{
+    return await db("rpc/get_tender_document_analysis_progress_v3", {
+      method: "POST",
+      body: JSON.stringify({ p_tender_id: tenderId, p_company_id: COMPANY.id })
+    });
+  }catch(_){ return null; }
+}
+function dpProgressMessage(prog, secs){
+  if(!prog || !prog.job_id) return "MedicHall AI is reading… (" + secs + "s)";
+  if(prog.status === "queued"){
+    return prog.termination_reason
+      ? "MedicHall AI is resuming the analysis… (" + secs + "s)"
+      : "Waiting for an analysis worker… (" + secs + "s)";
+  }
+  const label = DP_STAGE_LABELS[prog.stage] || "Analyzing documents";
+  const pct = prog.progress_percent != null ? " — " + Math.round(prog.progress_percent) + "%" : "";
+  const eta = prog.estimated_remaining_seconds != null
+    ? ", ~" + Math.max(1, Math.round(prog.estimated_remaining_seconds)) + "s left"
+    : "";
+  return "MedicHall AI: " + label + pct + " (" + secs + "s" + eta + ")";
+}
+function dpFailureMessage(job, prog){
+  const reason = (prog && prog.termination_reason) || "";
+  if(reason === "STALE_WORKER_LOST_MAX_ATTEMPTS"){
+    return "The analysis stopped after repeated timeouts and gave up. Any partial results were kept — please try again later.";
+  }
+  if(job && ["queued","processing"].includes(job.status)){
+    return "The analysis is taking longer than expected. It is still running in the background — reopen Deep analysis in a few minutes to see the result.";
+  }
+  return (job && job.error_message) || "Document analysis did not finish";
+}
 
 function dpStepsHtml(mid){
   return '<div class="dp-steps">'
@@ -2495,17 +2569,22 @@ async function deepAnalyze(matchId){
     await edgeCall("tender-document-engine", ids);
     dpSet(matchId, 1, "ok");
     dpSet(matchId, 3, "run", "MedicHall AI is reading the notice… (~30-60 seconds)");
-    let job = null;
+    let job = null, prog = null;
     const startedAt = Date.now();
-    for(let i = 0; i < 60; i++){
+    for(let i = 0; i < 150; i++){
       await sleep(4000);
       const s = await edgeCall("tender-document-engine", { ...ids, action:"status" });
       job = s.job || s;
+      prog = await dpProgress(t.id);
       if(job && ["completed","partial","failed"].includes(job.status)) break;
-      dpSet(matchId, 3, "run", "MedicHall AI is reading… (" + Math.round((Date.now()-startedAt)/1000) + "s)");
+      if(prog && ["completed","partial","failed"].includes(prog.status)) break;
+      dpSet(matchId, 3, "run", dpProgressMessage(prog, Math.round((Date.now()-startedAt)/1000)));
     }
-    if(!job || job.status === "failed"){
-      throw new Error(job?.error_message || "Document analysis did not finish");
+    if(prog && ["completed","partial","failed"].includes(prog.status) && (!job || !["completed","partial","failed"].includes(job.status))){
+      job = { status: prog.status, error_message: null };
+    }
+    if(!job || !["completed","partial"].includes(job.status)){
+      throw new Error(dpFailureMessage(job, prog));
     }
     dpSet(matchId, 3, "ok", "Analysis " + job.status + ".");
     await renderDeepResult(matchId, t.id);
