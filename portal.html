@@ -2746,15 +2746,25 @@ function paintDeepResult(matchId){
 
   // "Kendi dokümanını getir": motor yalnızca bildirimi analiz edebildiyse
   // (ek şartname dosyaları otomatik alınamadıysa) yükleme köprüsünü göster.
-  const onlyNotice = (c.base.analyzed_document_count ?? 0) <= 2 && evTotal === 0;
-  if(onlyNotice){
+  // "Kendi dokümanını getir": kutu ARTIK HER ZAMAN görünür (kullanıcı kendi
+  // dokümanlarını yükleyene kadar). Eski koşul "kanıt alıntısı varsa gizle"
+  // idi ve yanlıştı: motor çoğu zaman yalnızca BİLDİRİMİN kendisinden alıntı
+  // yapıyor (ör. lot başlığını ürün adı sanıyor). Kanıt bulunmuş olması,
+  // şartname dosyalarının okunduğu anlamına gelmez — kullanıcı gerçek
+  // dokümanları her durumda ekleyebilmeli.
+  const userDocsLoaded = (c.base.analyzed_document_count ?? 0) > 2;
+  const thinEvidence = evTotal === 0;
+  if(!userDocsLoaded){
     const om2 = OPP_ROWS.find(r => r.id === matchId) || {};
     const tRow = om2.tenders || {};
     const ref = (tRow.source_notice_id || "").trim();
     const portalUrl = c.base.procurement_documents_url || tRow.source_url || "";
     html += '<div class="byod">'
-      + '<b>📎 Get the full analysis — add the official documents</b>'
-      + '<p>The buyer hosts the tender files on an external portal that blocks automated access. '
+      + '<b>📎 ' + (thinEvidence
+          ? 'Get the full analysis — add the official documents'
+          : 'This analysis is based on the notice only — add the tender documents for product-level detail') + '</b>'
+      + '<p>' + (thinEvidence ? '' : 'What you see above was extracted from the public notice, which usually names lots rather than individual products. ')
+      + 'The buyer hosts the tender files on an external portal that blocks automated access. '
       + 'You can still get the complete AI analysis in under a minute: open the portal'
       + (ref ? ', search for <span class="byod-ref">' + esc(ref) + '</span>' : '')
       + ', download the PDF attachments, then drop them here.</p>'
