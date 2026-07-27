@@ -330,24 +330,28 @@ job `60` extraction:
   rows;
 - normalized/persisted results: 12 (the additional row is the explicitly
   ambiguous unassigned product group);
-- recommendations: 0 strong, 0 good, 0 possible, 0 weak, and 12 not
-  recommended;
-- highest result: lot `114`, `TROUXA ANCA COM PERNEIRA`, score 16, compared
-  with company product `50`, `Ultrasound Probe Cover`;
-- highest-result blocker: requested product category absent;
-- highest-result evidence page: 2;
-- aggregate score: 16, with 12 blocked and 0 failed lots;
+- recommendations after the structured validation product was added:
+  0 strong, 1 good, 0 possible, 0 weak, and 11 not recommended;
+- highest relevant result: the explicitly unassigned “2-layer surgical drape
+  with adjustable central adhesive opening”, score 77, `good_match`, compared
+  with validation product `67`;
+- highest-result blockers: none;
+- highest-result unknown: production capacity;
+- highest-result evidence pages: 1, 41, and 42;
+- all 11 numbered/unrelated rows remained not recommended, with a maximum
+  score of 24;
+- failed results: 0;
 - version: `lot-match-v1`.
 
-This low result is expected and was not adjusted: company 11 has one active
-catalog product, and it does not match the extracted surgical-pack lots.
+The extraction did not reliably associate the positive surgical-drape
+requirements with a numbered lot. The result therefore remains `unassigned`;
+no lot number was guessed.
 
-The first versioned upsert changed 12 rows. Repeating the same calculation
-changed 0 lot rows, and duplicate logical-row count remained 0. Before and
-after validation, the tender had six analysis jobs, latest job 60, job 60 had
-four chunks and one recorded AI request, and both the legacy overall match and
-Match Score v2 had one row. Lot matching therefore created no document job,
-chunk, or provider request.
+Repeating the exact repository calculation produced identical scores and all
+12 input hashes. Before and after validation, the tender had six analysis
+jobs, latest job 60, job 60 had four chunks and one recorded AI request.
+Product readiness and lot matching therefore created no document job, chunk,
+or provider request.
 
 Both migrations are present in Supabase migration history. RLS is enabled;
 authenticated direct table access and anonymous RPC execution are absent. The
