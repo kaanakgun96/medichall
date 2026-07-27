@@ -1,5 +1,9 @@
 # Lot-level tender matching
 
+The canonical company-product fields and readiness/backfill rules used by
+this calculation are documented in
+[`product-matching-readiness.md`](product-matching-readiness.md).
+
 ## Scope
 
 Lot Match v1 adds a deterministic, evidence-backed comparison for every
@@ -374,10 +378,11 @@ product, user, Storage, or migration-history data during rollback.
 
 ## Known limitations
 
-- The current company catalog has only name, category, and description for
-  technical comparison. Structured dimensions, sterility, material,
-  packaging, and capacity therefore remain unknown unless those facts are
-  explicit in description text or future optional fields.
+- The product profile migration now supports structured dimensions,
+  sterility, use type, material, packaging, certification, regulatory,
+  capacity, and specification fields. Legacy products still remain unknown
+  for any field that has not been explicitly entered or conservatively
+  backfilled.
 - Matching is intentionally lexical and rules-based; it does not infer
   medical compatibility from semantic similarity.
 - Ambiguous unassigned evidence is preserved but is not guessed into a
