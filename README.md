@@ -16,3 +16,4 @@ Migration documentation:
 - [`docs/REACT_MY_OPPORTUNITIES_MIGRATION.md`](docs/REACT_MY_OPPORTUNITIES_MIGRATION.md)
 - [`docs/react-migration/dashboard.md`](docs/react-migration/dashboard.md)
 - [`docs/react-migration/company-profile.md`](docs/react-migration/company-profile.md)
+- [`docs/product-matching-readiness.md`](docs/product-matching-readiness.md)
