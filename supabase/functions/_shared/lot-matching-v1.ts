@@ -67,6 +67,8 @@ export type CompanyProductCandidate = {
   ref: string | null;
   name: string;
   category: string | null;
+  normalized_category: string | null;
+  product_subtype: string | null;
   description: string | null;
   material: string | null;
   dimensions: string | null;
@@ -74,9 +76,13 @@ export type CompanyProductCandidate = {
   single_use: boolean | null;
   reusable: boolean | null;
   packaging: string | null;
+  units_per_package: number | null;
   certifications: string[];
+  regulatory_class: string | null;
+  sterilization_method: string | null;
   production_capacity: number | null;
   capacity_unit: string | null;
+  capacity_period: string | null;
   extra_specifications: string[];
 };
 
@@ -530,12 +536,19 @@ function productText(product: CompanyProductCandidate): string {
   return uniqueStrings([
     product.name,
     product.category,
+    product.normalized_category,
+    product.product_subtype,
     product.description,
     product.material,
     product.dimensions,
     typeof product.sterility === "string" ? product.sterility : null,
     product.packaging,
+    product.units_per_package
+      ? `${product.units_per_package} units per package`
+      : null,
     ...product.certifications,
+    product.regulatory_class,
+    product.sterilization_method,
     ...product.extra_specifications,
   ]).join(" ");
 }
@@ -674,12 +687,25 @@ function evaluateCandidate(
     ? Math.max(...tenderNames.map((name) =>
       Math.max(
         textSimilarity(name, candidate.name),
-        textSimilarity(name, `${candidate.name} ${candidate.category || ""}`),
+        textSimilarity(
+          name,
+          [
+            candidate.name,
+            candidate.category,
+            candidate.normalized_category,
+            candidate.product_subtype,
+          ].filter(Boolean).join(" "),
+        ),
       )
     ))
     : textSimilarity(
       lot.lot_title,
-      `${candidate.name} ${candidate.category || ""}`,
+      [
+        candidate.name,
+        candidate.category,
+        candidate.normalized_category,
+        candidate.product_subtype,
+      ].filter(Boolean).join(" "),
     );
   if (identityScore >= 80) {
     matched.push({
@@ -965,10 +991,25 @@ function evaluateCandidate(
         }.`,
       });
     } else {
+      const productAvailable = new Set(
+        candidate.certifications.map(normalizedCertification),
+      );
+      const companyAvailable = new Set(
+        companyCertifications.map(normalizedCertification),
+      );
+      const matchedFromProduct = requiredCertifications.some((certification) =>
+        productAvailable.has(normalizedCertification(certification))
+      );
+      const matchedFromCompany = requiredCertifications.some((certification) =>
+        companyAvailable.has(normalizedCertification(certification))
+      );
       matched.push({
         code: "certifications_match",
-        message:
-          "Mandatory tender certifications are present in company records.",
+        message: matchedFromProduct && matchedFromCompany
+          ? "Mandatory certifications are present in both product-specific and company records."
+          : matchedFromProduct
+          ? "Mandatory certifications are present in product-specific records."
+          : "Mandatory certifications are present in company-level records.",
       });
       matchedFields.add("certifications");
     }
@@ -1060,7 +1101,7 @@ function evaluateCandidate(
   const companyCompleteness = Math.round(
     100 * [
       candidate.name,
-      candidate.category,
+      candidate.normalized_category || candidate.category,
       candidate.description,
       candidate.material || candidate.dimensions ||
       candidate.packaging || candidate.extra_specifications[0],
