@@ -19,3 +19,9 @@ verify_jwt = true
 # JWT check would otherwise reject).
 [functions.tender-document-engine]
 verify_jwt = false
+
+# JWT verification happens in-function with auth.getUser so the endpoint uses
+# the same legacy-session-compatible authorization contract as the document
+# engine. No AI or internal cron authorization path exists here.
+[functions.tender-lot-matching]
+verify_jwt = false
