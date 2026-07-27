@@ -202,6 +202,17 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .modal-close{position:absolute;top:14px;right:14px;background:var(--mist);border:none;width:32px;height:32px;border-radius:9px;font-size:.95rem;color:var(--ink-soft)}
 .modal .actions{display:flex;gap:10px;margin-top:24px}
 .modal .actions .btn{flex:1;justify-content:center}
+.product-modal{max-width:840px;padding:28px;max-height:calc(100vh - 40px);overflow-y:auto}
+.product-form-section{border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}
+.product-form-section legend{font-weight:700;padding:0 6px;color:var(--teal-deep)}
+.product-form-help{font-size:.76rem;color:var(--ink-soft);margin:-5px 0 9px}
+.product-readiness{background:var(--mist);border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin:10px 0 4px}
+.product-readiness b{display:block;font-size:.9rem}
+.product-readiness span{display:block;font-size:.76rem;color:var(--ink-soft);margin-top:3px}
+.product-readiness-chip{display:inline-flex;align-items:center;border-radius:100px;padding:3px 9px;margin-top:4px;background:#E3F5EF;color:var(--ok);font:600 .68rem var(--mono)}
+.product-form-error{display:none;background:#FDECEA;color:var(--danger);border:1px solid #F2B8B5;border-radius:9px;padding:10px 12px;margin-top:12px;font-size:.84rem}
+.product-form-error.show{display:block}
+@media(max-width:560px){.product-modal{padding:22px 16px}.product-form-section{padding:13px}.product-modal .actions{position:sticky;bottom:-22px;background:#fff;padding:12px 0 4px}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--teal-deep);color:#fff;border-radius:100px;padding:12px 26px;font-size:.88rem;font-weight:600;z-index:120;transition:transform .25s;box-shadow:0 12px 30px rgba(0,62,82,.3)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 
@@ -735,44 +746,150 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 
 <!-- PRODUCT FORM -->
 <div class="modal-backdrop" id="productModal" onclick="if(event.target===this)closeModals()">
-  <div class="modal">
+  <div class="modal product-modal" role="dialog" aria-modal="true" aria-labelledby="productFormTitle">
     <button class="modal-close" onclick="closeModals()" aria-label="Close">✕</button>
     <h3 id="productFormTitle">Add product</h3>
     <input type="hidden" id="p-id">
-    <div class="grid2">
-      <div><label for="p-ref">REF / product code *</label><input id="p-ref" placeholder="e.g. ABC-101"></div>
-      <div><label for="p-cat">Category *</label>
-        <select id="p-cat">
-          <option>Medical Devices</option><option>Sterilization</option><option>Cold Chain</option>
-          <option>Raw Materials</option><option>OEM Supplies</option><option>Services</option>
-          <option>IVD Supplies</option><option>Machinery</option>
-        </select>
+    <div class="product-readiness" id="p-readiness" aria-live="polite">
+      <b>Matching profile: 0% complete</b>
+      <span>Add product details to improve lot-level tender matching.</span>
+    </div>
+
+    <fieldset class="product-form-section">
+      <legend>1. Product identity</legend>
+      <div class="grid2">
+        <div><label for="p-ref">REF / product code *</label><input id="p-ref" maxlength="120" placeholder="e.g. ABC-101" required></div>
+        <div><label for="p-cat">Catalog category *</label>
+          <select id="p-cat" required>
+            <option>Medical Devices</option><option>Sterilization</option><option>Cold Chain</option>
+            <option>Raw Materials</option><option>OEM Supplies</option><option>Services</option>
+            <option>IVD Supplies</option><option>Machinery</option>
+          </select>
+        </div>
       </div>
-    </div>
-    <label for="p-name">Product name *</label>
-    <input id="p-name" placeholder="e.g. Cardiovascular Pack">
-    <label for="p-desc">Description</label>
-    <textarea id="p-desc" rows="3" placeholder="Shown on the product detail page"></textarea>
-    <label>Product image</label>
-    <input type="hidden" id="p-img">
-    <div class="img-upload">
-      <div class="img-preview" id="pImgPreview"><span>＋</span></div>
-      <div>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductImage()">＋ Upload image</button>
-        <button type="button" class="btn-danger" id="pImgRemove" style="display:none" onclick="removeProductImage()">Remove</button>
-        <p style="font-size:.75rem;color:var(--ink-soft);margin-top:6px">JPG / PNG, max 5 MB</p>
+      <label for="p-name">Product name *</label>
+      <input id="p-name" maxlength="300" placeholder="e.g. Sterile epidural surgical drape" required>
+      <div class="grid2">
+        <div><label for="p-normalized-cat">Matching category</label>
+          <select id="p-normalized-cat">
+            <option value="">Unknown / not specified</option>
+            <option value="surgical_drapes">Surgical drapes</option>
+            <option value="epidural_surgical_drapes">Epidural surgical drapes</option>
+            <option value="surgical_packs">Surgical packs</option>
+            <option value="surgical_gowns">Surgical gowns</option>
+            <option value="ultrasound_probe_covers">Ultrasound probe covers</option>
+            <option value="equipment_covers">Equipment covers</option>
+            <option value="medical_gloves">Medical gloves</option>
+            <option value="sterilization_indicators">Sterilization indicators</option>
+            <option value="sterilization_packaging">Sterilization packaging</option>
+            <option value="other_medical_device">Other medical device</option>
+          </select>
+        </div>
+        <div><label for="p-subtype">Product subtype</label><input id="p-subtype" maxlength="160" placeholder="e.g. Epidural drape"></div>
       </div>
-    </div>
-    <label>Product brochure (PDF, optional)</label>
-    <input type="hidden" id="p-broch">
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductBrochure()">＋ Upload brochure</button>
-      <a id="pBrochLink" target="_blank" rel="noopener" style="display:none;font-size:.85rem;font-weight:600;color:var(--teal)">View current ↗</a>
-      <button type="button" class="btn-danger" id="pBrochRemove" style="display:none" onclick="removeProductBrochure()">Remove</button>
-    </div>
+      <label for="p-desc">Public description</label>
+      <textarea id="p-desc" rows="3" maxlength="4000" placeholder="Shown on the product detail page"></textarea>
+      <label>Product image</label>
+      <input type="hidden" id="p-img">
+      <div class="img-upload">
+        <div class="img-preview" id="pImgPreview"><span>＋</span></div>
+        <div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductImage()">＋ Upload image</button>
+          <button type="button" class="btn-danger" id="pImgRemove" style="display:none" onclick="removeProductImage()">Remove image</button>
+          <p style="font-size:.75rem;color:var(--ink-soft);margin-top:6px">JPG / PNG, max 5 MB</p>
+        </div>
+      </div>
+      <label>Product brochure (PDF, optional)</label>
+      <input type="hidden" id="p-broch">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="uploadProductBrochure()">＋ Upload brochure</button>
+        <a id="pBrochLink" target="_blank" rel="noopener" style="display:none;font-size:.85rem;font-weight:600;color:var(--teal)">View current ↗</a>
+        <button type="button" class="btn-danger" id="pBrochRemove" style="display:none" onclick="removeProductBrochure()">Remove brochure</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="product-form-section">
+      <legend>2. Technical specifications</legend>
+      <label for="p-material">Material</label>
+      <input id="p-material" maxlength="500" placeholder="e.g. Non-woven fabric + PE film">
+      <label for="p-dimensions">Dimensions</label>
+      <input id="p-dimensions" maxlength="1000" placeholder="e.g. 75 cm × 80 cm; opening 6 cm × 15 cm">
+      <label for="p-specifications">Additional technical specifications</label>
+      <p class="product-form-help">Enter one explicit specification per line. Do not add assumptions.</p>
+      <textarea id="p-specifications" rows="4" placeholder="2-layer laminate&#10;Adhesive opening&#10;Latex-free"></textarea>
+    </fieldset>
+
+    <fieldset class="product-form-section">
+      <legend>3. Sterility and use type</legend>
+      <div class="grid2">
+        <div><label for="p-sterility">Sterility</label>
+          <select id="p-sterility" onchange="syncSterilizationMethod()">
+            <option value="unknown">Unknown / not specified</option>
+            <option value="sterile">Sterile</option>
+            <option value="non_sterile">Non-sterile</option>
+          </select>
+        </div>
+        <div><label for="p-use-type">Use type</label>
+          <select id="p-use-type">
+            <option value="unknown">Unknown / not specified</option>
+            <option value="single_use">Single-use</option>
+            <option value="reusable">Reusable</option>
+          </select>
+        </div>
+      </div>
+      <label for="p-sterilization-method">Sterilization method</label>
+      <select id="p-sterilization-method">
+        <option value="">Unknown / not specified</option>
+        <option value="EO">Ethylene oxide (EO)</option>
+        <option value="gamma">Gamma</option>
+        <option value="steam">Steam / autoclave</option>
+        <option value="e-beam">Electron beam</option>
+        <option value="plasma">Plasma</option>
+        <option value="other">Other verified method</option>
+      </select>
+    </fieldset>
+
+    <fieldset class="product-form-section">
+      <legend>4. Packaging</legend>
+      <div class="grid2">
+        <div><label for="p-packaging">Packaging description</label><input id="p-packaging" maxlength="1000" placeholder="e.g. Individually packaged"></div>
+        <div><label for="p-units">Units per package</label><input id="p-units" type="number" min="1" max="10000000" step="1" inputmode="numeric" placeholder="e.g. 1"></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="product-form-section">
+      <legend>5. Certifications</legend>
+      <label for="p-certifications">Product-specific certifications</label>
+      <p class="product-form-help">Separate values with commas or new lines. Company certificates remain in the company profile.</p>
+      <textarea id="p-certifications" rows="2" placeholder="EN 13795-1&#10;CE"></textarea>
+      <label for="p-regulatory-class">MDR / regulatory class</label>
+      <input id="p-regulatory-class" maxlength="120" placeholder="e.g. Class Is">
+    </fieldset>
+
+    <fieldset class="product-form-section">
+      <legend>6. Production capacity</legend>
+      <p class="product-form-help">Leave all three fields blank when capacity is not specified.</p>
+      <div class="grid2">
+        <div><label for="p-capacity">Capacity</label><input id="p-capacity" type="number" min="0.000001" max="1000000000000" step="any" inputmode="decimal"></div>
+        <div><label for="p-capacity-unit">Unit</label>
+          <select id="p-capacity-unit">
+            <option value="">Not specified</option><option value="pieces">Pieces</option><option value="boxes">Boxes</option>
+            <option value="packs">Packs</option><option value="sets">Sets</option><option value="kg">kg</option>
+            <option value="litres">Litres</option><option value="metres">Metres</option><option value="m²">m²</option>
+          </select>
+        </div>
+      </div>
+      <label for="p-capacity-period">Period</label>
+      <select id="p-capacity-period">
+        <option value="">Not specified</option><option value="day">Per day</option><option value="week">Per week</option>
+        <option value="month">Per month</option><option value="year">Per year</option>
+      </select>
+    </fieldset>
+
+    <div class="product-form-error" id="p-error" role="alert" aria-live="assertive" tabindex="-1"></div>
     <div class="actions">
-      <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-grad" onclick="saveProduct()">Save product</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="button" class="btn btn-grad" id="p-save" onclick="saveProduct()">Save product</button>
     </div>
   </div>
 </div>
@@ -1323,9 +1440,79 @@ async function saveCompany(){
 }
 
 /* ---------------- products ---------------- */
+async function productProfileRequest(payload){
+  try{
+    return await api("/functions/v1/product-profile", {
+      method:"POST",
+      body:JSON.stringify(payload)
+    });
+  }catch(e){
+    let message = (e && e.message) ? e.message : "Product request failed.";
+    try{
+      const parsed = JSON.parse(message);
+      if(parsed && parsed.error) message = parsed.error;
+    }catch(_ignored){}
+    throw new Error(message);
+  }
+}
+function productListValue(value){
+  if(Array.isArray(value)) return value.filter(Boolean);
+  return String(value || "").split(/[,;\n]/).map(v=>v.trim()).filter(Boolean);
+}
+function productNumberValue(id){
+  const value = document.getElementById(id).value.trim();
+  return value === "" ? null : Number(value);
+}
+function setProductSelect(id, value, fallback=""){
+  const select = document.getElementById(id);
+  const next = value == null ? fallback : String(value);
+  if(next && !Array.from(select.options).some(option=>option.value===next)){
+    const option = document.createElement("option");
+    option.value = next;
+    option.textContent = next.replace(/_/g, " ");
+    select.appendChild(option);
+  }
+  select.value = next;
+}
+const PRODUCT_READINESS_LABELS = {
+  product_identity:"product identity",
+  normalized_category:"matching category",
+  dimensions_or_technical_specifications:"dimensions or technical specifications",
+  sterility_status:"sterility",
+  use_type:"use type",
+  certification_or_regulatory_support:"product certification or regulatory class",
+  material:"material",
+  packaging:"packaging",
+  production_capacity:"production capacity",
+  product_subtype:"product subtype",
+  sterilization_method:"sterilization method"
+};
+function renderProductReadiness(readiness){
+  const box = document.getElementById("p-readiness");
+  const score = Number.isFinite(Number(readiness && readiness.score)) ? Number(readiness.score) : 0;
+  const important = Array.isArray(readiness && readiness.critical_missing_fields)
+    ? readiness.critical_missing_fields.slice(0,3).map(field=>PRODUCT_READINESS_LABELS[field] || field.replace(/_/g," "))
+    : [];
+  box.innerHTML = `<b>Matching profile: ${score}% complete</b><span>${important.length
+    ? "Important missing fields: " + important.map(esc).join(", ") + "."
+    : score ? "All critical matching fields are present." : "Add explicit product details to improve lot-level tender matching."
+  }</span>`;
+}
+function showProductError(message){
+  const box = document.getElementById("p-error");
+  box.textContent = message || "";
+  box.classList.toggle("show", Boolean(message));
+}
+function syncSterilizationMethod(){
+  const sterility = document.getElementById("p-sterility").value;
+  const method = document.getElementById("p-sterilization-method");
+  if(sterility!=="sterile") method.value = "";
+  method.disabled = sterility!=="sterile";
+}
 async function loadProducts(){
   try{
-    PRODUCTS = await db("products?select=*&company_id=eq." + COMPANY.id + "&order=ref");
+    const result = await productProfileRequest({action:"list", company_id:COMPANY.id});
+    PRODUCTS = Array.isArray(result && result.products) ? result.products : [];
     renderProducts();
   }catch(e){ toast(friendlyError(e)); }
 }
@@ -1336,7 +1523,7 @@ function renderProducts(){
   el.innerHTML = PRODUCTS.map(p=>`
     <div class="row">
       <div class="thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="" onerror="this.outerHTML='<span>${esc(p.ref)}</span>'">`:`<span>${esc((p.name||"?")[0])}</span>`}</div>
-      <div class="info"><b>${esc(p.name)}</b><span class="mono">REF ${esc(p.ref)} · ${esc(p.category)}</span></div>
+      <div class="info"><b>${esc(p.name)}</b><span class="mono">REF ${esc(p.ref)} · ${esc(p.category)}</span><span class="product-readiness-chip">Matching profile ${Number(p.matching_readiness && p.matching_readiness.score) || 0}%</span></div>
       <span class="pillwrap"><span class="pill ${p.is_active?"on":"off"}">${p.is_active?"Visible":"Hidden"}</span></span>
       <div class="row-actions">
         <button class="btn btn-ghost btn-sm" onclick="openProductForm(${p.id})">Edit</button>
@@ -1353,13 +1540,35 @@ function openProductForm(id){
   document.getElementById("p-cat").value = p.category || "Medical Devices";
   document.getElementById("p-name").value = p.name || "";
   document.getElementById("p-desc").value = p.description || "";
+  setProductSelect("p-normalized-cat", p.normalized_category);
+  document.getElementById("p-subtype").value = p.product_subtype || "";
+  document.getElementById("p-material").value = p.material || "";
+  document.getElementById("p-dimensions").value = p.dimensions || "";
+  document.getElementById("p-specifications").value = productListValue(p.technical_specifications).join("\n");
+  setProductSelect("p-sterility", p.sterility_status, "unknown");
+  setProductSelect("p-use-type", p.use_type, "unknown");
+  setProductSelect("p-sterilization-method", p.sterilization_method);
+  document.getElementById("p-packaging").value = p.packaging_description || "";
+  document.getElementById("p-units").value = p.units_per_package || "";
+  document.getElementById("p-certifications").value = productListValue(p.product_certifications).join("\n");
+  document.getElementById("p-regulatory-class").value = p.regulatory_class || "";
+  document.getElementById("p-capacity").value = p.production_capacity || "";
+  setProductSelect("p-capacity-unit", p.capacity_unit);
+  setProductSelect("p-capacity-period", p.capacity_period);
   document.getElementById("p-img").value = p.image_url || "";
   document.getElementById("p-broch").value = p.brochure_url || "";
+  showProductError("");
+  renderProductReadiness(p.matching_readiness);
+  syncSterilizationMethod();
   syncImgPreview(); syncBrochRow();
   document.getElementById("productModal").classList.add("open");
+  setTimeout(()=>document.getElementById("p-ref").focus(), 0);
 }
 async function saveProduct(){
   const id = document.getElementById("p-id").value;
+  const capacity = productNumberValue("p-capacity");
+  const capacityUnit = document.getElementById("p-capacity-unit").value || null;
+  const capacityPeriod = document.getElementById("p-capacity-period").value || null;
   const body = {
     ref: document.getElementById("p-ref").value.trim(),
     category: document.getElementById("p-cat").value,
@@ -1367,14 +1576,50 @@ async function saveProduct(){
     description: document.getElementById("p-desc").value.trim() || null,
     image_url: document.getElementById("p-img").value.trim() || null,
     brochure_url: document.getElementById("p-broch").value.trim() || null,
-    company_id: COMPANY.id
+    profile: {
+      normalized_category: document.getElementById("p-normalized-cat").value || null,
+      product_subtype: document.getElementById("p-subtype").value.trim() || null,
+      material: document.getElementById("p-material").value.trim() || null,
+      dimensions: document.getElementById("p-dimensions").value.trim() || null,
+      technical_specifications: productListValue(document.getElementById("p-specifications").value),
+      sterility_status: document.getElementById("p-sterility").value,
+      use_type: document.getElementById("p-use-type").value,
+      sterilization_method: document.getElementById("p-sterilization-method").value || null,
+      packaging_description: document.getElementById("p-packaging").value.trim() || null,
+      units_per_package: productNumberValue("p-units"),
+      product_certifications: productListValue(document.getElementById("p-certifications").value),
+      regulatory_class: document.getElementById("p-regulatory-class").value.trim() || null,
+      production_capacity: capacity,
+      capacity_unit: capacityUnit,
+      capacity_period: capacityPeriod
+    }
   };
-  if(!body.ref || !body.name){ toast("Product code and name are required"); return; }
+  showProductError("");
+  if(!body.ref || !body.name){ showProductError("Product code and name are required."); return; }
+  const capacityParts = [capacity!==null, Boolean(capacityUnit), Boolean(capacityPeriod)];
+  if(capacityParts.some(Boolean) && !capacityParts.every(Boolean)){
+    showProductError("Capacity, unit, and period must be completed together.");
+    return;
+  }
+  const btn = document.getElementById("p-save");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
   try{
-    if(id){ await db("products?id=eq."+id, {method:"PATCH", body:JSON.stringify(body)}); }
-    else{ await db("products", {method:"POST", body:JSON.stringify(body), headers:{Prefer:"return=minimal"}}); }
+    await productProfileRequest({
+      action:"save",
+      company_id:COMPANY.id,
+      product_id:id ? Number(id) : null,
+      product:body
+    });
     closeModals(); toast("Product saved ✓"); loadProducts();
-  }catch(e){ toast(friendlyError(e)); }
+  }catch(e){
+    const message = friendlyError(e);
+    showProductError(message);
+    document.getElementById("p-error").focus();
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "Save product";
+  }
 }
 async function toggleProduct(id){
   const p = PRODUCTS.find(x=>x.id===id);
