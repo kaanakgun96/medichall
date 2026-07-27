@@ -160,6 +160,81 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .dp-missing{margin-top:12px;font-size:.8rem;background:#FFF6E5;border:1.5px solid #F1D48A;border-radius:10px;padding:10px 14px}
 .dp-missing b{display:block;margin-bottom:4px}
 
+/* lot-level tender matching */
+.lot-match-section{margin-top:22px;padding-top:20px;border-top:2px solid var(--line)}
+.lot-match-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.lot-match-head h3{font-size:1.08rem;line-height:1.3;margin:0}
+.lot-match-head p{font-size:.8rem;color:var(--ink-soft);margin:4px 0 0;max-width:680px}
+.lot-match-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}
+.lot-summary-card{border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;background:var(--mist);min-width:0}
+.lot-summary-card b{display:block;font-size:1.05rem;line-height:1.25;overflow-wrap:anywhere}
+.lot-summary-card span{display:block;color:var(--ink-soft);font-size:.7rem;margin-top:3px}
+.lot-rec-counts{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 15px}
+.lot-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:100px;padding:4px 9px;font:600 .67rem var(--mono);background:#fff;color:var(--ink)}
+.lot-badge.strong{background:#E3F5EF;border-color:#9ED9B5;color:#177245}
+.lot-badge.good{background:#E8F4FB;border-color:#A9D4EA;color:#17637C}
+.lot-badge.possible{background:#FFF6E5;border-color:#F1D48A;color:#7A6410}
+.lot-badge.weak{background:#F4F1FA;border-color:#D7C9EB;color:#664B8A}
+.lot-badge.not-recommended,.lot-badge.failed{background:#FDECEA;border-color:#F2B8B5;color:#9F2D24}
+.lot-badge.unknown{background:var(--mist);color:var(--ink-soft)}
+.lot-match-notice{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin:10px 0;font-size:.79rem;color:var(--ink-soft);background:#fff}
+.lot-match-notice.warn{background:#FFF6E5;border-color:#F1D48A;color:#6E5700}
+.lot-match-notice.error{background:#FDECEA;border-color:#F2B8B5;color:#9F2D24}
+.lot-match-notice.ok{background:#E3F5EF;border-color:#A9DECF;color:#177245}
+.lot-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.lot-result-card{border:1.5px solid var(--line);border-radius:13px;padding:15px;background:#fff;min-width:0;overflow:hidden}
+.lot-result-card.is-relevant{border-color:#9BCDE4;box-shadow:0 5px 18px rgba(0,62,82,.07)}
+.lot-result-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.lot-result-title{font-size:.91rem;line-height:1.4;overflow-wrap:anywhere}
+.lot-result-kicker{font:600 .65rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+.lot-score{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto}
+.lot-score strong{font:700 1.2rem var(--mono);line-height:1}
+.lot-score span{font-size:.65rem;color:var(--ink-soft);margin-top:3px}
+.lot-score-track{height:6px;background:var(--mist);border-radius:100px;overflow:hidden;margin:11px 0}
+.lot-score-track span{display:block;height:100%;width:var(--lot-progress,0%);max-width:100%;background:linear-gradient(95deg,var(--mint),var(--teal));border-radius:inherit}
+.lot-result-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.lot-product{font-size:.78rem;color:var(--ink-soft);overflow-wrap:anywhere}
+.lot-product b{color:var(--ink)}
+.lot-reason-group{margin-top:11px}
+.lot-reason-group h4{font-size:.75rem;margin-bottom:5px}
+.lot-reason-list{display:grid;gap:4px;list-style:none}
+.lot-reason-list li{font-size:.74rem;line-height:1.45;padding-left:15px;position:relative;overflow-wrap:anywhere}
+.lot-reason-list li:before{content:"";width:6px;height:6px;border-radius:50%;position:absolute;left:0;top:.48em;background:var(--teal)}
+.lot-reason-group.blocker li:before{background:var(--danger)}
+.lot-reason-group.gap li:before{background:#C48613}
+.lot-reason-group.unknown li:before{background:#8095A0}
+.lot-disclosure-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.lot-disclosure{border:1px solid var(--line);background:var(--mist);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:.72rem;font-weight:600}
+.lot-disclosure:hover{border-color:var(--teal);color:var(--teal-deep)}
+.lot-detail-panel{margin-top:9px;border-top:1px solid var(--line);padding-top:9px}
+.lot-detail-panel[hidden]{display:none}
+.lot-component-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.lot-component{border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--mist);min-width:0}
+.lot-component b{display:flex;justify-content:space-between;gap:8px;font-size:.7rem;text-transform:capitalize;overflow-wrap:anywhere}
+.lot-component p{font-size:.66rem;color:var(--ink-soft);margin-top:3px;overflow-wrap:anywhere}
+.lot-evidence-preview{margin-top:10px;border-left:3px solid var(--teal);padding:7px 10px;background:var(--mist);font-size:.72rem;color:var(--ink-soft);overflow-wrap:anywhere}
+.lot-evidence-list{display:grid;gap:7px}
+.lot-evidence{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;min-width:0}
+.lot-evidence-meta{display:flex;gap:6px;flex-wrap:wrap;font:600 .65rem var(--mono);color:var(--ink-soft)}
+.lot-evidence b{display:block;font-size:.71rem;margin-top:5px;overflow-wrap:anywhere}
+.lot-evidence blockquote{font-size:.7rem;color:var(--ink-soft);margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap}
+.lot-readiness{margin-top:9px;border:1px solid #F1D48A;background:#FFF6E5;border-radius:9px;padding:9px 10px;font-size:.72rem;color:#6E5700}
+.lot-readiness .btn{margin-top:7px;font-size:.7rem;padding:5px 9px}
+.lot-state{border:1.5px solid var(--line);border-radius:12px;padding:22px;text-align:center;background:var(--mist);color:var(--ink-soft)}
+.lot-state b{display:block;color:var(--ink);font-size:.94rem;margin-bottom:4px}
+.lot-state .btn{margin-top:11px}
+.lot-skeleton-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lot-skeleton{height:180px;border-radius:12px;background:linear-gradient(90deg,var(--mist) 20%,#fff 40%,var(--mist) 60%);background-size:220% 100%;animation:lotShimmer 1.2s infinite}
+@keyframes lotShimmer{to{background-position:-220% 0}}
+@media(max-width:760px){
+  .lot-match-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lot-match-grid,.lot-skeleton-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .lot-match-summary{grid-template-columns:1fr 1fr}
+  .lot-component-grid{grid-template-columns:1fr}
+  .lot-result-card{padding:13px}
+}
 
 /* mini catalog manager */
 .cat-mini{display:flex;gap:10px;flex-wrap:wrap}
@@ -981,7 +1056,7 @@ let REGROLE = "buyer", JUSTSIGNED = false, LOGIN_REDIRECT = false;
 let BUYER = null;   // buyer profile row
 let USER = null;      // {id, email}
 let COMPANY = null;   // company row
-let PRODUCTS = [], RFQS = [];
+let PRODUCTS = [], PRODUCTS_LOADED = false, RFQS = [];
 
 async function api(path, options={}){
   const res = await fetch(SUPABASE_URL + path, {
@@ -1513,6 +1588,7 @@ async function loadProducts(){
   try{
     const result = await productProfileRequest({action:"list", company_id:COMPANY.id});
     PRODUCTS = Array.isArray(result && result.products) ? result.products : [];
+    PRODUCTS_LOADED = true;
     renderProducts();
   }catch(e){ toast(friendlyError(e)); }
 }
@@ -2254,6 +2330,7 @@ function renderOppCard(m, compact){
     + '<div class="opp-actions">'
     +   '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">🤖 Analyze with AI</button>'
     +   (isTender && t.source === 'TED' ? '<button class="btn btn-solid" onclick="deepAnalyze(' + m.id + ')">📑 Deep analysis</button>' : "")
+    +   (isTender ? '<button class="btn btn-solid" aria-label="View lot-level match analysis for ' + esc(title) + '" onclick="openLotAnalysis(' + m.id + ',' + Number(t.id) + ')">View lot analysis</button>' : "")
     +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener">Open source ↗</a>' : "")
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'' + (saved ? "viewed" : "saved") + '\')">' + (saved ? "★ Saved" : "☆ Save") + '</button>'
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'contacted\')">' + (m.status === "contacted" ? "✔ Contacted" : "Mark contacted") + '</button>'
@@ -2262,6 +2339,416 @@ function renderOppCard(m, compact){
     + '<div class="deep-panel" id="deep-' + m.id + '"></div>'
     + '</div>';
 }
+
+/* LOT_MATCH_UI_PURE_START */
+/**
+ * @typedef {{
+ *   code:string,
+ *   message:string
+ * }} LotMatchReason
+ * @typedef {{
+ *   document_id:number|null,
+ *   page_number:number|null,
+ *   sheet_name:string|null,
+ *   cell_range:string|null,
+ *   field_name:string|null,
+ *   source_quote:string|null,
+ *   extracted_value:string|null,
+ *   confidence_score:number|null
+ * }} LotMatchEvidence
+ * @typedef {{
+ *   status:"completed"|"failed",
+ *   lot_key:string,
+ *   lot_number:string|null,
+ *   lot_title:string,
+ *   match_score:number|null,
+ *   recommendation:string|null,
+ *   confidence_score:number|null,
+ *   best_company_product_id:number|null,
+ *   best_company_product_name:string|null,
+ *   score_components:Record<string,{score:number,max_score:number,status:string,reason:string}>,
+ *   matched_requirements:LotMatchReason[],
+ *   gaps:LotMatchReason[],
+ *   blockers:LotMatchReason[],
+ *   unknowns:LotMatchReason[],
+ *   tender_evidence:LotMatchEvidence[],
+ *   company_evidence:Array<{product_id:number|null,product_name:string,product_ref:string|null,matched_fields:string[]}>,
+ *   calculation_error:string|null
+ * }} LotMatchRecord
+ */
+const LOT_RECOMMENDATIONS = {
+  strong_match: { label:"Strong match", css:"strong" },
+  good_match: { label:"Good match", css:"good" },
+  possible_match: { label:"Possible match", css:"possible" },
+  weak_match: { label:"Weak match", css:"weak" },
+  not_recommended: { label:"Not recommended", css:"not-recommended" }
+};
+const LOT_RELEVANT_RECOMMENDATIONS = new Set(["strong_match","good_match","possible_match"]);
+
+function lotUiNumber(value){
+  if(value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+function lotUiText(value, fallback=""){
+  if(value === null || value === undefined) return fallback;
+  return String(value);
+}
+function lotUiArray(value){ return Array.isArray(value) ? value : []; }
+function lotNormalizeReason(value){
+  if(typeof value === "string") return { code:"", message:value };
+  if(!value || typeof value !== "object") return null;
+  const message = lotUiText(value.message || value.reason || value.label).trim();
+  return message ? { code:lotUiText(value.code).trim(), message } : null;
+}
+function lotNormalizeReasons(value){
+  return lotUiArray(value).map(lotNormalizeReason).filter(Boolean);
+}
+function lotNormalizeEvidence(value){
+  const deduped = new Map();
+  lotUiArray(value).forEach(item => {
+    if(!item || typeof item !== "object") return;
+    const evidence = {
+      document_id: lotUiNumber(item.document_id),
+      page_number: lotUiNumber(item.page_number),
+      sheet_name: lotUiText(item.sheet_name).trim() || null,
+      cell_range: lotUiText(item.cell_range).trim() || null,
+      field_name: lotUiText(item.field_name).trim() || null,
+      source_quote: lotUiText(item.source_quote).trim() || null,
+      extracted_value: lotUiText(item.extracted_value).trim() || null,
+      confidence_score: lotUiNumber(item.confidence_score)
+    };
+    const key = [
+      evidence.document_id, evidence.page_number, evidence.sheet_name,
+      evidence.cell_range, evidence.field_name, evidence.source_quote,
+      evidence.extracted_value
+    ].join("|");
+    const existing = deduped.get(key);
+    if(!existing || (evidence.confidence_score ?? -1) > (existing.confidence_score ?? -1)){
+      deduped.set(key, evidence);
+    }
+  });
+  return [...deduped.values()];
+}
+function lotNormalizeComponents(value){
+  if(!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    const component = item && typeof item === "object" ? item : {};
+    return [key, {
+      score:lotUiNumber(component.score) ?? 0,
+      max_score:lotUiNumber(component.max_score) ?? 0,
+      status:lotUiText(component.status, "unknown"),
+      reason:lotUiText(component.reason)
+    }];
+  }));
+}
+function lotNormalizeRecord(value){
+  const row = value && typeof value === "object" ? value : {};
+  const status = row.status === "failed" ? "failed" : "completed";
+  return {
+    status,
+    lot_key:lotUiText(row.lot_key),
+    lot_number:lotUiText(row.lot_number).trim() || null,
+    lot_title:lotUiText(row.lot_title).trim(),
+    match_score:status === "completed" ? lotUiNumber(row.match_score) : null,
+    recommendation:status === "completed" ? lotUiText(row.recommendation).trim() || null : null,
+    confidence_score:status === "completed" ? lotUiNumber(row.confidence_score) : null,
+    best_company_product_id:status === "completed" ? lotUiNumber(row.best_company_product_id) : null,
+    best_company_product_name:status === "completed" ? lotUiText(row.best_company_product_name).trim() || null : null,
+    score_components:lotNormalizeComponents(row.score_components),
+    matched_requirements:lotNormalizeReasons(row.matched_requirements),
+    gaps:lotNormalizeReasons(row.gaps),
+    blockers:lotNormalizeReasons(row.blockers),
+    unknowns:lotNormalizeReasons(row.unknowns),
+    tender_evidence:lotNormalizeEvidence(row.tender_evidence),
+    company_evidence:lotUiArray(row.company_evidence).filter(item=>item && typeof item === "object").map(item=>({
+      product_id:lotUiNumber(item.product_id),
+      product_name:lotUiText(item.product_name),
+      product_ref:lotUiText(item.product_ref).trim() || null,
+      matched_fields:lotUiArray(item.matched_fields).map(field=>lotUiText(field)).filter(Boolean)
+    })),
+    calculation_error:lotUiText(row.calculation_error).trim() || null
+  };
+}
+function lotNormalizePayload(value){
+  const payload = value && typeof value === "object" ? value : {};
+  return {
+    company_id:lotUiNumber(payload.company_id),
+    tender_id:lotUiNumber(payload.tender_id),
+    calculation_version:lotUiText(payload.calculation_version),
+    lots:lotUiArray(payload.lots).map(lotNormalizeRecord)
+  };
+}
+function lotRecommendationMeta(recommendation){
+  return LOT_RECOMMENDATIONS[recommendation] || { label:"Unavailable", css:"unknown" };
+}
+function lotDisplayLabel(lot){
+  if(lot && lot.lot_number) return "Lot " + lot.lot_number;
+  return "Extracted product group — no reliable lot number found";
+}
+function lotSummarize(records){
+  const counts = { strong_match:0, good_match:0, possible_match:0, weak_match:0, not_recommended:0 };
+  const completed = records.filter(record=>record.status === "completed");
+  const failed = records.filter(record=>record.status === "failed");
+  completed.forEach(record=>{
+    if(Object.prototype.hasOwnProperty.call(counts, record.recommendation)) counts[record.recommendation]++;
+  });
+  const relevant = completed
+    .filter(record=>LOT_RELEVANT_RECOMMENDATIONS.has(record.recommendation))
+    .sort((left,right)=>(right.match_score ?? -1) - (left.match_score ?? -1) || left.lot_key.localeCompare(right.lot_key));
+  return {
+    total:records.length,
+    completed:completed.length,
+    failed:failed.length,
+    relevant:relevant.length,
+    counts,
+    highest_relevant:relevant[0] || null
+  };
+}
+function lotReasonListHtml(title, reasons, css){
+  if(!reasons.length) return "";
+  return '<section class="lot-reason-group ' + css + '"><h4>' + esc(title) + '</h4><ul class="lot-reason-list">'
+    + reasons.map(item=>'<li>' + esc(item.message) + '</li>').join("")
+    + '</ul></section>';
+}
+function lotComponentHtml(name, component){
+  const label = name.replace(/_/g," ");
+  const score = component.max_score > 0 ? component.score + " / " + component.max_score : component.status;
+  return '<div class="lot-component"><b><span>' + esc(label) + '</span><span>' + esc(String(score)) + '</span></b>'
+    + '<p><span class="lot-badge ' + (component.status === "matched" ? "strong" : component.status === "contradiction" ? "failed" : "unknown") + '">' + esc(component.status) + '</span>'
+    + (component.reason ? " " + esc(component.reason) : "") + '</p></div>';
+}
+function lotEvidenceHtml(evidence){
+  const page = evidence.page_number != null ? "Page " + evidence.page_number : "Page not assigned";
+  const location = [page, evidence.sheet_name ? "Sheet " + evidence.sheet_name : "", evidence.cell_range ? "Cell " + evidence.cell_range : ""].filter(Boolean);
+  const confidence = evidence.confidence_score != null ? "Confidence " + evidence.confidence_score + "%" : "";
+  return '<article class="lot-evidence">'
+    + '<div class="lot-evidence-meta"><span>' + esc(location.join(" · ")) + '</span>' + (confidence ? '<span>' + esc(confidence) + '</span>' : '') + '</div>'
+    + (evidence.field_name ? '<b>Field: ' + esc(evidence.field_name) + '</b>' : '')
+    + (evidence.extracted_value ? '<b>Extracted value: ' + esc(evidence.extracted_value) + '</b>' : '')
+    + (evidence.source_quote ? '<blockquote>“' + esc(evidence.source_quote) + '”</blockquote>' : '')
+    + '</article>';
+}
+function lotCompanyEvidenceHtml(evidence){
+  if(!evidence.length) return "";
+  return '<div class="lot-detail-panel"><div class="lot-evidence-list">'
+    + evidence.map(item=>'<article class="lot-evidence"><div class="lot-evidence-meta"><span>Company catalog evidence</span></div>'
+      + '<b>' + esc(item.product_name || "Matched product") + (item.product_ref ? " · REF " + esc(item.product_ref) : "") + '</b>'
+      + (item.matched_fields.length ? '<blockquote>Matched fields: ' + item.matched_fields.map(field=>esc(field.replace(/_/g," "))).join(", ") + '</blockquote>' : '')
+      + '</article>').join("")
+    + '</div></div>';
+}
+function lotReadinessHtml(record, products){
+  if(record.best_company_product_id == null) return "";
+  const product = products.find(item=>Number(item.id) === Number(record.best_company_product_id));
+  if(!product) return '<div class="lot-readiness">Product matching readiness is unavailable. Reload your catalog before relying on this result.</div>';
+  const readiness = product.matching_readiness || {};
+  const score = lotUiNumber(readiness.score);
+  const missing = lotUiArray(readiness.critical_missing_fields).map(field=>
+    PRODUCT_READINESS_LABELS[field] || lotUiText(field).replace(/_/g," ")
+  );
+  if(score === 100 && !missing.length){
+    return '<div class="lot-match-notice ok">Matched product profile is 100% complete for deterministic matching.</div>';
+  }
+  return '<div class="lot-readiness"><b>Product profile readiness: ' + (score == null ? "not available" : esc(String(score)) + "%") + '</b>'
+    + (missing.length ? '<div>Important missing fields: ' + missing.slice(0,4).map(esc).join(", ") + '.</div>' : '<div>Add explicit product details to improve future lot matches.</div>')
+    + '<button class="btn btn-solid" onclick="editLotMatchedProduct(' + Number(product.id) + ')">Edit matched product</button></div>';
+}
+function lotRecordHtml(record, index, matchId, products){
+  const label = lotDisplayLabel(record);
+  if(record.status === "failed"){
+    return '<article class="lot-result-card" aria-labelledby="lot-title-' + matchId + '-' + index + '">'
+      + '<div class="lot-result-top"><div><div class="lot-result-kicker">' + esc(label) + '</div><h4 class="lot-result-title" id="lot-title-' + matchId + '-' + index + '">' + esc(record.lot_title || "Lot match unavailable") + '</h4></div>'
+      + '<span class="lot-badge failed">Analysis unavailable</span></div>'
+      + '<div class="lot-match-notice error">' + esc(record.calculation_error || "This lot could not be matched. Other lot results are still available.") + '</div></article>';
+  }
+  const recommendation = lotRecommendationMeta(record.recommendation);
+  const relevant = LOT_RELEVANT_RECOMMENDATIONS.has(record.recommendation);
+  const progress = Math.max(0,Math.min(100,record.match_score ?? 0));
+  const componentId = "lot-components-" + matchId + "-" + index;
+  const evidenceId = "lot-evidence-" + matchId + "-" + index;
+  const components = Object.entries(record.score_components);
+  const preview = record.tender_evidence.find(item=>item.source_quote);
+  return '<article class="lot-result-card' + (relevant ? ' is-relevant' : '') + '" aria-labelledby="lot-title-' + matchId + '-' + index + '">'
+    + '<div class="lot-result-top"><div><div class="lot-result-kicker">' + esc(label) + '</div><h4 class="lot-result-title" id="lot-title-' + matchId + '-' + index + '">' + esc(record.lot_title || "Untitled extracted product group") + '</h4></div>'
+    + '<div class="lot-score"><strong>' + (record.match_score == null ? "—" : esc(String(record.match_score)) + "%") + '</strong><span>match score</span></div></div>'
+    + '<div class="lot-score-track" aria-hidden="true"><span style="--lot-progress:' + progress + '%"></span></div>'
+    + '<div class="lot-result-meta"><span class="lot-badge ' + recommendation.css + '">' + recommendation.label + '</span>'
+    + '<span class="lot-badge unknown">Confidence ' + (record.confidence_score == null ? "unavailable" : esc(String(record.confidence_score)) + "%") + '</span></div>'
+    + '<div class="lot-product"><b>Best company product:</b> ' + esc(record.best_company_product_name || "No active catalog product matched") + '</div>'
+    + lotReasonListHtml("Matched requirements",record.matched_requirements,"matched")
+    + lotReasonListHtml("Blockers",record.blockers,"blocker")
+    + lotReasonListHtml("Gaps",record.gaps,"gap")
+    + lotReasonListHtml("Unknown or needs verification",record.unknowns,"unknown")
+    + (preview ? '<div class="lot-evidence-preview"><b>Evidence preview:</b> “' + esc(preview.source_quote.slice(0,180)) + (preview.source_quote.length > 180 ? "…" : "") + '”</div>' : '')
+    + '<div class="lot-disclosure-row">'
+    + (components.length ? '<button class="lot-disclosure" aria-expanded="false" aria-controls="' + componentId + '" onclick="toggleLotDisclosure(this,\'' + componentId + '\')">Score details</button>' : '')
+    + (record.tender_evidence.length ? '<button class="lot-disclosure" aria-expanded="false" aria-controls="' + evidenceId + '" onclick="toggleLotDisclosure(this,\'' + evidenceId + '\')">Evidence (' + record.tender_evidence.length + ')</button>' : '')
+    + '</div>'
+    + (components.length ? '<div class="lot-detail-panel" id="' + componentId + '" hidden><div class="lot-component-grid">' + components.map(([name,component])=>lotComponentHtml(name,component)).join("") + '</div></div>' : '')
+    + (record.tender_evidence.length ? '<div class="lot-detail-panel" id="' + evidenceId + '" hidden><div class="lot-evidence-list">' + record.tender_evidence.map(lotEvidenceHtml).join("") + '</div></div>' : '')
+    + lotCompanyEvidenceHtml(record.company_evidence)
+    + lotReadinessHtml(record,products)
+    + '</article>';
+}
+function lotSummaryHtml(summary){
+  const highest = summary.highest_relevant;
+  const highestLabel = highest ? (highest.match_score + "% " + lotRecommendationMeta(highest.recommendation).label) : "None";
+  const bestProduct = highest && highest.best_company_product_name ? highest.best_company_product_name : "None";
+  return '<div class="lot-match-summary" aria-label="Lot match summary">'
+    + '<div class="lot-summary-card"><b>' + summary.total + '</b><span>Results analyzed</span></div>'
+    + '<div class="lot-summary-card"><b>' + summary.relevant + '</b><span>Relevant results</span></div>'
+    + '<div class="lot-summary-card"><b>' + esc(highestLabel) + '</b><span>Highest relevant result</span></div>'
+    + '<div class="lot-summary-card"><b>' + esc(bestProduct) + '</b><span>Best company product</span></div>'
+    + '</div><div class="lot-rec-counts" aria-label="Recommendation counts">'
+    + Object.entries(LOT_RECOMMENDATIONS).map(([key,meta])=>'<span class="lot-badge ' + meta.css + '">' + meta.label + ': ' + summary.counts[key] + '</span>').join("")
+    + '</div>';
+}
+function lotResultsHtml(payload, products, productLoadFailed, matchId=payload.tender_id){
+  const summary = lotSummarize(payload.lots);
+  return lotSummaryHtml(summary)
+    + (summary.relevant === 0 ? '<div class="lot-match-notice">No strong, good, or possible matches were returned. Weak and not-recommended results remain visible for verification.</div>' : '')
+    + (summary.failed ? '<div class="lot-match-notice warn">' + summary.failed + ' lot result' + (summary.failed === 1 ? " is" : "s are") + ' unavailable. Completed sibling results are preserved below.</div>' : '')
+    + (products.length === 0 && !productLoadFailed ? '<div class="lot-match-notice warn"><b>No active company products are available for comparison.</b> Add a structured product profile before relying on lot-level matching. <button class="btn btn-solid" onclick="openLotProductCatalog()">Add product</button></div>' : '')
+    + (productLoadFailed ? '<div class="lot-match-notice warn">Lot results loaded, but product readiness could not be retrieved. Retry before relying on readiness warnings.</div>' : '')
+    + '<div class="lot-match-grid">' + payload.lots.map((record,index)=>lotRecordHtml(record,index,Math.abs(Number(matchId) || 0),products)).join("") + '</div>';
+}
+function lotEligibility(token, company, configured){
+  if(!configured) return "configuration";
+  if(!token || !company || company.id == null) return "signed_out";
+  return "ready";
+}
+function lotEmptyStateKind(tender){
+  const status = lotUiText(tender && tender.document_analysis_status).toLowerCase();
+  if(["queued","processing","running","in_progress","extracting"].includes(status)) return "extraction_processing";
+  if(!status || ["not_started","pending"].includes(status)) return "no_analysis";
+  return "empty";
+}
+/* LOT_MATCH_UI_PURE_END */
+
+/* LOT_MATCH_UI_RUNTIME_START */
+const LOT_MATCH_CACHE = {};
+
+function lotWithTimeout(promise,timeoutMs){
+  let timer;
+  const timeout = new Promise((_,reject)=>{
+    timer = setTimeout(()=>reject(new Error("Lot-match request timed out. Please retry.")),timeoutMs);
+  });
+  return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));
+}
+function lotMatchShell(matchId){
+  return '<section class="lot-match-section" id="lot-match-' + matchId + '" aria-labelledby="lot-match-title-' + matchId + '">'
+    + '<div class="lot-match-head"><div><h3 id="lot-match-title-' + matchId + '">Lot-level tender match</h3>'
+    + '<p>Deterministic comparison of persisted tender evidence with your active product catalog. Scores are returned by the backend.</p></div></div>'
+    + '<div class="lot-skeleton-grid" role="status" aria-live="polite" aria-label="Loading lot matches"><div class="lot-skeleton"></div><div class="lot-skeleton"></div></div>'
+    + '</section>';
+}
+function lotStateHtml(title,message,actionHtml=""){
+  return '<div class="lot-state" role="status"><b>' + esc(title) + '</b><span>' + esc(message) + '</span>' + actionHtml + '</div>';
+}
+function toggleLotDisclosure(button,id){
+  const target = document.getElementById(id);
+  if(!target) return;
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded",String(!expanded));
+  target.hidden = expanded;
+}
+function editLotMatchedProduct(productId){
+  showPanel("products");
+  openProductForm(Number(productId));
+}
+function openLotProductCatalog(){
+  showPanel("products");
+  openProductForm();
+}
+async function ensureLotProductContext(){
+  if(PRODUCTS_LOADED) return null;
+  try{
+    const result = await productProfileRequest({action:"list",company_id:COMPANY.id});
+    PRODUCTS = Array.isArray(result && result.products) ? result.products : [];
+    PRODUCTS_LOADED = true;
+    renderProducts();
+    return null;
+  }catch(error){
+    return error;
+  }
+}
+function lotRequestState(error){
+  const message = lotUiText(error && error.message).toLowerCase();
+  if(message.includes("get_tender_lot_matches_v1") && (message.includes("not find") || message.includes("does not exist") || message.includes("pgrst202"))){
+    return ["Lot matching is not configured","The lot-match database migration is not available in this environment."];
+  }
+  if(message.includes("access denied") || message.includes("session expired")){
+    return ["Partner session required","Sign in again through the current portal login flow to view company-specific lot matches."];
+  }
+  return ["Lot matches could not be loaded",friendlyError(error)];
+}
+async function loadLotMatchesIntoHost(matchId,tenderId,force=false){
+  const host = document.getElementById("lot-match-" + matchId);
+  if(!host) return;
+  const eligibility = lotEligibility(TOKEN,COMPANY,Boolean(SUPABASE_URL && SUPABASE_ANON_KEY));
+  if(eligibility === "configuration"){
+    host.innerHTML = '<div class="lot-match-head"><h3>Lot-level tender match</h3></div>' + lotStateHtml("Configuration unavailable","The public Supabase configuration is missing. No request was sent.");
+    return;
+  }
+  if(eligibility === "signed_out"){
+    host.innerHTML = '<div class="lot-match-head"><h3>Lot-level tender match</h3></div>' + lotStateHtml("Partner session required","Sign in through the current portal login to view company-specific lot matches.",'<button class="btn btn-solid" onclick="location.reload()">Return to login</button>');
+    return;
+  }
+  const match = OPP_ROWS.find(row=>Number(row.id) === Number(matchId));
+  const tender = match && match.tenders ? match.tenders : {};
+  const productContext = lotWithTimeout(ensureLotProductContext(),10000)
+    .catch(error=>error);
+  const cacheKey = COMPANY.id + ":" + tenderId;
+  try{
+    let payload = LOT_MATCH_CACHE[cacheKey];
+    if(!payload || force){
+      const response = await lotWithTimeout(db("rpc/get_tender_lot_matches_v1",{
+        method:"POST",
+        body:JSON.stringify({p_company_id:COMPANY.id,p_tender_id:Number(tenderId)})
+      }),15000);
+      payload = lotNormalizePayload(response);
+      if(payload.company_id !== Number(COMPANY.id) || payload.tender_id !== Number(tenderId)){
+        throw new Error("Lot-match response scope did not match the requested company and tender.");
+      }
+      LOT_MATCH_CACHE[cacheKey] = payload;
+    }
+    const productError = await productContext;
+    if(!payload.lots.length){
+      const kind = lotEmptyStateKind(tender);
+      const states = {
+        extraction_processing:["Document extraction is still processing","Lot matches will appear after the existing extraction finishes. This view does not start or restart analysis."],
+        no_analysis:["No persisted document analysis yet","Run Deep analysis only when you choose to process this tender. Viewing lot matches never starts document or AI work."],
+        empty:["No lot matches available","The completed extraction returned no persisted lot-match rows for this company and tender."]
+      };
+      const state = states[kind];
+      host.innerHTML = '<div class="lot-match-head"><div><h3 id="lot-match-title-' + matchId + '">Lot-level tender match</h3><p>Backend-calculated, company-specific results.</p></div></div>'
+        + lotStateHtml(state[0],state[1],'<button class="btn btn-solid" onclick="retryLotAnalysis(' + matchId + ',' + tenderId + ')">Retry request</button>');
+      return;
+    }
+    host.innerHTML = '<div class="lot-match-head"><div><h3 id="lot-match-title-' + matchId + '">Lot-level tender match</h3>'
+      + '<p>Deterministic comparison of persisted tender evidence with your active product catalog. No document analysis or AI call is triggered by this view.</p></div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="retryLotAnalysis(' + matchId + ',' + tenderId + ')">Refresh results</button></div>'
+      + lotResultsHtml(payload,PRODUCTS,Boolean(productError),matchId);
+  }catch(error){
+    const state = lotRequestState(error);
+    host.innerHTML = '<div class="lot-match-head"><div><h3 id="lot-match-title-' + matchId + '">Lot-level tender match</h3><p>Backend-calculated, company-specific results.</p></div></div>'
+      + lotStateHtml(state[0],state[1],'<button class="btn btn-solid" onclick="retryLotAnalysis(' + matchId + ',' + tenderId + ')">Retry lot-match request</button>');
+  }
+}
+function openLotAnalysis(matchId,tenderId){
+  const panel = document.getElementById("deep-" + matchId);
+  if(!panel || !Number.isFinite(Number(tenderId))) return;
+  panel.classList.add("open");
+  panel.innerHTML = lotMatchShell(matchId);
+  loadLotMatchesIntoHost(matchId,Number(tenderId));
+}
+function retryLotAnalysis(matchId,tenderId){
+  const host = document.getElementById("lot-match-" + matchId);
+  if(host) host.outerHTML = lotMatchShell(matchId);
+  loadLotMatchesIntoHost(matchId,Number(tenderId),true);
+}
+/* LOT_MATCH_UI_RUNTIME_END */
 
 async function setOppStatus(id, status){
   try{
@@ -2990,7 +3477,11 @@ function paintDeepResult(matchId){
     + '</div>';
 
   const target = document.getElementById("dpResult-" + matchId);
-  if(target) target.innerHTML = html;
+  if(target){
+    const tenderId = Number(om.tenders && om.tenders.id);
+    target.innerHTML = html + (Number.isFinite(tenderId) ? lotMatchShell(matchId) : "");
+    if(Number.isFinite(tenderId)) loadLotMatchesIntoHost(matchId,tenderId);
+  }
 }
 
 function prodDetailHtml(p){
