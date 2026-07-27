@@ -22,12 +22,14 @@ import {
   DOCUMENT_CHUNKING_VERSION_V31 as DOCUMENT_CHUNKING_VERSION,
   DOCUMENT_EXTRACTION_VERSION_V31 as DOCUMENT_EXTRACTION_VERSION_V3,
   DOCUMENT_PROMPT_SCHEMA_VERSION_V31 as DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+  documentChunkLogicalKey,
   type DocumentIntelligenceV31Config,
   type DocumentProgressStage,
   evaluateEarlyCompletion,
   type ExecutionBudgetState,
   executionGuardrailReason,
   extractionQualityMetrics,
+  isChunkEligibleForAttempt,
   planPrioritizedAdaptiveChunks,
   progressEstimate,
   publicV31ConfigSnapshot,
@@ -35,6 +37,8 @@ import {
   rebindAnalysisDocumentId,
   recordExecutionUsage,
   reserveAiRequest,
+  selectExistingChunkForResume,
+  stablePdfChunkInput,
 } from "../_shared/document-intelligence-v3-1.ts";
 import {
   inspectPdfBytes,
@@ -115,6 +119,7 @@ type ChunkWork = {
   processingOrder: number;
   densityScore: number;
   estimatedInputTokens: number;
+  compactOpaquePage: boolean;
 };
 
 type ChunkExecutionResult = {
@@ -531,7 +536,17 @@ function promptForChunk(
   title: string,
   startPage: number,
   endPage: number,
+  compactOpaquePage: boolean,
 ): string {
+  const densePageRules = compactOpaquePage
+    ? `
+- This image-only page is visually dense. Include at most 6 explicit products
+  or lots so the response completes inside the provider deadline.
+- Prefer rows that add or change product definitions or technical requirements
+  over rows that only correct a price.
+- Use one short evidence item and one compact requirement per product. Record
+  omitted rows in missing_information; never invent or silently summarize them.`
+    : "- Include no more than 30 explicit lots and note any omission.";
   return `
 You are MedicHall's medical tender fact extraction engine. Extract only facts
 explicitly supported by this one document chunk.
@@ -547,7 +562,7 @@ STRICT RULES:
 - Mark partial for ambiguity, missing annexes, unreadable tables, or weak proof.
 - Confidence measures evidence strength. Return compact valid JSON only.
 - fit_narrative must be null; company matching is a separate backend stage.
-- Include no more than 30 explicit lots and note any omission.
+${densePageRules}
 
 DOCUMENT: ${title}
 ORIGINAL SOURCE PAGES: ${startPage}-${endPage}
@@ -639,6 +654,7 @@ async function callClaudeForChunk(
       work.title,
       work.startPage,
       work.endPage,
+      work.compactOpaquePage,
     ),
   });
   let lastResponse: any = null;
@@ -673,7 +689,9 @@ async function callClaudeForChunk(
       },
       body: JSON.stringify({
         model,
-        max_tokens: config.maxChunkOutputTokens,
+        max_tokens: work.compactOpaquePage
+          ? Math.min(config.maxChunkOutputTokens, 6_000)
+          : config.maxChunkOutputTokens,
         temperature: 0,
         system:
           "Extract procurement facts conservatively. Never fabricate data. Return one compact JSON object only." +
@@ -822,17 +840,55 @@ async function findOrCreateInspection(
   return { id: Number(created.id), inspection, reused: false };
 }
 
-async function upsertChunk(
+async function findOrCreateChunk(
   adminClient: AdminClient,
   row: Record<string, unknown>,
 ): Promise<any> {
+  const findExisting = () =>
+    adminClient
+      .from("tender_document_analysis_chunks")
+      .select("*")
+      .eq("job_id", row.job_id)
+      .eq("source_document_key", row.source_document_key)
+      .eq("input_hash", row.input_hash)
+      .maybeSingle();
+  const { data: existing, error: existingError } = await findExisting();
+  if (existingError) throw new Error(existingError.message);
+  if (existing?.id) {
+    // Normal resume planning must be read-only for an existing chunk so its
+    // completed state and accumulated attempt_count cannot be reset to the
+    // table defaults. A document-cache hit may promote unfinished work to a
+    // completed zero-cost result.
+    if (row.status === "completed" && existing.status !== "completed") {
+      const { data: promoted, error: promotionError } = await adminClient
+        .from("tender_document_analysis_chunks")
+        .update(row)
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (promotionError || !promoted?.id) {
+        throw new Error(
+          promotionError?.message || "Could not promote cached document chunk",
+        );
+      }
+      return promoted;
+    }
+    return existing;
+  }
   const { data, error } = await adminClient
     .from("tender_document_analysis_chunks")
-    .upsert(row, {
-      onConflict: "job_id,source_document_key,input_hash",
-    })
+    .insert(row)
     .select("*")
     .single();
+  if (error?.code === "23505") {
+    const { data: raced, error: racedError } = await findExisting();
+    if (racedError || !raced?.id) {
+      throw new Error(
+        racedError?.message || "Could not read concurrently created chunk",
+      );
+    }
+    return raced;
+  }
   if (error || !data?.id) {
     throw new Error(error?.message || "Could not persist document chunk");
   }
@@ -1353,14 +1409,15 @@ async function processJob(
     .eq("job_id", jobId)
     .eq("status", "processing")
     .lt("lease_expires_at", new Date().toISOString());
-  const { data: priorUsage, error: priorUsageError } = await adminClient
+  const { data: priorChunks, error: priorChunksError } = await adminClient
     .from("tender_document_analysis_chunks")
     .select(
-      "source_document_key,ai_request_count,input_tokens,output_tokens,estimated_cost_usd",
+      "id,document_id,source_document_key,content_sha256,page_numbers,input_hash,status,attempt_count,ai_request_count,input_tokens,output_tokens,estimated_cost_usd",
     )
     .eq("job_id", jobId);
-  if (priorUsageError) throw new Error(priorUsageError.message);
-  for (const usage of priorUsage || []) {
+  if (priorChunksError) throw new Error(priorChunksError.message);
+  const existingChunksByLogicalKey = new Map<string, any[]>();
+  for (const usage of priorChunks || []) {
     budgetState.aiRequests += Number(usage.ai_request_count || 0);
     budgetState.inputTokens += Number(usage.input_tokens || 0);
     budgetState.outputTokens += Number(usage.output_tokens || 0);
@@ -1372,6 +1429,15 @@ async function processJob(
     budgetState.costByDocument[sourceKey] = Number(
       (Number(budgetState.costByDocument[sourceKey] || 0) + cost).toFixed(6),
     );
+    const logicalKey = documentChunkLogicalKey(
+      sourceKey,
+      String(usage.content_sha256 || ""),
+      Array.isArray(usage.page_numbers) ? usage.page_numbers.map(Number) : [],
+    );
+    existingChunksByLogicalKey.set(logicalKey, [
+      ...(existingChunksByLogicalKey.get(logicalKey) || []),
+      usage,
+    ]);
   }
   const { data: existingTender } = await adminClient
     .from("tenders")
@@ -1588,7 +1654,7 @@ async function processJob(
           prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
           model,
         });
-        const cacheRow = await upsertChunk(adminClient, {
+        const cacheRow = await findOrCreateChunk(adminClient, {
           job_id: jobId,
           inspection_id: null,
           tender_id: job.tender_id,
@@ -1723,38 +1789,56 @@ async function processJob(
           Math.round(performance.now() - generationStartedAt),
         );
         for (const chunk of chunks) {
-          const chunkBytesHash = await sha256Bytes(chunk.bytes);
-          const inputHash = await stableVersionHash({
-            content_sha256: contentHash,
-            chunk_bytes_sha256: chunkBytesHash,
-            page_numbers: chunk.plan.pageNumbers,
-            model,
-            extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
-            prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-            max_chunk_output_tokens: config.maxChunkOutputTokens,
-          });
-          const row = await upsertChunk(adminClient, {
-            job_id: jobId,
-            inspection_id: inspectionRecord.id,
-            tender_id: job.tender_id,
-            document_id: documentId,
-            source_document_key: sourceKey,
-            content_sha256: contentHash,
-            chunk_index: chunk.plan.chunkIndex,
-            page_start: chunk.plan.startPage,
-            page_end: chunk.plan.endPage,
-            page_numbers: chunk.plan.pageNumbers,
-            priority_score: chunk.plan.priorityScore,
-            selection_reasons: chunk.plan.reasons,
-            processing_order: chunk.plan.processingOrder ??
-              chunk.plan.chunkIndex,
-            density_score: chunk.plan.densityScore ?? 0,
-            estimated_input_tokens: chunk.plan.estimatedInputTokens ?? 0,
-            input_hash: inputHash,
-            model_name: model,
-            extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
-            prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-          });
+          // A sliced PDF is serialized with fresh metadata on every
+          // invocation, so hashing its bytes made the same logical pages look
+          // new on every resume. Address chunks by immutable source content
+          // plus original page numbers, and prefer any row already created for
+          // this job before considering cross-job reuse.
+          const logicalKey = documentChunkLogicalKey(
+            sourceKey,
+            contentHash,
+            chunk.plan.pageNumbers,
+          );
+          const generatedInputHash = await stableVersionHash(
+            stablePdfChunkInput(
+              contentHash,
+              chunk.plan.pageNumbers,
+              model,
+              DOCUMENT_EXTRACTION_VERSION_V3,
+              DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+              config.maxChunkOutputTokens,
+            ),
+          );
+          let row = selectExistingChunkForResume(
+            existingChunksByLogicalKey.get(logicalKey) || [],
+            config.maxChunkAttempts,
+          );
+          if (!row) {
+            row = await findOrCreateChunk(adminClient, {
+              job_id: jobId,
+              inspection_id: inspectionRecord.id,
+              tender_id: job.tender_id,
+              document_id: documentId,
+              source_document_key: sourceKey,
+              content_sha256: contentHash,
+              chunk_index: chunk.plan.chunkIndex,
+              page_start: chunk.plan.startPage,
+              page_end: chunk.plan.endPage,
+              page_numbers: chunk.plan.pageNumbers,
+              priority_score: chunk.plan.priorityScore,
+              selection_reasons: chunk.plan.reasons,
+              processing_order: chunk.plan.processingOrder ??
+                chunk.plan.chunkIndex,
+              density_score: chunk.plan.densityScore ?? 0,
+              estimated_input_tokens: chunk.plan.estimatedInputTokens ?? 0,
+              input_hash: generatedInputHash,
+              model_name: model,
+              extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+              prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+            });
+            existingChunksByLogicalKey.set(logicalKey, [row]);
+          }
+          const inputHash = String(row.input_hash || generatedInputHash);
           currentChunkIds.push(Number(row.id));
           const reused = await reuseChunkIfAvailable(
             adminClient,
@@ -1764,7 +1848,7 @@ async function processJob(
           if (reused && row.status !== "completed") chunksReused++;
           if (
             !reused && remainingChunkExecutions > 0 &&
-            row.status !== "processing"
+            isChunkEligibleForAttempt(row, config.maxChunkAttempts)
           ) {
             work.push({
               chunkId: Number(row.id),
@@ -1787,6 +1871,9 @@ async function processJob(
                 chunk.plan.chunkIndex,
               densityScore: chunk.plan.densityScore ?? 0,
               estimatedInputTokens: chunk.plan.estimatedInputTokens ?? 0,
+              compactOpaquePage: chunk.plan.reasons.includes(
+                "opaque_pdf_high_priority_single_page",
+              ),
             });
             remainingChunkExecutions--;
           }
@@ -1822,7 +1909,7 @@ async function processJob(
         pageCountByDocument.set(sourceKey, 1);
         selectedPages += 1;
         remainingAiPages = Math.max(0, remainingAiPages - 1);
-        const inputHash = await stableVersionHash({
+        const generatedInputHash = await stableVersionHash({
           content_sha256: contentHash,
           text,
           model,
@@ -1830,31 +1917,47 @@ async function processJob(
           prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
           max_chunk_output_tokens: config.maxChunkOutputTokens,
         });
-        const row = await upsertChunk(adminClient, {
-          job_id: jobId,
-          inspection_id: null,
-          tender_id: job.tender_id,
-          document_id: documentId,
-          source_document_key: sourceKey,
-          content_sha256: contentHash,
-          chunk_index: 0,
-          page_start: null,
-          page_end: null,
-          page_numbers: [],
-          priority_score: 1,
-          selection_reasons: ["structured_text_document"],
-          processing_order: work.length,
-          density_score: 0,
-          estimated_input_tokens: Math.max(1, Math.round(text.length / 4)),
-          input_hash: inputHash,
-          model_name: model,
-          extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
-          prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
-        });
+        const logicalKey = documentChunkLogicalKey(
+          sourceKey,
+          contentHash,
+          [],
+        );
+        let row = selectExistingChunkForResume(
+          existingChunksByLogicalKey.get(logicalKey) || [],
+          config.maxChunkAttempts,
+        );
+        if (!row) {
+          row = await findOrCreateChunk(adminClient, {
+            job_id: jobId,
+            inspection_id: null,
+            tender_id: job.tender_id,
+            document_id: documentId,
+            source_document_key: sourceKey,
+            content_sha256: contentHash,
+            chunk_index: 0,
+            page_start: null,
+            page_end: null,
+            page_numbers: [],
+            priority_score: 1,
+            selection_reasons: ["structured_text_document"],
+            processing_order: work.length,
+            density_score: 0,
+            estimated_input_tokens: Math.max(1, Math.round(text.length / 4)),
+            input_hash: generatedInputHash,
+            model_name: model,
+            extraction_version: DOCUMENT_EXTRACTION_VERSION_V3,
+            prompt_schema_version: DOCUMENT_PROMPT_SCHEMA_VERSION_V3,
+          });
+          existingChunksByLogicalKey.set(logicalKey, [row]);
+        }
+        const inputHash = String(row.input_hash || generatedInputHash);
         currentChunkIds.push(Number(row.id));
         const reused = await reuseChunkIfAvailable(adminClient, jobId, row);
         if (reused && row.status !== "completed") chunksReused++;
-        if (!reused && remainingChunkExecutions > 0) {
+        if (
+          !reused && remainingChunkExecutions > 0 &&
+          isChunkEligibleForAttempt(row, config.maxChunkAttempts)
+        ) {
           work.push({
             chunkId: Number(row.id),
             inspectionId: null,
@@ -1875,6 +1978,7 @@ async function processJob(
             processingOrder: work.length,
             densityScore: 0,
             estimatedInputTokens: Math.max(1, Math.round(text.length / 4)),
+            compactOpaquePage: false,
           });
           remainingChunkExecutions--;
         }
@@ -2665,7 +2769,9 @@ Deno.serve(async (req: Request) => {
     if (resumeJobError) {
       return json(req, { error: resumeJobError.message }, 500);
     }
-    if (!resumeJob?.id || !["queued", "processing"].includes(resumeJob.status)) {
+    if (
+      !resumeJob?.id || !["queued", "processing"].includes(resumeJob.status)
+    ) {
       return json(req, { ok: true, resumed: null, recovery: recovery ?? null });
     }
     const pipelineRun = await startPipelineRun(adminClient, {

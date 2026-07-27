@@ -84,6 +84,73 @@ export type EarlyCompletionDecision = {
   metrics: QualityMetrics;
 };
 
+export type ResumableChunkRow = {
+  id?: number | string;
+  status?: string | null;
+  attempt_count?: number | null;
+};
+
+export function documentChunkLogicalKey(
+  sourceDocumentKey: string,
+  contentSha256: string,
+  pageNumbers: readonly number[],
+): string {
+  return JSON.stringify({
+    source_document_key: sourceDocumentKey,
+    content_sha256: contentSha256,
+    page_numbers: pageNumbers.map(Number),
+  });
+}
+
+export function stablePdfChunkInput(
+  contentSha256: string,
+  pageNumbers: readonly number[],
+  model: string,
+  extractionVersion: string,
+  promptSchemaVersion: string,
+  maxChunkOutputTokens: number,
+): Record<string, unknown> {
+  return {
+    content_sha256: contentSha256,
+    page_numbers: pageNumbers.map(Number),
+    model,
+    extraction_version: extractionVersion,
+    prompt_schema_version: promptSchemaVersion,
+    max_chunk_output_tokens: maxChunkOutputTokens,
+  };
+}
+
+export function isChunkEligibleForAttempt(
+  chunk: ResumableChunkRow,
+  maxAttempts: number,
+): boolean {
+  return ["queued", "failed"].includes(String(chunk.status || "")) &&
+    Number(chunk.attempt_count || 0) < maxAttempts;
+}
+
+export function selectExistingChunkForResume<T extends ResumableChunkRow>(
+  chunks: readonly T[],
+  maxAttempts: number,
+): T | null {
+  const rank = (chunk: T): number => {
+    if (chunk.status === "completed") return 0;
+    if (chunk.status === "processing") return 1;
+    if (chunk.status === "queued") return 2;
+    if (
+      chunk.status === "failed" &&
+      Number(chunk.attempt_count || 0) < maxAttempts
+    ) {
+      return 3;
+    }
+    if (chunk.status === "failed") return 4;
+    return 5;
+  };
+  return [...chunks].sort((left, right) =>
+    rank(left) - rank(right) ||
+    Number(left.id || 0) - Number(right.id || 0)
+  )[0] || null;
+}
+
 export type SyntheticBenchmarkResult = {
   page_count: number;
   selected_pages: number;
@@ -258,7 +325,12 @@ function rangePriority(
   range: RankedPageRange,
   inspection: Pick<PdfInspection, "pageSignals">,
   enabled: boolean,
-): { score: number; densityScore: number; estimatedTokensPerPage: number } {
+): {
+  score: number;
+  densityScore: number;
+  estimatedTokensPerPage: number;
+  hasPageSignals: boolean;
+} {
   const signals = rangeSignals(range, inspection);
   const text = [
     ...range.reasons,
@@ -300,6 +372,7 @@ function rangePriority(
       score: range.score,
       densityScore,
       estimatedTokensPerPage,
+      hasPageSignals: signals.length > 0,
     };
   }
   let score = range.score;
@@ -310,6 +383,7 @@ function rangePriority(
     score: Math.max(0, Math.min(200, score)),
     densityScore,
     estimatedTokensPerPage,
+    hasPageSignals: signals.length > 0,
   };
 }
 
@@ -324,6 +398,12 @@ function adaptiveSize(
   >,
 ): number {
   if (!config.adaptiveChunkingEnabled) return config.maxChunkSize;
+  // Image-only/fallback PDFs have no text signal from which to estimate
+  // visual table density. A high deterministic range score is the only
+  // remaining evidence that the pages are important. Keep those ranges to
+  // one page per provider request so a dense schedule cannot consume the
+  // entire provider timeout and lose the most valuable content.
+  if (!priority.hasPageSignals && priority.score >= 20) return 1;
   const tokenSized = Math.floor(
     config.targetChunkTokens / priority.estimatedTokensPerPage,
   );
@@ -414,10 +494,14 @@ export function planPrioritizedAdaptiveChunks(
             entry.priority.score >= 80
               ? "priority:high_value_technical_content"
               : "priority:standard",
+            !entry.priority.hasPageSignals &&
+              entry.priority.score >= 20
+              ? "opaque_pdf_high_priority_single_page"
+              : null,
             config.adaptiveChunkingEnabled
               ? `adaptive_chunk_size:${accepted.length}`
               : "static_chunk_size",
-          ]),
+          ].filter((reason): reason is string => Boolean(reason))),
         ],
         processingOrder: 0,
         densityScore: entry.priority.densityScore,

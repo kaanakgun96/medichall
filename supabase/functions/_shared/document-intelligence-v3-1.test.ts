@@ -3,14 +3,18 @@ import test from "node:test";
 import { normalizeDocumentAnalysis } from "./document-extraction-v2.ts";
 import {
   createExecutionBudgetState,
+  documentChunkLogicalKey,
   evaluateEarlyCompletion,
   executionGuardrailReason,
+  isChunkEligibleForAttempt,
   planPrioritizedAdaptiveChunks,
   progressEstimate,
   readDocumentIntelligenceV31Config,
   rebindAnalysisDocumentId,
   recordExecutionUsage,
   reserveAiRequest,
+  selectExistingChunkForResume,
+  stablePdfChunkInput,
   syntheticBenchmark,
 } from "./document-intelligence-v3-1.ts";
 
@@ -75,9 +79,9 @@ function benchmarkInspection(pageCount: number) {
   };
 }
 
-test("v3.1 configuration defaults to four workers and bounds guardrails", () => {
+test("v3.1 configuration defaults to two workers and bounds guardrails", () => {
   const defaults = readDocumentIntelligenceV31Config(environment({}));
-  assert.equal(defaults.maxParallelChunks, 4);
+  assert.equal(defaults.maxParallelChunks, 2);
   assert.equal(defaults.chunkPriorityEnabled, true);
   assert.equal(defaults.adaptiveChunkingEnabled, true);
   assert.equal(defaults.benchmarkMode, false);
@@ -195,6 +199,81 @@ test("adaptive chunking uses smaller chunks for dense technical pages", () => {
       }],
     }, config)[0].pageNumbers.length;
   assert.ok(plan(40_000) < plan(4_000));
+});
+
+test("opaque high-priority PDF ranges split into single pages", () => {
+  const config = readDocumentIntelligenceV31Config(environment({
+    MAX_TOTAL_AI_PAGES: "20",
+    MAX_CHUNK_SIZE: "24",
+    MIN_CHUNK_SIZE: "8",
+    CHUNK_OVERLAP_PAGES: "2",
+  }));
+  const plans = planPrioritizedAdaptiveChunks({
+    rankedRanges: [
+      {
+        startPage: 1,
+        endPage: 3,
+        score: 29,
+        reasons: ["document_identity", "deterministic_coverage"],
+      },
+      {
+        startPage: 41,
+        endPage: 42,
+        score: 8,
+        reasons: ["deterministic_coverage", "document_end"],
+      },
+    ],
+    pageSignals: [],
+  }, config);
+  const highPriority = plans.filter((plan) => plan.priorityScore === 29);
+  const lowPriority = plans.find((plan) => plan.priorityScore === 8);
+  assert.deepEqual(
+    highPriority.map((plan) => plan.pageNumbers),
+    [[1], [2], [3]],
+  );
+  assert.ok(
+    highPriority.every((plan) =>
+      plan.reasons.includes("opaque_pdf_high_priority_single_page")
+    ),
+  );
+  assert.deepEqual(lowPriority?.pageNumbers, [41, 42]);
+});
+
+test("resume identity is stable and completed chunks are never eligible", () => {
+  const logicalKey = documentChunkLogicalKey(
+    "fallback:2952",
+    "content-hash",
+    [1, 2, 3],
+  );
+  assert.equal(
+    logicalKey,
+    documentChunkLogicalKey("fallback:2952", "content-hash", [1, 2, 3]),
+  );
+  const input = stablePdfChunkInput(
+    "content-hash",
+    [1, 2, 3],
+    "model",
+    "extraction-version",
+    "prompt-schema",
+    8_000,
+  );
+  assert.equal("chunk_bytes_sha256" in input, false);
+
+  const rows = [
+    { id: 10, status: "ignored", attempt_count: 1 },
+    { id: 11, status: "failed", attempt_count: 1 },
+    { id: 12, status: "completed", attempt_count: 1 },
+  ];
+  assert.equal(selectExistingChunkForResume(rows, 3)?.id, 12);
+  assert.equal(isChunkEligibleForAttempt(rows[2], 3), false);
+  assert.equal(isChunkEligibleForAttempt(rows[1], 3), true);
+  assert.equal(
+    isChunkEligibleForAttempt(
+      { status: "failed", attempt_count: 3 },
+      3,
+    ),
+    false,
+  );
 });
 
 test("request, token, and per-document cost guardrails stop safely", () => {
