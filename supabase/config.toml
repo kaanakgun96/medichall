@@ -25,3 +25,9 @@ verify_jwt = false
 # engine. No AI or internal cron authorization path exists here.
 [functions.tender-lot-matching]
 verify_jwt = false
+
+# JWT verification happens in-function with auth.getUser. Product mutations
+# then use the caller's token and the existing products RLS policies; the
+# browser never receives or exercises service-role access.
+[functions.product-profile]
+verify_jwt = false
