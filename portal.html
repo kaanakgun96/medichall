@@ -1082,6 +1082,7 @@ function toast(msg){
   setTimeout(()=>t.classList.remove("show"), 2600);
 }
 function friendlyError(e){
+  if(e && e.userMessage) return e.userMessage;
   const m = (e && e.message) ? e.message : "";
   console.error("Portal error:", m);
   if(m.includes("row-level security")) return "Permission error — please contact MedicHall support.";
@@ -1180,6 +1181,10 @@ async function getUser(){
 }
 function logout(){
   TOKEN = null; USER = null; COMPANY = null;
+  if(window.__unreadTimer){
+    clearInterval(window.__unreadTimer);
+    window.__unreadTimer = null;
+  }
   localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
   document.getElementById("app").style.display = "none";
   document.getElementById("headActions").style.display = "none";
@@ -2040,6 +2045,7 @@ function applyHash(){
   else if(h === "#dashboard" && COMPANY) showPanel("dashboard");
 }
 function startUnreadTimer(){
+  if(!TOKEN || !USER) return;
   if(window.__unreadTimer) return;
   window.__unreadTimer = setInterval(loadUnread, 20000);
 }
@@ -2047,6 +2053,7 @@ function startUnreadTimer(){
 /* ---------------- unread messages ---------------- */
 let UNREAD = {};
 async function loadUnread(){
+  if(!TOKEN || !USER) return;
   try{
     const ms = await db("rfq_messages?select=rfq_id,sender_id&is_read=eq.false");
     UNREAD = {};
@@ -3168,30 +3175,127 @@ function sessionExpired(){
   localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
   setTimeout(()=>location.reload(), 1400);
 }
-async function edgeCall(fn, body){
-  const res = await fetch(SUPABASE_URL + "/functions/v1/" + fn, {
-    method:"POST",
-    headers:{ "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  let data = await res.json().catch(()=>({}));
-  if(res.status === 401){
-    if(await refreshSession()){
-      const res2 = await fetch(SUPABASE_URL + "/functions/v1/" + fn, {
-        method:"POST",
-        headers:{ "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + TOKEN, "Content-Type":"application/json" },
-        body: JSON.stringify(body)
-      });
-      data = await res2.json().catch(()=>({}));
-      if(res2.ok) return data;
-      if(res2.status === 401){ sessionExpired(); }
-      throw new Error(data.error || data.message || (fn + " failed (HTTP " + res2.status + ")"));
-    }
-    sessionExpired();
-    throw new Error("Session expired");
+
+/* EDGE_FUNCTION_ERROR_PURE_START */
+function edgeErrorCode(data){
+  if(!data || typeof data !== "object") return "";
+  const value = data.code || data.error_code || data.errorCode;
+  return typeof value === "string" ? value.slice(0,80) : "";
+}
+function edgeBackendMessage(data){
+  if(!data || typeof data !== "object") return "";
+  const value = data.error || data.message || data.msg;
+  return typeof value === "string"
+    ? value.replace(/\s+/g," ").trim().slice(0,180)
+    : "";
+}
+function edgeFailureMessage(details){
+  const status = Number(details && details.status) || 0;
+  const code = String((details && details.code) || "").toUpperCase();
+  const backend = String((details && details.backendMessage) || "");
+  const combined = (code + " " + backend).toLowerCase();
+  if(code === "NETWORK_OR_CORS"){
+    return "Could not reach tender analysis. Check your connection and try again. If this continues, contact MedicHall support.";
   }
-  if(!res.ok) throw new Error(data.error || data.message || (fn + " failed (HTTP " + res.status + ")"));
-  return data;
+  if(status === 401 || code === "AUTHENTICATION_REQUIRED" || code === "INVALID_SESSION"){
+    return "Session expired — please sign in again.";
+  }
+  if(status === 403 || combined.includes("unauthorized company") || combined.includes("company access")){
+    return "Your account is not authorized to analyze this company.";
+  }
+  if(status === 409 || combined.includes("already processing") || combined.includes("already in progress")){
+    return "This tender analysis is already processing. Reopen it in a few minutes to see the result.";
+  }
+  if([502,503,504].includes(status) || ["BOOT_ERROR","FUNCTION_UNAVAILABLE"].includes(code)){
+    return "Tender analysis is temporarily unavailable. Please try again shortly.";
+  }
+  if(status === 400){
+    return backend
+      ? "Analysis request rejected: " + backend
+      : "The analysis request was not valid. Refresh the page and try again.";
+  }
+  return "Unexpected tender analysis error. Please try again.";
+}
+/* EDGE_FUNCTION_ERROR_PURE_END */
+
+function edgeRequestError(details){
+  const error = new Error(edgeFailureMessage(details));
+  error.userMessage = error.message;
+  error.edgeDetails = details;
+  return error;
+}
+async function edgeRequestOnce(endpoint, body){
+  try{
+    const res = await fetch(endpoint, {
+      method:"POST",
+      headers:{
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + TOKEN,
+        "Content-Type":"application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    const raw = await res.text();
+    let data = {};
+    if(raw){
+      try{ data = JSON.parse(raw); }
+      catch(_){ data = { message: raw.slice(0,180) }; }
+    }
+    return {
+      res,
+      data,
+      details:{
+        endpoint,
+        status:res.status,
+        code:edgeErrorCode(data),
+        backendMessage:edgeBackendMessage(data),
+        requestId:res.headers.get("sb-request-id") || res.headers.get("x-request-id") || ""
+      }
+    };
+  }catch(error){
+    const details = {
+      endpoint,
+      status:0,
+      code:"NETWORK_OR_CORS",
+      backendMessage:"",
+      requestId:""
+    };
+    console.error("Edge function network failure", {
+      endpoint:details.endpoint,
+      status:details.status,
+      code:details.code,
+      requestId:details.requestId,
+      cause:error && error.name ? error.name : "NetworkError"
+    });
+    throw edgeRequestError(details);
+  }
+}
+async function edgeCall(fn, body){
+  const endpoint = SUPABASE_URL + "/functions/v1/" + fn;
+  if(!TOKEN && !await refreshSession()){
+    sessionExpired();
+    throw edgeRequestError({ endpoint, status:401, code:"INVALID_SESSION", backendMessage:"", requestId:"" });
+  }
+  let result = await edgeRequestOnce(endpoint, body);
+  if(result.res.status === 401){
+    if(await refreshSession()){
+      result = await edgeRequestOnce(endpoint, body);
+      if(result.res.ok) return result.data;
+      if(result.res.status === 401) sessionExpired();
+    }else{
+      sessionExpired();
+    }
+  }
+  if(!result.res.ok){
+    console.error("Edge function request failed", {
+      endpoint:result.details.endpoint,
+      status:result.details.status,
+      code:result.details.code || "HTTP_ERROR",
+      requestId:result.details.requestId
+    });
+    throw edgeRequestError(result.details);
+  }
+  return result.data;
 }
 const sleep = (ms)=>new Promise(r=>setTimeout(r, ms));
 
