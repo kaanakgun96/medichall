@@ -56,6 +56,7 @@ import {
   startPipelineRun,
   startPipelineStage,
 } from "../_shared/matching-observability.ts";
+import { refreshTenderLotMatches } from "../_shared/lot-matching-service.ts";
 
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",
@@ -1335,7 +1336,24 @@ async function refreshRequestingCompanyMatch(
     p_tender_id: Number(job.tender_id),
     p_trace_id: pipelineRun.traceId,
   });
-  const errors = [explanation.error, scoring.error]
+  let lotMatching:
+    | Awaited<ReturnType<typeof refreshTenderLotMatches>>
+    | null = null;
+  let lotMatchingError: string | null = null;
+  try {
+    lotMatching = await refreshTenderLotMatches(adminClient, {
+      companyId,
+      tenderId: Number(job.tender_id),
+      traceId: pipelineRun.traceId,
+    });
+  } catch (error) {
+    lotMatchingError = sanitizeMessage(error);
+  }
+  const errors = [
+    explanation.error,
+    scoring.error,
+    lotMatchingError ? { message: lotMatchingError } : null,
+  ]
     .filter(Boolean)
     .map((error) => sanitizeMessage(error?.message));
   await finishPipelineStage(
@@ -1348,6 +1366,12 @@ async function refreshRequestingCompanyMatch(
         company_scope: "requesting_company_only",
         explanation_refreshed: !explanation.error,
         score_v2_refreshed: !scoring.error,
+        lot_matches_refreshed: !lotMatchingError,
+        lot_match_count: lotMatching?.normalized_lot_count ?? 0,
+        lot_matches_changed: lotMatching?.changed_count ?? 0,
+        lot_matches_reused: lotMatching?.reused_count ?? 0,
+        lot_matches_failed: lotMatching?.failed_count ?? 0,
+        lot_match_calculation_version: lotMatching?.calculation_version ?? null,
       },
     },
   );
