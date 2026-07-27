@@ -53,6 +53,8 @@ function product(
     ref: "MH-GLOVE-STERILE",
     name: "Sterile nitrile examination gloves",
     category: "Examination gloves",
+    normalized_category: "medical_gloves",
+    product_subtype: "examination gloves",
     description:
       "Powder free, single use sterile nitrile examination gloves supplied in a box of 100.",
     material: "nitrile",
@@ -61,9 +63,13 @@ function product(
     single_use: true,
     reusable: false,
     packaging: "Box of 100",
+    units_per_package: 100,
     certifications: ["CE"],
+    regulatory_class: "Class I",
+    sterilization_method: "EO",
     production_capacity: 25_000,
     capacity_unit: "pieces",
+    capacity_period: "month",
     extra_specifications: ["powder free", "single use"],
     ...overrides,
   };
