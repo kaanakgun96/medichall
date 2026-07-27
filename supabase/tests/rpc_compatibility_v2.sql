@@ -55,6 +55,11 @@ begin
   ) is null then
     raise exception 'Tender upload registration RPC signature is missing';
   end if;
+  if to_regprocedure(
+    'public.get_tender_lot_matches_v1(bigint,bigint)'
+  ) is null then
+    raise exception 'Lot-level tender match RPC signature is missing';
+  end if;
 
   if to_regprocedure(
     'public.calculate_opportunity_match_score_v2(bigint,bigint)'
