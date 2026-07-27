@@ -9,6 +9,14 @@ import {
   normalizeTenderLots,
 } from "./lot-matching-v1.ts";
 import { stableVersionHash } from "./matching-observability.ts";
+import {
+  normalizeDimensions,
+  normalizeMaterials,
+  normalizePackageQuantity,
+  normalizeProductCategory,
+  normalizeSterility,
+  normalizeUseType,
+} from "./product-profile-v1.ts";
 
 type DataClient = {
   from: (table: string) => unknown;
@@ -119,34 +127,102 @@ export function mapCompanyProduct(
   const id = numberValue(value.id);
   const name = text(value.name, 1_000);
   if (!Number.isInteger(id) || !name) return null;
-  const specifications = [
-    ...flattenSpecificationValues(value.specifications),
-    ...flattenSpecificationValues(value.technical_specifications),
-    ...flattenSpecificationValues(value.attributes),
-  ];
+  const description = text(value.description, 4_000);
+  const sources = record(value.matching_profile_sources);
+  const hasSource = (field: string) =>
+    Object.prototype.hasOwnProperty.call(sources, field);
+  const fallbackCorpus = [name, description].filter(Boolean).join(" ");
+  const explicitMaterial = text(value.material, 1_000);
+  const fallbackMaterials = hasSource("material")
+    ? []
+    : normalizeMaterials(fallbackCorpus);
+  const explicitDimensions = text(
+    value.dimensions ?? value.size ?? value.measurements,
+    1_000,
+  );
+  const fallbackDimensions = hasSource("dimensions")
+    ? []
+    : normalizeDimensions(fallbackCorpus);
+  const structuredSterility = text(value.sterility_status, 40);
+  const fallbackSterility = hasSource("sterility_status")
+    ? { value: "unknown" as const, ambiguous: false }
+    : normalizeSterility(
+      value.sterility ?? value.sterile ?? fallbackCorpus,
+    );
+  const structuredUseType = text(value.use_type, 40);
+  const fallbackUseType = hasSource("use_type")
+    ? { value: "unknown" as const, ambiguous: false }
+    : normalizeUseType(fallbackCorpus);
+  const specifications = stringArray(value.technical_specifications).length ||
+      hasSource("technical_specifications")
+    ? stringArray(value.technical_specifications)
+    : [
+      ...flattenSpecificationValues(value.specifications),
+      ...flattenSpecificationValues(value.attributes),
+    ];
+  const unitsPerPackage = numberValue(value.units_per_package) ??
+    (hasSource("units_per_package")
+      ? null
+      : normalizePackageQuantity(fallbackCorpus));
   return {
     id: id as number,
     ref: text(value.ref, 300),
     name,
     category: text(value.category, 500),
-    description: text(value.description, 4_000),
-    material: text(value.material, 1_000),
-    dimensions: text(
-      value.dimensions ?? value.size ?? value.measurements,
-      1_000,
-    ),
-    sterility: typeof value.sterility === "boolean"
-      ? value.sterility
-      : text(value.sterility ?? value.sterile, 300),
-    single_use: booleanValue(value.single_use ?? value.disposable),
-    reusable: booleanValue(value.reusable),
+    normalized_category: text(value.normalized_category, 120) ??
+      (hasSource("normalized_category")
+        ? null
+        : normalizeProductCategory(name, value.category)),
+    product_subtype: text(value.product_subtype, 160),
+    description,
+    material: explicitMaterial || fallbackMaterials.join(" + ") || null,
+    dimensions: explicitDimensions ||
+      (fallbackDimensions.length ? fallbackDimensions.join("; ") : null),
+    sterility: structuredSterility === "sterile"
+      ? true
+      : structuredSterility === "non_sterile"
+      ? false
+      : fallbackSterility.value === "sterile"
+      ? true
+      : fallbackSterility.value === "non_sterile"
+      ? false
+      : null,
+    single_use: structuredUseType === "single_use"
+      ? true
+      : structuredUseType === "reusable"
+      ? false
+      : booleanValue(value.single_use ?? value.disposable) ??
+        (fallbackUseType.value === "single_use"
+          ? true
+          : fallbackUseType.value === "reusable"
+          ? false
+          : null),
+    reusable: structuredUseType === "reusable"
+      ? true
+      : structuredUseType === "single_use"
+      ? false
+      : booleanValue(value.reusable) ??
+        (fallbackUseType.value === "reusable"
+          ? true
+          : fallbackUseType.value === "single_use"
+          ? false
+          : null),
     packaging: text(
-      value.packaging ?? value.package_description ?? value.pack_size,
+      value.packaging_description ??
+        value.packaging ??
+        value.package_description ??
+        value.pack_size,
       1_000,
-    ),
+    ) ?? (unitsPerPackage ? `${unitsPerPackage} units per package` : null),
+    units_per_package: unitsPerPackage,
     certifications: stringArray(
-      value.certifications ?? value.required_certifications,
+      stringArray(value.product_certifications).length ||
+        hasSource("product_certifications")
+        ? value.product_certifications
+        : value.certifications ?? value.required_certifications,
     ),
+    regulatory_class: text(value.regulatory_class, 120),
+    sterilization_method: text(value.sterilization_method, 120),
     production_capacity: numberValue(
       value.production_capacity ?? value.capacity,
     ),
@@ -154,6 +230,7 @@ export function mapCompanyProduct(
       value.capacity_unit ?? value.production_capacity_unit,
       120,
     ),
+    capacity_period: text(value.capacity_period, 40),
     extra_specifications: stringArray(specifications),
   };
 }
