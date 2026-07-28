@@ -1,4 +1,4 @@
--- Run after 202607280002 through 202607280004.
+-- Run after 202607280002 through 202607280007.
 -- Exercises tenant isolation, lifecycle concurrency, idempotency and audit
 -- immutability. Every fixture is rolled back.
 
@@ -50,7 +50,11 @@ begin
     'public.send_matchmaking_relationship_message(bigint,text,uuid)',
     'public.upsert_matchmaking_private_note(bigint,bigint,text,uuid)',
     'public.submit_matchmaking_meeting_outcome(bigint,text,text,text,timestamptz,uuid)',
-    'public.authorize_matchmaking_video_action(bigint,text)'
+    'public.authorize_matchmaking_video_action(bigint,text)',
+    'public.get_portal_notification_center(integer)',
+    'public.mark_portal_notifications_read(bigint[])',
+    'public.revise_matchmaking_meeting_proposal(bigint,integer,text,text,text,text,jsonb,uuid)',
+    'public.reschedule_matchmaking_meeting(bigint,integer,text,text,text,text,jsonb,uuid)'
   ]
   loop
     if to_regprocedure(required_rpc) is null then
@@ -72,7 +76,8 @@ begin
     'public.mm_add_notification(uuid,uuid,bigint,bigint,text,text,text,text,text,jsonb)',
     'public.mm_validate_proposal_slots(jsonb,text,boolean)',
     'public.mm_meeting_snapshot(bigint)',
-    'public.mm_has_service_role()'
+    'public.mm_has_service_role()',
+    'public.portal_add_notification(uuid,uuid,text,bigint,text,text,text,text,text,text,boolean,jsonb)'
   ]
   loop
     if has_function_privilege('anon', required_rpc, 'execute')
@@ -414,6 +419,42 @@ select set_config(
 );
 set local role authenticated;
 
+do $notification_read_is_not_resolution$
+declare
+  center jsonb;
+  notification_id bigint;
+  after_mark jsonb;
+  notification_state record;
+begin
+  center := public.get_portal_notification_center(100);
+  select (item ->> 'id')::bigint
+  into notification_id
+  from jsonb_array_elements(center -> 'notifications') item
+  where (item ->> 'meeting_id')::bigint =
+    current_setting('medichall.mm_meeting', true)::bigint
+    and (item ->> 'action_required')::boolean
+  limit 1;
+
+  if notification_id is null
+     or (center ->> 'action_required_count')::integer < 1 then
+    raise exception 'Recipient did not receive an actionable meeting notification';
+  end if;
+
+  after_mark := public.mark_portal_notifications_read(
+    array[notification_id]::bigint[]
+  );
+  select read_at, resolved_at
+  into notification_state
+  from public.matchmaking_notifications
+  where id = notification_id;
+
+  if notification_state.read_at is null
+     or notification_state.resolved_at is not null then
+    raise exception 'Reading a notification incorrectly resolved its action';
+  end if;
+end
+$notification_read_is_not_resolution$;
+
 do $view_and_counter$
 declare
   viewed jsonb;
@@ -441,6 +482,10 @@ begin
       jsonb_build_object(
         'start_at', now() + interval '6 days',
         'end_at', now() + interval '6 days 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '7 days',
+        'end_at', now() + interval '7 days 30 minutes'
       )
     ),
     'Europe/Berlin',
@@ -448,7 +493,7 @@ begin
   );
   if countered ->> 'status' <> 'counter_proposed'
      or (countered ->> 'proposal_round')::integer <> 2
-     or jsonb_array_length(countered -> 'proposals') <> 5 then
+     or jsonb_array_length(countered -> 'proposals') <> 6 then
     raise exception 'Counter-proposal did not preserve immutable history';
   end if;
 end
@@ -712,6 +757,14 @@ begin
       jsonb_build_object(
         'start_at', now() + interval '8 days',
         'end_at', now() + interval '8 days 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '8 days 1 hour',
+        'end_at', now() + interval '8 days 1 hour 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '8 days 2 hours',
+        'end_at', now() + interval '8 days 2 hours 30 minutes'
       )
     ),
     false,
@@ -769,6 +822,14 @@ begin
         jsonb_build_object(
           'start_at', now() + interval '9 days',
           'end_at', now() + interval '9 days 30 minutes'
+        ),
+        jsonb_build_object(
+          'start_at', now() + interval '9 days 1 hour',
+          'end_at', now() + interval '9 days 1 hour 30 minutes'
+        ),
+        jsonb_build_object(
+          'start_at', now() + interval '9 days 2 hours',
+          'end_at', now() + interval '9 days 2 hours 30 minutes'
         )
       ),
       'Europe/Berlin',
@@ -805,6 +866,14 @@ begin
       jsonb_build_object(
         'start_at', now() + interval '10 days',
         'end_at', now() + interval '10 days 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '10 days 1 hour',
+        'end_at', now() + interval '10 days 1 hour 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '10 days 2 hours',
+        'end_at', now() + interval '10 days 2 hours 30 minutes'
       )
     ),
     false,
@@ -894,6 +963,126 @@ reset role;
 select set_config(
   'request.jwt.claims',
   jsonb_build_object(
+    'sub', current_setting('medichall.mm_user_one', true),
+    'role', 'authenticated'
+  )::text,
+  true
+);
+set local role authenticated;
+
+do $create_reschedule_fixture$
+declare
+  response jsonb;
+begin
+  response := public.propose_matchmaking_meeting(
+    current_setting('medichall.mm_connection', true)::bigint,
+    'Reschedule fixture',
+    'Verify atomic cancellation and replacement.',
+    'Europe/Istanbul',
+    'English',
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_at', now() + interval '20 days',
+        'end_at', now() + interval '20 days 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '21 days',
+        'end_at', now() + interval '21 days 30 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '22 days',
+        'end_at', now() + interval '22 days 30 minutes'
+      )
+    ),
+    false,
+    '73000000-0000-4000-8000-000000000001'::uuid
+  );
+  perform set_config(
+    'medichall.mm_reschedule_meeting',
+    response ->> 'id',
+    true
+  );
+end
+$create_reschedule_fixture$;
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', current_setting('medichall.mm_user_two', true),
+    'role', 'authenticated'
+  )::text,
+  true
+);
+set local role authenticated;
+
+do $accept_and_reschedule$
+declare
+  proposal_id bigint;
+  accepted jsonb;
+  replacement jsonb;
+  original_status text;
+begin
+  select id
+  into proposal_id
+  from public.matchmaking_meeting_proposals
+  where meeting_id =
+      current_setting('medichall.mm_reschedule_meeting', true)::bigint
+    and proposal_round = 1
+    and slot_number = 1;
+
+  accepted := public.respond_matchmaking_meeting(
+    current_setting('medichall.mm_reschedule_meeting', true)::bigint,
+    'accept',
+    1,
+    '73000000-0000-4000-8000-000000000002'::uuid,
+    proposal_id,
+    null,
+    null,
+    null
+  );
+  replacement := public.reschedule_matchmaking_meeting(
+    current_setting('medichall.mm_reschedule_meeting', true)::bigint,
+    (accepted ->> 'state_version')::integer,
+    'Rescheduled fixture',
+    'Replacement meeting with three options.',
+    'Europe/Berlin',
+    'English',
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_at', now() + interval '23 days',
+        'end_at', now() + interval '23 days 45 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '24 days',
+        'end_at', now() + interval '24 days 45 minutes'
+      ),
+      jsonb_build_object(
+        'start_at', now() + interval '25 days',
+        'end_at', now() + interval '25 days 45 minutes'
+      )
+    ),
+    '73000000-0000-4000-8000-000000000003'::uuid
+  );
+
+  select status
+  into original_status
+  from public.matchmaking_meeting_requests
+  where id =
+    current_setting('medichall.mm_reschedule_meeting', true)::bigint;
+
+  if original_status <> 'cancelled'
+     or replacement ->> 'status' <> 'proposed'
+     or jsonb_array_length(replacement -> 'proposals') <> 3 then
+    raise exception 'Rescheduling did not atomically replace the meeting';
+  end if;
+end
+$accept_and_reschedule$;
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
     'sub', current_setting('medichall.mm_user_three', true),
     'role', 'authenticated'
   )::text,
@@ -906,6 +1095,8 @@ declare
   visible_meetings integer;
   visible_proposals integer;
   visible_events integer;
+  visible_notifications integer;
+  portal_center jsonb;
 begin
   select count(*) into visible_meetings
   from public.matchmaking_meeting_requests
@@ -916,10 +1107,16 @@ begin
   select count(*) into visible_events
   from public.matchmaking_meeting_events
   where meeting_id = current_setting('medichall.mm_meeting', true)::bigint;
+  select count(*) into visible_notifications
+  from public.matchmaking_notifications
+  where meeting_id = current_setting('medichall.mm_meeting', true)::bigint;
+  portal_center := public.get_portal_notification_center(200);
 
   if visible_meetings <> 0
      or visible_proposals <> 0
-     or visible_events <> 0 then
+     or visible_events <> 0
+     or visible_notifications <> 0
+     or jsonb_array_length(portal_center -> 'notifications') <> 0 then
     raise exception 'Third tenant can read foreign meeting lifecycle data';
   end if;
 

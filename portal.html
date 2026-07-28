@@ -516,7 +516,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .mm-detail-modal{max-width:900px;max-height:90vh;overflow:auto}
 .mm-timezone-note{font-size:.73rem;background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:12px 0}
 .mm-slot-list{display:grid;gap:8px}
-.mm-slot{display:grid;grid-template-columns:70px 1fr minmax(110px,.7fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px}
+.mm-slot{display:grid;grid-template-columns:70px minmax(130px,1fr) minmax(100px,.7fr) minmax(110px,.7fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px}
 .mm-slot span{font-size:.72rem;font-weight:700}
 .mm-slot input{padding:8px;font-size:.78rem}
 .mm-slot small{color:var(--ink-soft);font-size:.66rem}
@@ -540,6 +540,25 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .mm-video-frame{background:#002C3B;border-radius:12px;overflow:hidden;aspect-ratio:16/9;margin-top:10px}
 .mm-video-frame iframe{border:0;width:100%;height:100%;display:block}
 .mm-calendar-actions{margin-top:9px}
+.portal-bell{position:relative;width:38px;height:38px;border:1.5px solid var(--line);border-radius:50%;background:#fff;color:var(--ink);font-size:1rem;display:grid;place-items:center;cursor:pointer}
+.portal-bell:hover,.portal-bell[aria-expanded="true"]{border-color:var(--teal);background:var(--teal-tint)}
+.portal-bell-badge{position:absolute;right:-5px;top:-6px;min-width:19px;height:19px;border-radius:100px;background:#D63D51;color:#fff;border:2px solid #fff;padding:0 4px;font:700 .58rem/15px var(--mono);display:none;text-align:center}
+.portal-notification-modal{max-width:720px;max-height:86vh;overflow:auto}
+.portal-notification-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px}
+.portal-notification-toolbar button{border:1px solid var(--line);background:#fff;border-radius:100px;padding:6px 10px;font-size:.72rem;font-weight:600;color:var(--ink-soft)}
+.portal-notification-toolbar button.active{background:var(--teal-deep);border-color:var(--teal-deep);color:#fff}
+.portal-notification-card{border:1.5px solid var(--line);border-radius:12px;padding:13px;margin-bottom:8px;background:#fff}
+.portal-notification-card.unread{border-color:#8EC9E5;background:#F5FBFE}
+.portal-notification-card.action{border-left:5px solid #D99F19}
+.portal-notification-card.resolved{opacity:.72}
+.portal-notification-source{font:600 .61rem var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
+.portal-notification-card p{font-size:.78rem;color:var(--ink-soft);margin:3px 0 5px}
+.portal-notification-card time{font:400 .62rem var(--mono);color:var(--ink-soft)}
+.portal-work-summary{margin:14px 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.portal-work-item{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px;text-align:left;cursor:pointer}
+.portal-work-item strong{display:block;font:700 1.15rem var(--mono)}
+.portal-work-item span{font-size:.72rem;color:var(--ink-soft)}
+.portal-work-item.action{border-color:#E4C063;background:#FFF9EB}
 .mm-shell :focus-visible,.mm-modal :focus-visible,.mm-detail-modal :focus-visible,.mm-video-modal :focus-visible{outline:3px solid #1B87B3;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){
   .mm-shell *,.mm-modal *,.mm-detail-modal *,.mm-video-modal *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
@@ -548,6 +567,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .mm-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
   .mm-filters{grid-template-columns:1fr 1fr}
   .mm-detail-grid{grid-template-columns:1fr}
+  .portal-work-summary{grid-template-columns:1fr 1fr}
 }
 @media(max-width:560px){
   .mm-hero{padding:18px}
@@ -579,6 +599,9 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
     </span>
     <div id="headActions" style="display:none;gap:10px;align-items:center">
       <a class="btn btn-ghost btn-sm" href="index.html">View marketplace →</a>
+      <button class="portal-bell" id="portalNotificationBell" type="button" aria-label="Notifications" aria-expanded="false" onclick="togglePortalNotifications()">
+        🔔<span class="portal-bell-badge" id="portalNotificationBadge"></span>
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
     </div>
   </div>
@@ -672,12 +695,13 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <div class="tabs">
         <button class="tab active" data-panel="b-favorites" onclick="showPanel('b-favorites')">Favorites <span class="n" id="nFavs">0</span></button>
         <button class="tab" data-panel="b-requests" onclick="showPanel('b-requests')">My requests <span class="n" id="nMyRfq">0</span><span class="n" id="myRfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
-        <button class="tab" data-panel="b-matchmaking" onclick="showPanel('b-matchmaking')">Matchmaking <span class="n" id="bMmUnread" style="display:none"></span></button>
+        <button class="tab" data-panel="b-matchmaking" onclick="showPanel('b-matchmaking')">Matchmaking</button>
         <button class="tab" data-panel="b-profile" onclick="showPanel('b-profile')">Profile</button>
         <button class="tab" data-panel="b-ai" onclick="showPanel('b-ai')">AI Assistant</button>
       </div>
 
       <div class="panel active" id="panel-b-favorites">
+        <div class="portal-work-summary" id="bPortalWorkSummary"></div>
         <div class="panel-head"><h2>Saved products</h2><a class="btn btn-solid btn-sm" href="products.html">Browse catalog ↗</a></div>
         <div class="card" id="favList"><div class="loading">Loading…</div></div>
       </div>
@@ -729,7 +753,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
         <button class="tab" data-panel="products" onclick="showPanel('products')">My products <span class="n" id="nProducts">0</span></button>
         <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ inbox <span class="n" id="nRfq">0</span><span class="n" id="rfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
         <button class="tab" data-panel="opps" onclick="showPanel('opps')">Opportunities <span class="n" id="nOpps">0</span></button>
-        <button class="tab" data-panel="matchmaking" onclick="showPanel('matchmaking')">Matchmaking <span class="n" id="mmUnread" style="display:none"></span></button>
+        <button class="tab" data-panel="matchmaking" onclick="showPanel('matchmaking')">Matchmaking</button>
         <button class="tab" data-panel="ai" onclick="showPanel('ai')">AI Assistant</button>
       </div>
 
@@ -745,6 +769,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">Open tenders</span><strong id="mTenders">—</strong><small>Relevant procurement notices</small></div>
           <div class="metric-card" onclick="showPanel('rfq')"><span class="metric-label">RFQ inbox</span><strong id="mRfq">—</strong><small>Quotation requests</small></div>
         </div>
+        <div class="portal-work-summary" id="portalWorkSummary"></div>
         <div class="dashboard-grid">
           <div class="section-card">
             <h3>Top opportunities</h3>
@@ -1176,6 +1201,16 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   </div>
 </div>
 
+<div class="modal-backdrop" id="portalNotificationModal" onclick="if(event.target===this)closePortalNotifications()">
+  <div class="modal portal-notification-modal" role="dialog" aria-modal="true" aria-labelledby="portalNotificationTitle">
+    <button class="modal-close" onclick="closePortalNotifications()" aria-label="Close notifications">✕</button>
+    <h3 id="portalNotificationTitle">Notifications</h3>
+    <p class="mm-dialog-sub" id="portalNotificationSummary">Your work across meetings, connections, messages and quotation requests.</p>
+    <div class="portal-notification-toolbar" id="portalNotificationFilters"></div>
+    <div id="portalNotificationList"><div class="loading">Loading notifications…</div></div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="mmMeetingModal" onclick="if(event.target===this)closeMmMeetingModal()">
   <div class="modal mm-modal" role="dialog" aria-modal="true" aria-labelledby="mmMeetingTitle">
     <button class="modal-close" onclick="closeMmMeetingModal()" aria-label="Close">✕</button>
@@ -1194,14 +1229,15 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           <option value="90">90 minutes</option>
         </select>
       </div>
+      <div><label for="mm-meeting-timezone">Timezone</label><select id="mm-meeting-timezone" onchange="mmUpdateTimezoneNote()"></select></div>
     </div>
     <label for="mm-meeting-agenda">Agenda</label>
     <textarea id="mm-meeting-agenda" rows="3" maxlength="4000" placeholder="What should both parties prepare and discuss?"></textarea>
     <div class="mm-timezone-note" id="mmTimezoneNote"></div>
     <div class="mm-slot-list">
-      <div class="mm-slot"><span>Option 1</span><input id="mm-slot-1" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-1"></small></div>
-      <div class="mm-slot"><span>Option 2</span><input id="mm-slot-2" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-2"></small></div>
-      <div class="mm-slot"><span>Option 3</span><input id="mm-slot-3" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-3"></small></div>
+      <div class="mm-slot"><span>Option 1</span><input id="mm-slot-date-1" aria-label="Option 1 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-1" aria-label="Option 1 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-1"></small></div>
+      <div class="mm-slot"><span>Option 2</span><input id="mm-slot-date-2" aria-label="Option 2 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-2" aria-label="Option 2 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-2"></small></div>
+      <div class="mm-slot"><span>Option 3</span><input id="mm-slot-date-3" aria-label="Option 3 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-3" aria-label="Option 3 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-3"></small></div>
     </div>
     <p class="mm-form-error" id="mmMeetingError" role="alert"></p>
     <div class="actions">
@@ -1376,6 +1412,10 @@ function logout(){
   if(typeof MM!=="undefined"){
     clearInterval(MM.workspaceTimer); clearInterval(MM.detailTimer);
     MM.workspaceTimer=null; MM.detailTimer=null; MM.data=null; MM.loaded=false;
+  }
+  if(typeof PN!=="undefined"){
+    clearInterval(PN.timer);PN.timer=null;
+    PN.data={notifications:[],unread_count:0,action_required_count:0,badge_count:0};
   }
   localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
   document.getElementById("app").style.display = "none";
@@ -1649,6 +1689,7 @@ async function enterApp(){
     const dw = document.getElementById("dashWelcome"); if(dw && COMPANY) dw.textContent = "Welcome back, " + (COMPANY.name || "partner") + " 👋";
     setTimeout(updateDashboard, 1500); setTimeout(updateDashboard, 4000);
     setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
+    setTimeout(()=>loadPortalNotifications(true), 400);
     applyHash(); startUnreadTimer();
   }else if(BUYER){
     setBadge("Buyer Account");
@@ -1660,6 +1701,7 @@ async function enterApp(){
     loadFavorites(); loadUnread();
     (async()=>{ await loadMyRequests(); loadBuyerOffers(); })();
     setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
+    setTimeout(()=>loadPortalNotifications(true), 400);
     applyHash(); startUnreadTimer();
   }else if(JUSTSIGNED){
     JUSTSIGNED = false;
@@ -1968,7 +2010,7 @@ function renderRfq(){
   const el = document.getElementById("rfqList");
   if(!RFQS.length){ el.innerHTML = '<div class="empty"><b>No quotation requests yet</b>When buyers request a quote for your products, they appear here.</div>'; return; }
   el.innerHTML = RFQS.map(r=>`
-    <div class="rfq-item">
+    <div class="rfq-item" id="rfq-item-${r.id}">
       <div class="rfq-top">
         <b>${esc(r.product_name || "General inquiry")} ${r.product_ref?`<span class="mono" style="color:var(--ink-soft)">· ${esc(r.product_ref)}</span>`:""}</b>
         <time>${new Date(r.created_at).toLocaleString()}</time>
@@ -2124,7 +2166,7 @@ function renderMyRequests(){
     const many = g.rows.length > 1;
     const offerCount = g.rows.filter(r=>BUYEROFFERS[r.id]).length;
     return `
-    <div class="rfq-item">
+    <div class="rfq-item" data-rfq-ids="${g.rows.map(row=>row.id).join(" ")}">
       <div class="rfq-top">
         <b>${esc(r0.product_name || "General inquiry")} ${r0.product_ref?`<span class="mono" style="color:var(--ink-soft)">· ${esc(r0.product_ref)}</span>`:""}
         ${many?`<span class="pill" style="background:var(--teal-tint);color:var(--teal-deep);margin-left:6px">sent to ${g.rows.length} manufacturers</span>`:""}
@@ -2237,10 +2279,25 @@ function applyHash(){
   else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
   else if(h === "#opportunities" && COMPANY) showPanel("opps");
   else if(h === "#dashboard" && COMPANY) showPanel("dashboard");
+  else if(/^#rfq-request=\d+$/.test(h)){
+    showPanel(COMPANY ? "rfq" : "b-requests");
+    setTimeout(()=>openRfqDeepLink(Number(h.split("=")[1]),false),120);
+  }
+  else if(/^#rfq-chat=\d+$/.test(h)){
+    showPanel(COMPANY ? "rfq" : "b-requests");
+    setTimeout(()=>openRfqDeepLink(Number(h.split("=")[1]),true),120);
+  }
   else if(h.startsWith("#matchmaking")){
     showPanel(COMPANY ? "matchmaking" : "b-matchmaking");
     setTimeout(mmApplyDeepLink, 0);
   }
+}
+function openRfqDeepLink(rfqId,openConversation,attempt=0){
+  const row=COMPANY?document.getElementById("rfq-item-"+rfqId):[...document.querySelectorAll("[data-rfq-ids]")].find(item=>item.dataset.rfqIds.split(" ").includes(String(rfqId)));
+  const record=(COMPANY?RFQS:MYRFQS).find(item=>Number(item.id)===Number(rfqId));
+  if((!row||!record)&&attempt<12){setTimeout(()=>openRfqDeepLink(rfqId,openConversation,attempt+1),250);return;}
+  row?.scrollIntoView({behavior:"smooth",block:"center"});
+  if(openConversation&&record)openChat(rfqId);
 }
 function startUnreadTimer(){
   if(!TOKEN || !USER) return;
@@ -4144,8 +4201,8 @@ globalThis.MatchmakingUtils = (()=>{
   const array = value => Array.isArray(value) ? value : [];
   const csv = value => text(value).split(",").map(item=>item.trim()).filter(Boolean);
   const statusLabels = {
-    draft:"Draft",proposed:"Proposed",awaiting_response:"Awaiting response",
-    counter_proposed:"Counter-proposed",accepted:"Accepted — confirming",
+    draft:"Draft",proposed:"Meeting request",awaiting_response:"Awaiting response",
+    counter_proposed:"New time proposal",accepted:"Accepted",
     confirmed:"Confirmed",declined:"Declined",cancelled:"Cancelled",
     completed:"Completed",no_show:"No-show",expired:"Expired",
     pending:"Pending response",connected:"Connected",saved:"Saved",
@@ -4155,6 +4212,63 @@ globalThis.MatchmakingUtils = (()=>{
   function statusLabel(value){
     const key=text(value).toLowerCase();
     return statusLabels[key] || key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+  }
+  function activeProposer(meeting){
+    const proposals=array(meeting&&meeting.proposals)
+      .filter(proposal=>Number(proposal.proposal_round)===Number(meeting&&meeting.proposal_round)&&proposal.status==="active");
+    return proposals[0]&&proposals[0].proposed_by_profile_id||null;
+  }
+  function meetingRole(meeting,currentProfileId){
+    const current=text(currentProfileId);
+    const proposer=text(activeProposer(meeting));
+    if(proposer&&proposer===current)return "proposer";
+    if(text(meeting&&meeting.requester_profile_id)===current)return "requester";
+    return "recipient";
+  }
+  function meetingStatusLabel(meeting,currentProfileId){
+    const status=text(meeting&&meeting.status).toLowerCase();
+    const role=meetingRole(meeting,currentProfileId);
+    if(status==="draft")return "Draft";
+    if(status==="proposed"||status==="awaiting_response"){
+      return role==="proposer"||role==="requester"?"Awaiting response":"Action required";
+    }
+    if(status==="counter_proposed"){
+      return role==="proposer"?"Awaiting response":"New time proposal";
+    }
+    if(status==="accepted"||status==="confirmed")return "Confirmed";
+    return statusLabel(status);
+  }
+  function meetingPermissions(meeting,currentProfileId){
+    const status=text(meeting&&meeting.status).toLowerCase();
+    const role=meetingRole(meeting,currentProfileId);
+    const awaiting=["proposed","awaiting_response","counter_proposed"].includes(status);
+    return {
+      role,
+      canAccept:awaiting&&role!=="proposer",
+      canCounter:awaiting&&role!=="proposer",
+      canDecline:awaiting&&role!=="proposer",
+      canEdit:(status==="draft"&&text(meeting&&meeting.requester_profile_id)===text(currentProfileId))||(awaiting&&role==="proposer"),
+      canWithdraw:awaiting&&role==="proposer"
+    };
+  }
+  function categorizeMeetings(meetings,nowValue=Date.now()){
+    const now=Number(nowValue);
+    const result={requests:[],upcoming:[],past:[]};
+    array(meetings).forEach(meeting=>{
+      const status=text(meeting.status).toLowerCase();
+      const end=Date.parse(meeting.confirmed_end||meeting.confirmed_start||"");
+      if(["draft","proposed","awaiting_response","counter_proposed"].includes(status))result.requests.push(meeting);
+      else if(["accepted","confirmed"].includes(status)&&(!Number.isFinite(end)||end>=now))result.upcoming.push(meeting);
+      else result.past.push(meeting);
+    });
+    return result;
+  }
+  function badgeLabel(value){
+    const count=Math.max(0,Math.floor(Number(value)||0));
+    if(!count)return "";
+    if(count>=100)return "99+";
+    if(count>=10)return "9+";
+    return String(count);
   }
   function safeHttpUrl(value){
     try{
@@ -4218,27 +4332,56 @@ globalThis.MatchmakingUtils = (()=>{
       outlook:"https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent&subject="+encodeURIComponent(title)+"&startdt="+encodeURIComponent(new Date(meeting.confirmed_start).toISOString())+"&enddt="+encodeURIComponent(new Date(meeting.confirmed_end).toISOString())+"&body="+encodeURIComponent(description)+"&location="+encodeURIComponent(deepLink)
     };
   }
-  function proposalSlots(localValues,durationMinutes){
+  function wallTimeToIso(dateValue,timeValue,timeZone){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(text(dateValue))||!/^\d{2}:\d{2}$/.test(text(timeValue)))throw new Error("Choose a valid date and time for every option.");
+    const [year,month,day]=dateValue.split("-").map(Number);
+    const [hour,minute]=timeValue.split(":").map(Number);
+    let guess=Date.UTC(year,month-1,day,hour,minute);
+    const formatter=new Intl.DateTimeFormat("en-CA",{timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+    for(let attempt=0;attempt<3;attempt++){
+      const parts=Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(part=>part.type!=="literal").map(part=>[part.type,Number(part.value)]));
+      const represented=Date.UTC(parts.year,parts.month-1,parts.day,parts.hour,parts.minute);
+      guess+=Date.UTC(year,month-1,day,hour,minute)-represented;
+    }
+    const verification=Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));
+    if(`${verification.year}-${verification.month}-${verification.day}`!==dateValue||`${verification.hour}:${verification.minute}`!==timeValue)throw new Error("That local time does not exist in the selected timezone.");
+    return new Date(guess).toISOString();
+  }
+  function proposalSlots(localValues,durationMinutes,timeZone){
     const duration=Number(durationMinutes);
     if(!Number.isFinite(duration)||duration<15||duration>240) throw new Error("Choose a valid duration.");
-    const starts=localValues.filter(Boolean).map(value=>new Date(value));
-    if(!starts.length||starts.length>3||starts.some(date=>Number.isNaN(date.getTime()))) throw new Error("Choose between one and three valid times.");
+    if(!Array.isArray(localValues)||localValues.length!==3)throw new Error("Provide exactly three meeting options.");
+    const zone=text(timeZone)||"UTC";
+    try{new Intl.DateTimeFormat("en",{timeZone:zone}).format(new Date());}catch(_){throw new Error("Choose a valid timezone.");}
+    const starts=localValues.map(value=>{
+      if(typeof value==="string"){
+        const [date,time]=value.split("T");
+        return new Date(wallTimeToIso(date,time,zone));
+      }
+      return new Date(wallTimeToIso(value&&value.date,value&&value.time,zone));
+    });
+    if(starts.some(date=>Number.isNaN(date.getTime()))) throw new Error("Choose three valid meeting options.");
+    if(starts.some(date=>date.getTime()<=Date.now()))throw new Error("Every meeting option must be in the future.");
     const unique=new Set(starts.map(date=>date.toISOString()));
-    if(unique.size!==starts.length) throw new Error("Each proposal must use a different time.");
+    if(unique.size!==3) throw new Error("Each proposal must use a different time.");
     return starts.map(start=>({
       start_at:start.toISOString(),
       end_at:new Date(start.getTime()+duration*60000).toISOString()
     }));
   }
-  return {array,csv,statusLabel,safeHttpUrl,dateTime,calendarEvent,proposalSlots};
+  return {array,csv,statusLabel,meetingRole,meetingStatusLabel,meetingPermissions,categorizeMeetings,badgeLabel,safeHttpUrl,dateTime,calendarEvent,wallTimeToIso,proposalSlots};
 })();
 /* MATCHMAKING_WORKSPACE_UTILS_END */
 
 let MM = {
   data:null,detail:null,view:"matches",loading:false,loaded:false,
   filters:{q:"",role:"",country:"",min:"0"},meetingMode:null,
-  connectionId:null,meetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
+  connectionId:null,meetingId:null,detailMeetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
   modalFocus:[]
+};
+let PN = {
+  data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},
+  loading:false,filter:"all",timer:null
 };
 
 const mmUtils=globalThis.MatchmakingUtils;
@@ -4323,6 +4466,98 @@ function updateMmBadge(){
     badge.style.display=count?"inline":"none";
   });
 }
+function updatePortalNotificationBadge(){
+  const count=Number(PN.data&&PN.data.badge_count||0);
+  const badge=document.getElementById("portalNotificationBadge");
+  if(badge){
+    badge.textContent=mmUtils.badgeLabel(count);
+    badge.style.display=count?"block":"none";
+  }
+  renderPortalWorkSummary();
+}
+function startPortalNotificationTimer(){
+  if(PN.timer)return;
+  PN.timer=setInterval(()=>{
+    if(!document.hidden&&TOKEN&&USER)loadPortalNotifications(true);
+  },10000);
+}
+async function loadPortalNotifications(silent=false){
+  if(PN.loading||!TOKEN||!USER)return;
+  PN.loading=true;
+  try{
+    PN.data=await mmRpc("get_portal_notification_center",{p_limit:100});
+    updatePortalNotificationBadge();
+    if(document.getElementById("portalNotificationModal")?.classList.contains("open"))renderPortalNotifications();
+    startPortalNotificationTimer();
+  }catch(error){
+    if(!silent&&document.getElementById("portalNotificationModal")?.classList.contains("open")){
+      document.getElementById("portalNotificationList").innerHTML='<div class="mm-empty"><b>Notifications unavailable</b>'+mmEsc(mmParseError(error))+'</div>';
+    }
+  }finally{PN.loading=false;}
+}
+function portalNotificationRows(){
+  const rows=mmUtils.array(PN.data&&PN.data.notifications);
+  if(PN.filter==="action")return rows.filter(item=>item.action_required&&!item.resolved_at);
+  if(PN.filter==="unread")return rows.filter(item=>!item.read_at);
+  if(PN.filter==="read")return rows.filter(item=>item.read_at&&!item.resolved_at);
+  if(PN.filter==="resolved")return rows.filter(item=>item.resolved_at);
+  return rows;
+}
+function renderPortalNotifications(){
+  const filters=[
+    ["all","All"],["action","Action Required"],["unread","Unread"],["read","Read"],["resolved","Resolved"]
+  ];
+  document.getElementById("portalNotificationFilters").innerHTML=filters.map(([value,label])=>'<button class="'+(PN.filter===value?"active":"")+'" onclick="setPortalNotificationFilter(\''+value+'\')">'+label+'</button>').join("");
+  document.getElementById("portalNotificationSummary").textContent=Number(PN.data.action_required_count||0)+" action required · "+Number(PN.data.unread_count||0)+" unread";
+  const rows=portalNotificationRows();
+  document.getElementById("portalNotificationList").innerHTML=rows.length?rows.map(item=>{
+    const state=(item.read_at?"":" unread")+(item.action_required&&!item.resolved_at?" action":"")+(item.resolved_at?" resolved":"");
+    return '<article class="portal-notification-card'+state+'"><div class="mm-card-top"><div><div class="portal-notification-source">'+mmEsc(item.source_kind||"system")+(item.action_required&&!item.resolved_at?" · Action required":"")+'</div><div class="mm-company-name">'+mmEsc(item.title)+'</div><p>'+mmEsc(item.body)+'</p><time>'+mmEsc(mmUtils.dateTime(item.created_at,mmTimezone()))+'</time></div>'+(!item.read_at?'<span class="mm-status proposed">New</span>':item.resolved_at?'<span class="mm-status completed">Resolved</span>':"")+'</div><div class="mm-actions"><button class="btn btn-solid btn-sm" onclick="openPortalNotification('+Number(item.id)+')">Open</button></div></article>';
+  }).join(""):'<div class="mm-empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
+}
+function setPortalNotificationFilter(filter){PN.filter=filter;renderPortalNotifications();}
+async function togglePortalNotifications(){
+  const modal=document.getElementById("portalNotificationModal");
+  if(modal.classList.contains("open")){closePortalNotifications();return;}
+  document.getElementById("portalNotificationBell").setAttribute("aria-expanded","true");
+  mmOpenModal("portalNotificationModal",".modal-close");
+  renderPortalNotifications();
+  await loadPortalNotifications(true);
+}
+function closePortalNotifications(){
+  document.getElementById("portalNotificationBell")?.setAttribute("aria-expanded","false");
+  mmCloseModal("portalNotificationModal");
+}
+async function markPortalNotificationsRead(ids){
+  await mmRpc("mark_portal_notifications_read",{p_notification_ids:ids||null});
+  await loadPortalNotifications(true);
+}
+async function openPortalNotification(id){
+  const item=mmUtils.array(PN.data.notifications).find(row=>Number(row.id)===Number(id));
+  if(!item)return;
+  try{await markPortalNotificationsRead([Number(id)]);}catch(_){}
+  closePortalNotifications();
+  if(typeof item.action_url==="string"&&item.action_url.startsWith("#")){
+    location.hash=item.action_url;
+    applyHash();
+  }
+}
+function renderPortalWorkSummary(){
+  const target=document.getElementById(COMPANY?"portalWorkSummary":"bPortalWorkSummary");
+  if(!target)return;
+  const groups=mmUtils.categorizeMeetings(MM.data&&MM.data.meetings||[]);
+  const incoming=mmUtils.array(MM.data&&MM.data.connections).filter(connection=>connection.status==="pending"&&MM.data&&connection.recipient_profile_id===MM.data.profile?.id).length;
+  const action=Number(PN.data&&PN.data.action_required_count||0);
+  target.innerHTML='<button class="portal-work-item action" onclick="PN.filter=\'action\';togglePortalNotifications()"><strong>'+action+'</strong><span>Action required</span></button>'+
+    '<button class="portal-work-item" onclick="openMmWorkspaceView(\'requests\')"><strong>'+(groups.requests.length+incoming)+'</strong><span>Open requests</span></button>'+
+    '<button class="portal-work-item" onclick="openMmWorkspaceView(\'upcoming\')"><strong>'+groups.upcoming.length+'</strong><span>Upcoming meetings</span></button>'+
+    '<button class="portal-work-item" onclick="PN.filter=\'unread\';togglePortalNotifications()"><strong>'+Number(PN.data&&PN.data.unread_count||0)+'</strong><span>Unread updates</span></button>';
+}
+function openMmWorkspaceView(view){
+  MM.view=view;
+  showPanel(COMPANY?"matchmaking":"b-matchmaking");
+  renderMatchmakingWorkspace();
+}
 function startMmWorkspaceTimer(){
   if(MM.workspaceTimer)return;
   MM.workspaceTimer=setInterval(()=>{
@@ -4359,8 +4594,10 @@ function renderMatchmakingWorkspace(){
   const matches=mmUtils.array(MM.data.matches);
   const connections=mmUtils.array(MM.data.connections);
   const meetings=mmUtils.array(MM.data.meetings);
-  const awaiting=meetings.filter(m=>["proposed","awaiting_response","counter_proposed","accepted"].includes(m.status)).length;
-  const confirmed=meetings.filter(m=>m.status==="confirmed").length;
+  const meetingGroups=mmUtils.categorizeMeetings(meetings);
+  const awaiting=meetingGroups.requests.filter(meeting=>mmUtils.meetingPermissions(meeting,profile.id).canAccept).length+
+    connections.filter(connection=>connection.status==="pending"&&connection.recipient_profile_id===profile.id).length;
+  const confirmed=meetingGroups.upcoming.length;
   const profileGood=Number(profile.profile_completeness)>=70;
   root.innerHTML='<div class="mm-shell">'+
     '<section class="mm-hero"><div><div class="mm-kicker">Two-sided partner discovery</div><h2>Matchmaking Workspace</h2><p>Understand fit, build a relationship, agree on a time, meet securely and keep next steps in one auditable workspace.</p></div>'+
@@ -4368,7 +4605,11 @@ function renderMatchmakingWorkspace(){
     '<div class="mm-metrics">'+mmMetric("Partner matches",matches.length)+mmMetric("Saved",matches.filter(m=>m.status==="saved").length)+mmMetric("Relationships",connections.filter(c=>c.status==="accepted").length)+mmMetric("Needs attention",awaiting)+mmMetric("Confirmed meetings",confirmed)+'</div>'+
     '<div class="mm-profile-health '+(profileGood?"good":"")+'"><div><b>'+Number(profile.profile_completeness||0)+'% profile completeness</b><p>'+(profileGood?"Your structured profile supports higher-confidence explanations.":"Add products, markets and certification needs to improve match quality.")+'</p></div><button class="btn btn-ghost btn-sm" onclick="mmSetView(\'profile\')">Review profile</button></div>'+
     '<nav class="mm-view-tabs" aria-label="Matchmaking workspace views">'+
-      mmViewButton("matches","Matches",matches.length)+mmViewButton("relationships","Relationships",connections.length)+mmViewButton("meetings","Meetings",meetings.length)+mmViewButton("notifications","Notifications",MM.data.unread_count||0)+
+      mmViewButton("matches","Matches",matches.length)+
+      mmViewButton("requests","Requests",meetingGroups.requests.length+connections.filter(connection=>connection.status==="pending").length)+
+      mmViewButton("upcoming","Upcoming Meetings",meetingGroups.upcoming.length)+
+      mmViewButton("past","Past Meetings",meetingGroups.past.length)+
+      mmViewButton("relationships","Connections",connections.length)+
     '</nav><div id="mmViewContent">'+mmViewContent()+'</div></div>';
 }
 function mmViewButton(view,label,count){
@@ -4380,8 +4621,9 @@ function mmSetView(view){
 }
 function mmViewContent(){
   if(MM.view==="relationships")return mmRelationshipsView();
-  if(MM.view==="meetings")return mmMeetingsView();
-  if(MM.view==="notifications")return mmNotificationsView();
+  if(MM.view==="requests")return mmRequestsView();
+  if(MM.view==="upcoming")return mmMeetingsView("upcoming");
+  if(MM.view==="past")return mmMeetingsView("past");
   return mmMatchesView();
 }
 function mmProfileForm(profile){
@@ -4496,7 +4738,7 @@ async function sendMmConnection(targetId){
   mmSetBusy(button,true,"Sending…");
   try{
     await mmRpc("request_business_connection_v2",{p_recipient_profile_id:targetId,p_message:message||null,p_idempotency_key:mmUuid()});
-    closeMmActionModal();MM.view="relationships";await loadMatchmakingWorkspace(true);toast("Connection request sent ✓");
+    closeMmActionModal();MM.view="requests";await loadMatchmakingWorkspace(true);await loadPortalNotifications(true);toast("Connection request sent ✓");
   }catch(error){toast(mmParseError(error));}
   finally{mmSetBusy(button,false);}
 }
@@ -4513,24 +4755,37 @@ async function respondMmConnection(id,status,version){
     await loadMatchmakingWorkspace(true);toast(status==="accepted"?"Connection accepted ✓":"Connection declined");
   }catch(error){toast(mmParseError(error));}
 }
-function mmMeetingsView(){
-  const rows=mmUtils.array(MM.data.meetings);
-  return '<div class="mm-list">'+(rows.length?rows.map(meeting=>mmMeetingCard(meeting,false)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Open an accepted relationship and propose up to three times.</div>')+'</div>';
+function mmRequestsView(){
+  const meetingRows=mmUtils.categorizeMeetings(MM.data.meetings).requests;
+  const connectionRows=mmUtils.array(MM.data.connections).filter(connection=>connection.status==="pending");
+  const connections=connectionRows.map(connection=>{
+    const other=connection.other_profile||{},incoming=connection.recipient_profile_id===MM.data.profile.id;
+    return '<article class="mm-relationship-card"><div class="mm-card-top"><div><div class="mm-kicker">'+(incoming?"Connection request from":"Connection request sent to")+'</div><div class="mm-company-name">'+mmEsc(other.display_name||"Company")+'</div><div class="mm-meta">'+mmEsc(other.country||"")+'</div></div><span class="mm-status pending">'+(incoming?"Action required":"Awaiting response")+'</span></div>'+(connection.introduction_message?'<p class="mm-summary">'+mmEsc(connection.introduction_message)+'</p>':"")+'<div class="mm-actions">'+(incoming?'<button class="btn btn-grad btn-sm" onclick="respondMmConnection('+Number(connection.id)+',\'accepted\','+Number(connection.state_version)+')">Accept</button><button class="btn btn-ghost btn-sm" onclick="respondMmConnection('+Number(connection.id)+',\'declined\','+Number(connection.state_version)+')">Decline</button>':'<button class="btn btn-ghost btn-sm" onclick="openMmRelationship('+Number(connection.id)+')">View request</button>')+'</div></article>';
+  }).join("");
+  const meetings=meetingRows.map(meeting=>mmMeetingCard(meeting,false)).join("");
+  return '<div class="panel-head"><h2>Requests</h2><span class="mm-meta">Connection and meeting requests stay here only while a response is pending.</span></div><div class="mm-list">'+(connections||meetings?connections+meetings:'<div class="mm-empty"><b>No open requests</b>New connection requests and three-slot meeting proposals appear here.</div>')+'</div>';
+}
+function mmMeetingsView(kind){
+  const groups=mmUtils.categorizeMeetings(MM.data.meetings);
+  const rows=kind==="past"?groups.past:groups.upcoming;
+  const empty=kind==="past"?"Completed, cancelled and declined meetings will appear here.":"Accepted meetings move here automatically with calendar and secure join controls.";
+  return '<div class="panel-head"><h2>'+(kind==="past"?"Past Meetings":"Upcoming Meetings")+'</h2></div><div class="mm-list">'+(rows.length?rows.map(meeting=>mmMeetingCard(meeting,false)).join(""):'<div class="mm-empty"><b>No '+(kind==="past"?"past":"upcoming")+' meetings</b>'+empty+'</div>')+'</div>';
 }
 function mmMeetingCard(meeting,detailed){
   const other=meeting.other_profile||MM.detail&&MM.detail.other_profile||{};
   const currentId=MM.data.profile.id;
   const proposals=mmUtils.array(meeting.proposals).filter(p=>p.proposal_round===meeting.proposal_round);
   const active=proposals.filter(p=>p.status==="active");
-  const proposer=active[0]&&active[0].proposed_by_profile_id;
-  const canRespond=["proposed","awaiting_response","counter_proposed"].includes(meeting.status)&&proposer&&proposer!==currentId;
+  const permissions=mmUtils.meetingPermissions(meeting,currentId);
+  const canRespond=permissions.canAccept;
   const shownTime=meeting.confirmed_start||meeting.proposed_start;
-  const status=mmUtils.statusLabel(meeting.status);
+  const status=mmUtils.meetingStatusLabel(meeting,currentId);
   let actions="";
   if(meeting.status==="draft"&&meeting.requester_profile_id===currentId) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'edit_draft\')">Edit draft</button><button class="btn btn-grad btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'submit\')">Send draft</button>';
+  if(permissions.canEdit&&meeting.status!=="draft")actions+='<button class="btn btn-solid btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'edit_proposal\')">Edit proposed times</button>';
+  if(permissions.canWithdraw)actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'withdraw\')">Withdraw request</button>';
   if(canRespond){
-    active.forEach(proposal=>{actions+='<button class="btn btn-grad btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'accept\','+proposal.id+')">Accept '+mmEsc(mmUtils.dateTime(proposal.start_at,mmTimezone()))+'</button>';});
-    actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'counter\')">Suggest other times</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'decline\')">Decline</button>';
+    actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'counter\')">Propose different times</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'decline\')">Decline</button>';
   }
   if(meeting.status==="accepted") actions+='<button class="btn btn-grad btn-sm" onclick="prepareMmVideo('+meeting.id+',this)">Finish confirmation</button>';
   if(meeting.status==="confirmed"){
@@ -4538,11 +4793,11 @@ function mmMeetingCard(meeting,detailed){
     actions+=mmCalendarButtons(meeting);
     if(new Date(meeting.confirmed_start).getTime()<=Date.now())actions+='<button class="btn btn-solid btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'complete\')">Mark completed</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'no_show\')">No-show</button>';
   }
-  if(["draft","proposed","awaiting_response","counter_proposed","accepted","confirmed"].includes(meeting.status)) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'cancel\')">Cancel</button>';
-  if(!detailed) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmRelationship('+meeting.connection_id+','+meeting.id+')">Timeline & notes</button>';
+  if(["accepted","confirmed"].includes(meeting.status)) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'reschedule\')">Reschedule</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'cancel\')">Cancel meeting</button>';
+  if(!detailed) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingDetails('+meeting.id+')">Meeting details</button>';
   const videoState=meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'">'+mmVideoStateText(meeting)+'</div>':"";
   const detailSections=detailed?mmMeetingDetailSections(meeting):"";
-  return '<article class="mm-meeting-card" id="mm-meeting-card-'+meeting.id+'"><div class="mm-card-top"><div><div class="mm-kicker">Meeting with '+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+(shownTime?mmEsc(mmUtils.dateTime(shownTime,mmTimezone()))+" · "+mmEsc(mmTimezone()):"Time not confirmed")+'</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(status)+'</span></div>'+(meeting.agenda?'<p class="mm-summary">'+mmEsc(meeting.agenda)+'</p>':"")+mmProposalList(meeting,proposals,canRespond)+videoState+(meeting.cancellation_reason?'<div class="mm-risk-list"><span class="mm-risk">'+mmEsc(meeting.cancellation_reason)+'</span></div>':"")+'<div class="mm-actions">'+actions+'</div>'+detailSections+'</article>';
+  return '<article class="mm-meeting-card" id="mm-meeting-card-'+meeting.id+'"><div class="mm-card-top"><div><div class="mm-kicker">'+(canRespond?"Meeting request from ":"Meeting with ")+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+(shownTime?mmEsc(mmUtils.dateTime(shownTime,mmTimezone()))+" · "+mmEsc(mmTimezone())+" · "+Number(meeting.duration_minutes||30)+" min":"Choose from the three proposed times · "+Number(meeting.duration_minutes||30)+" min")+'</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(status)+'</span></div>'+(meeting.agenda?'<p class="mm-summary">'+mmEsc(meeting.agenda)+'</p>':"")+mmProposalList(meeting,proposals,canRespond)+videoState+(meeting.cancellation_reason?'<div class="mm-risk-list"><span class="mm-risk">'+mmEsc(meeting.cancellation_reason)+'</span></div>':"")+'<div class="mm-actions">'+actions+'</div>'+detailSections+'</article>';
 }
 function mmProposalList(meeting,proposals,canRespond){
   if(!proposals.length)return "";
@@ -4550,7 +4805,7 @@ function mmProposalList(meeting,proposals,canRespond){
 }
 function mmVideoStateText(meeting){
   if(meeting.video_status==="ready")return "Secure video is ready. Join tokens are issued only to authenticated participants during the join window.";
-  if(meeting.video_status==="unconfigured")return "Meeting confirmed. Embedded video is configuration-disabled; calendar and follow-up remain available.";
+  if(meeting.video_status==="unconfigured")return "Video meetings are not configured yet.";
   if(meeting.video_status==="failed")return "Video setup failed safely. Retry confirmation; no public room or permanent token was created.";
   if(meeting.video_status==="revoked")return "The video room is access-blocked and revoked.";
   return "Secure video is being prepared.";
@@ -4583,14 +4838,16 @@ async function runMmMeetingAction(id,action,proposalId=null,reason=null){
     if(action==="accept"){
       try{await prepareMmVideo(id,null,true);}
       catch(_){videoNeedsRetry=true;}
+      MM.view="upcoming";
     }
     await loadMatchmakingWorkspace(true);
+    await loadPortalNotifications(true);
     if(MM.detail&&Number(MM.detail.connection.id)===Number(meeting.connection_id))await loadMmRelationship(meeting.connection_id,true);
     toast(action==="accept"?(videoNeedsRetry?"Meeting time accepted. Video confirmation needs a retry.":"Meeting time accepted ✓"):"Meeting updated ✓");
   }catch(error){toast(mmParseError(error));}
 }
 function openMmMeetingReason(id,action){
-  const labels={decline:"Decline meeting proposal",cancel:"Cancel meeting",no_show:"Mark meeting as no-show"};
+  const labels={decline:"Decline meeting proposal",withdraw:"Withdraw meeting request",cancel:"Cancel meeting",no_show:"Mark meeting as no-show"};
   document.getElementById("mmActionTitle").textContent=labels[action]||"Update meeting";
   document.getElementById("mmActionSub").textContent="This change is recorded in the shared meeting timeline.";
   document.getElementById("mmActionBody").innerHTML='<label for="mmMeetingReason">Reason or note</label><textarea id="mmMeetingReason" rows="4" maxlength="1000" placeholder="Add useful context for the other participant"></textarea>';
@@ -4600,8 +4857,9 @@ function openMmMeetingReason(id,action){
 async function confirmMmMeetingReason(id,action){
   const reason=document.getElementById("mmMeetingReason").value.trim();
   closeMmActionModal();
-  await runMmMeetingAction(id,action,null,reason||null);
-  if(action==="cancel"){
+  const rpcAction=action==="withdraw"?"cancel":action;
+  await runMmMeetingAction(id,rpcAction,null,reason||null);
+  if(rpcAction==="cancel"){
     try{await mmVideoRequest("revoke",id);}catch(_){}
   }
 }
@@ -4649,24 +4907,28 @@ function openMmMeetingForm(connectionId,meetingId=null,mode="propose"){
   const connection=mmUtils.array(MM.data.connections).find(item=>Number(item.id)===Number(connectionId));
   const meeting=meetingId?mmFindMeeting(meetingId):null;
   MM.meetingMode=mode;MM.connectionId=Number(connectionId);MM.meetingId=meetingId?Number(meetingId):null;
-  document.getElementById("mmMeetingTitle").textContent=mode==="counter"?"Suggest other meeting times":mode==="edit_draft"?"Edit meeting draft":"Propose a meeting";
+  document.getElementById("mmMeetingTitle").textContent=mode==="counter"?"Propose different times":mode==="reschedule"?"Reschedule meeting":mode==="edit_proposal"?"Edit proposed times":mode==="edit_draft"?"Edit meeting draft":"Propose a meeting";
   document.getElementById("mmMeetingPartner").textContent="With "+(connection&&connection.other_profile&&connection.other_profile.display_name||"your partner");
   document.getElementById("mm-meeting-topic").value=meeting&&meeting.title||"Product portfolio and cooperation";
   document.getElementById("mm-meeting-agenda").value=meeting&&meeting.agenda||"Review product fit, market priorities, commercial requirements and next steps.";
   document.getElementById("mm-meeting-language").value=meeting&&meeting.language||"English";
   document.getElementById("mm-meeting-duration").value=String(meeting&&meeting.duration_minutes||30);
+  const timeZone=meeting&&meeting.timezone||mmTimezone();
+  mmPopulateTimezones(timeZone);
   const now=new Date();now.setMinutes(Math.ceil(now.getMinutes()/15)*15,0,0);
-  const draftProposals=mode==="edit_draft"&&meeting?mmUtils.array(meeting.proposals).filter(proposal=>proposal.proposal_round===meeting.proposal_round&&proposal.status==="active"):[];
+  const editable=["edit_draft","edit_proposal"].includes(mode)&&meeting?mmUtils.array(meeting.proposals).filter(proposal=>proposal.proposal_round===meeting.proposal_round&&proposal.status==="active"):[];
   [1,2,3].forEach((index)=>{
     const candidate=new Date(now.getTime()+index*24*60*60*1000);
     candidate.setHours(index===2?14:10,0,0,0);
-    const existing=draftProposals[index-1];
-    document.getElementById("mm-slot-"+index).value=existing?mmLocalInputValue(new Date(existing.start_at)):mmLocalInputValue(candidate);
+    const existing=editable[index-1];
+    const parts=existing?mmZonedInputParts(existing.start_at,timeZone):mmZonedInputParts(candidate.toISOString(),timeZone);
+    document.getElementById("mm-slot-date-"+index).value=parts.date;
+    document.getElementById("mm-slot-time-"+index).value=parts.time;
   });
   document.getElementById("mmDraftBtn").style.display=mode==="propose"?"inline-flex":"none";
-  document.getElementById("mmMeetingSubmit").textContent=mode==="counter"?"Send counter-proposal":mode==="edit_draft"?"Save changes":"Send proposal";
+  document.getElementById("mmMeetingSubmit").textContent=mode==="counter"?"Send new times":mode==="reschedule"?"Send reschedule request":mode==="edit_proposal"?"Update times":mode==="edit_draft"?"Save changes":"Send proposal";
   document.getElementById("mmMeetingError").style.display="none";
-  document.getElementById("mmTimezoneNote").textContent="Times are entered in "+mmTimezone()+" and stored securely in UTC. Each participant sees the confirmed time in their own timezone.";
+  mmUpdateTimezoneNote();
   mmUpdateSlotEnds();
   mmOpenModal("mmMeetingModal","#mm-meeting-topic");
 }
@@ -4674,14 +4936,33 @@ function mmLocalInputValue(date){
   const pad=value=>String(value).padStart(2,"0");
   return date.getFullYear()+"-"+pad(date.getMonth()+1)+"-"+pad(date.getDate())+"T"+pad(date.getHours())+":"+pad(date.getMinutes());
 }
+function mmZonedInputParts(value,timeZone){
+  const formatter=new Intl.DateTimeFormat("en-CA",{timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+  const parts=Object.fromEntries(formatter.formatToParts(new Date(value)).filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));
+  return {date:parts.year+"-"+parts.month+"-"+parts.day,time:parts.hour+":"+parts.minute};
+}
+function mmPopulateTimezones(selected){
+  const select=document.getElementById("mm-meeting-timezone");
+  const fallback=["UTC","Europe/Istanbul","Europe/London","Europe/Berlin","America/New_York","America/Los_Angeles","Asia/Dubai","Asia/Singapore","Asia/Tokyo"];
+  const supported=typeof Intl.supportedValuesOf==="function"?Intl.supportedValuesOf("timeZone"):fallback;
+  const zones=[...new Set([selected,mmTimezone(),...supported])].filter(Boolean);
+  select.innerHTML=zones.map(zone=>'<option value="'+mmEsc(zone)+'" '+(zone===selected?"selected":"")+'>'+mmEsc(zone.replace(/_/g," "))+'</option>').join("");
+}
+function mmSelectedTimezone(){return document.getElementById("mm-meeting-timezone").value||mmTimezone();}
+function mmUpdateTimezoneNote(){
+  const zone=mmSelectedTimezone();
+  document.getElementById("mmTimezoneNote").textContent="Enter three dates and times in "+zone+". They are stored in UTC and shown to each participant in their own timezone.";
+  mmUpdateSlotEnds();
+}
 function mmUpdateSlotEnds(){
   const duration=Number(document.getElementById("mm-meeting-duration").value||30);
   [1,2,3].forEach(index=>{
-    const value=document.getElementById("mm-slot-"+index).value;
+    const date=document.getElementById("mm-slot-date-"+index).value;
+    const time=document.getElementById("mm-slot-time-"+index).value;
     const target=document.getElementById("mm-slot-end-"+index);
-    if(!value){target.textContent="Optional";return;}
-    const end=new Date(new Date(value).getTime()+duration*60000);
-    target.textContent="Ends "+(Number.isNaN(end.getTime())?"—":end.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}));
+    if(!date||!time){target.textContent="Required";return;}
+    const minutes=Number(time.slice(0,2))*60+Number(time.slice(3))+duration;
+    target.textContent="Ends "+String(Math.floor(minutes/60)%24).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0")+(minutes>=1440?" next day":"");
   });
 }
 function closeMmMeetingModal(){mmCloseModal("mmMeetingModal");}
@@ -4689,25 +4970,37 @@ async function submitMmMeeting(saveDraft){
   const error=document.getElementById("mmMeetingError"),button=document.getElementById(saveDraft?"mmDraftBtn":"mmMeetingSubmit");
   error.style.display="none";
   try{
-    const slots=mmUtils.proposalSlots([1,2,3].map(index=>document.getElementById("mm-slot-"+index).value),document.getElementById("mm-meeting-duration").value);
+    const timeZone=mmSelectedTimezone();
+    const slots=mmUtils.proposalSlots([1,2,3].map(index=>({
+      date:document.getElementById("mm-slot-date-"+index).value,
+      time:document.getElementById("mm-slot-time-"+index).value
+    })),document.getElementById("mm-meeting-duration").value,timeZone);
     mmSetBusy(button,true,saveDraft?"Saving…":"Sending…");
     if(MM.meetingMode==="counter"){
       const meeting=mmFindMeeting(MM.meetingId);
-      await mmRpc("respond_matchmaking_meeting",{p_meeting_id:MM.meetingId,p_action:"counter",p_expected_version:Number(meeting.state_version),p_idempotency_key:mmUuid(),p_proposal_id:null,p_slots:slots,p_timezone:mmTimezone(),p_reason:null});
+      await mmRpc("respond_matchmaking_meeting",{p_meeting_id:MM.meetingId,p_action:"counter",p_expected_version:Number(meeting.state_version),p_idempotency_key:mmUuid(),p_proposal_id:null,p_slots:slots,p_timezone:timeZone,p_reason:null});
+    }else if(MM.meetingMode==="reschedule"){
+      const meeting=mmFindMeeting(MM.meetingId);
+      await mmRpc("reschedule_matchmaking_meeting",{p_meeting_id:MM.meetingId,p_expected_version:Number(meeting.state_version),p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:timeZone,p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_idempotency_key:mmUuid()});
+      try{await mmVideoRequest("revoke",MM.meetingId);}catch(_){}
+    }else if(MM.meetingMode==="edit_proposal"){
+      const meeting=mmFindMeeting(MM.meetingId);
+      await mmRpc("revise_matchmaking_meeting_proposal",{p_meeting_id:MM.meetingId,p_expected_version:Number(meeting.state_version),p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:timeZone,p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_idempotency_key:mmUuid()});
     }else if(MM.meetingMode==="edit_draft"){
       const meeting=mmFindMeeting(MM.meetingId);
-      await mmRpc("update_matchmaking_meeting_draft",{p_meeting_id:MM.meetingId,p_expected_version:Number(meeting.state_version),p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:mmTimezone(),p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_idempotency_key:mmUuid()});
+      await mmRpc("update_matchmaking_meeting_draft",{p_meeting_id:MM.meetingId,p_expected_version:Number(meeting.state_version),p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:timeZone,p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_idempotency_key:mmUuid()});
     }else{
-      await mmRpc("propose_matchmaking_meeting",{p_connection_id:MM.connectionId,p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:mmTimezone(),p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_save_as_draft:Boolean(saveDraft),p_idempotency_key:mmUuid()});
+      await mmRpc("propose_matchmaking_meeting",{p_connection_id:MM.connectionId,p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:timeZone,p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_save_as_draft:Boolean(saveDraft),p_idempotency_key:mmUuid()});
     }
-    closeMmMeetingModal();MM.view="meetings";await loadMatchmakingWorkspace(true);
+    closeMmMeetingModal();MM.view="requests";await loadMatchmakingWorkspace(true);await loadPortalNotifications(true);
     if(MM.detail)await loadMmRelationship(MM.connectionId,true);
-    toast(saveDraft?"Meeting draft saved ✓":MM.meetingMode==="edit_draft"?"Meeting draft updated ✓":"Meeting proposal sent ✓");
+    toast(saveDraft?"Meeting draft saved ✓":MM.meetingMode==="edit_draft"?"Meeting draft updated ✓":MM.meetingMode==="edit_proposal"?"Proposed times updated ✓":MM.meetingMode==="counter"?"New times sent ✓":MM.meetingMode==="reschedule"?"Reschedule request sent ✓":"Meeting proposal sent ✓");
   }catch(caught){
     error.textContent=mmParseError(caught);error.style.display="block";
   }finally{mmSetBusy(button,false);}
 }
 async function openMmRelationship(connectionId,focusMeetingId=null){
+  MM.detailMeetingId=null;
   mmOpenModal("mmDetailModal",".modal-close");
   document.getElementById("mmDetailBody").innerHTML='<div class="loading">Loading relationship…</div>';
   await loadMmRelationship(connectionId,false);
@@ -4715,11 +5008,37 @@ async function openMmRelationship(connectionId,focusMeetingId=null){
   clearInterval(MM.detailTimer);
   MM.detailTimer=setInterval(()=>{if(!document.hidden&&document.getElementById("mmDetailModal").classList.contains("open"))loadMmRelationship(connectionId,true);},10000);
 }
+async function openMmMeetingDetails(meetingId){
+  const meeting=mmFindMeeting(meetingId);
+  if(!meeting)return;
+  MM.detailMeetingId=Number(meetingId);
+  mmOpenModal("mmDetailModal",".modal-close");
+  document.getElementById("mmDetailTitle").textContent="Meeting Details";
+  document.getElementById("mmDetailBody").innerHTML='<div class="loading">Loading meeting details…</div>';
+  await loadMmRelationship(meeting.connection_id,false);
+  clearInterval(MM.detailTimer);
+  MM.detailTimer=setInterval(()=>{if(!document.hidden&&document.getElementById("mmDetailModal").classList.contains("open"))loadMmRelationship(meeting.connection_id,true);},10000);
+}
 async function loadMmRelationship(connectionId,silent){
   try{
     MM.detail=await mmRpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
-    renderMmRelationshipDetail();
+    if(MM.detailMeetingId)renderMmMeetingDetail();
+    else renderMmRelationshipDetail();
   }catch(error){if(!silent)document.getElementById("mmDetailBody").innerHTML='<div class="mm-empty"><b>Relationship unavailable</b>'+mmEsc(mmParseError(error))+'</div>';}
+}
+function renderMmMeetingDetail(){
+  const meeting=mmUtils.array(MM.detail&&MM.detail.meetings).find(item=>Number(item.id)===Number(MM.detailMeetingId));
+  if(!meeting){
+    document.getElementById("mmDetailBody").innerHTML='<div class="mm-empty"><b>Meeting unavailable</b>This meeting is no longer in the relationship workspace.</div>';
+    return;
+  }
+  const other=MM.detail.other_profile||{},participants=mmUtils.array(meeting.participants);
+  const participantNames=participants.length?participants.map(participant=>participant.display_name||participant.profile&&participant.profile.display_name||participant.role||"Participant"):[MM.data.profile.display_name,other.display_name].filter(Boolean);
+  const confirmed=meeting.confirmed_start?mmUtils.dateTime(meeting.confirmed_start,mmTimezone()):"Not confirmed";
+  document.getElementById("mmDetailTitle").textContent="Meeting Details";
+  document.getElementById("mmDetailBody").innerHTML='<div class="mm-card-top"><div><div class="mm-kicker">Meeting with '+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+mmEsc(confirmed)+' · '+mmEsc(mmTimezone())+' · '+Number(meeting.duration_minutes||30)+' min</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(mmUtils.meetingStatusLabel(meeting,MM.data.profile.id))+'</span></div>'+
+    '<div class="mm-detail-grid"><div><section class="mm-section"><h4>Participants</h4><div class="mm-participants">'+participantNames.map(name=>'<span class="mm-participant">'+mmEsc(name)+'</span>').join("")+'</div><h4>Agenda</h4><p class="mm-summary">'+mmEsc(meeting.agenda||"No agenda provided.")+'</p><h4>Confirmed slot</h4><p class="mm-meta">'+mmEsc(confirmed)+' · '+mmEsc(meeting.timezone||"UTC")+' source timezone</p></section>'+
+    mmMeetingCard(meeting,true)+'</div><aside><section class="mm-section"><h4>Meeting status</h4><p class="mm-meta">'+mmEsc(mmUtils.meetingStatusLabel(meeting,MM.data.profile.id))+'</p>'+(meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'">'+mmVideoStateText(meeting)+'</div><div class="mm-actions">'+(meeting.video_status==="ready"?'<button class="btn btn-grad btn-sm" onclick="joinMmVideo('+meeting.id+',this)">Join secure video</button>':"")+mmCalendarButtons(meeting)+'</div>':'<p class="mm-meta">Join and calendar controls become available once the meeting is confirmed.</p>')+'</section></aside></div>';
 }
 function renderMmRelationshipDetail(){
   if(!MM.detail)return;
@@ -4728,7 +5047,7 @@ function renderMmRelationshipDetail(){
   const relationNote=mmUtils.array(MM.detail.private_notes).find(note=>!note.meeting_id);
   document.getElementById("mmDetailBody").innerHTML='<div class="mm-card-top"><div><div class="mm-kicker">'+mmEsc(other.role||"partner")+'</div><div class="mm-company-name">'+mmEsc(other.display_name||"Company")+'</div><div class="mm-meta">'+mmEsc(other.country||"")+'</div></div><span class="mm-status '+mmEsc(connection.status)+'">'+mmEsc(mmUtils.statusLabel(connection.status))+'</span></div>'+
     '<div class="mm-detail-grid"><div><section class="mm-section"><h4>Relationship conversation</h4><div class="mm-message-list">'+(messages.length?messages.map(message=>'<div class="mm-message '+(message.message_type==="system"?"system":message.sender_profile_id===MM.data.profile.id?"mine":"")+'">'+mmEsc(message.body)+'<time>'+mmEsc(message.sender_name||"MedicHall")+" · "+mmEsc(mmUtils.dateTime(message.created_at,mmTimezone()))+'</time></div>').join(""):'<div class="mm-meta">No messages yet.</div>')+'</div>'+(connection.status==="accepted"?'<div class="mm-compose"><input id="mmRelationshipMessage" maxlength="4000" placeholder="Write a relationship message…" onkeydown="if(event.key===\'Enter\')sendMmRelationshipMessage('+connection.id+')"><button class="btn btn-grad btn-sm" onclick="sendMmRelationshipMessage('+connection.id+')">Send</button></div>':"")+'</section>'+
-    '<div class="panel-head"><h2>Meeting lifecycle</h2>'+(connection.status==="accepted"?'<button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+connection.id+')">Propose meeting</button>':"")+'</div><div class="mm-list">'+(meetings.length?meetings.map(meeting=>mmMeetingCard(meeting,true)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Propose one to three times when both companies are ready.</div>')+'</div></div>'+
+    '<div class="panel-head"><h2>Meeting lifecycle</h2>'+(connection.status==="accepted"?'<button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+connection.id+')">Propose meeting</button>':"")+'</div><div class="mm-list">'+(meetings.length?meetings.map(meeting=>mmMeetingCard(meeting,true)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Propose exactly three times when both companies are ready.</div>')+'</div></div>'+
     '<aside><section class="mm-section mm-note"><h4>Private relationship note</h4><p class="mm-meta">Visible only to your matchmaking profile.</p><textarea id="mmRelationNote" rows="6" maxlength="8000" placeholder="Internal qualification notes…">'+mmEsc(relationNote&&relationNote.note||"")+'</textarea><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveMmPrivateNote('+connection.id+',null,\'mmRelationNote\')">Save private note</button></section>'+
     '<section class="mm-section"><h4>Partner profile</h4><p class="mm-meta">'+mmEsc(other.description||"No company summary provided.")+'</p>'+(mmUtils.array(other.offered_products).length?'<div class="mm-risk-list">'+mmUtils.array(other.offered_products).slice(0,8).map(item=>'<span class="mm-participant">'+mmEsc(item)+'</span>').join("")+'</div>':"")+'</section></aside></div>';
 }
@@ -4766,7 +5085,7 @@ async function submitMmOutcome(meetingId){
 }
 function closeMmDetailModal(){
   mmCloseModal("mmDetailModal");
-  clearInterval(MM.detailTimer);MM.detailTimer=null;MM.detail=null;
+  clearInterval(MM.detailTimer);MM.detailTimer=null;MM.detail=null;MM.detailMeetingId=null;
 }
 function mmApplyDeepLink(){
   const hash=location.hash;
@@ -4775,7 +5094,7 @@ function mmApplyDeepLink(){
   const relationship=hash.match(/^#matchmaking-relationship=(\d+)$/);
   if(meeting&&MM.data){
     const found=mmUtils.array(MM.data.meetings).find(item=>Number(item.id)===Number(meeting[1]));
-    if(found){MM.handledHash=hash;openMmRelationship(found.connection_id,found.id);}
+    if(found){MM.handledHash=hash;openMmMeetingDetails(found.id);}
   }else if(relationship&&MM.data){MM.handledHash=hash;openMmRelationship(Number(relationship[1]));}
 }
 
@@ -4785,6 +5104,7 @@ function showPanel(name){
   if(name==="matchmaking"||name==="b-matchmaking") loadMatchmakingWorkspace();
 }
 function closeModals(){
+  closePortalNotifications();
   closeMmVideo();
   closeMmDetailModal();
   closeMmMeetingModal();
@@ -4807,6 +5127,7 @@ document.addEventListener("keydown", e=>{
 window.addEventListener("hashchange",()=>{MM.handledHash=null;applyHash();});
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&MM.loaded)loadMatchmakingWorkspace(true);
+  if(!document.hidden&&TOKEN&&USER)loadPortalNotifications(true);
 });
 
 if(TOKEN) enterApp();

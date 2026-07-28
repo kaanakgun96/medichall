@@ -7,8 +7,8 @@ This directory contains one complete, self-contained production
 
 - Destination: `public_html/portal.html`
 - SHA-256:
-  `b3426cc47452cc515e422b4ae1b67d24e95d4c5d1787705abd9633f8eb56224f`
-- Size: `284029` bytes
+  `79f9388b44cbaa4c040f3b2535bc3d511703bbeba0540b22281cd7042b05e974`
+- Size: `308968` bytes
 
 ## Non-developer upload guide
 
@@ -19,12 +19,15 @@ This directory contains one complete, self-contained production
    `portal.before-matchmaking-2026-07-28.html`.
 5. Upload the `portal.html` from this directory.
 6. Confirm that the uploaded file is named exactly `portal.html` and is
-   `284029` bytes.
+   `308968` bytes.
 7. Open `https://medichall.com/portal.html` in a private browser window and
    sign in normally.
 8. Hard-refresh the page, open **Matchmaking**, and confirm that the workspace
-   heading loads. Existing tender and document-intelligence screens should
-   still open normally.
+   heading loads.
+9. Open **Requests** and confirm its empty state or a role-aware request card,
+   then open the header bell and confirm the notification filters render.
+10. Existing tender, lot matching, RFQ, and document-intelligence screens
+    should still open normally.
 
 The frontend has not been uploaded by Codex because production publishing is
 manual through cPanel.

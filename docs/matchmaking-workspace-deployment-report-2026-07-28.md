@@ -9,7 +9,7 @@
 
 The prior single-date, ambiguous-`pending` meeting flow is now an explainable
 two-sided workspace. It supports saved/dismissed matches, connection
-acceptance, connection-scoped messaging, one-to-three proposal slots,
+acceptance, connection-scoped messaging, exactly three proposal slots,
 counter-proposal history, optimistic concurrency, explicit meeting states,
 calendar actions, a participant timeline, private notes, post-meeting
 outcomes, in-app reminders, and configuration-gated embedded video.
@@ -32,6 +32,11 @@ Applied atomically and recorded in `supabase_migrations.schema_migrations`:
 3. `202607280004_matchmaking_video_and_automation`
 4. `202607280005_matchmaking_function_privilege_hardening`
 5. `202607280006_matchmaking_idempotency_digest`
+6. `202607280007_matchmaking_ui_completion`
+
+The completion migration adds role-aware proposal revision and rescheduling
+RPCs, a user-scoped global notification center, independent read/action/
+resolved state, RFQ notification triggers, and exact-three-slot validation.
 
 The two compatibility migrations were added after live regression caught:
 
@@ -155,18 +160,18 @@ rather than falsely reported as sent.
 - Production SQL/RLS/lifecycle regression: passed and rolled back
 - React TypeScript: passed
 - React lint: passed
-- React tests: `81 passed`
+- React tests: `85 passed`
 - React production build: passed (`1850` modules)
 - Portal inline JavaScript parse: two scripts passed
 - Browser credential scan: clean across `101` source/build files
 - Video SDK dependency review: no manifest changed; REST adapter adds no SDK
 - `git diff --check`: passed
 
-The signed-in Supabase function tester verified production behavior. Local
-browser visual loading could not bind a sandbox localhost port, so responsive
-and accessibility behavior is covered by production markup/CSS review,
-keyboard/focus tests, inline parsing, and portal regression assertions. Final
-cPanel smoke testing remains part of the manual upload guide.
+The signed-in Supabase function tester verified production behavior. A local
+browser on the Edge Function's approved development origin completed a real
+two-account connection, proposal edit, counter-proposal, acceptance,
+notification, calendar, and video-unconfigured workflow against production.
+Final cPanel smoke testing remains part of the manual upload guide.
 
 ## cPanel handoff and rollback
 
@@ -176,7 +181,7 @@ Complete replacement:
 
 SHA-256:
 
-`b3426cc47452cc515e422b4ae1b67d24e95d4c5d1787705abd9633f8eb56224f`
+`79f9388b44cbaa4c040f3b2535bc3d511703bbeba0540b22281cd7042b05e974`
 
 Destination: `public_html/portal.html`.
 

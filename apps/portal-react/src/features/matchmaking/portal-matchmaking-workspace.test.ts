@@ -10,11 +10,35 @@ type CalendarEvent = {
 
 type MatchmakingUtils = {
   statusLabel: (value: unknown) => string;
+  meetingStatusLabel: (
+    meeting: Record<string, unknown>,
+    currentProfileId: string,
+  ) => string;
+  meetingPermissions: (
+    meeting: Record<string, unknown>,
+    currentProfileId: string,
+  ) => {
+    role: string;
+    canAccept: boolean;
+    canCounter: boolean;
+    canEdit: boolean;
+    canWithdraw: boolean;
+  };
+  categorizeMeetings: (
+    meetings: Array<Record<string, unknown>>,
+    nowValue?: number,
+  ) => {
+    requests: Array<Record<string, unknown>>;
+    upcoming: Array<Record<string, unknown>>;
+    past: Array<Record<string, unknown>>;
+  };
+  badgeLabel: (value: number) => string;
   safeHttpUrl: (value: unknown) => string | null;
   dateTime: (value: unknown, timeZone: string) => string;
   proposalSlots: (
-    values: string[],
+    values: Array<string | { date: string; time: string }>,
     durationMinutes: number,
+    timeZone?: string,
   ) => Array<{ start_at: string; end_at: string }>;
   calendarEvent: (
     meeting: Record<string, unknown>,
@@ -42,21 +66,53 @@ const createUtils = new Function(
 const utils = createUtils();
 
 describe("production Matchmaking Workspace", () => {
-  it("uses clear lifecycle labels instead of ambiguous pending text", () => {
+  it("uses clear generic lifecycle labels instead of ambiguous pending text", () => {
     expect(utils.statusLabel("awaiting_response")).toBe("Awaiting response");
-    expect(utils.statusLabel("counter_proposed")).toBe("Counter-proposed");
-    expect(utils.statusLabel("accepted")).toBe("Accepted — confirming");
+    expect(utils.statusLabel("counter_proposed")).toBe("New time proposal");
+    expect(utils.statusLabel("accepted")).toBe("Accepted");
     expect(utils.statusLabel("confirmed")).toBe("Confirmed");
   });
 
-  it("creates one to three UTC proposal slots with a fixed duration", () => {
+  it("renders role-aware requester and responder states with different actions", () => {
+    const meeting = {
+      status: "proposed",
+      proposal_round: 1,
+      requester_profile_id: "requester",
+      recipient_profile_id: "recipient",
+      proposals: [{
+        proposal_round: 1,
+        status: "active",
+        proposed_by_profile_id: "requester",
+      }],
+    };
+
+    expect(utils.meetingStatusLabel(meeting, "requester")).toBe(
+      "Awaiting response",
+    );
+    expect(utils.meetingStatusLabel(meeting, "recipient")).toBe(
+      "Action required",
+    );
+    expect(utils.meetingPermissions(meeting, "requester")).toMatchObject({
+      canAccept: false,
+      canEdit: true,
+      canWithdraw: true,
+    });
+    expect(utils.meetingPermissions(meeting, "recipient")).toMatchObject({
+      canAccept: true,
+      canCounter: true,
+      canEdit: false,
+    });
+  });
+
+  it("creates exactly three timezone-aware UTC slots with a fixed duration", () => {
     const slots = utils.proposalSlots(
       [
-        "2030-01-01T10:00",
-        "2030-01-02T14:30",
-        "2030-01-03T09:15",
+        { date: "2035-01-01", time: "10:00" },
+        { date: "2035-01-02", time: "14:30" },
+        { date: "2035-01-03", time: "09:15" },
       ],
       45,
+      "Europe/Istanbul",
     );
     expect(slots).toHaveLength(3);
     expect(
@@ -65,10 +121,38 @@ describe("production Matchmaking Workspace", () => {
     expect(() => utils.proposalSlots([], 30)).toThrow();
     expect(() =>
       utils.proposalSlots(
-        ["2030-01-01T10:00", "2030-01-01T10:00"],
+        [
+          "2035-01-01T10:00",
+          "2035-01-01T10:00",
+          "2035-01-01T10:00",
+        ],
         30,
       )
     ).toThrow();
+  });
+
+  it("separates request, upcoming, and past meeting queues", () => {
+    const groups = utils.categorizeMeetings([
+      { id: 1, status: "proposed" },
+      {
+        id: 2,
+        status: "confirmed",
+        confirmed_end: "2035-01-01T10:30:00.000Z",
+      },
+      { id: 3, status: "declined" },
+    ], Date.parse("2034-01-01T00:00:00.000Z"));
+
+    expect(groups.requests.map((meeting) => meeting.id)).toEqual([1]);
+    expect(groups.upcoming.map((meeting) => meeting.id)).toEqual([2]);
+    expect(groups.past.map((meeting) => meeting.id)).toEqual([3]);
+  });
+
+  it("formats global notification badges without duplicate or oversized text", () => {
+    expect(utils.badgeLabel(0)).toBe("");
+    expect(utils.badgeLabel(9)).toBe("9");
+    expect(utils.badgeLabel(10)).toBe("9+");
+    expect(utils.badgeLabel(99)).toBe("9+");
+    expect(utils.badgeLabel(100)).toBe("99+");
   });
 
   it("generates a standards-shaped ICS event and safe calendar compose links", () => {
@@ -119,6 +203,23 @@ describe("production Matchmaking Workspace", () => {
     expect(portal).toContain("Private meeting note");
     expect(portal).toContain("Recording is disabled");
     expect(portal).toContain("Meeting time accepted. Video confirmation needs a retry.");
+    expect(portal).toContain("Video meetings are not configured yet.");
+    expect(portal).toContain("Meeting Details");
+  });
+
+  it("contains dedicated lifecycle navigation, explicit scheduling, and a global bell", () => {
+    expect(portal).toContain('"Requests"');
+    expect(portal).toContain('"Upcoming Meetings"');
+    expect(portal).toContain('"Past Meetings"');
+    expect(portal).toContain('id="portalNotificationBell"');
+    expect(portal).toContain("get_portal_notification_center");
+    expect(portal).toContain("mark_portal_notifications_read");
+    expect(portal).toContain('id="mm-meeting-timezone"');
+    expect(portal).toContain('id="mm-slot-date-1"');
+    expect(portal).toContain('id="mm-slot-time-1"');
+    expect(portal).toContain("revise_matchmaking_meeting_proposal");
+    expect(portal).toContain("reschedule_matchmaking_meeting");
+    expect(portal).toContain("#rfq-chat=");
   });
 
   it("includes keyboard focus management and accessible status announcements", () => {

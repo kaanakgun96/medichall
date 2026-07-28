@@ -78,7 +78,7 @@ iframe closes.
 The recipient's first open changes `proposed` or `counter_proposed` to
 `awaiting_response`, removing the old ambiguous `pending` presentation.
 
-Each proposal round contains one to three immutable UTC slots and the IANA
+Each proposal round contains exactly three immutable UTC slots and the IANA
 timezone in which they were entered. A counter-proposal supersedes but does not
 delete the prior round.
 
