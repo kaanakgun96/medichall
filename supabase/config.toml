@@ -31,3 +31,9 @@ verify_jwt = false
 # browser never receives or exercises service-role access.
 [functions.product-profile]
 verify_jwt = false
+
+# JWT verification happens in-function with auth.getUser. The endpoint then
+# authorizes every action through participant-scoped RPCs; provider credentials
+# and the Supabase service-role key remain confined to the Edge runtime.
+[functions.meeting-video]
+verify_jwt = false
