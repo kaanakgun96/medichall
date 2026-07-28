@@ -447,6 +447,117 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .opp-seg button.active{background:#fff;color:var(--teal-deep);box-shadow:0 2px 8px rgba(0,62,82,.10)}
 .feed-note{background:#F4FBFA;border:1.5px solid var(--line);border-radius:12px;padding:12px 15px;font-size:.82rem;color:var(--ink-soft);margin:0 0 14px;line-height:1.5}
 .feed-more{display:block;margin:14px auto 0}
+
+/* ---------- Matchmaking Workspace ---------- */
+.mm-shell{display:grid;gap:16px}
+.mm-hero{background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 46%,#E2F2FA 100%);border:1.5px solid var(--line);border-radius:18px;padding:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+.mm-hero h2{font-size:1.32rem;line-height:1.3;margin-bottom:5px}
+.mm-hero p{font-size:.85rem;color:var(--ink-soft);max-width:660px}
+.mm-hero-actions,.mm-actions,.mm-calendar-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mm-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.mm-metric{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.mm-metric strong{display:block;font:700 1.25rem var(--mono);line-height:1.2}
+.mm-metric span{font-size:.7rem;color:var(--ink-soft)}
+.mm-view-tabs{display:flex;gap:5px;flex-wrap:wrap;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:5px}
+.mm-view-tabs button{border:none;background:transparent;color:var(--ink-soft);border-radius:8px;padding:8px 13px;font-weight:600;font-size:.8rem}
+.mm-view-tabs button.active{background:var(--teal-deep);color:#fff}
+.mm-profile-health{border:1.5px solid #F1D48A;background:#FFF9EB;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.mm-profile-health.good{border-color:#A9DECF;background:#EAF8F3}
+.mm-profile-health b{font-size:.88rem}
+.mm-profile-health p{font-size:.76rem;color:var(--ink-soft);margin-top:2px}
+.mm-filters{display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(3,minmax(120px,1fr));gap:8px}
+.mm-filters input,.mm-filters select{padding:9px 11px;font-size:.8rem}
+.mm-list{display:grid;gap:12px}
+.mm-match-card,.mm-relationship-card,.mm-meeting-card,.mm-notification-card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:17px;min-width:0}
+.mm-match-card.saved{border-color:#8EC9E5;box-shadow:0 6px 18px rgba(0,62,82,.06)}
+.mm-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:13px}
+.mm-company-name{font-weight:700;font-size:1.01rem;overflow-wrap:anywhere}
+.mm-kicker{font:600 .64rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+.mm-meta{font-size:.76rem;color:var(--ink-soft);margin-top:4px}
+.mm-score{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:conic-gradient(var(--teal) calc(var(--mm-score,0)*1%),var(--mist) 0);position:relative}
+.mm-score:after{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff}
+.mm-score b{font:700 .83rem var(--mono);position:relative;z-index:1}
+.mm-status{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:100px;padding:3px 9px;font:600 .63rem var(--mono);text-transform:uppercase;letter-spacing:.04em;background:var(--mist);color:var(--ink-soft)}
+.mm-status.accepted,.mm-status.confirmed,.mm-status.completed,.mm-status.connected{background:#E3F5EF;border-color:#A9DECF;color:#177245}
+.mm-status.proposed,.mm-status.awaiting_response,.mm-status.counter_proposed,.mm-status.pending{background:#FFF6E5;border-color:#F1D48A;color:#7A6410}
+.mm-status.declined,.mm-status.cancelled,.mm-status.no_show,.mm-status.expired,.mm-status.dismissed{background:#FDECEA;border-color:#F2B8B5;color:#9F2D24}
+.mm-summary{font-size:.84rem;margin:12px 0 8px}
+.mm-driver-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:9px 0}
+.mm-driver{background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}
+.mm-driver b{display:flex;justify-content:space-between;gap:6px;font-size:.72rem}
+.mm-driver p{font-size:.66rem;color:var(--ink-soft);line-height:1.4;margin-top:2px}
+.mm-risk-list{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.mm-risk{background:#FFF6E5;border:1px solid #F1D48A;color:#6E5700;border-radius:100px;padding:3px 9px;font-size:.68rem}
+.mm-confidence{font-size:.69rem;color:var(--ink-soft);border-left:3px solid var(--teal);padding-left:9px;margin:8px 0}
+.mm-actions{margin-top:13px}
+.mm-actions .btn,.mm-calendar-actions .btn{font-size:.74rem;padding:6px 10px}
+.mm-empty{background:#fff;border:1.5px dashed var(--line);border-radius:14px;text-align:center;padding:42px 18px;color:var(--ink-soft)}
+.mm-empty b{display:block;color:var(--ink);font-size:1rem;margin-bottom:4px}
+.mm-profile-form{background:#fff;border:1.5px solid var(--line);border-radius:15px;padding:22px}
+.mm-profile-form h3{font-size:1.08rem;margin-bottom:4px}
+.mm-profile-form > p{font-size:.82rem;color:var(--ink-soft);margin-bottom:12px}
+.mm-profile-form textarea{resize:vertical}
+.mm-participants{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}
+.mm-participant{background:var(--mist);border:1px solid var(--line);border-radius:100px;padding:4px 9px;font-size:.7rem}
+.mm-proposals{display:grid;gap:7px;margin:11px 0}
+.mm-proposal{border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;display:flex;justify-content:space-between;gap:10px;align-items:center;background:#fff}
+.mm-proposal.active{border-color:#A9D4EA;background:#F4FAFD}
+.mm-proposal.accepted{border-color:#9ED9B5;background:#EAF8F3}
+.mm-proposal time{display:block;font-size:.78rem;font-weight:600}
+.mm-proposal small{font-size:.66rem;color:var(--ink-soft)}
+.mm-video-state{border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.75rem;margin:10px 0;background:var(--mist)}
+.mm-video-state.ready{background:#EAF8F3;border-color:#A9DECF;color:#177245}
+.mm-video-state.unconfigured,.mm-video-state.failed{background:#FFF6E5;border-color:#F1D48A;color:#6E5700}
+.mm-notification-card.unread{border-color:#8EC9E5;background:#F7FCFE}
+.mm-notification-card p{font-size:.78rem;color:var(--ink-soft);margin-top:4px}
+.mm-notification-card time{font:400 .63rem var(--mono);color:var(--ink-soft)}
+.mm-dialog-sub{font-size:.79rem;color:var(--ink-soft);margin:3px 0 13px}
+.mm-modal{max-width:650px}
+.mm-detail-modal{max-width:900px;max-height:90vh;overflow:auto}
+.mm-timezone-note{font-size:.73rem;background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:12px 0}
+.mm-slot-list{display:grid;gap:8px}
+.mm-slot{display:grid;grid-template-columns:70px 1fr minmax(110px,.7fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px}
+.mm-slot span{font-size:.72rem;font-weight:700}
+.mm-slot input{padding:8px;font-size:.78rem}
+.mm-slot small{color:var(--ink-soft);font-size:.66rem}
+.mm-form-error{display:none;color:var(--danger);font-size:.75rem;font-weight:600;margin-top:9px}
+.mm-detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:14px;margin-top:14px}
+.mm-section{border:1.5px solid var(--line);border-radius:12px;padding:14px;background:#fff;min-width:0;margin-bottom:12px}
+.mm-section h4{font-size:.86rem;margin-bottom:8px}
+.mm-message-list{max-height:300px;overflow:auto;display:grid;gap:7px;padding:4px}
+.mm-message{border-radius:10px;padding:8px 10px;background:var(--mist);font-size:.76rem}
+.mm-message.mine{background:#DFF2FA;margin-left:12%}
+.mm-message.system{background:#FFF9EB;border:1px solid #F1D48A;color:#6E5700;text-align:center;font-size:.69rem}
+.mm-message time{display:block;font:400 .6rem var(--mono);color:var(--ink-soft);margin-top:3px}
+.mm-compose{display:flex;gap:7px;margin-top:9px}
+.mm-compose input{flex:1;padding:8px 10px;font-size:.78rem}
+.mm-timeline{display:grid;gap:0}
+.mm-event{border-left:2px solid var(--line);padding:0 0 13px 14px;position:relative;font-size:.74rem}
+.mm-event:before{content:"";position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--teal)}
+.mm-event time{display:block;font:400 .59rem var(--mono);color:var(--ink-soft)}
+.mm-note textarea{font-size:.76rem}
+.mm-video-modal{max-width:1100px;width:96vw}
+.mm-video-frame{background:#002C3B;border-radius:12px;overflow:hidden;aspect-ratio:16/9;margin-top:10px}
+.mm-video-frame iframe{border:0;width:100%;height:100%;display:block}
+.mm-calendar-actions{margin-top:9px}
+.mm-shell :focus-visible,.mm-modal :focus-visible,.mm-detail-modal :focus-visible,.mm-video-modal :focus-visible{outline:3px solid #1B87B3;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){
+  .mm-shell *,.mm-modal *,.mm-detail-modal *,.mm-video-modal *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+}
+@media(max-width:820px){
+  .mm-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .mm-filters{grid-template-columns:1fr 1fr}
+  .mm-detail-grid{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .mm-hero{padding:18px}
+  .mm-metrics{grid-template-columns:1fr 1fr}
+  .mm-driver-grid{grid-template-columns:1fr}
+  .mm-filters{grid-template-columns:1fr}
+  .mm-slot{grid-template-columns:1fr}
+  .mm-card-top{align-items:center}
+  .mm-score{width:52px;height:52px}
+}
 </style>
 </head>
 <body>
@@ -561,6 +672,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <div class="tabs">
         <button class="tab active" data-panel="b-favorites" onclick="showPanel('b-favorites')">Favorites <span class="n" id="nFavs">0</span></button>
         <button class="tab" data-panel="b-requests" onclick="showPanel('b-requests')">My requests <span class="n" id="nMyRfq">0</span><span class="n" id="myRfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
+        <button class="tab" data-panel="b-matchmaking" onclick="showPanel('b-matchmaking')">Matchmaking <span class="n" id="bMmUnread" style="display:none"></span></button>
         <button class="tab" data-panel="b-profile" onclick="showPanel('b-profile')">Profile</button>
         <button class="tab" data-panel="b-ai" onclick="showPanel('b-ai')">AI Assistant</button>
       </div>
@@ -573,6 +685,10 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <div class="panel" id="panel-b-requests">
         <div class="panel-head"><h2>My quotation requests</h2></div>
         <div class="card" id="myRfqList"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="panel" id="panel-b-matchmaking">
+        <div id="b-matchmaking-root"><div class="card loading">Loading Matchmaking Workspace…</div></div>
       </div>
 
       <div class="panel" id="panel-b-profile">
@@ -613,6 +729,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
         <button class="tab" data-panel="products" onclick="showPanel('products')">My products <span class="n" id="nProducts">0</span></button>
         <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ inbox <span class="n" id="nRfq">0</span><span class="n" id="rfqUnread" style="display:none;background:#E0475B;color:#fff"></span></button>
         <button class="tab" data-panel="opps" onclick="showPanel('opps')">Opportunities <span class="n" id="nOpps">0</span></button>
+        <button class="tab" data-panel="matchmaking" onclick="showPanel('matchmaking')">Matchmaking <span class="n" id="mmUnread" style="display:none"></span></button>
         <button class="tab" data-panel="ai" onclick="showPanel('ai')">AI Assistant</button>
       </div>
 
@@ -781,6 +898,10 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
         <!-- Sprint C: kayıtlı aramalar — çip barı (yalnız feed modunda dolar) -->
         <div class="saved-bar" id="savedBar"></div>
         <div id="oppList"><div class="card pad" style="color:var(--ink-soft)">Save your matching profile and click <b>Find matches</b> to see tender and distributor opportunities here.</div></div>
+      </div>
+
+      <div class="panel" id="panel-matchmaking">
+        <div id="matchmaking-root"><div class="card loading">Loading Matchmaking Workspace…</div></div>
       </div>
 
       <div class="panel" id="panel-ai">
@@ -1044,7 +1165,74 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- MATCHMAKING WORKSPACE DIALOGS -->
+<div class="modal-backdrop" id="mmActionModal" onclick="if(event.target===this)closeMmActionModal()">
+  <div class="modal mm-modal" role="dialog" aria-modal="true" aria-labelledby="mmActionTitle">
+    <button class="modal-close" onclick="closeMmActionModal()" aria-label="Close">✕</button>
+    <h3 id="mmActionTitle">Matchmaking action</h3>
+    <p id="mmActionSub" class="mm-dialog-sub"></p>
+    <div id="mmActionBody"></div>
+    <div class="actions" id="mmActionButtons"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="mmMeetingModal" onclick="if(event.target===this)closeMmMeetingModal()">
+  <div class="modal mm-modal" role="dialog" aria-modal="true" aria-labelledby="mmMeetingTitle">
+    <button class="modal-close" onclick="closeMmMeetingModal()" aria-label="Close">✕</button>
+    <h3 id="mmMeetingTitle">Propose a meeting</h3>
+    <p class="mm-dialog-sub" id="mmMeetingPartner"></p>
+    <label for="mm-meeting-topic">Topic</label>
+    <input id="mm-meeting-topic" maxlength="160" placeholder="Product portfolio and cooperation">
+    <div class="grid2">
+      <div><label for="mm-meeting-language">Meeting language</label><input id="mm-meeting-language" maxlength="40" placeholder="English"></div>
+      <div><label for="mm-meeting-duration">Duration</label>
+        <select id="mm-meeting-duration" onchange="mmUpdateSlotEnds()">
+          <option value="15">15 minutes</option>
+          <option value="30" selected>30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">60 minutes</option>
+          <option value="90">90 minutes</option>
+        </select>
+      </div>
+    </div>
+    <label for="mm-meeting-agenda">Agenda</label>
+    <textarea id="mm-meeting-agenda" rows="3" maxlength="4000" placeholder="What should both parties prepare and discuss?"></textarea>
+    <div class="mm-timezone-note" id="mmTimezoneNote"></div>
+    <div class="mm-slot-list">
+      <div class="mm-slot"><span>Option 1</span><input id="mm-slot-1" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-1"></small></div>
+      <div class="mm-slot"><span>Option 2</span><input id="mm-slot-2" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-2"></small></div>
+      <div class="mm-slot"><span>Option 3</span><input id="mm-slot-3" type="datetime-local" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-3"></small></div>
+    </div>
+    <p class="mm-form-error" id="mmMeetingError" role="alert"></p>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeMmMeetingModal()">Cancel</button>
+      <button class="btn btn-ghost" id="mmDraftBtn" onclick="submitMmMeeting(true)">Save draft</button>
+      <button class="btn btn-grad" id="mmMeetingSubmit" onclick="submitMmMeeting(false)">Send proposal</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="mmDetailModal" onclick="if(event.target===this)closeMmDetailModal()">
+  <div class="modal mm-detail-modal" role="dialog" aria-modal="true" aria-labelledby="mmDetailTitle">
+    <button class="modal-close" onclick="closeMmDetailModal()" aria-label="Close">✕</button>
+    <h3 id="mmDetailTitle">Relationship workspace</h3>
+    <div id="mmDetailBody"><div class="loading">Loading relationship…</div></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="mmVideoModal" onclick="if(event.target===this)closeMmVideo()">
+  <div class="modal mm-video-modal" role="dialog" aria-modal="true" aria-labelledby="mmVideoTitle">
+    <button class="modal-close" onclick="closeMmVideo()" aria-label="Leave video room">✕</button>
+    <h3 id="mmVideoTitle">Secure MedicHall meeting</h3>
+    <p class="mm-dialog-sub">Recording is disabled. The join token exists only for this session.</p>
+    <div class="mm-video-frame">
+      <iframe id="mmVideoFrame" title="Secure video meeting" src="about:blank" allow="camera; microphone; fullscreen; display-capture; autoplay" referrerpolicy="no-referrer"></iframe>
+    </div>
+    <div class="actions"><button class="btn btn-ghost" onclick="closeMmVideo()">Leave room</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 /* ---------------- config ---------------- */
@@ -1184,6 +1372,10 @@ function logout(){
   if(window.__unreadTimer){
     clearInterval(window.__unreadTimer);
     window.__unreadTimer = null;
+  }
+  if(typeof MM!=="undefined"){
+    clearInterval(MM.workspaceTimer); clearInterval(MM.detailTimer);
+    MM.workspaceTimer=null; MM.detailTimer=null; MM.data=null; MM.loaded=false;
   }
   localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
   document.getElementById("app").style.display = "none";
@@ -1456,6 +1648,7 @@ async function enterApp(){
     loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers(); loadMatchProfile();
     const dw = document.getElementById("dashWelcome"); if(dw && COMPANY) dw.textContent = "Welcome back, " + (COMPANY.name || "partner") + " 👋";
     setTimeout(updateDashboard, 1500); setTimeout(updateDashboard, 4000);
+    setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
     applyHash(); startUnreadTimer();
   }else if(BUYER){
     setBadge("Buyer Account");
@@ -1466,6 +1659,7 @@ async function enterApp(){
     document.getElementById("bp-country").value = BUYER.country || "";
     loadFavorites(); loadUnread();
     (async()=>{ await loadMyRequests(); loadBuyerOffers(); })();
+    setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
     applyHash(); startUnreadTimer();
   }else if(JUSTSIGNED){
     JUSTSIGNED = false;
@@ -2043,6 +2237,10 @@ function applyHash(){
   else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
   else if(h === "#opportunities" && COMPANY) showPanel("opps");
   else if(h === "#dashboard" && COMPANY) showPanel("dashboard");
+  else if(h.startsWith("#matchmaking")){
+    showPanel(COMPANY ? "matchmaking" : "b-matchmaking");
+    setTimeout(mmApplyDeepLink, 0);
+  }
 }
 function startUnreadTimer(){
   if(!TOKEN || !USER) return;
@@ -3939,15 +4137,677 @@ async function translateDeep(matchId){
   c.busy = false; paintDeepResult(matchId);
 }
 
+/* ---------------- Matchmaking Workspace ---------------- */
+/* MATCHMAKING_WORKSPACE_UTILS_START */
+globalThis.MatchmakingUtils = (()=>{
+  const text = value => value == null ? "" : String(value);
+  const array = value => Array.isArray(value) ? value : [];
+  const csv = value => text(value).split(",").map(item=>item.trim()).filter(Boolean);
+  const statusLabels = {
+    draft:"Draft",proposed:"Proposed",awaiting_response:"Awaiting response",
+    counter_proposed:"Counter-proposed",accepted:"Accepted — confirming",
+    confirmed:"Confirmed",declined:"Declined",cancelled:"Cancelled",
+    completed:"Completed",no_show:"No-show",expired:"Expired",
+    pending:"Pending response",connected:"Connected",saved:"Saved",
+    dismissed:"Not interested",connection_requested:"Connection requested",
+    new:"New",viewed:"Viewed"
+  };
+  function statusLabel(value){
+    const key=text(value).toLowerCase();
+    return statusLabels[key] || key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+  }
+  function safeHttpUrl(value){
+    try{
+      const parsed=new URL(text(value));
+      return parsed.protocol==="https:"||parsed.protocol==="http:"?parsed.toString():null;
+    }catch(_){ return null; }
+  }
+  function dateTime(value,timeZone){
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime())) return "Time unavailable";
+    try{
+      return new Intl.DateTimeFormat(undefined,{
+        timeZone:timeZone||undefined,dateStyle:"medium",timeStyle:"short"
+      }).format(date);
+    }catch(_){ return date.toLocaleString(); }
+  }
+  function isoToCalendar(value){
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime())) return "";
+    return date.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");
+  }
+  function icsEscape(value){
+    return text(value).replace(/\\/g,"\\\\").replace(/\r?\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+  }
+  function icsFold(line){
+    const chunks=[];let current="",bytes=0;
+    for(const character of line){
+      const size=new TextEncoder().encode(character).length;
+      const limit=chunks.length?74:75;
+      if(current&&bytes+size>limit){chunks.push(current);current=character;bytes=size;}
+      else{current+=character;bytes+=size;}
+    }
+    if(current||!chunks.length)chunks.push(current);
+    return chunks.join("\r\n ");
+  }
+  function calendarEvent(meeting,origin){
+    if(!meeting||!meeting.confirmed_start||!meeting.confirmed_end) return null;
+    const base=(origin||"https://medichall.com").replace(/\/+$/,"");
+    const deepLink=base+"/portal.html#matchmaking-meeting="+meeting.id;
+    const title=text(meeting.title)||"MedicHall meeting";
+    const agenda=text(meeting.agenda);
+    const start=isoToCalendar(meeting.confirmed_start);
+    const end=isoToCalendar(meeting.confirmed_end);
+    if(!start||!end) return null;
+    const uid="medichall-matchmaking-"+meeting.id+"@medichall.com";
+    const stamp=isoToCalendar(new Date().toISOString());
+    const description=[agenda,"Open the authenticated MedicHall workspace: "+deepLink].filter(Boolean).join("\n\n");
+    const ics=[
+      "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//MedicHall//Matchmaking Workspace//EN",
+      "CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
+      "UID:"+icsEscape(uid),"DTSTAMP:"+stamp,"DTSTART:"+start,"DTEND:"+end,
+      "SUMMARY:"+icsEscape(title),"DESCRIPTION:"+icsEscape(description),
+      "LOCATION:"+icsEscape("MedicHall secure meeting"),"URL:"+icsEscape(deepLink),
+      "STATUS:CONFIRMED","END:VEVENT","END:VCALENDAR",""
+    ].map(icsFold).join("\r\n");
+    const dates=start+"/"+end;
+    return {
+      title,deepLink,ics,
+      filename:"medichall-meeting-"+meeting.id+".ics",
+      google:"https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(title)+"&dates="+encodeURIComponent(dates)+"&details="+encodeURIComponent(description)+"&location="+encodeURIComponent(deepLink),
+      outlook:"https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent&subject="+encodeURIComponent(title)+"&startdt="+encodeURIComponent(new Date(meeting.confirmed_start).toISOString())+"&enddt="+encodeURIComponent(new Date(meeting.confirmed_end).toISOString())+"&body="+encodeURIComponent(description)+"&location="+encodeURIComponent(deepLink)
+    };
+  }
+  function proposalSlots(localValues,durationMinutes){
+    const duration=Number(durationMinutes);
+    if(!Number.isFinite(duration)||duration<15||duration>240) throw new Error("Choose a valid duration.");
+    const starts=localValues.filter(Boolean).map(value=>new Date(value));
+    if(!starts.length||starts.length>3||starts.some(date=>Number.isNaN(date.getTime()))) throw new Error("Choose between one and three valid times.");
+    const unique=new Set(starts.map(date=>date.toISOString()));
+    if(unique.size!==starts.length) throw new Error("Each proposal must use a different time.");
+    return starts.map(start=>({
+      start_at:start.toISOString(),
+      end_at:new Date(start.getTime()+duration*60000).toISOString()
+    }));
+  }
+  return {array,csv,statusLabel,safeHttpUrl,dateTime,calendarEvent,proposalSlots};
+})();
+/* MATCHMAKING_WORKSPACE_UTILS_END */
+
+let MM = {
+  data:null,detail:null,view:"matches",loading:false,loaded:false,
+  filters:{q:"",role:"",country:"",min:"0"},meetingMode:null,
+  connectionId:null,meetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
+  modalFocus:[]
+};
+
+const mmUtils=globalThis.MatchmakingUtils;
+const mmEsc=value=>esc(value==null?"":String(value));
+const mmUuid=()=>crypto.randomUUID();
+const mmTimezone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
+const mmRpc=(name,body={})=>db("rpc/"+name,{method:"POST",body:JSON.stringify(body)});
+function mmOpenModal(id,preferredFocus){
+  const modal=document.getElementById(id);
+  if(!modal)return;
+  if(!modal.classList.contains("open")){
+    MM.modalFocus.push({
+      id,
+      returnTo:document.activeElement instanceof HTMLElement?document.activeElement:null
+    });
+  }
+  modal.classList.add("open");
+  setTimeout(()=>{
+    const target=preferredFocus&&modal.querySelector(preferredFocus)
+      ||modal.querySelector("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex='-1'])");
+    if(target instanceof HTMLElement)target.focus();
+  },0);
+}
+function mmCloseModal(id){
+  const modal=document.getElementById(id);
+  if(modal)modal.classList.remove("open");
+  const index=MM.modalFocus.map(item=>item.id).lastIndexOf(id);
+  const focus=index>=0?MM.modalFocus.splice(index,1)[0]:null;
+  setTimeout(()=>{
+    if(focus&&focus.returnTo instanceof HTMLElement&&document.contains(focus.returnTo)){
+      focus.returnTo.focus();
+    }
+  },0);
+}
+function mmTopModal(){
+  for(let index=MM.modalFocus.length-1;index>=0;index--){
+    const modal=document.getElementById(MM.modalFocus[index].id);
+    if(modal&&modal.classList.contains("open"))return modal;
+  }
+  return null;
+}
+function mmTrapModalFocus(event){
+  if(event.key!=="Tab")return;
+  const modal=mmTopModal();
+  if(!modal)return;
+  const focusable=[...modal.querySelectorAll("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),iframe,[tabindex]:not([tabindex='-1'])")]
+    .filter(item=>item instanceof HTMLElement&&item.offsetParent!==null);
+  if(!focusable.length){event.preventDefault();return;}
+  const first=focusable[0],last=focusable[focusable.length-1];
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+}
+function mmRoot(){
+  return document.getElementById(COMPANY?"matchmaking-root":"b-matchmaking-root");
+}
+function mmParseError(error){
+  const raw=error&&error.message?error.message:String(error||"");
+  try{
+    const parsed=JSON.parse(raw);
+    return parsed.message||parsed.error||parsed.details||"The matchmaking request failed.";
+  }catch(_){}
+  if(raw.includes("40001")) return "This record changed. Refresh and try again.";
+  return raw.replace(/^Error:\s*/,"").slice(0,220)||"The matchmaking request failed.";
+}
+function mmSetBusy(button,busy,label){
+  if(!button)return;
+  if(busy){button.dataset.label=button.textContent;button.disabled=true;button.textContent=label||"Working…";}
+  else{button.disabled=false;button.textContent=button.dataset.label||button.textContent;}
+}
+async function mmVideoRequest(action,meetingId){
+  const result=await api("/functions/v1/meeting-video",{
+    method:"POST",body:JSON.stringify({action,meeting_id:Number(meetingId)})
+  });
+  return result||{};
+}
+function updateMmBadge(){
+  const count=Number(MM.data&&MM.data.unread_count||0);
+  ["mmUnread","bMmUnread"].forEach(id=>{
+    const badge=document.getElementById(id);
+    if(!badge)return;
+    badge.textContent=count?String(count):"";
+    badge.style.display=count?"inline":"none";
+  });
+}
+function startMmWorkspaceTimer(){
+  if(MM.workspaceTimer)return;
+  MM.workspaceTimer=setInterval(()=>{
+    if(!document.hidden&&TOKEN&&USER) loadMatchmakingWorkspace(true);
+  },30000);
+}
+async function loadMatchmakingWorkspace(silent=false){
+  if(MM.loading||!TOKEN||!USER)return;
+  MM.loading=true;
+  const root=mmRoot();
+  if(root&&!silent&&!MM.loaded) root.innerHTML='<div class="card loading">Loading Matchmaking Workspace…</div>';
+  try{
+    MM.data=await mmRpc("get_matchmaking_workspace",{p_limit:100});
+    MM.loaded=true;
+    updateMmBadge();
+    renderMatchmakingWorkspace();
+    startMmWorkspaceTimer();
+    setTimeout(mmApplyDeepLink,0);
+  }catch(error){
+    if(root&&!silent){
+      root.innerHTML='<div class="mm-empty"><b>Workspace unavailable</b><p>'+mmEsc(mmParseError(error))+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="loadMatchmakingWorkspace()">Try again</button></div>';
+    }
+  }finally{MM.loading=false;}
+}
+function mmMetric(label,value){
+  return '<div class="mm-metric"><strong>'+Number(value||0)+'</strong><span>'+mmEsc(label)+'</span></div>';
+}
+function renderMatchmakingWorkspace(){
+  const root=mmRoot();
+  if(!root||!MM.data)return;
+  const profile=MM.data.profile;
+  if(!profile){ root.innerHTML=mmProfileForm(null); return; }
+  if(MM.view==="profile"){ root.innerHTML=mmProfileForm(profile); return; }
+  const matches=mmUtils.array(MM.data.matches);
+  const connections=mmUtils.array(MM.data.connections);
+  const meetings=mmUtils.array(MM.data.meetings);
+  const awaiting=meetings.filter(m=>["proposed","awaiting_response","counter_proposed","accepted"].includes(m.status)).length;
+  const confirmed=meetings.filter(m=>m.status==="confirmed").length;
+  const profileGood=Number(profile.profile_completeness)>=70;
+  root.innerHTML='<div class="mm-shell">'+
+    '<section class="mm-hero"><div><div class="mm-kicker">Two-sided partner discovery</div><h2>Matchmaking Workspace</h2><p>Understand fit, build a relationship, agree on a time, meet securely and keep next steps in one auditable workspace.</p></div>'+
+    '<div class="mm-hero-actions"><button class="btn btn-ghost btn-sm" onclick="mmSetView(\'profile\')">Edit match profile</button><button class="btn btn-grad btn-sm" onclick="refreshMmMatches(this)">Refresh matches</button></div></section>'+
+    '<div class="mm-metrics">'+mmMetric("Partner matches",matches.length)+mmMetric("Saved",matches.filter(m=>m.status==="saved").length)+mmMetric("Relationships",connections.filter(c=>c.status==="accepted").length)+mmMetric("Needs attention",awaiting)+mmMetric("Confirmed meetings",confirmed)+'</div>'+
+    '<div class="mm-profile-health '+(profileGood?"good":"")+'"><div><b>'+Number(profile.profile_completeness||0)+'% profile completeness</b><p>'+(profileGood?"Your structured profile supports higher-confidence explanations.":"Add products, markets and certification needs to improve match quality.")+'</p></div><button class="btn btn-ghost btn-sm" onclick="mmSetView(\'profile\')">Review profile</button></div>'+
+    '<nav class="mm-view-tabs" aria-label="Matchmaking workspace views">'+
+      mmViewButton("matches","Matches",matches.length)+mmViewButton("relationships","Relationships",connections.length)+mmViewButton("meetings","Meetings",meetings.length)+mmViewButton("notifications","Notifications",MM.data.unread_count||0)+
+    '</nav><div id="mmViewContent">'+mmViewContent()+'</div></div>';
+}
+function mmViewButton(view,label,count){
+  return '<button class="'+(MM.view===view?"active":"")+'" onclick="mmSetView(\''+view+'\')">'+mmEsc(label)+(count?' · '+Number(count):"")+'</button>';
+}
+function mmSetView(view){
+  MM.view=view;
+  renderMatchmakingWorkspace();
+}
+function mmViewContent(){
+  if(MM.view==="relationships")return mmRelationshipsView();
+  if(MM.view==="meetings")return mmMeetingsView();
+  if(MM.view==="notifications")return mmNotificationsView();
+  return mmMatchesView();
+}
+function mmProfileForm(profile){
+  const own=profile||{};
+  const defaults={
+    role:COMPANY?"manufacturer":"buyer",
+    display_name:COMPANY&&COMPANY.name||BUYER&&BUYER.company_name||BUYER&&BUYER.full_name||"",
+    country:COMPANY&&COMPANY.country||BUYER&&BUYER.country||"",
+    website:COMPANY&&COMPANY.website||"",
+    description:COMPANY&&COMPANY.description||"",
+    certifications:COMPANY&&COMPANY.certifications||[]
+  };
+  const value=(key)=>{
+    const found=own[key]!=null?own[key]:defaults[key];
+    return Array.isArray(found)?found.join(", "):found||"";
+  };
+  return '<div class="mm-profile-form"><div class="mm-kicker">Matchmaking profile</div><h3>'+(profile?"Improve your partner signal":"Set up partner matchmaking")+'</h3><p>This structured profile is separate from tender matching and powers two-sided company recommendations.</p>'+
+    '<div class="grid2"><div><label for="mm-p-role">Role</label><select id="mm-p-role"><option value="manufacturer" '+(value("role")==="manufacturer"?"selected":"")+'>Manufacturer</option><option value="distributor" '+(value("role")==="distributor"?"selected":"")+'>Distributor</option><option value="buyer" '+(value("role")==="buyer"?"selected":"")+'>Buyer</option></select></div>'+
+    '<div><label for="mm-p-name">Display name *</label><input id="mm-p-name" maxlength="160" value="'+mmEsc(value("display_name"))+'"></div>'+
+    '<div><label for="mm-p-country">Country</label><input id="mm-p-country" value="'+mmEsc(value("country"))+'"></div><div><label for="mm-p-website">Website</label><input id="mm-p-website" value="'+mmEsc(value("website"))+'" placeholder="https://…"></div></div>'+
+    '<label for="mm-p-description">Company and partnership summary</label><textarea id="mm-p-description" rows="3">'+mmEsc(value("description"))+'</textarea>'+
+    '<div class="grid2"><div><label for="mm-p-offered">Products offered</label><textarea id="mm-p-offered" rows="2" placeholder="Comma separated">'+mmEsc(value("offered_products"))+'</textarea></div><div><label for="mm-p-interested">Products sought</label><textarea id="mm-p-interested" rows="2" placeholder="Comma separated">'+mmEsc(value("interested_products"))+'</textarea></div>'+
+    '<div><label for="mm-p-categories">Product categories</label><input id="mm-p-categories" value="'+mmEsc(value("product_categories"))+'"></div><div><label for="mm-p-partners">Partner types sought</label><input id="mm-p-partners" value="'+mmEsc(value("partner_types_sought")||(COMPANY?"distributor, buyer":"manufacturer, distributor"))+'"></div>'+
+    '<div><label for="mm-p-target">Target countries</label><input id="mm-p-target" value="'+mmEsc(value("target_countries"))+'"></div><div><label for="mm-p-served">Countries served</label><input id="mm-p-served" value="'+mmEsc(value("served_countries"))+'"></div>'+
+    '<div><label for="mm-p-certs">Certifications held</label><input id="mm-p-certs" value="'+mmEsc(value("certifications"))+'"></div><div><label for="mm-p-required">Required certifications</label><input id="mm-p-required" value="'+mmEsc(value("required_certifications"))+'"></div>'+
+    '<div><label for="mm-p-channels">Sales channels</label><input id="mm-p-channels" value="'+mmEsc(value("sales_channels"))+'"></div><div><label for="mm-p-size">Company size</label><input id="mm-p-size" value="'+mmEsc(value("company_size"))+'"></div></div>'+
+    '<div class="form-actions"><button class="btn btn-ghost" onclick="'+(profile?"mmSetView('matches')":"showPanel('"+(COMPANY?"dashboard":"b-favorites")+"')")+'">Cancel</button><button class="btn btn-grad" id="mmProfileSave" onclick="saveMmProfile()">Save profile</button></div></div>';
+}
+function mmProfileCompleteness(payload){
+  const values=[payload.display_name,payload.country,payload.description,payload.offered_products.length||payload.interested_products.length,payload.product_categories.length,payload.partner_types_sought.length,payload.target_countries.length||payload.served_countries.length,payload.sales_channels.length,payload.certifications.length||payload.required_certifications.length];
+  return Math.round(values.filter(Boolean).length/values.length*100);
+}
+async function saveMmProfile(){
+  const button=document.getElementById("mmProfileSave");
+  const get=id=>(document.getElementById(id).value||"").trim();
+  const payload={
+    user_id:USER.id,company_id:COMPANY?COMPANY.id:null,role:get("mm-p-role"),
+    display_name:get("mm-p-name"),country:get("mm-p-country")||null,
+    website:mmUtils.safeHttpUrl(get("mm-p-website")),description:get("mm-p-description")||null,
+    company_size:get("mm-p-size")||null,offered_products:mmUtils.csv(get("mm-p-offered")),
+    interested_products:mmUtils.csv(get("mm-p-interested")),product_categories:mmUtils.csv(get("mm-p-categories")),
+    partner_types_sought:mmUtils.csv(get("mm-p-partners")).map(v=>v.toLowerCase()),
+    target_countries:mmUtils.csv(get("mm-p-target")),served_countries:mmUtils.csv(get("mm-p-served")),
+    certifications:mmUtils.csv(get("mm-p-certs")),required_certifications:mmUtils.csv(get("mm-p-required")),
+    sales_channels:mmUtils.csv(get("mm-p-channels")),is_active:true
+  };
+  if(!payload.display_name){toast("Display name is required.");return;}
+  payload.profile_completeness=mmProfileCompleteness(payload);
+  mmSetBusy(button,true,"Saving…");
+  try{
+    await db("matchmaking_profiles?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(payload)});
+    MM.view="matches";MM.loaded=false;await loadMatchmakingWorkspace();toast("Matchmaking profile saved ✓");
+  }catch(error){toast(mmParseError(error));}
+  finally{mmSetBusy(button,false);}
+}
+async function refreshMmMatches(button){
+  if(!MM.data||!MM.data.profile)return;
+  mmSetBusy(button,true,"Matching…");
+  try{
+    await mmRpc("refresh_matchmaking_matches",{p_profile_id:MM.data.profile.id});
+    MM.view="matches";await loadMatchmakingWorkspace(true);toast("Partner matches refreshed ✓");
+  }catch(error){toast(mmParseError(error));}
+  finally{mmSetBusy(button,false);}
+}
+function mmMatchesView(){
+  const rows=mmUtils.array(MM.data.matches);
+  const countries=[...new Set(rows.map(m=>m.target&&m.target.country).filter(Boolean))].sort();
+  const filtered=rows.filter(match=>{
+    const target=match.target||{};
+    const hay=[target.display_name,target.country,target.description,...mmUtils.array(target.offered_products),...mmUtils.array(target.interested_products)].join(" ").toLowerCase();
+    return (!MM.filters.q||hay.includes(MM.filters.q.toLowerCase()))&&(!MM.filters.role||target.role===MM.filters.role)&&(!MM.filters.country||target.country===MM.filters.country)&&Number(match.match_score)>=Number(MM.filters.min||0)&&match.status!=="dismissed";
+  });
+  return '<div class="mm-filters"><input aria-label="Search partner matches" placeholder="Search companies, products or markets…" value="'+mmEsc(MM.filters.q)+'" oninput="mmFilter(\'q\',this.value)"><select aria-label="Partner role" onchange="mmFilter(\'role\',this.value)"><option value="">All roles</option>'+["manufacturer","distributor","buyer"].map(role=>'<option value="'+role+'" '+(MM.filters.role===role?"selected":"")+'>'+mmUtils.statusLabel(role)+'</option>').join("")+'</select><select aria-label="Country" onchange="mmFilter(\'country\',this.value)"><option value="">All countries</option>'+countries.map(country=>'<option '+(MM.filters.country===country?"selected":"")+'>'+mmEsc(country)+'</option>').join("")+'</select><select aria-label="Minimum score" onchange="mmFilter(\'min\',this.value)"><option value="0">All scores</option><option value="50" '+(MM.filters.min==="50"?"selected":"")+'>50%+</option><option value="70" '+(MM.filters.min==="70"?"selected":"")+'>70%+</option><option value="85" '+(MM.filters.min==="85"?"selected":"")+'>85%+</option></select></div><div style="height:12px"></div><div class="mm-list">'+(filtered.length?filtered.map(mmMatchCard).join(""):'<div class="mm-empty"><b>No matches in this view</b>Adjust the filters or add more structured profile evidence, then refresh matches.</div>')+'</div>';
+}
+function mmFilter(key,value){MM.filters[key]=value;const content=document.getElementById("mmViewContent");if(content)content.innerHTML=mmMatchesView();}
+function mmMatchCard(match){
+  const target=match.target||{},explanation=match.explanation||{};
+  const drivers=mmUtils.array(explanation.top_reasons);
+  const risks=Object.values(explanation.risk_signals||{}).filter(Boolean);
+  const connection=match.connection;
+  const status=connection?connection.status:match.status;
+  const website=mmUtils.safeHttpUrl(target.website);
+  let primary="";
+  if(connection&&connection.status==="accepted") primary='<button class="btn btn-solid btn-sm" onclick="openMmRelationship('+Number(connection.id)+')">Open relationship</button><button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+Number(connection.id)+')">Propose meeting</button>';
+  else if(connection) primary='<button class="btn btn-solid btn-sm" onclick="mmSetView(\'relationships\')">View request</button>';
+  else primary='<button class="btn btn-grad btn-sm" onclick="openMmConnectionRequest(\''+mmEsc(target.id)+'\')">Request connection</button>';
+  return '<article class="mm-match-card '+(match.status==="saved"?"saved":"")+'"><div class="mm-card-top"><div><div class="mm-kicker">'+mmEsc(target.role||"partner")+'</div><div class="mm-company-name">'+mmEsc(target.display_name||"Unnamed company")+'</div><div class="mm-meta">'+mmEsc(target.country||"Country not specified")+(target.company_size?" · "+mmEsc(target.company_size):"")+' · <span class="mm-status '+mmEsc(status)+'">'+mmEsc(mmUtils.statusLabel(status))+'</span></div></div><div class="mm-score" style="--mm-score:'+Number(match.match_score||0)+'"><b>'+Number(match.match_score||0)+'%</b></div></div>'+
+    '<p class="mm-summary">'+mmEsc(explanation.summary||"Review the structured compatibility evidence below.")+'</p>'+
+    '<div class="mm-driver-grid">'+drivers.map(driver=>'<div class="mm-driver"><b><span>'+mmEsc(driver.label)+'</span><span>'+Number(driver.score||0)+'%</span></b><p>'+mmEsc(driver.reason)+' · '+Number(driver.weight_percent||0)+'% weight</p></div>').join("")+'</div>'+
+    (risks.length?'<div class="mm-risk-list">'+risks.map(risk=>'<span class="mm-risk">Check: '+mmEsc(risk)+'</span>').join("")+'</div>':"")+
+    '<p class="mm-confidence">'+mmEsc(explanation.confidence_note||match.confidence_level+" confidence based on available profile data.")+'</p>'+
+    '<div class="mm-actions">'+primary+(match.status!=="saved"&&(!connection||connection.status!=="accepted")?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'saved\')">Save</button>':"")+(match.status==="saved"?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'viewed\')">Unsave</button>':"")+(!connection?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'dismissed\')">Not interested</button>':"")+(website?'<a class="btn btn-ghost btn-sm" href="'+mmEsc(website)+'" target="_blank" rel="noopener noreferrer">Website ↗</a>':"")+'</div></article>';
+}
+async function setMmMatchStatus(matchId,status){
+  try{
+    await mmRpc("set_matchmaking_match_status",{p_match_id:Number(matchId),p_status:status,p_idempotency_key:mmUuid()});
+    await loadMatchmakingWorkspace(true);toast(status==="dismissed"?"Partner hidden":"Match updated ✓");
+  }catch(error){toast(mmParseError(error));}
+}
+function openMmConnectionRequest(targetId){
+  const match=mmUtils.array(MM.data.matches).find(item=>item.target&&item.target.id===targetId);
+  if(!match)return;
+  document.getElementById("mmActionTitle").textContent="Request business connection";
+  document.getElementById("mmActionSub").textContent="Introduce your company to "+(match.target.display_name||"this partner")+".";
+  document.getElementById("mmActionBody").innerHTML='<label for="mmIntroMessage">Introduction message</label><textarea id="mmIntroMessage" rows="5" maxlength="2000">Hello, our companies appear to be a strong match on MedicHall. I would like to explore a potential cooperation.</textarea>';
+  document.getElementById("mmActionButtons").innerHTML='<button class="btn btn-ghost" onclick="closeMmActionModal()">Cancel</button><button class="btn btn-grad" id="mmActionConfirm" onclick="sendMmConnection(\''+mmEsc(targetId)+'\')">Send request</button>';
+  mmOpenModal("mmActionModal","#mmIntroMessage");
+}
+function closeMmActionModal(){mmCloseModal("mmActionModal");}
+async function sendMmConnection(targetId){
+  const button=document.getElementById("mmActionConfirm"),message=document.getElementById("mmIntroMessage").value.trim();
+  mmSetBusy(button,true,"Sending…");
+  try{
+    await mmRpc("request_business_connection_v2",{p_recipient_profile_id:targetId,p_message:message||null,p_idempotency_key:mmUuid()});
+    closeMmActionModal();MM.view="relationships";await loadMatchmakingWorkspace(true);toast("Connection request sent ✓");
+  }catch(error){toast(mmParseError(error));}
+  finally{mmSetBusy(button,false);}
+}
+function mmRelationshipsView(){
+  const rows=mmUtils.array(MM.data.connections);
+  return '<div class="mm-list">'+(rows.length?rows.map(connection=>{
+    const other=connection.other_profile||{},incoming=connection.recipient_profile_id===MM.data.profile.id;
+    return '<article class="mm-relationship-card"><div class="mm-card-top"><div><div class="mm-kicker">'+mmEsc(other.role||"partner")+'</div><div class="mm-company-name">'+mmEsc(other.display_name||"Company")+'</div><div class="mm-meta">'+mmEsc(other.country||"")+(connection.introduction_message?" · Introduction included":"")+'</div></div><span class="mm-status '+mmEsc(connection.status)+'">'+mmEsc(mmUtils.statusLabel(connection.status))+'</span></div>'+(connection.introduction_message?'<p class="mm-summary">'+mmEsc(connection.introduction_message)+'</p>':"")+'<div class="mm-actions">'+(incoming&&connection.status==="pending"?'<button class="btn btn-grad btn-sm" onclick="respondMmConnection('+Number(connection.id)+',\'accepted\','+Number(connection.state_version)+')">Accept</button><button class="btn btn-ghost btn-sm" onclick="respondMmConnection('+Number(connection.id)+',\'declined\','+Number(connection.state_version)+')">Decline</button>':"")+(connection.status==="accepted"?'<button class="btn btn-solid btn-sm" onclick="openMmRelationship('+Number(connection.id)+')">Open workspace</button><button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+Number(connection.id)+')">Propose meeting</button>':'<button class="btn btn-ghost btn-sm" onclick="openMmRelationship('+Number(connection.id)+')">View timeline</button>')+'</div></article>';
+  }).join(""):'<div class="mm-empty"><b>No relationships yet</b>Request a connection from a strong partner match to begin a secure conversation.</div>')+'</div>';
+}
+async function respondMmConnection(id,status,version){
+  try{
+    await mmRpc("respond_business_connection_v2",{p_connection_id:Number(id),p_status:status,p_expected_version:Number(version),p_idempotency_key:mmUuid()});
+    await loadMatchmakingWorkspace(true);toast(status==="accepted"?"Connection accepted ✓":"Connection declined");
+  }catch(error){toast(mmParseError(error));}
+}
+function mmMeetingsView(){
+  const rows=mmUtils.array(MM.data.meetings);
+  return '<div class="mm-list">'+(rows.length?rows.map(meeting=>mmMeetingCard(meeting,false)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Open an accepted relationship and propose up to three times.</div>')+'</div>';
+}
+function mmMeetingCard(meeting,detailed){
+  const other=meeting.other_profile||MM.detail&&MM.detail.other_profile||{};
+  const currentId=MM.data.profile.id;
+  const proposals=mmUtils.array(meeting.proposals).filter(p=>p.proposal_round===meeting.proposal_round);
+  const active=proposals.filter(p=>p.status==="active");
+  const proposer=active[0]&&active[0].proposed_by_profile_id;
+  const canRespond=["proposed","awaiting_response","counter_proposed"].includes(meeting.status)&&proposer&&proposer!==currentId;
+  const shownTime=meeting.confirmed_start||meeting.proposed_start;
+  const status=mmUtils.statusLabel(meeting.status);
+  let actions="";
+  if(meeting.status==="draft"&&meeting.requester_profile_id===currentId) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'edit_draft\')">Edit draft</button><button class="btn btn-grad btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'submit\')">Send draft</button>';
+  if(canRespond){
+    active.forEach(proposal=>{actions+='<button class="btn btn-grad btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'accept\','+proposal.id+')">Accept '+mmEsc(mmUtils.dateTime(proposal.start_at,mmTimezone()))+'</button>';});
+    actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'counter\')">Suggest other times</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'decline\')">Decline</button>';
+  }
+  if(meeting.status==="accepted") actions+='<button class="btn btn-grad btn-sm" onclick="prepareMmVideo('+meeting.id+',this)">Finish confirmation</button>';
+  if(meeting.status==="confirmed"){
+    if(meeting.video_status==="ready")actions+='<button class="btn btn-grad btn-sm" onclick="joinMmVideo('+meeting.id+',this)">Join secure video</button>';
+    actions+=mmCalendarButtons(meeting);
+    if(new Date(meeting.confirmed_start).getTime()<=Date.now())actions+='<button class="btn btn-solid btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'complete\')">Mark completed</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'no_show\')">No-show</button>';
+  }
+  if(["draft","proposed","awaiting_response","counter_proposed","accepted","confirmed"].includes(meeting.status)) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'cancel\')">Cancel</button>';
+  if(!detailed) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmRelationship('+meeting.connection_id+','+meeting.id+')">Timeline & notes</button>';
+  const videoState=meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'">'+mmVideoStateText(meeting)+'</div>':"";
+  const detailSections=detailed?mmMeetingDetailSections(meeting):"";
+  return '<article class="mm-meeting-card" id="mm-meeting-card-'+meeting.id+'"><div class="mm-card-top"><div><div class="mm-kicker">Meeting with '+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+(shownTime?mmEsc(mmUtils.dateTime(shownTime,mmTimezone()))+" · "+mmEsc(mmTimezone()):"Time not confirmed")+'</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(status)+'</span></div>'+(meeting.agenda?'<p class="mm-summary">'+mmEsc(meeting.agenda)+'</p>':"")+mmProposalList(meeting,proposals,canRespond)+videoState+(meeting.cancellation_reason?'<div class="mm-risk-list"><span class="mm-risk">'+mmEsc(meeting.cancellation_reason)+'</span></div>':"")+'<div class="mm-actions">'+actions+'</div>'+detailSections+'</article>';
+}
+function mmProposalList(meeting,proposals,canRespond){
+  if(!proposals.length)return "";
+  return '<div class="mm-proposals">'+proposals.map(proposal=>'<div class="mm-proposal '+mmEsc(proposal.status)+'"><div><time>'+mmEsc(mmUtils.dateTime(proposal.start_at,mmTimezone()))+'</time><small>'+mmEsc(mmUtils.statusLabel(proposal.status))+' · '+Math.round((new Date(proposal.end_at)-new Date(proposal.start_at))/60000)+' min · proposed in '+mmEsc(proposal.source_timezone)+'</small></div>'+(canRespond&&proposal.status==="active"?'<button class="btn btn-solid btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'accept\','+proposal.id+')">Accept</button>':"")+'</div>').join("")+'</div>';
+}
+function mmVideoStateText(meeting){
+  if(meeting.video_status==="ready")return "Secure video is ready. Join tokens are issued only to authenticated participants during the join window.";
+  if(meeting.video_status==="unconfigured")return "Meeting confirmed. Embedded video is configuration-disabled; calendar and follow-up remain available.";
+  if(meeting.video_status==="failed")return "Video setup failed safely. Retry confirmation; no public room or permanent token was created.";
+  if(meeting.video_status==="revoked")return "The video room is access-blocked and revoked.";
+  return "Secure video is being prepared.";
+}
+function mmCalendarButtons(meeting){
+  return '<button class="btn btn-ghost btn-sm" onclick="downloadMmIcs('+meeting.id+')">Download ICS</button><button class="btn btn-ghost btn-sm" onclick="openMmCalendar('+meeting.id+',\'google\')">Google Calendar</button><button class="btn btn-ghost btn-sm" onclick="openMmCalendar('+meeting.id+',\'outlook\')">Outlook</button>';
+}
+function mmFindMeeting(id){
+  const direct=mmUtils.array(MM.data&&MM.data.meetings).find(m=>Number(m.id)===Number(id));
+  if(direct)return direct;
+  return mmUtils.array(MM.detail&&MM.detail.meetings).find(m=>Number(m.id)===Number(id));
+}
+function downloadMmIcs(id){
+  const event=mmUtils.calendarEvent(mmFindMeeting(id),location.origin);
+  if(!event){toast("Confirmed meeting time unavailable.");return;}
+  const url=URL.createObjectURL(new Blob([event.ics],{type:"text/calendar;charset=utf-8"}));
+  const link=document.createElement("a");link.href=url;link.download=event.filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function openMmCalendar(id,provider){
+  const event=mmUtils.calendarEvent(mmFindMeeting(id),location.origin);
+  if(!event){toast("Confirmed meeting time unavailable.");return;}
+  window.open(provider==="outlook"?event.outlook:event.google,"_blank","noopener,noreferrer");
+}
+async function runMmMeetingAction(id,action,proposalId=null,reason=null){
+  const meeting=mmFindMeeting(id);
+  if(!meeting)return;
+  try{
+    await mmRpc("respond_matchmaking_meeting",{p_meeting_id:Number(id),p_action:action,p_expected_version:Number(meeting.state_version),p_idempotency_key:mmUuid(),p_proposal_id:proposalId,p_slots:null,p_timezone:null,p_reason:reason});
+    let videoNeedsRetry=false;
+    if(action==="accept"){
+      try{await prepareMmVideo(id,null,true);}
+      catch(_){videoNeedsRetry=true;}
+    }
+    await loadMatchmakingWorkspace(true);
+    if(MM.detail&&Number(MM.detail.connection.id)===Number(meeting.connection_id))await loadMmRelationship(meeting.connection_id,true);
+    toast(action==="accept"?(videoNeedsRetry?"Meeting time accepted. Video confirmation needs a retry.":"Meeting time accepted ✓"):"Meeting updated ✓");
+  }catch(error){toast(mmParseError(error));}
+}
+function openMmMeetingReason(id,action){
+  const labels={decline:"Decline meeting proposal",cancel:"Cancel meeting",no_show:"Mark meeting as no-show"};
+  document.getElementById("mmActionTitle").textContent=labels[action]||"Update meeting";
+  document.getElementById("mmActionSub").textContent="This change is recorded in the shared meeting timeline.";
+  document.getElementById("mmActionBody").innerHTML='<label for="mmMeetingReason">Reason or note</label><textarea id="mmMeetingReason" rows="4" maxlength="1000" placeholder="Add useful context for the other participant"></textarea>';
+  document.getElementById("mmActionButtons").innerHTML='<button class="btn btn-ghost" onclick="closeMmActionModal()">Back</button><button class="btn '+(action==="cancel"?"btn-ghost":"btn-grad")+'" onclick="confirmMmMeetingReason('+Number(id)+',\''+action+'\')">Confirm</button>';
+  mmOpenModal("mmActionModal","#mmMeetingReason");
+}
+async function confirmMmMeetingReason(id,action){
+  const reason=document.getElementById("mmMeetingReason").value.trim();
+  closeMmActionModal();
+  await runMmMeetingAction(id,action,null,reason||null);
+  if(action==="cancel"){
+    try{await mmVideoRequest("revoke",id);}catch(_){}
+  }
+}
+async function prepareMmVideo(id,button,silent=false){
+  mmSetBusy(button,true,"Preparing…");
+  try{
+    const result=await mmVideoRequest("prepare",id);
+    await loadMatchmakingWorkspace(true);
+    if(!silent)toast(result.video_status==="ready"?"Secure video ready ✓":"Meeting confirmed; video is not configured.");
+    return result;
+  }catch(error){if(!silent)toast(mmParseError(error));throw error;}
+  finally{mmSetBusy(button,false);}
+}
+async function joinMmVideo(id,button){
+  mmSetBusy(button,true,"Authorizing…");
+  try{
+    const result=await mmVideoRequest("join",id);
+    const room=mmUtils.safeHttpUrl(result.room_url);
+    const parsed=room?new URL(room):null;
+    if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token)throw new Error("The secure room response was invalid.");
+    parsed.searchParams.set("t",result.token);
+    document.getElementById("mmVideoFrame").src=parsed.toString();
+    mmOpenModal("mmVideoModal","#mmVideoFrame");
+  }catch(error){toast(mmParseError(error));}
+  finally{mmSetBusy(button,false);}
+}
+function closeMmVideo(){
+  const frame=document.getElementById("mmVideoFrame");
+  frame.src="about:blank";
+  mmCloseModal("mmVideoModal");
+}
+function mmNotificationsView(){
+  const rows=mmUtils.array(MM.data.notifications);
+  return '<div class="panel-head"><h2>Matchmaking notifications</h2>'+(MM.data.unread_count?'<button class="btn btn-ghost btn-sm" onclick="markMmNotificationsRead()">Mark all read</button>':"")+'</div><div class="mm-list">'+(rows.length?rows.map(notification=>'<article class="mm-notification-card '+(notification.read_at?"":"unread")+'"><div class="mm-card-top"><div><div class="mm-company-name">'+mmEsc(notification.title)+'</div><p>'+mmEsc(notification.body)+'</p><time>'+mmEsc(mmUtils.dateTime(notification.created_at,mmTimezone()))+'</time></div>'+(notification.read_at?"":'<span class="mm-status proposed">New</span>')+'</div><div class="mm-actions"><button class="btn btn-ghost btn-sm" onclick="openMmNotification('+notification.id+','+(notification.connection_id||"null")+','+(notification.meeting_id||"null")+')">Open</button></div></article>').join(""):'<div class="mm-empty"><b>No notifications</b>Connection, meeting and follow-up updates will appear here.</div>')+'</div>';
+}
+async function markMmNotificationsRead(ids=null){
+  try{await mmRpc("mark_matchmaking_notifications_read",{p_notification_ids:ids});await loadMatchmakingWorkspace(true);}
+  catch(error){toast(mmParseError(error));}
+}
+async function openMmNotification(id,connectionId,meetingId){
+  await markMmNotificationsRead([Number(id)]);
+  if(connectionId)openMmRelationship(connectionId,meetingId);
+}
+function openMmMeetingForm(connectionId,meetingId=null,mode="propose"){
+  const connection=mmUtils.array(MM.data.connections).find(item=>Number(item.id)===Number(connectionId));
+  const meeting=meetingId?mmFindMeeting(meetingId):null;
+  MM.meetingMode=mode;MM.connectionId=Number(connectionId);MM.meetingId=meetingId?Number(meetingId):null;
+  document.getElementById("mmMeetingTitle").textContent=mode==="counter"?"Suggest other meeting times":mode==="edit_draft"?"Edit meeting draft":"Propose a meeting";
+  document.getElementById("mmMeetingPartner").textContent="With "+(connection&&connection.other_profile&&connection.other_profile.display_name||"your partner");
+  document.getElementById("mm-meeting-topic").value=meeting&&meeting.title||"Product portfolio and cooperation";
+  document.getElementById("mm-meeting-agenda").value=meeting&&meeting.agenda||"Review product fit, market priorities, commercial requirements and next steps.";
+  document.getElementById("mm-meeting-language").value=meeting&&meeting.language||"English";
+  document.getElementById("mm-meeting-duration").value=String(meeting&&meeting.duration_minutes||30);
+  const now=new Date();now.setMinutes(Math.ceil(now.getMinutes()/15)*15,0,0);
+  const draftProposals=mode==="edit_draft"&&meeting?mmUtils.array(meeting.proposals).filter(proposal=>proposal.proposal_round===meeting.proposal_round&&proposal.status==="active"):[];
+  [1,2,3].forEach((index)=>{
+    const candidate=new Date(now.getTime()+index*24*60*60*1000);
+    candidate.setHours(index===2?14:10,0,0,0);
+    const existing=draftProposals[index-1];
+    document.getElementById("mm-slot-"+index).value=existing?mmLocalInputValue(new Date(existing.start_at)):mmLocalInputValue(candidate);
+  });
+  document.getElementById("mmDraftBtn").style.display=mode==="propose"?"inline-flex":"none";
+  document.getElementById("mmMeetingSubmit").textContent=mode==="counter"?"Send counter-proposal":mode==="edit_draft"?"Save changes":"Send proposal";
+  document.getElementById("mmMeetingError").style.display="none";
+  document.getElementById("mmTimezoneNote").textContent="Times are entered in "+mmTimezone()+" and stored securely in UTC. Each participant sees the confirmed time in their own timezone.";
+  mmUpdateSlotEnds();
+  mmOpenModal("mmMeetingModal","#mm-meeting-topic");
+}
+function mmLocalInputValue(date){
+  const pad=value=>String(value).padStart(2,"0");
+  return date.getFullYear()+"-"+pad(date.getMonth()+1)+"-"+pad(date.getDate())+"T"+pad(date.getHours())+":"+pad(date.getMinutes());
+}
+function mmUpdateSlotEnds(){
+  const duration=Number(document.getElementById("mm-meeting-duration").value||30);
+  [1,2,3].forEach(index=>{
+    const value=document.getElementById("mm-slot-"+index).value;
+    const target=document.getElementById("mm-slot-end-"+index);
+    if(!value){target.textContent="Optional";return;}
+    const end=new Date(new Date(value).getTime()+duration*60000);
+    target.textContent="Ends "+(Number.isNaN(end.getTime())?"—":end.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}));
+  });
+}
+function closeMmMeetingModal(){mmCloseModal("mmMeetingModal");}
+async function submitMmMeeting(saveDraft){
+  const error=document.getElementById("mmMeetingError"),button=document.getElementById(saveDraft?"mmDraftBtn":"mmMeetingSubmit");
+  error.style.display="none";
+  try{
+    const slots=mmUtils.proposalSlots([1,2,3].map(index=>document.getElementById("mm-slot-"+index).value),document.getElementById("mm-meeting-duration").value);
+    mmSetBusy(button,true,saveDraft?"Saving…":"Sending…");
+    if(MM.meetingMode==="counter"){
+      const meeting=mmFindMeeting(MM.meetingId);
+      await mmRpc("respond_matchmaking_meeting",{p_meeting_id:MM.meetingId,p_action:"counter",p_expected_version:Number(meeting.state_version),p_idempotency_key:mmUuid(),p_proposal_id:null,p_slots:slots,p_timezone:mmTimezone(),p_reason:null});
+    }else if(MM.meetingMode==="edit_draft"){
+      const meeting=mmFindMeeting(MM.meetingId);
+      await mmRpc("update_matchmaking_meeting_draft",{p_meeting_id:MM.meetingId,p_expected_version:Number(meeting.state_version),p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:mmTimezone(),p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_idempotency_key:mmUuid()});
+    }else{
+      await mmRpc("propose_matchmaking_meeting",{p_connection_id:MM.connectionId,p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:mmTimezone(),p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_save_as_draft:Boolean(saveDraft),p_idempotency_key:mmUuid()});
+    }
+    closeMmMeetingModal();MM.view="meetings";await loadMatchmakingWorkspace(true);
+    if(MM.detail)await loadMmRelationship(MM.connectionId,true);
+    toast(saveDraft?"Meeting draft saved ✓":MM.meetingMode==="edit_draft"?"Meeting draft updated ✓":"Meeting proposal sent ✓");
+  }catch(caught){
+    error.textContent=mmParseError(caught);error.style.display="block";
+  }finally{mmSetBusy(button,false);}
+}
+async function openMmRelationship(connectionId,focusMeetingId=null){
+  mmOpenModal("mmDetailModal",".modal-close");
+  document.getElementById("mmDetailBody").innerHTML='<div class="loading">Loading relationship…</div>';
+  await loadMmRelationship(connectionId,false);
+  if(focusMeetingId)setTimeout(()=>document.getElementById("mm-meeting-card-"+focusMeetingId)?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+  clearInterval(MM.detailTimer);
+  MM.detailTimer=setInterval(()=>{if(!document.hidden&&document.getElementById("mmDetailModal").classList.contains("open"))loadMmRelationship(connectionId,true);},10000);
+}
+async function loadMmRelationship(connectionId,silent){
+  try{
+    MM.detail=await mmRpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
+    renderMmRelationshipDetail();
+  }catch(error){if(!silent)document.getElementById("mmDetailBody").innerHTML='<div class="mm-empty"><b>Relationship unavailable</b>'+mmEsc(mmParseError(error))+'</div>';}
+}
+function renderMmRelationshipDetail(){
+  if(!MM.detail)return;
+  const connection=MM.detail.connection,other=MM.detail.other_profile||{},messages=mmUtils.array(MM.detail.messages),meetings=mmUtils.array(MM.detail.meetings);
+  document.getElementById("mmDetailTitle").textContent=other.display_name||"Relationship workspace";
+  const relationNote=mmUtils.array(MM.detail.private_notes).find(note=>!note.meeting_id);
+  document.getElementById("mmDetailBody").innerHTML='<div class="mm-card-top"><div><div class="mm-kicker">'+mmEsc(other.role||"partner")+'</div><div class="mm-company-name">'+mmEsc(other.display_name||"Company")+'</div><div class="mm-meta">'+mmEsc(other.country||"")+'</div></div><span class="mm-status '+mmEsc(connection.status)+'">'+mmEsc(mmUtils.statusLabel(connection.status))+'</span></div>'+
+    '<div class="mm-detail-grid"><div><section class="mm-section"><h4>Relationship conversation</h4><div class="mm-message-list">'+(messages.length?messages.map(message=>'<div class="mm-message '+(message.message_type==="system"?"system":message.sender_profile_id===MM.data.profile.id?"mine":"")+'">'+mmEsc(message.body)+'<time>'+mmEsc(message.sender_name||"MedicHall")+" · "+mmEsc(mmUtils.dateTime(message.created_at,mmTimezone()))+'</time></div>').join(""):'<div class="mm-meta">No messages yet.</div>')+'</div>'+(connection.status==="accepted"?'<div class="mm-compose"><input id="mmRelationshipMessage" maxlength="4000" placeholder="Write a relationship message…" onkeydown="if(event.key===\'Enter\')sendMmRelationshipMessage('+connection.id+')"><button class="btn btn-grad btn-sm" onclick="sendMmRelationshipMessage('+connection.id+')">Send</button></div>':"")+'</section>'+
+    '<div class="panel-head"><h2>Meeting lifecycle</h2>'+(connection.status==="accepted"?'<button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+connection.id+')">Propose meeting</button>':"")+'</div><div class="mm-list">'+(meetings.length?meetings.map(meeting=>mmMeetingCard(meeting,true)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Propose one to three times when both companies are ready.</div>')+'</div></div>'+
+    '<aside><section class="mm-section mm-note"><h4>Private relationship note</h4><p class="mm-meta">Visible only to your matchmaking profile.</p><textarea id="mmRelationNote" rows="6" maxlength="8000" placeholder="Internal qualification notes…">'+mmEsc(relationNote&&relationNote.note||"")+'</textarea><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveMmPrivateNote('+connection.id+',null,\'mmRelationNote\')">Save private note</button></section>'+
+    '<section class="mm-section"><h4>Partner profile</h4><p class="mm-meta">'+mmEsc(other.description||"No company summary provided.")+'</p>'+(mmUtils.array(other.offered_products).length?'<div class="mm-risk-list">'+mmUtils.array(other.offered_products).slice(0,8).map(item=>'<span class="mm-participant">'+mmEsc(item)+'</span>').join("")+'</div>':"")+'</section></aside></div>';
+}
+async function sendMmRelationshipMessage(connectionId){
+  const input=document.getElementById("mmRelationshipMessage"),body=input&&input.value.trim();
+  if(!body)return;
+  try{
+    await mmRpc("send_matchmaking_relationship_message",{p_connection_id:Number(connectionId),p_body:body,p_idempotency_key:mmUuid()});
+    input.value="";await loadMmRelationship(connectionId,true);await loadMatchmakingWorkspace(true);
+  }catch(error){toast(mmParseError(error));}
+}
+async function saveMmPrivateNote(connectionId,meetingId,inputId){
+  const note=document.getElementById(inputId).value.trim();
+  if(!note){toast("Write a private note before saving.");return;}
+  try{
+    await mmRpc("upsert_matchmaking_private_note",{p_connection_id:Number(connectionId),p_meeting_id:meetingId?Number(meetingId):null,p_note:note,p_idempotency_key:mmUuid()});
+    await loadMmRelationship(connectionId,true);toast("Private note saved ✓");
+  }catch(error){toast(mmParseError(error));}
+}
+function mmMeetingDetailSections(meeting){
+  const events=mmUtils.array(meeting.events),outcomes=mmUtils.array(meeting.outcomes);
+  const note=mmUtils.array(MM.detail&&MM.detail.private_notes).find(item=>Number(item.meeting_id)===Number(meeting.id));
+  return '<div class="mm-detail-grid"><section class="mm-section"><h4>Immutable timeline</h4><div class="mm-timeline">'+(events.length?events.map(event=>'<div class="mm-event"><b>'+mmEsc(mmUtils.statusLabel(event.event_type))+'</b><span> · '+mmEsc(event.actor_name||"MedicHall automation")+'</span><time>'+mmEsc(mmUtils.dateTime(event.created_at,mmTimezone()))+'</time></div>').join(""):'<p class="mm-meta">No events recorded.</p>')+'</div></section><div><section class="mm-section mm-note"><h4>Private meeting note</h4><textarea id="mmMeetingNote-'+meeting.id+'" rows="4" maxlength="8000" placeholder="Internal notes, visible only to you">'+mmEsc(note&&note.note||"")+'</textarea><button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="saveMmPrivateNote('+meeting.connection_id+','+meeting.id+',\'mmMeetingNote-'+meeting.id+'\')">Save note</button></section>'+((meeting.status==="completed"||meeting.status==="no_show")?mmOutcomeForm(meeting,outcomes):"")+'</div></div>';
+}
+function mmOutcomeForm(meeting,outcomes){
+  const mine=outcomes.find(outcome=>outcome.author_profile_id===MM.data.profile.id)||{};
+  return '<section class="mm-section"><h4>Post-meeting outcome</h4><label for="mmOutcomeStatus-'+meeting.id+'">Outcome</label><select id="mmOutcomeStatus-'+meeting.id+'">'+["positive","neutral","negative","follow_up_needed","no_decision"].map(value=>'<option value="'+value+'" '+(mine.outcome_status===value?"selected":"")+'>'+mmUtils.statusLabel(value)+'</option>').join("")+'</select><label for="mmOutcomeSummary-'+meeting.id+'">Shared summary</label><textarea id="mmOutcomeSummary-'+meeting.id+'" rows="3" maxlength="8000">'+mmEsc(mine.shared_summary||"")+'</textarea><label for="mmOutcomeNext-'+meeting.id+'">Next step</label><input id="mmOutcomeNext-'+meeting.id+'" maxlength="2000" value="'+mmEsc(mine.next_step||"")+'"><label for="mmOutcomeFollow-'+meeting.id+'">Follow up at</label><input id="mmOutcomeFollow-'+meeting.id+'" type="datetime-local" value="'+(mine.follow_up_at?mmLocalInputValue(new Date(mine.follow_up_at)):"")+'"><button class="btn btn-grad btn-sm" style="margin-top:9px" onclick="submitMmOutcome('+meeting.id+')">Save shared outcome</button></section>';
+}
+async function submitMmOutcome(meetingId){
+  const meeting=mmFindMeeting(meetingId),follow=document.getElementById("mmOutcomeFollow-"+meetingId).value;
+  try{
+    await mmRpc("submit_matchmaking_meeting_outcome",{p_meeting_id:Number(meetingId),p_outcome_status:document.getElementById("mmOutcomeStatus-"+meetingId).value,p_shared_summary:document.getElementById("mmOutcomeSummary-"+meetingId).value.trim()||null,p_next_step:document.getElementById("mmOutcomeNext-"+meetingId).value.trim()||null,p_follow_up_at:follow?new Date(follow).toISOString():null,p_idempotency_key:mmUuid()});
+    await loadMmRelationship(meeting.connection_id,true);toast("Meeting outcome saved ✓");
+  }catch(error){toast(mmParseError(error));}
+}
+function closeMmDetailModal(){
+  mmCloseModal("mmDetailModal");
+  clearInterval(MM.detailTimer);MM.detailTimer=null;MM.detail=null;
+}
+function mmApplyDeepLink(){
+  const hash=location.hash;
+  if(!hash.startsWith("#matchmaking")||MM.handledHash===hash)return;
+  const meeting=hash.match(/^#matchmaking-meeting=(\d+)$/);
+  const relationship=hash.match(/^#matchmaking-relationship=(\d+)$/);
+  if(meeting&&MM.data){
+    const found=mmUtils.array(MM.data.meetings).find(item=>Number(item.id)===Number(meeting[1]));
+    if(found){MM.handledHash=hash;openMmRelationship(found.connection_id,found.id);}
+  }else if(relationship&&MM.data){MM.handledHash=hash;openMmRelationship(Number(relationship[1]));}
+}
+
 function showPanel(name){
   document.querySelectorAll(".tab[data-panel]").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
+  if(name==="matchmaking"||name==="b-matchmaking") loadMatchmakingWorkspace();
 }
-function closeModals(){ document.querySelectorAll(".modal-backdrop").forEach(m=>m.classList.remove("open")); }
-document.addEventListener("keydown", e=>{ if(e.key==="Escape"){
-  if(document.getElementById("chatModal").classList.contains("open")) closeChat();
-  else closeModals();
-} });
+function closeModals(){
+  closeMmVideo();
+  closeMmDetailModal();
+  closeMmMeetingModal();
+  closeMmActionModal();
+  document.querySelectorAll(".modal-backdrop").forEach(m=>m.classList.remove("open"));
+}
+document.addEventListener("keydown", e=>{
+  mmTrapModalFocus(e);
+  if(e.key==="Escape"){
+    const top=mmTopModal();
+    if(top){
+      if(top.id==="mmVideoModal")closeMmVideo();
+      else if(top.id==="mmDetailModal")closeMmDetailModal();
+      else if(top.id==="mmMeetingModal")closeMmMeetingModal();
+      else closeMmActionModal();
+    }else if(document.getElementById("chatModal").classList.contains("open"))closeChat();
+    else closeModals();
+  }
+});
+window.addEventListener("hashchange",()=>{MM.handledHash=null;applyHash();});
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&MM.loaded)loadMatchmakingWorkspace(true);
+});
 
 if(TOKEN) enterApp();
 </script>
