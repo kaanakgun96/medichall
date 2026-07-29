@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { unzipSync } from "npm:fflate@0.8.2";
 import * as XLSX from "npm:xlsx@0.18.5";
 import mammoth from "npm:mammoth@1.9.0";
+import { extractZipArchiveBounded } from "../../_shared/safe-zip.ts";
+import { neutralizeCsvFormulaText } from "../../_shared/tender-import-file-types.ts";
 
 const ORIGINS = new Set([
   "https://medichall.com",
@@ -55,7 +56,10 @@ function classify(name: string) {
   return "other";
 }
 async function sha256(bytes: Uint8Array) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    Uint8Array.from(bytes).buffer,
+  );
   return [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, "0")).join("");
 }
 async function convert(bytes: Uint8Array, name: string) {
@@ -67,7 +71,11 @@ async function convert(bytes: Uint8Array, name: string) {
     const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
     const outputs: Array<{bytes:Uint8Array,name:string,mime:string}> = [];
     for (const sheetName of workbook.SheetNames.slice(0, 20)) {
-      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], { blankrows: false });
+      const csv = neutralizeCsvFormulaText(
+        XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], {
+          blankrows: false,
+        }),
+      );
       if (!csv.trim()) continue;
       outputs.push({
         bytes: new TextEncoder().encode(`# Source workbook: ${name}\n# Sheet: ${sheetName}\n${csv}`),
@@ -78,7 +86,9 @@ async function convert(bytes: Uint8Array, name: string) {
     return outputs;
   }
   if (ext === "docx") {
-    const result = await mammoth.extractRawText({ arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+    const result = await mammoth.extractRawText({
+      arrayBuffer: Uint8Array.from(bytes).buffer,
+    });
     const text = `Source DOCX: ${name}\n\n${result.value || ""}`;
     return text.trim()
       ? [{ bytes: new TextEncoder().encode(text), name: name.replace(/\.docx$/i, ".txt"), mime: "text/plain" }]
@@ -110,8 +120,8 @@ async function processJob(admin: any, jobId: number) {
   const compressed = new Uint8Array(await response.arrayBuffer());
   if (compressed.byteLength > MAX_ARCHIVE_BYTES) throw new Error("ZIP exceeds 30 MB compressed limit");
 
-  const extracted = unzipSync(compressed);
-  const entries = Object.entries(extracted);
+  const extracted = extractZipArchiveBounded(compressed);
+  const entries = [...extracted.entries()];
   let total = 0, examined = 0, created = 0;
   const skipped: string[] = [];
 

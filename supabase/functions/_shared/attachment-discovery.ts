@@ -105,17 +105,13 @@ export function normalizePublicUrl(
 ): URL | null {
   try {
     const url = new URL(value.trim(), base);
-    if (!["http:", "https:"].includes(url.protocol)) return null;
+    if (url.protocol !== "https:") return null;
     if (url.username || url.password || isBlockedAttachmentHost(url.hostname)) {
       return null;
     }
+    if (url.port && url.port !== "443") return null;
     url.hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-    if (
-      (url.protocol === "https:" && url.port === "443") ||
-      (url.protocol === "http:" && url.port === "80")
-    ) {
-      url.port = "";
-    }
+    if (url.port === "443") url.port = "";
     url.hash = "";
     return url;
   } catch {

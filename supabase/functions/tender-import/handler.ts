@@ -2,8 +2,17 @@
 // deno-lint-ignore-file no-explicit-any no-import-prefix
 
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
-import { assertTenderImportFile } from "../_shared/tender-import-file-types.ts";
+import {
+  assertTenderImportFile,
+  tenderImportContentSha256,
+  tenderImportFileSetFingerprint,
+} from "../_shared/tender-import-file-types.ts";
 import { sanitizeMessage } from "../_shared/matching-observability.ts";
+import {
+  partitionTenderImportCleanupPaths,
+  redactedTenderImportObjectId,
+  validatedTenderImportCleanupPaths,
+} from "../_shared/tender-import-cleanup.ts";
 import { json } from "../tender-document-engine/cors.ts";
 
 const DISCOVERY_TIMEOUT_MS = 55_000;
@@ -19,9 +28,17 @@ const SUPPORTED_ANALYSIS_MIME_TYPES = [
 ];
 
 type ImportPayload = {
-  action?: "start" | "retry" | "status";
+  action?:
+    | "start"
+    | "retry"
+    | "status"
+    | "cleanup"
+    | "reconcile_orphans";
   import_id?: string;
   company_id?: number;
+  storage_paths?: string[];
+  dry_run?: boolean;
+  older_than_minutes?: number;
 };
 
 type ImportRecord = {
@@ -33,6 +50,7 @@ type ImportRecord = {
   status: string;
   stage: string;
   attempt_count: number;
+  source_fingerprint?: string;
   updated_at: string;
 };
 
@@ -57,6 +75,54 @@ async function updateImport(
   }).eq("id", importId)
     .not("status", "in", "(completed,partial,failed,cancelled)");
   if (error) throw new Error(error.message);
+}
+
+function failureCategory(error: unknown): string {
+  const message = sanitizeMessage(error).toLowerCase();
+  if (message.includes("timeout") || message.includes("timed out")) {
+    return "timeout";
+  }
+  if (message.includes("zip") || message.includes("archive")) {
+    return "archive_validation";
+  }
+  if (
+    message.includes("document") ||
+    message.includes("pdf") ||
+    message.includes("docx") ||
+    message.includes("xlsx") ||
+    message.includes("csv")
+  ) {
+    return "file_validation";
+  }
+  if (
+    message.includes("network") ||
+    message.includes("dns") ||
+    message.includes("url") ||
+    message.includes("http")
+  ) {
+    return "network";
+  }
+  return "processing";
+}
+
+async function markImportFailed(
+  admin: any,
+  importId: string,
+  error: unknown,
+): Promise<void> {
+  const safeReason = sanitizeMessage(error) ||
+    "The tender import could not be completed.";
+  const { error: failureError } = await admin.rpc(
+    "mark_universal_tender_import_failed",
+    {
+      p_import_id: importId,
+      p_stage: "import_failed",
+      p_failure_category: failureCategory(error),
+      p_safe_reason: safeReason,
+      p_retry_eligible: true,
+    },
+  );
+  if (failureError) throw new Error(failureError.message);
 }
 
 async function invokeExistingWorker(
@@ -99,6 +165,7 @@ async function invokeExistingWorker(
 async function validatePrivateUploads(
   admin: any,
   tenderId: number,
+  expectedFingerprint: string,
 ): Promise<number> {
   const { data: documents, error } = await admin
     .from("tender_documents")
@@ -112,6 +179,8 @@ async function validatePrivateUploads(
   }
 
   let totalBytes = 0;
+  const contentHashes: string[] = [];
+  const validatedDocuments: Array<{ id: number; mimeType: string }> = [];
   for (const document of documents) {
     const fileName = String(document.file_name || "");
     const storagePath = String(document.storage_path || "");
@@ -131,11 +200,25 @@ async function validatePrivateUploads(
     if (totalBytes > 100 * 1024 * 1024) {
       throw new Error("The import exceeds the 100 MB total limit");
     }
-
+    contentHashes.push(await tenderImportContentSha256(bytes));
+    validatedDocuments.push({
+      id: Number(document.id),
+      mimeType: detected.mimeType,
+    });
+  }
+  const actualFingerprint = await tenderImportFileSetFingerprint(
+    contentHashes,
+  );
+  if (actualFingerprint !== expectedFingerprint) {
+    throw new Error(
+      "Uploaded document contents do not match the import fingerprint",
+    );
+  }
+  for (const document of validatedDocuments) {
     const { error: updateError } = await admin
       .from("tender_documents")
       .update({
-        mime_type: detected.mimeType,
+        mime_type: document.mimeType,
         access_status: "validated_private_upload",
         access_checked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -215,7 +298,11 @@ async function orchestrateImport(
         completed_at: null,
         error_message: null,
       });
-      const fileCount = await validatePrivateUploads(admin, tenderId);
+      const fileCount = await validatePrivateUploads(
+        admin,
+        tenderId,
+        String(tenderImport.source_fingerprint || ""),
+      );
       await updateImport(admin, importId, {
         file_count: fileCount,
         stage: "uploads_validated",
@@ -322,13 +409,16 @@ async function orchestrateImport(
       progress_percent: 65,
     });
   } catch (error) {
-    await updateImport(admin, importId, {
-      status: "failed",
-      stage: "import_failed",
-      progress_percent: 100,
-      error_message: sanitizeMessage(error),
-      completed_at: new Date().toISOString(),
-    });
+    try {
+      await markImportFailed(admin, importId, error);
+    } catch (failureError) {
+      console.error(JSON.stringify({
+        event: "tender_import_terminal_state_failure",
+        import_id: importId,
+        original_error: sanitizeMessage(error),
+        state_error: sanitizeMessage(failureError),
+      }));
+    }
   }
 }
 
@@ -371,10 +461,123 @@ export async function handleTenderImportRequest(
   const importId = payload?.import_id;
   const companyId = Number(payload?.company_id);
   const action = payload?.action || "start";
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  if (action === "reconcile_orphans") {
+    const olderThanMinutes = Number(payload?.older_than_minutes);
+    if (
+      !Number.isInteger(olderThanMinutes) ||
+      olderThanMinutes < 15 ||
+      olderThanMinutes > 129_600
+    ) {
+      return json(req, {
+        error: "Orphan age must be between 15 and 129600 minutes.",
+        code: "INVALID_ORPHAN_AGE",
+      }, 400);
+    }
+    const { data: isAdmin, error: adminCheckError } = await userClient.rpc(
+      "is_admin",
+    );
+    if (adminCheckError || isAdmin !== true) {
+      return json(req, {
+        error: "Administrator access is required.",
+        code: "ADMIN_REQUIRED",
+      }, 403);
+    }
+    const { data: candidates, error: candidateError } = await admin.rpc(
+      "list_stale_tender_import_orphans",
+      { p_older_than: `${olderThanMinutes} minutes` },
+    );
+    if (candidateError) {
+      return json(req, { error: candidateError.message }, 400);
+    }
+    const rows = Array.isArray(candidates) ? candidates : [];
+    const dryRun = payload?.dry_run !== false;
+    let removed = 0;
+    let failed = 0;
+    let refused = 0;
+    for (const candidate of rows) {
+      const objectName = String(candidate.object_name || "");
+      if (!objectName) continue;
+      let outcome = "dry_run_candidate";
+      if (!dryRun) {
+        let removable = true;
+        if (candidate.stale_import && validUuid(candidate.import_id)) {
+          const { error: markError } = await admin.rpc(
+            "mark_universal_tender_import_failed",
+            {
+              p_import_id: candidate.import_id,
+              p_stage: "stale_upload",
+              p_failure_category: "stale_upload",
+              p_safe_reason:
+                "The upload was interrupted before registration completed.",
+              p_retry_eligible: true,
+            },
+          );
+          if (markError) {
+            failed++;
+            removable = false;
+            outcome = "import_state_failure";
+          }
+        }
+        if (removable) {
+          const { count: activeReferences, error: referenceError } = await admin
+            .from("tender_documents")
+            .select("id", { count: "exact", head: true })
+            .eq("storage_bucket", "tender-imports")
+            .eq("storage_path", objectName)
+            .eq("is_active", true);
+          if (referenceError) {
+            failed++;
+            removable = false;
+            outcome = "reference_check_failure";
+          } else if (activeReferences) {
+            refused++;
+            removable = false;
+            outcome = "active_reference_refusal";
+          }
+        }
+        if (removable) {
+          const { error: removeError } = await admin.storage
+            .from("tender-imports")
+            .remove([objectName]);
+          if (removeError) {
+            failed++;
+            outcome = "storage_removal_failure";
+          } else {
+            removed++;
+            outcome = "removed";
+          }
+        }
+      }
+      console.log(JSON.stringify({
+        event: "tender_import_orphan_reconciliation",
+        dry_run: dryRun,
+        outcome,
+        object_id: await redactedTenderImportObjectId(objectName),
+      }));
+    }
+    return json(req, {
+      ok: failed === 0,
+      dry_run: dryRun,
+      candidate_count: rows.length,
+      removed_count: removed,
+      failed_count: failed,
+      refused_count: refused,
+    }, failed ? 207 : 200);
+  }
+
   if (
     !validUuid(importId) ||
     !Number.isInteger(companyId) ||
-    !["start", "retry", "status"].includes(action)
+    !["start", "retry", "status", "cleanup"].includes(action)
   ) {
     return json(req, {
       error: "Valid import_id, company_id, and action are required.",
@@ -382,10 +585,6 @@ export async function handleTenderImportRequest(
     }, 400);
   }
 
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
   const { data, error } = await userClient.rpc(
     "get_universal_tender_imports",
     {
@@ -405,8 +604,72 @@ export async function handleTenderImportRequest(
   if (action === "status") {
     return json(req, { import: tenderImport });
   }
+  if (action === "cleanup") {
+    let paths: string[];
+    try {
+      paths = validatedTenderImportCleanupPaths(
+        companyId,
+        importId,
+        payload?.storage_paths,
+      );
+    } catch {
+      return json(req, {
+        error: "Cleanup paths are invalid.",
+        code: "INVALID_CLEANUP_PATHS",
+      }, 400);
+    }
+    const { data: referenced, error: referenceError } = await admin
+      .from("tender_documents")
+      .select("storage_path")
+      .eq("storage_bucket", "tender-imports")
+      .eq("is_active", true)
+      .in("storage_path", paths);
+    if (referenceError) {
+      return json(req, { error: referenceError.message }, 400);
+    }
+    const referencedPaths = new Set<string>(
+      (referenced || []).map((row: any) => String(row.storage_path)),
+    );
+    const { removable, refused } = partitionTenderImportCleanupPaths(
+      paths,
+      referencedPaths,
+    );
+    const { error: removeError } = removable.length
+      ? await admin.storage.from("tender-imports").remove(removable)
+      : { error: null };
+    if (removeError) {
+      return json(req, {
+        error: "Uploaded object cleanup failed.",
+        code: "CLEANUP_FAILED",
+        removed_count: 0,
+        refused_count: refused.length,
+      }, 500);
+    }
+    return json(req, {
+      ok: true,
+      removed_count: removable.length,
+      refused_count: refused.length,
+    });
+  }
   if (action === "start" && tenderImport.status === "completed") {
     return json(req, { ok: true, import: tenderImport });
+  }
+  if (tenderImport.source_kind === "files") {
+    const { data: protectedImport, error: protectedImportError } = await admin
+      .from("tender_imports")
+      .select("source_fingerprint")
+      .eq("id", importId)
+      .eq("company_id", companyId)
+      .single();
+    if (protectedImportError || !protectedImport?.source_fingerprint) {
+      return json(req, {
+        error: "Tender import fingerprint is unavailable.",
+        code: "IMPORT_FINGERPRINT_UNAVAILABLE",
+      }, 409);
+    }
+    tenderImport.source_fingerprint = String(
+      protectedImport.source_fingerprint,
+    );
   }
   if (Number(tenderImport.attempt_count || 0) >= 20) {
     return json(req, {
@@ -415,9 +678,6 @@ export async function handleTenderImportRequest(
     }, 409);
   }
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
   if (
     action !== "retry" &&
     ["discovering", "extracting_archive", "analyzing"].includes(

@@ -23,6 +23,10 @@ import {
   startPipelineRun,
   startPipelineStage,
 } from "../_shared/matching-observability.ts";
+import {
+  readBoundedResponseBody,
+  safeFetchWithRedirects,
+} from "../_shared/safe-public-fetch.ts";
 
 const ORIGINS = new Set([
   "https://medichall.com",
@@ -36,8 +40,6 @@ const MAX_LINKS = 180;
 const MAX_HTML_BYTES = 4 * 1024 * 1024;
 const MAX_ROBOTS_BYTES = 256 * 1024;
 const MAX_REDIRECTS = 5;
-const MAX_REQUEST_ATTEMPTS = 2;
-const REQUEST_TIMEOUT_MS = 12_000;
 const CRAWL_TIMEOUT_MS = 45_000;
 const USER_AGENT = "MedicHall-Tender-Attachment-Discovery/2.0";
 
@@ -115,109 +117,27 @@ function reply(req: Request, body: unknown, status = 200): Response {
   });
 }
 
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 425 || status >= 500;
-}
-
 async function fetchWithRedirects(
   sourceUrl: string,
   init: RequestInit,
 ): Promise<FetchResult> {
-  let current = normalizePublicUrl(sourceUrl);
-  if (!current) throw new Error("Invalid or prohibited public URL");
-  let redirectCount = 0;
-  let attemptCount = 0;
-
-  while (true) {
-    let response: Response | null = null;
-    let lastError: unknown = null;
-    for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
-      attemptCount++;
-      try {
-        response = await fetch(current.href, {
-          ...init,
-          redirect: "manual",
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-        if (
-          !isRetryableStatus(response.status) ||
-          attempt === MAX_REQUEST_ATTEMPTS
-        ) {
-          break;
-        }
-      } catch (error) {
-        lastError = error;
-        if (attempt === MAX_REQUEST_ATTEMPTS) throw error;
-      }
-      await wait(150 * attempt);
-    }
-    if (!response) throw lastError || new Error("Public request failed");
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) {
-        return {
-          response,
-          sourceUrl,
-          resolvedUrl: current.href,
-          redirectCount,
-          attemptCount,
-        };
-      }
-      if (redirectCount >= MAX_REDIRECTS) {
-        throw new Error("Too many redirects");
-      }
-      const next = normalizePublicUrl(location, current.href);
-      if (!next) {
-        throw new Error("Redirect target is not a permitted public URL");
-      }
-      current = next;
-      redirectCount++;
-      continue;
-    }
-
-    return {
-      response,
-      sourceUrl,
-      resolvedUrl: response.url || current.href,
-      redirectCount,
-      attemptCount,
-    };
-  }
+  return await safeFetchWithRedirects(sourceUrl, init, {
+    maximumRedirects: MAX_REDIRECTS,
+    maximumAttempts: 2,
+    requestTimeoutMs: 12_000,
+  });
 }
 
 async function readBoundedBody(
   response: Response,
   maximumBytes: number,
 ): Promise<{ bytes: Uint8Array; length: number }> {
-  const declaredLength = Number(response.headers.get("content-length") || 0);
-  if (declaredLength > maximumBytes) throw new Error("Page exceeds size limit");
-  if (!response.body) return { bytes: new Uint8Array(), length: 0 };
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    length += value.byteLength;
-    if (length > maximumBytes) {
-      await reader.cancel();
-      throw new Error("Page exceeds size limit");
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { bytes, length };
+  return await readBoundedResponseBody(
+    response,
+    maximumBytes,
+    12_000,
+    5_000,
+  );
 }
 
 async function fetchPage(sourceUrl: string): Promise<PageResult> {
@@ -308,6 +228,7 @@ async function inspectCandidate(
       url: result.resolvedUrl,
       isDirectFile: true,
     };
+    await response.body?.cancel().catch(() => undefined);
     if (!response.ok && response.status !== 206) {
       return {
         kind: "failure",

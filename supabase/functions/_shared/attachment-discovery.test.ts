@@ -19,6 +19,8 @@ test("resolves relative URLs and rejects unsafe targets", () => {
     "https://buyer.gov.example/tenders/files/specification.pdf",
   );
   assert.equal(normalizePublicUrl("file:///etc/passwd"), null);
+  assert.equal(normalizePublicUrl("http://example.com/file.pdf"), null);
+  assert.equal(normalizePublicUrl("https://example.com:8443/file.pdf"), null);
   assert.equal(normalizePublicUrl("http://127.0.0.1/private.pdf"), null);
   assert.equal(normalizePublicUrl("http://[::1]/private.pdf"), null);
   assert.equal(

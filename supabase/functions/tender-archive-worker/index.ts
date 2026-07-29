@@ -1,9 +1,17 @@
 /// <reference path="../_shared/edge-runtime.d.ts" />
 
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
-import { unzipSync } from "npm:fflate@0.8.2";
 import * as XLSX from "npm:xlsx@0.18.5";
 import mammoth from "npm:mammoth@1.9.0";
+import { extractZipArchiveBounded } from "../_shared/safe-zip.ts";
+import {
+  assertTenderImportFile,
+  neutralizeCsvFormulaText,
+} from "../_shared/tender-import-file-types.ts";
+import {
+  readBoundedResponseBody,
+  safeFetchWithRedirects,
+} from "../_shared/safe-public-fetch.ts";
 import {
   PIPELINE_VERSIONS,
   finishPipelineRun,
@@ -81,7 +89,11 @@ async function convert(bytes: Uint8Array, name: string) {
     const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
     const outputs: Array<{bytes:Uint8Array,name:string,mime:string}> = [];
     for (const sheetName of workbook.SheetNames.slice(0, 20)) {
-      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], { blankrows: false });
+      const csv = neutralizeCsvFormulaText(
+        XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], {
+          blankrows: false,
+        }),
+      );
       if (!csv.trim()) continue;
       outputs.push({
         bytes: new TextEncoder().encode(`# Source workbook: ${name}\n# Sheet: ${sheetName}\n${csv}`),
@@ -103,6 +115,9 @@ async function convert(bytes: Uint8Array, name: string) {
   return [];
 }
 async function processJob(admin: any, jobId: number) {
+  const processStartedAt = Date.now();
+  const createdObjectPaths: string[] = [];
+  const createdDocumentIds: number[] = [];
   const { data: job, error } = await admin.from("tender_archive_jobs")
     .select("id,tender_id,archive_document_id,company_id").eq("id", jobId).single();
   if (error || !job) throw new Error("Archive job not found");
@@ -161,10 +176,14 @@ async function processJob(admin: any, jobId: number) {
         compressed = new Uint8Array(await blob.arrayBuffer());
         downloadUrl = `storage://tender-imports/${archive.storage_path}`;
       } else {
-        const response = await fetch(archive.file_url, {
+        const result = await safeFetchWithRedirects(archive.file_url, {
           headers: { "User-Agent": "MedicHall-Tender-Archive-Worker/1.0" },
-          redirect: "follow",
+        }, {
+          maximumRedirects: 5,
+          maximumAttempts: 2,
+          requestTimeoutMs: 12_000,
         });
+        const response = result.response;
         if (!response.ok) {
           const downloadError = new Error(
             `Archive download failed (${response.status})`,
@@ -172,12 +191,19 @@ async function processJob(admin: any, jobId: number) {
           Object.assign(downloadError, {
             archiveDownloadStatus: response.status,
             archiveDownloadType: response.headers.get("content-type"),
-            archiveDownloadUrl: response.url || archive.file_url,
+            archiveDownloadUrl: result.resolvedUrl,
           });
           throw downloadError;
         }
-        compressed = new Uint8Array(await response.arrayBuffer());
-        downloadUrl = response.url || archive.file_url;
+        compressed = Uint8Array.from(
+          (await readBoundedResponseBody(
+            response,
+            MAX_ARCHIVE_BYTES,
+            12_000,
+            5_000,
+          )).bytes,
+        );
+        downloadUrl = result.resolvedUrl;
       }
     } catch (error) {
       const accessStatus = await recordDocumentAccessAttempt(admin, {
@@ -245,8 +271,8 @@ async function processJob(admin: any, jobId: number) {
       documentId: Number(archive.id),
       source: "registered_tender_archive",
     });
-    const extracted = unzipSync(compressed);
-    const entries = Object.entries(extracted);
+    const extracted = extractZipArchiveBounded(compressed);
+    const entries = [...extracted.entries()];
     await finishPipelineStage(admin, archiveStage, "completed", {
       metadata: { archive_entry_count: entries.length },
     });
@@ -277,6 +303,14 @@ async function processJob(admin: any, jobId: number) {
     if (ext === "zip" || ["exe","dll","js","bat","cmd","com","msi","scr"].includes(ext)) {
       skipped.push(`${archivePath}: unsupported or executable`); continue;
     }
+    if (tenderImport) {
+      try {
+        assertTenderImportFile(bytes, name);
+      } catch {
+        skipped.push(`${archivePath}: invalid tender document structure`);
+        continue;
+      }
+    }
 
     let outputs;
     try { outputs = await convert(bytes, name); }
@@ -295,13 +329,15 @@ async function processJob(admin: any, jobId: number) {
           contentType: output.mime, upsert: true, cacheControl: "3600",
         });
       if (uploadError) { skipped.push(`${archivePath}: storage upload failed`); continue; }
+      createdObjectPaths.push(`${targetBucket}/${storagePath}`);
 
       const fileUrl = tenderImport
         ? `storage://tender-imports/${storagePath}`
         : admin.storage.from("tender-documents").getPublicUrl(storagePath)
           .data.publicUrl;
 
-      const { error: insertError } = await admin.from("tender_documents").upsert({
+      const { data: storedDocument, error: insertError } = await admin
+        .from("tender_documents").upsert({
         tender_id: job.tender_id,
         parent_document_id: archive.id,
         title: output.name,
@@ -330,8 +366,40 @@ async function processJob(admin: any, jobId: number) {
           archive_job_id: jobId,
         },
         updated_at: new Date().toISOString(),
-      }, { onConflict: "tender_id,file_url" });
-      if (insertError) { skipped.push(`${archivePath}: database insert failed`); continue; }
+      }, { onConflict: "tender_id,file_url" })
+        .select("id,created_at")
+        .single();
+      if (insertError) {
+        const { count: referenceCount } = await admin
+          .from("tender_documents")
+          .select("id", { count: "exact", head: true })
+          .eq("storage_bucket", targetBucket)
+          .eq("storage_path", storagePath)
+          .eq("is_active", true);
+        if (!referenceCount) {
+          const { error: cleanupError } = await admin.storage
+            .from(targetBucket)
+            .remove([storagePath]);
+          if (cleanupError) {
+            skipped.push(`${archivePath}: database insert and cleanup failed`);
+          } else {
+            createdObjectPaths.splice(
+              createdObjectPaths.lastIndexOf(`${targetBucket}/${storagePath}`),
+              1,
+            );
+            skipped.push(`${archivePath}: database insert failed`);
+          }
+        } else {
+          skipped.push(`${archivePath}: database insert failed; object retained because it is referenced`);
+        }
+        continue;
+      }
+      if (
+        storedDocument?.id &&
+        Date.parse(storedDocument.created_at || "") >= processStartedAt
+      ) {
+        createdDocumentIds.push(Number(storedDocument.id));
+      }
       created++;
     }
     }
@@ -371,6 +439,47 @@ async function processJob(admin: any, jobId: number) {
       },
     );
   } catch (error) {
+    const cleanupErrors: string[] = [];
+    if (createdDocumentIds.length) {
+      const { error: documentCleanupError } = await admin
+        .from("tender_documents")
+        .delete()
+        .in("id", createdDocumentIds);
+      if (documentCleanupError) {
+        cleanupErrors.push("partial document metadata cleanup failed");
+      }
+    }
+    for (const qualifiedPath of [...new Set(createdObjectPaths)]) {
+      const separator = qualifiedPath.indexOf("/");
+      const bucket = qualifiedPath.slice(0, separator);
+      const path = qualifiedPath.slice(separator + 1);
+      const { count: referenceCount, error: referenceError } = await admin
+        .from("tender_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("storage_bucket", bucket)
+        .eq("storage_path", path)
+        .eq("is_active", true);
+      if (referenceError || referenceCount) {
+        if (referenceError) {
+          cleanupErrors.push("partial object reference check failed");
+        }
+        continue;
+      }
+      const { error: objectCleanupError } = await admin.storage
+        .from(bucket)
+        .remove([path]);
+      if (objectCleanupError) {
+        cleanupErrors.push("partial object cleanup failed");
+      }
+    }
+    if (cleanupErrors.length) {
+      console.error(JSON.stringify({
+        event: "tender_archive_partial_cleanup_failure",
+        job_id: jobId,
+        error_count: cleanupErrors.length,
+        errors: [...new Set(cleanupErrors)],
+      }));
+    }
     if (downloadStage) await finishPipelineStage(admin, downloadStage, "failed", { error });
     if (archiveStage) await finishPipelineStage(admin, archiveStage, "failed", { error });
     if (parsingStage) await finishPipelineStage(admin, parsingStage, "failed", { error });

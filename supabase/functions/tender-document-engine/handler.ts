@@ -58,6 +58,10 @@ import {
   startPipelineStage,
 } from "../_shared/matching-observability.ts";
 import { refreshTenderLotMatches } from "../_shared/lot-matching-service.ts";
+import {
+  readBoundedResponseBody,
+  safeFetchWithRedirects,
+} from "../_shared/safe-public-fetch.ts";
 import { json } from "./cors.ts";
 
 const MAX_REDIRECTS = 5;
@@ -192,24 +196,30 @@ async function downloadDocument(
   url: string,
   config: DocumentIntelligenceV31Config,
 ): Promise<DownloadedDocument> {
-  let current = normalizePublicUrl(url);
-  if (!current || current.protocol !== "https:") {
+  const current = normalizePublicUrl(url);
+  if (!current) {
     throw new Error("Document URL is not a permitted public HTTPS URL");
   }
-  let response: Response;
+  let response: Response | null = null;
+  let resolvedUrl = current.href;
   let redirectCount = 0;
   let acceptedRetries = 0;
-  while (true) {
-    response = await fetch(current.href, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(config.downloadTimeoutMs),
+  while (!response) {
+    const result = await safeFetchWithRedirects(current.href, {
       headers: { "User-Agent": "MedicHall-Tender-Document-Engine/3.0" },
+    }, {
+      maximumRedirects: MAX_REDIRECTS,
+      maximumAttempts: 2,
+      requestTimeoutMs: config.downloadTimeoutMs,
     });
-    if (response.status === 202) {
+    const candidate = result.response;
+    resolvedUrl = result.resolvedUrl;
+    redirectCount = result.redirectCount;
+    if (candidate.status === 202) {
       // TED renders notice PDFs asynchronously: the endpoint returns
       // 202 with an empty body until the PDF is generated. Poll briefly
       // and otherwise fail as retriable so a later invocation retries.
-      await response.body?.cancel();
+      await candidate.body?.cancel();
       if (acceptedRetries < 3) {
         acceptedRetries++;
         await new Promise((resolve) => setTimeout(resolve, 4_000));
@@ -222,9 +232,9 @@ async function downloadDocument(
         retriableDownload: true,
         documentAccessClassification: {
           httpStatus: 202,
-          contentType: response.headers.get("content-type"),
+          contentType: candidate.headers.get("content-type"),
           contentLength: 0,
-          url: response.url || current.href,
+          url: resolvedUrl,
           isDirectFile: true,
           redirectCount,
           error,
@@ -232,20 +242,7 @@ async function downloadDocument(
       });
       throw error;
     }
-    if (response.status < 300 || response.status >= 400) break;
-    const location = response.headers.get("location");
-    if (!location) break;
-    if (redirectCount >= MAX_REDIRECTS) {
-      throw new Error("Document download exceeded the redirect limit");
-    }
-    const next = normalizePublicUrl(location, current.href);
-    if (!next || next.protocol !== "https:") {
-      throw new Error(
-        "Document redirect target is not a permitted public HTTPS URL",
-      );
-    }
-    current = next;
-    redirectCount++;
+    response = candidate;
   }
   if (!response.ok) {
     const error = new Error(`Could not download document (${response.status})`);
@@ -254,7 +251,7 @@ async function downloadDocument(
         httpStatus: response.status,
         contentType: response.headers.get("content-type"),
         contentLength: Number(response.headers.get("content-length") || 0),
-        url: response.url || current.href,
+        url: resolvedUrl,
         isDirectFile: true,
         redirectCount,
         error,
@@ -262,59 +259,42 @@ async function downloadDocument(
     });
     throw error;
   }
-  const declaredLength = Number(response.headers.get("content-length") || 0);
-  if (declaredLength > config.maxDocumentBytes) {
-    const error = new Error("Document exceeds the configured byte limit");
+  let body: { bytes: Uint8Array; length: number };
+  try {
+    body = await readBoundedResponseBody(
+      response,
+      config.maxDocumentBytes,
+      config.downloadTimeoutMs,
+      Math.min(5_000, config.downloadTimeoutMs),
+    );
+  } catch (bodyError) {
+    const bodyFailure = String(
+      (bodyError as { message?: string })?.message || bodyError,
+    );
+    const fileTooLarge = /size limit/i.test(bodyFailure);
+    const error = new Error(
+      fileTooLarge
+        ? "Document exceeds the configured byte limit"
+        : "Document response body timed out",
+    );
     Object.assign(error, {
       documentAccessClassification: {
         contentType: response.headers.get("content-type"),
-        contentLength: declaredLength,
-        url: response.url || current.href,
+        contentLength: Number(response.headers.get("content-length") || 0),
+        url: resolvedUrl,
         isDirectFile: true,
-        fileTooLarge: true,
+        fileTooLarge,
         redirectCount,
-        error,
+        error: bodyError,
       },
     });
     throw error;
   }
-  if (!response.body) throw new Error("Document response has no body");
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > config.maxDocumentBytes) {
-      await reader.cancel();
-      const error = new Error("Document exceeds the configured byte limit");
-      Object.assign(error, {
-        documentAccessClassification: {
-          contentType: response.headers.get("content-type"),
-          contentLength: totalBytes,
-          url: response.url || current.href,
-          isDirectFile: true,
-          fileTooLarge: true,
-          redirectCount,
-          error,
-        },
-      });
-      throw error;
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
   return {
-    bytes,
+    bytes: body.bytes,
     mimeType: response.headers.get("content-type")?.split(";")[0].trim()
       .toLowerCase() || "application/pdf",
-    resolvedUrl: response.url || current.href,
+    resolvedUrl,
     redirectCount,
   };
 }
