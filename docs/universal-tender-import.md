@@ -37,7 +37,10 @@ the canonical child jobs through their existing idempotent queue contracts.
 
 ## Database changes
 
-Migration: `supabase/migrations/202607290001_universal_tender_import.sql`
+Migrations:
+
+- `supabase/migrations/202607290001_universal_tender_import.sql`
+- `supabase/migrations/202607290002_universal_tender_import_hardening.sql`
 
 - Adds `tender_imports` as the company/requester-scoped orchestration record.
 - Adds nullable `tender_documents.storage_bucket`; existing public URL rows
@@ -46,11 +49,29 @@ Migration: `supabase/migrations/202607290001_universal_tender_import.sql`
 - Adds owner/admin RLS for imports and imported draft tenders.
 - Narrows the existing tender-document read policy only for documents linked to
   private imports. Existing public procurement document behavior is preserved.
-- Adds owner-scoped private Storage insert/select/delete policies. No update or
-  anonymous policy is added.
+- Adds owner-scoped private Storage insert/select/delete policies. Owner cleanup
+  cannot delete an active registered document; service administrators retain
+  recovery access. No update or anonymous policy is added.
 - Adds create, register, fail, and read RPCs. Anonymous execution is revoked.
 - Adds a terminal analysis trigger that updates progress and reuses
   `portal_add_notification`.
+
+The hardening migration:
+
+- registers `uploaded_private` and `validated_private_upload` idempotently;
+- replaces every tender-import Storage policy with fully qualified
+  `storage.objects.bucket_id` and `storage.objects.name` references plus strict
+  company/import/relative-path validation;
+- revokes authenticated table mutation before granting SELECT only;
+- adds company-scoped operation and source-fingerprint unique indexes;
+- acquires an advisory transaction lock before the canonical draft is created,
+  so concurrent replay returns one import/tender;
+- lets an owner explicitly reopen only a failed, pre-registration file upload;
+  failures with registered documents remain on the processing retry path;
+- retains replay records for at least 30 days and indefinitely while the import
+  record exists;
+- adds service-only, age-bounded orphan discovery and terminal-failure
+  notification functions.
 
 The canonical imported tender stays `draft`, so it is not exposed through the
 public/open tender feed and is not matched to other companies.
@@ -64,6 +85,11 @@ public/open tender feed and is not matched to other companies.
 - Server-side content-signature checks that do not trust browser MIME values.
 - Bounded asynchronous orchestration of existing workers.
 - Idempotent start claim and explicit retry.
+- Owner-authorized, exact-path cleanup that refuses referenced or cross-company
+  objects.
+- Administrator-only stale-orphan reconciliation with a mandatory 15-minute to
+  90-day age threshold, dry-run by default, and hashed object identifiers in
+  logs.
 - Origin allowlist and 204 CORS preflight behavior shared with the production
   document engine.
 - No provider key, service-role key, or imported file content is returned to the
@@ -72,10 +98,16 @@ public/open tender feed and is not matched to other companies.
 ### Existing functions extended
 
 - `tender-document-engine` can read imported objects from private Storage with
-  its existing service-role runtime. Public HTTPS retrieval remains unchanged.
+  its existing service-role runtime. Public retrieval now validates HTTPS/443,
+  DNS, redirects, mixed answers, rebinding changes, response bytes, and body
+  timeouts before analysis.
 - `tender-archive-worker` can read private ZIPs and writes imported extracted
   files back to the private bucket. Non-import archive behavior remains in the
   existing public procurement bucket.
+- `tender-attachment-discovery` resolves and validates every IPv4/IPv6 answer
+  before each request and redirect. HTTP, credentials, non-443 ports, loopback,
+  private, link-local, CGNAT, multicast, reserved, documentation, and
+  IPv4-mapped private targets are rejected.
 - The document engine copies only evidence-backed core tender facts into the
   canonical draft imported tender. The normalized v3 extraction remains the
   source of truth.
@@ -94,20 +126,37 @@ The existing Opportunities panel now includes:
 - evidence-backed extraction detail for buyer, deadline, CPV, products,
   quantities, certificates, lots, confidence, and source locations;
 - portal-notification deep links.
+- order-independent file-content fingerprints and normalized URL replay;
+- server re-computation of the uploaded content hash set before any document is
+  promoted to the validated private status;
+- WAI-ARIA tab/tabpanel behavior with Arrow, Home, and End navigation;
+- determinate progressbar semantics and assertive error announcements;
+- exact-path cleanup after an upload/registration failure.
 
 The production frontend remains the root `portal.html`. No React runtime or
 parallel portal implementation is introduced.
 
 ## Tests
 
-- `supabase/functions/_shared/tender-import-file-types.test.ts` covers supported
-  formats, signatures, mismatches, and limits.
+- `supabase/functions/_shared/tender-import-file-types.test.ts` covers valid and
+  malformed PDF/Office/CSV containers, relationships, macros, binary content,
+  and formula neutralization.
+- `supabase/functions/_shared/safe-zip.test.ts` covers central-directory bounds,
+  incremental extraction, encryption, methods, nested archives, path
+  conflicts, symbolic links, count/expanded-size/ratio limits, and truncation.
+- `supabase/functions/_shared/safe-public-fetch.test.ts` covers DNS/IP
+  classification, redirects, downgrade/private/mixed-answer denial, rebinding,
+  size bounds, and request/body timeouts.
 - `supabase/functions/tender-import/index.test.ts` covers CORS preflight, origin
   rejection, authorization-header preservation, real unauthenticated POST
   rejection, and safe boot errors.
 - `supabase/tests/universal_tender_import.sql` covers schema, bucket privacy,
-  RLS/grants, anonymous denial, owner creation/read, cross-tenant denial, and
-  HTTPS enforcement.
+  exact RPC-only grants, access-status registration, owner Storage
+  upload/read/delete, cross-tenant and anonymous denial, service access,
+  document registration, URL/file replay, and HTTPS enforcement.
+- `portal-universal-tender-import.test.ts` covers portal parsing, duplicate
+  identifiers, ARIA contracts, idempotency/cleanup wiring, responsive
+  containment, and browser-secret exclusion.
 - Existing attachment discovery, document extraction, v3/v3.1, PDF,
   observability, lot matching, document-engine CORS/security, product profile,
   meeting-video, and matchmaking-domain regression suites remain applicable.
@@ -118,13 +167,17 @@ parallel portal implementation is introduced.
 - Private Storage paths bind `company_id/import_id`, and policies verify both
   against `auth.uid()`.
 - Imported tender rows and document metadata are owner/admin scoped.
-- Public URL retrieval continues to use the existing URL normalizer,
-  private-network rejection, redirect bounds, robots handling, and crawl limits.
-- File extension, Storage metadata, size, and server-read magic signature are
-  checked before parsing.
-- ZIP protections remain in the existing worker: compressed/extracted limits,
-  entry limit, traversal rejection, nested ZIP rejection, and executable
-  rejection.
+- Public URL retrieval is HTTPS/443 only. DNS A/AAAA results are checked before
+  and after each request; a changed or mixed private/public answer is rejected.
+  The standard fetch API cannot pin a connection to a resolved address, so a
+  residual validation-to-connect race remains a documented runtime limitation.
+- PDF, Office, CSV, and ZIP inputs are checked from server-read bytes. Office
+  validation requires real ZIP central/local records and expected XML and
+  relationship targets.
+- ZIP metadata is bounded before extraction. Encrypted, ZIP64, nested,
+  traversal, absolute, duplicate/conflicting, symlink-like, unsupported-method,
+  excessive-count, excessive-size, and excessive-ratio archives are rejected.
+  Extraction is fed incrementally in bounded chunks.
 - Evidence RLS remains scoped through the requesting company analysis job.
 - Service-role and AI provider secrets remain Edge-only.
 - The coordinator forwards the caller's scoped JWT to existing user-facing
@@ -147,11 +200,17 @@ parallel portal implementation is introduced.
 ## Deployment order
 
 1. Apply `202607290001_universal_tender_import.sql`.
-2. Deploy the updated `tender-document-engine`.
-3. Deploy the updated `tender-archive-worker`.
-4. Deploy the new `tender-import` function with repository `config.toml`.
-5. Run the SQL and Deno regressions.
-6. Manually upload the reviewed root `portal.html` to `public_html/portal.html`.
+2. Apply `202607290002_universal_tender_import_hardening.sql`.
+3. Run the exact SQL integration test and verify migration rollback/reapply in
+   the target staging environment.
+4. Deploy the updated `tender-attachment-discovery`.
+5. Deploy the updated `tender-document-engine`.
+6. Deploy the updated `tender-archive-worker`.
+7. Deploy `tender-import` with repository `config.toml`.
+8. Run the Deno, React/Vitest, SQL, RLS, browser, idempotency, orphan, and
+   provider-backed QA suites.
+9. Only after acceptance, manually upload the reviewed root `portal.html` to
+   `public_html/portal.html`.
 
 Deploying functions before the migration is not supported because the private
 storage columns and import table would not yet exist.
@@ -166,9 +225,13 @@ storage columns and import table would not yet exist.
 4. Keep `tender_imports`, the private bucket, and imported objects in place for
    audit/recovery. They are isolated by RLS and do not enter the open feed.
 5. If a schema rollback is mandatory after data export, remove only the import
-   trigger/policies/functions, then `storage_bucket`, `tender_imports`, and the
-   empty private bucket in verified dependency order. Do not delete imported
-   customer objects without explicit retention approval.
+   trigger/policies/functions and the two unique indexes. The hardening columns
+   cannot be removed while six-argument callers or imports depend on them.
+6. Do not delete `uploaded_private` or `validated_private_upload` while a
+   `tender_documents.access_status` foreign key references either code.
+7. Remove `storage_bucket`, `tender_imports`, and the empty private bucket only
+   in verified dependency order. Do not delete imported customer objects
+   without explicit retention approval.
 
 ## Known limitations
 
@@ -176,6 +239,10 @@ storage columns and import table would not yet exist.
   lawful manual document upload.
 - Scanned PDFs retain the current Document Intelligence provider/OCR
   limitations.
+- DNS is checked immediately before and after standard `fetch`, but the Edge
+  runtime does not expose a supported API to bind that fetch to the previously
+  resolved IP. Changed answers are rejected; the remaining micro-window must be
+  tracked as a platform limitation.
 - Module 1 exposes extracted facts and their evidence. The broader Tender
   Intelligence recommendation/revenue/risk card belongs to Module 2 and has not
   been started.
