@@ -83,6 +83,8 @@ type TenderDocumentRecord = {
   title?: string | null;
   file_name?: string | null;
   file_url?: string | null;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
   mime_type?: string | null;
   document_type?: string | null;
   language_code?: string | null;
@@ -314,6 +316,34 @@ async function downloadDocument(
       .toLowerCase() || "application/pdf",
     resolvedUrl: response.url || current.href,
     redirectCount,
+  };
+}
+
+async function downloadPrivateDocument(
+  adminClient: AdminClient,
+  document: TenderDocumentRecord,
+  config: DocumentIntelligenceV31Config,
+): Promise<DownloadedDocument> {
+  const bucket = String(document.storage_bucket || "");
+  const path = String(document.storage_path || "");
+  if (bucket !== "tender-imports" || !path) {
+    throw new Error("Private tender document storage reference is invalid");
+  }
+  const { data: blob, error } = await adminClient.storage
+    .from(bucket)
+    .download(path);
+  if (error || !blob) {
+    throw new Error("Could not read private tender document");
+  }
+  if (blob.size > config.maxDocumentBytes) {
+    throw new Error("Document exceeds the configured byte limit");
+  }
+  return {
+    bytes: new Uint8Array(await blob.arrayBuffer()),
+    mimeType: String(document.mime_type || blob.type || "application/pdf")
+      .split(";")[0].trim().toLowerCase(),
+    resolvedUrl: `storage://${bucket}/${path}`,
+    redirectCount: 0,
   };
 }
 
@@ -1438,7 +1468,7 @@ async function processJob(
   const { data: existingTender } = await adminClient
     .from("tenders")
     .select(
-      "document_analysis_status,document_confidence_score,last_document_analysis_at,ai_extraction_version",
+      "source,title,buyer_name,country_code,country_name,publication_date,deadline_at,estimated_value,currency,cpv_codes,document_analysis_status,document_confidence_score,last_document_analysis_at,ai_extraction_version",
     )
     .eq("id", job.tender_id)
     .single();
@@ -1488,18 +1518,21 @@ async function processJob(
   if (selectedIds.length) {
     const { data, error } = await adminClient.from("tender_documents")
       .select(
-        "id,title,file_name,file_url,mime_type,document_type,language_code,source_confidence",
+        "id,title,file_name,file_url,storage_bucket,storage_path,mime_type,document_type,language_code,source_confidence",
       )
       .in("id", selectedIds)
       .eq("tender_id", job.tender_id)
       .eq("is_active", true);
     if (error) throw new Error(error.message);
-    documents = ((data || []) as TenderDocumentRecord[]).filter((document) =>
-      SUPPORTED_MIME_TYPES.has(
+    documents = ((data || []) as TenderDocumentRecord[]).filter((document) => {
+      const supported = SUPPORTED_MIME_TYPES.has(
         String(document.mime_type || "").toLowerCase(),
-      ) &&
-      isSafeHttpsUrl(String(document.file_url || ""))
-    );
+      );
+      const privateDocument = document.storage_bucket === "tender-imports" &&
+        Boolean(document.storage_path);
+      return supported &&
+        (privateDocument || isSafeHttpsUrl(String(document.file_url || "")));
+    });
   }
   const noticeOnly = documents.length === 0;
   if (noticeOnly) {
@@ -1598,6 +1631,8 @@ async function processJob(
           resolvedUrl: String(document.file_url || ""),
           redirectCount: 0,
         }
+        : document.storage_bucket === "tender-imports"
+        ? await downloadPrivateDocument(adminClient, document, config)
         : await downloadDocument(String(document.file_url || ""), config);
       timings.networkMs += Math.max(
         0,
@@ -2580,6 +2615,27 @@ async function processJob(
   if (applyResult) {
     evidenceCount = await persistEvidence(adminClient, job, analysis);
     const { error } = await adminClient.from("tenders").update({
+      ...(existingTender?.source === "PORTAL_IMPORT"
+        ? {
+          title: analysis.tender.title_original || existingTender.title,
+          buyer_name: analysis.tender.authority_original ||
+            existingTender.buyer_name,
+          country_code: analysis.tender.country_code ||
+            existingTender.country_code,
+          country_name: analysis.tender.country_name_original ||
+            existingTender.country_name,
+          publication_date: analysis.tender.publication_date ||
+            existingTender.publication_date,
+          deadline_at: analysis.tender.deadline_at ||
+            existingTender.deadline_at,
+          estimated_value: analysis.tender.estimated_value ??
+            existingTender.estimated_value,
+          currency: analysis.tender.currency || existingTender.currency,
+          cpv_codes: analysis.tender.cpv_codes.length
+            ? analysis.tender.cpv_codes
+            : existingTender.cpv_codes,
+        }
+        : {}),
       document_analysis_status: finalStatus,
       document_confidence_score: analysis.document_confidence_score,
       data_completeness_score: analysis.data_completeness_score,

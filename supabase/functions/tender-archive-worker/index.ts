@@ -108,8 +108,11 @@ async function processJob(admin: any, jobId: number) {
   if (error || !job) throw new Error("Archive job not found");
 
   const { data: archive, error: archiveError } = await admin.from("tender_documents")
-    .select("id,file_url,file_name,title,source_confidence").eq("id", job.archive_document_id).single();
+    .select("id,file_url,file_name,title,source_confidence,storage_bucket,storage_path")
+    .eq("id", job.archive_document_id).single();
   if (archiveError || !archive) throw new Error("Archive document not found");
+  const { data: tenderImport } = await admin.from("tender_imports")
+    .select("id,company_id").eq("tender_id", job.tender_id).maybeSingle();
   const pipelineRun = await startPipelineRun(admin, {
     component: "document_parsing",
     pipelineVersion: PIPELINE_VERSIONS.documentParsing,
@@ -145,12 +148,37 @@ async function processJob(admin: any, jobId: number) {
       source: "registered_tender_archive",
     });
     const downloadStarted = Date.now();
-    let response: Response;
+    let compressed = new Uint8Array();
+    let downloadUrl = archive.file_url;
     try {
-      response = await fetch(archive.file_url, {
-        headers: { "User-Agent": "MedicHall-Tender-Archive-Worker/1.0" },
-        redirect: "follow",
-      });
+      if (archive.storage_bucket === "tender-imports" && archive.storage_path) {
+        const { data: blob, error: storageError } = await admin.storage
+          .from("tender-imports")
+          .download(archive.storage_path);
+        if (storageError || !blob) {
+          throw new Error("Private archive could not be read");
+        }
+        compressed = new Uint8Array(await blob.arrayBuffer());
+        downloadUrl = `storage://tender-imports/${archive.storage_path}`;
+      } else {
+        const response = await fetch(archive.file_url, {
+          headers: { "User-Agent": "MedicHall-Tender-Archive-Worker/1.0" },
+          redirect: "follow",
+        });
+        if (!response.ok) {
+          const downloadError = new Error(
+            `Archive download failed (${response.status})`,
+          );
+          Object.assign(downloadError, {
+            archiveDownloadStatus: response.status,
+            archiveDownloadType: response.headers.get("content-type"),
+            archiveDownloadUrl: response.url || archive.file_url,
+          });
+          throw downloadError;
+        }
+        compressed = new Uint8Array(await response.arrayBuffer());
+        downloadUrl = response.url || archive.file_url;
+      }
     } catch (error) {
       const accessStatus = await recordDocumentAccessAttempt(admin, {
         traceId: pipelineRun.traceId,
@@ -161,30 +189,16 @@ async function processJob(admin: any, jobId: number) {
         url: archive.file_url,
         sourceType: "registered_tender_archive",
         sourceConfidence: archive.source_confidence || "unknown",
-        classification: { error, url: archive.file_url, isDirectFile: true },
-        durationMs: Date.now() - downloadStarted,
-      });
-      await admin.from("tender_documents").update({
-        access_status: accessStatus,
-        access_checked_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq("id", archive.id);
-      throw error;
-    }
-    if (!response.ok) {
-      const accessStatus = await recordDocumentAccessAttempt(admin, {
-        traceId: pipelineRun.traceId,
-        stageId: downloadStage.stageId,
-        tenderId: Number(job.tender_id),
-        companyId: Number(job.company_id) || null,
-        documentId: Number(archive.id),
-        url: archive.file_url,
-        sourceType: "registered_tender_archive",
-        sourceConfidence: archive.source_confidence || "unknown",
         classification: {
-          httpStatus: response.status,
-          contentType: response.headers.get("content-type"),
-          url: response.url || archive.file_url,
+          error,
+          httpStatus: Number(
+            (error as { archiveDownloadStatus?: number })
+              ?.archiveDownloadStatus || 0,
+          ) || undefined,
+          contentType: (error as { archiveDownloadType?: string | null })
+            ?.archiveDownloadType || undefined,
+          url: (error as { archiveDownloadUrl?: string })
+            ?.archiveDownloadUrl || archive.file_url,
           isDirectFile: true,
         },
         durationMs: Date.now() - downloadStarted,
@@ -194,9 +208,8 @@ async function processJob(admin: any, jobId: number) {
         access_checked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq("id", archive.id);
-      throw new Error(`Archive download failed (${response.status})`);
+      throw error;
     }
-    const compressed = new Uint8Array(await response.arrayBuffer());
     const fileTooLarge = compressed.byteLength > MAX_ARCHIVE_BYTES;
     const downloadStatus = await recordDocumentAccessAttempt(admin, {
       traceId: pipelineRun.traceId,
@@ -204,7 +217,7 @@ async function processJob(admin: any, jobId: number) {
       tenderId: Number(job.tender_id),
       companyId: Number(job.company_id) || null,
       documentId: Number(archive.id),
-      url: response.url || archive.file_url,
+      url: downloadUrl,
       sourceType: "registered_tender_archive",
       sourceConfidence: archive.source_confidence || "unknown",
       classification: fileTooLarge
@@ -272,27 +285,33 @@ async function processJob(admin: any, jobId: number) {
 
     for (const output of outputs) {
       const hash = await sha256(output.bytes);
-      const storagePath = `${job.tender_id}/${archive.id}/${hash.slice(0, 12)}-${safeName(output.name)}`;
+      const targetBucket = tenderImport ? "tender-imports" : "tender-documents";
+      const storagePath = tenderImport
+        ? `${tenderImport.company_id}/${tenderImport.id}/extracted/${archive.id}/${hash.slice(0, 12)}-${safeName(output.name)}`
+        : `${job.tender_id}/${archive.id}/${hash.slice(0, 12)}-${safeName(output.name)}`;
       const { error: uploadError } = await admin.storage
-        .from("tender-documents")
+        .from(targetBucket)
         .upload(storagePath, output.bytes, {
           contentType: output.mime, upsert: true, cacheControl: "3600",
         });
       if (uploadError) { skipped.push(`${archivePath}: storage upload failed`); continue; }
 
-      const { data: publicUrlData } = admin.storage.from("tender-documents").getPublicUrl(storagePath);
-      const publicUrl = publicUrlData.publicUrl;
+      const fileUrl = tenderImport
+        ? `storage://tender-imports/${storagePath}`
+        : admin.storage.from("tender-documents").getPublicUrl(storagePath)
+          .data.publicUrl;
 
       const { error: insertError } = await admin.from("tender_documents").upsert({
         tender_id: job.tender_id,
         parent_document_id: archive.id,
         title: output.name,
         file_name: output.name,
-        file_url: publicUrl,
+        file_url: fileUrl,
         mime_type: output.mime,
         document_type: classify(output.name),
         source_page_url: archive.file_url,
         is_active: true,
+        storage_bucket: targetBucket,
         storage_path: storagePath,
         sha256: hash,
         archive_processing_status: "not_applicable",
