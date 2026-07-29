@@ -32,14 +32,6 @@ header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdro
 .logo .mword{color:var(--teal);font-weight:500}
 .logo .hword{color:var(--teal-deep);font-weight:700}
 .logo .adm{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
-.portal-header-actions{display:flex;gap:9px;align-items:center}
-.portal-header-link{white-space:nowrap}
-.portal-profile{position:relative}
-.portal-profile-trigger{min-width:92px;justify-content:center}
-.portal-profile-menu{display:none;position:absolute;right:0;top:calc(100% + 9px);width:210px;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 16px 38px rgba(0,62,82,.15);z-index:80}
-.portal-profile-menu.open{display:grid}
-.portal-profile-menu button{border:0;background:transparent;border-radius:8px;padding:10px 11px;text-align:left;color:var(--ink);font-weight:600;font-size:.8rem}
-.portal-profile-menu button:hover{background:var(--mist);color:var(--teal-deep)}
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-weight:600;font-size:.87rem;border:1.5px solid transparent;transition:all .15s}
 .btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
 .btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
@@ -523,31 +515,11 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .mm-modal{max-width:650px}
 .mm-detail-modal{max-width:900px;max-height:90vh;overflow:auto}
 .mm-timezone-note{font-size:.73rem;background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:12px 0}
-.mm-scheduler-stepper{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:4px 0 15px}
-.mm-scheduler-step{border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-size:.72rem;font-weight:600;color:var(--ink-soft);background:var(--mist)}
-.mm-scheduler-step.active{border-color:var(--teal);background:var(--teal-tint);color:var(--teal-deep)}
-.mm-scheduler-picker{display:grid;grid-template-columns:minmax(180px,.75fr) minmax(280px,1.25fr);gap:12px;align-items:start}
-.mm-calendar-card,.mm-time-card{border:1.5px solid var(--line);border-radius:12px;padding:13px;background:#fff}
-.mm-calendar-card label,.mm-time-card label{margin-top:0}
-.mm-time-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.mm-time-choice{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:8px 4px;font:600 .7rem var(--mono)}
-.mm-time-choice:hover{border-color:var(--teal);background:var(--teal-tint)}
-.mm-time-choice.selected{border-color:var(--teal-deep);background:var(--teal-deep);color:#fff}
-.mm-time-choice:disabled{cursor:not-allowed;opacity:.45}
-.mm-selected-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 8px}
-.mm-selected-heading h4{font-size:.85rem}
-.mm-selected-heading span{font:600 .68rem var(--mono);color:var(--ink-soft)}
-.mm-selected-slots{display:grid;gap:7px}
-.mm-selected-slot{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;background:var(--mist)}
-.mm-selected-slot b{display:block;font-size:.77rem}
-.mm-selected-slot small{display:block;color:var(--ink-soft);font-size:.66rem}
-.mm-selected-slot button{border:0;background:#fff;color:var(--danger);border-radius:8px;padding:6px 9px;font-size:.7rem;font-weight:600}
-.mm-selected-empty{border:1.5px dashed var(--line);border-radius:10px;padding:15px;text-align:center;color:var(--ink-soft);font-size:.74rem}
-.mm-review{display:grid;gap:10px}
-.mm-review-summary{border:1.5px solid var(--line);border-radius:12px;padding:14px;background:var(--mist)}
-.mm-review-summary h4{font-size:.92rem;margin-bottom:4px}
-.mm-review-summary p{font-size:.75rem;color:var(--ink-soft)}
-.mm-success{border:1.5px solid #A9DECF;background:#EAF8F3;color:#177245;border-radius:12px;padding:12px 14px;font-size:.8rem;font-weight:600}
+.mm-slot-list{display:grid;gap:8px}
+.mm-slot{display:grid;grid-template-columns:70px minmax(130px,1fr) minmax(100px,.7fr) minmax(110px,.7fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px}
+.mm-slot span{font-size:.72rem;font-weight:700}
+.mm-slot input{padding:8px;font-size:.78rem}
+.mm-slot small{color:var(--ink-soft);font-size:.66rem}
 .mm-form-error{display:none;color:var(--danger);font-size:.75rem;font-weight:600;margin-top:9px}
 .mm-detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:14px;margin-top:14px}
 .mm-section{border:1.5px solid var(--line);border-radius:12px;padding:14px;background:#fff;min-width:0;margin-bottom:12px}
@@ -595,24 +567,14 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .mm-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
   .mm-filters{grid-template-columns:1fr 1fr}
   .mm-detail-grid{grid-template-columns:1fr}
-  .mm-scheduler-picker{grid-template-columns:1fr}
   .portal-work-summary{grid-template-columns:1fr 1fr}
 }
 @media(max-width:560px){
-  .nav{gap:8px}
-  .wrap{padding-left:14px;padding-right:14px}
-  .logo{gap:6px;font-size:1rem}
-  .logo-mark{width:22px;height:26px}
-  .logo .adm,.portal-marketplace-link{display:none}
-  .portal-header-actions{gap:6px}
-  .portal-header-link,.portal-profile-trigger{padding:7px 9px;font-size:.72rem;min-width:0}
-  .portal-bell{width:36px;height:36px}
-  .portal-profile-menu{position:fixed;right:14px;top:58px}
   .mm-hero{padding:18px}
   .mm-metrics{grid-template-columns:1fr 1fr}
   .mm-driver-grid{grid-template-columns:1fr}
   .mm-filters{grid-template-columns:1fr}
-  .mm-time-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .mm-slot{grid-template-columns:1fr}
   .mm-card-top{align-items:center}
   .mm-score{width:52px;height:52px}
 }
@@ -635,20 +597,12 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
       <span class="adm">Partner Portal</span>
     </span>
-    <div id="headActions" class="portal-header-actions" style="display:none">
-      <a class="btn btn-ghost btn-sm portal-marketplace-link" href="index.html">View marketplace →</a>
-      <a class="btn btn-ghost btn-sm portal-header-link" href="#inbox">Messages</a>
+    <div id="headActions" style="display:none;gap:10px;align-items:center">
+      <a class="btn btn-ghost btn-sm" href="index.html">View marketplace →</a>
       <button class="portal-bell" id="portalNotificationBell" type="button" aria-label="Notifications" aria-expanded="false" onclick="togglePortalNotifications()">
         🔔<span class="portal-bell-badge" id="portalNotificationBadge"></span>
       </button>
-      <div class="portal-profile">
-        <button class="btn btn-ghost btn-sm portal-profile-trigger" id="portalProfileTrigger" type="button" aria-haspopup="menu" aria-expanded="false" onclick="togglePortalProfileMenu()">Profile ▾</button>
-        <div class="portal-profile-menu" id="portalProfileMenu" role="menu">
-          <button type="button" role="menuitem" onclick="openPortalProfile()">Profile</button>
-          <button type="button" role="menuitem" onclick="openPortalNotificationCenter()">Notification Center</button>
-          <button type="button" role="menuitem" onclick="logout()">Log out</button>
-        </div>
-      </div>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
     </div>
   </div>
 </header>
@@ -1262,52 +1216,33 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
     <button class="modal-close" onclick="closeMmMeetingModal()" aria-label="Close">✕</button>
     <h3 id="mmMeetingTitle">Propose a meeting</h3>
     <p class="mm-dialog-sub" id="mmMeetingPartner"></p>
-    <div class="mm-scheduler-stepper" aria-label="Meeting request progress">
-      <div class="mm-scheduler-step active" id="mmSchedulerStepOne">1 · Choose three times</div>
-      <div class="mm-scheduler-step" id="mmSchedulerStepTwo">2 · Review and send</div>
-    </div>
-    <div id="mmMeetingChooseStep">
-      <label for="mm-meeting-topic">Topic</label>
-      <input id="mm-meeting-topic" maxlength="160" placeholder="Product portfolio and cooperation">
-      <div class="grid2">
-        <div><label for="mm-meeting-language">Meeting language</label><input id="mm-meeting-language" maxlength="40" placeholder="English"></div>
-        <div><label for="mm-meeting-duration">Duration</label>
-          <select id="mm-meeting-duration" onchange="mmUpdateScheduler()">
-            <option value="15">15 minutes</option>
-            <option value="30" selected>30 minutes</option>
-            <option value="45">45 minutes</option>
-            <option value="60">60 minutes</option>
-            <option value="90">90 minutes</option>
-          </select>
-        </div>
-        <div><label for="mm-meeting-timezone">Timezone</label><select id="mm-meeting-timezone" onchange="mmUpdateTimezoneNote()"></select></div>
+    <label for="mm-meeting-topic">Topic</label>
+    <input id="mm-meeting-topic" maxlength="160" placeholder="Product portfolio and cooperation">
+    <div class="grid2">
+      <div><label for="mm-meeting-language">Meeting language</label><input id="mm-meeting-language" maxlength="40" placeholder="English"></div>
+      <div><label for="mm-meeting-duration">Duration</label>
+        <select id="mm-meeting-duration" onchange="mmUpdateSlotEnds()">
+          <option value="15">15 minutes</option>
+          <option value="30" selected>30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">60 minutes</option>
+          <option value="90">90 minutes</option>
+        </select>
       </div>
-      <label for="mm-meeting-agenda">Agenda</label>
-      <textarea id="mm-meeting-agenda" rows="3" maxlength="4000" placeholder="What should both parties prepare and discuss?"></textarea>
-      <div class="mm-timezone-note" id="mmTimezoneNote"></div>
-      <div class="mm-scheduler-picker">
-        <div class="mm-calendar-card">
-          <label for="mm-scheduler-date">Choose a calendar date</label>
-          <input id="mm-scheduler-date" aria-label="Meeting date" type="date" onchange="mmRenderTimeChoices()">
-          <p class="mm-dialog-sub">Then choose an available time. Repeat until you have exactly three options.</p>
-        </div>
-        <div class="mm-time-card">
-          <label>Choose a time</label>
-          <div class="mm-time-grid" id="mmTimeChoices" aria-label="Available meeting times"></div>
-        </div>
-      </div>
-      <div class="mm-selected-heading"><h4>Selected meeting options</h4><span id="mmSelectedCount">0 of 3 selected</span></div>
-      <div class="mm-selected-slots" id="mmSelectedSlots"></div>
+      <div><label for="mm-meeting-timezone">Timezone</label><select id="mm-meeting-timezone" onchange="mmUpdateTimezoneNote()"></select></div>
     </div>
-    <div class="mm-review" id="mmMeetingReviewStep" style="display:none"></div>
+    <label for="mm-meeting-agenda">Agenda</label>
+    <textarea id="mm-meeting-agenda" rows="3" maxlength="4000" placeholder="What should both parties prepare and discuss?"></textarea>
+    <div class="mm-timezone-note" id="mmTimezoneNote"></div>
+    <div class="mm-slot-list">
+      <div class="mm-slot"><span>Option 1</span><input id="mm-slot-date-1" aria-label="Option 1 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-1" aria-label="Option 1 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-1"></small></div>
+      <div class="mm-slot"><span>Option 2</span><input id="mm-slot-date-2" aria-label="Option 2 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-2" aria-label="Option 2 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-2"></small></div>
+      <div class="mm-slot"><span>Option 3</span><input id="mm-slot-date-3" aria-label="Option 3 date" type="date" onchange="mmUpdateSlotEnds()"><input id="mm-slot-time-3" aria-label="Option 3 time" type="time" step="900" onchange="mmUpdateSlotEnds()"><small id="mm-slot-end-3"></small></div>
+    </div>
     <p class="mm-form-error" id="mmMeetingError" role="alert"></p>
-    <div class="actions" id="mmMeetingChooseActions">
+    <div class="actions">
       <button class="btn btn-ghost" onclick="closeMmMeetingModal()">Cancel</button>
       <button class="btn btn-ghost" id="mmDraftBtn" onclick="submitMmMeeting(true)">Save draft</button>
-      <button class="btn btn-grad" id="mmMeetingReview" onclick="mmShowMeetingStep('review')" disabled>Review three times</button>
-    </div>
-    <div class="actions" id="mmMeetingReviewActions" style="display:none">
-      <button class="btn btn-ghost" onclick="mmShowMeetingStep('choose')">Back</button>
       <button class="btn btn-grad" id="mmMeetingSubmit" onclick="submitMmMeeting(false)">Send proposal</button>
     </div>
   </div>
@@ -1335,6 +1270,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+<script src="matchmaking-domain.js"></script>
 <script>
 /* ---------------- config ---------------- */
 const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
@@ -1470,7 +1406,6 @@ async function getUser(){
 }
 function logout(){
   TOKEN = null; USER = null; COMPANY = null;
-  closePortalProfileMenu();
   if(window.__unreadTimer){
     clearInterval(window.__unreadTimer);
     window.__unreadTimer = null;
@@ -4262,191 +4197,14 @@ async function translateDeep(matchId){
 
 /* ---------------- Matchmaking Workspace ---------------- */
 /* MATCHMAKING_WORKSPACE_UTILS_START */
-globalThis.MatchmakingUtils = (()=>{
-  const text = value => value == null ? "" : String(value);
-  const array = value => Array.isArray(value) ? value : [];
-  const csv = value => text(value).split(",").map(item=>item.trim()).filter(Boolean);
-  const statusLabels = {
-    draft:"Draft",proposed:"Meeting request",awaiting_response:"Awaiting response",
-    counter_proposed:"New time proposal",accepted:"Accepted",
-    confirmed:"Confirmed",declined:"Declined",cancelled:"Cancelled",
-    completed:"Completed",no_show:"No-show",expired:"Expired",
-    pending:"Pending response",connected:"Connected",saved:"Saved",
-    dismissed:"Not interested",connection_requested:"Connection requested",
-    new:"New",viewed:"Viewed"
-  };
-  function statusLabel(value){
-    const key=text(value).toLowerCase();
-    return statusLabels[key] || key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
-  }
-  function activeProposer(meeting){
-    const proposals=array(meeting&&meeting.proposals)
-      .filter(proposal=>Number(proposal.proposal_round)===Number(meeting&&meeting.proposal_round)&&proposal.status==="active");
-    return proposals[0]&&proposals[0].proposed_by_profile_id||null;
-  }
-  function meetingRole(meeting,currentProfileId){
-    const current=text(currentProfileId);
-    const proposer=text(activeProposer(meeting));
-    if(proposer&&proposer===current)return "proposer";
-    if(text(meeting&&meeting.requester_profile_id)===current)return "requester";
-    return "recipient";
-  }
-  function meetingStatusLabel(meeting,currentProfileId){
-    const status=text(meeting&&meeting.status).toLowerCase();
-    const role=meetingRole(meeting,currentProfileId);
-    if(status==="draft")return "Draft";
-    if(status==="proposed"||status==="awaiting_response"){
-      return role==="proposer"||role==="requester"?"Awaiting response":"Action required";
-    }
-    if(status==="counter_proposed"){
-      return role==="proposer"?"Awaiting response":"New time proposal";
-    }
-    if(status==="accepted"||status==="confirmed")return "Confirmed";
-    return statusLabel(status);
-  }
-  function meetingPermissions(meeting,currentProfileId){
-    const status=text(meeting&&meeting.status).toLowerCase();
-    const role=meetingRole(meeting,currentProfileId);
-    const awaiting=["proposed","awaiting_response","counter_proposed"].includes(status);
-    return {
-      role,
-      canAccept:awaiting&&role!=="proposer",
-      canCounter:awaiting&&role!=="proposer",
-      canDecline:awaiting&&role!=="proposer",
-      canEdit:(status==="draft"&&text(meeting&&meeting.requester_profile_id)===text(currentProfileId))||(awaiting&&role==="proposer"),
-      canWithdraw:awaiting&&role==="proposer"
-    };
-  }
-  function categorizeMeetings(meetings,nowValue=Date.now()){
-    const now=Number(nowValue);
-    const result={requests:[],upcoming:[],past:[]};
-    array(meetings).forEach(meeting=>{
-      const status=text(meeting.status).toLowerCase();
-      const end=Date.parse(meeting.confirmed_end||meeting.confirmed_start||"");
-      if(["draft","proposed","awaiting_response","counter_proposed"].includes(status))result.requests.push(meeting);
-      else if(["accepted","confirmed"].includes(status)&&(!Number.isFinite(end)||end>=now))result.upcoming.push(meeting);
-      else result.past.push(meeting);
-    });
-    return result;
-  }
-  function badgeLabel(value){
-    const count=Math.max(0,Math.floor(Number(value)||0));
-    if(!count)return "";
-    if(count>=100)return "99+";
-    if(count>=10)return "9+";
-    return String(count);
-  }
-  function safeHttpUrl(value){
-    try{
-      const parsed=new URL(text(value));
-      return parsed.protocol==="https:"||parsed.protocol==="http:"?parsed.toString():null;
-    }catch(_){ return null; }
-  }
-  function dateTime(value,timeZone){
-    const date=new Date(value);
-    if(Number.isNaN(date.getTime())) return "Time unavailable";
-    try{
-      return new Intl.DateTimeFormat(undefined,{
-        timeZone:timeZone||undefined,dateStyle:"medium",timeStyle:"short"
-      }).format(date);
-    }catch(_){ return date.toLocaleString(); }
-  }
-  function isoToCalendar(value){
-    const date=new Date(value);
-    if(Number.isNaN(date.getTime())) return "";
-    return date.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");
-  }
-  function icsEscape(value){
-    return text(value).replace(/\\/g,"\\\\").replace(/\r?\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
-  }
-  function icsFold(line){
-    const chunks=[];let current="",bytes=0;
-    for(const character of line){
-      const size=new TextEncoder().encode(character).length;
-      const limit=chunks.length?74:75;
-      if(current&&bytes+size>limit){chunks.push(current);current=character;bytes=size;}
-      else{current+=character;bytes+=size;}
-    }
-    if(current||!chunks.length)chunks.push(current);
-    return chunks.join("\r\n ");
-  }
-  function calendarEvent(meeting,origin){
-    if(!meeting||!meeting.confirmed_start||!meeting.confirmed_end) return null;
-    const base=(origin||"https://medichall.com").replace(/\/+$/,"");
-    const entryPath=typeof location!=="undefined"&&/\/matchmaking\.html$/.test(location.pathname)
-      ?"/matchmaking.html"
-      :"/portal.html";
-    const deepLink=base+entryPath+"#matchmaking-meeting="+meeting.id;
-    const title=text(meeting.title)||"MedicHall meeting";
-    const agenda=text(meeting.agenda);
-    const start=isoToCalendar(meeting.confirmed_start);
-    const end=isoToCalendar(meeting.confirmed_end);
-    if(!start||!end) return null;
-    const uid="medichall-matchmaking-"+meeting.id+"@medichall.com";
-    const stamp=isoToCalendar(new Date().toISOString());
-    const description=[agenda,"Open the authenticated MedicHall workspace: "+deepLink].filter(Boolean).join("\n\n");
-    const ics=[
-      "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//MedicHall//Matchmaking Workspace//EN",
-      "CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
-      "UID:"+icsEscape(uid),"DTSTAMP:"+stamp,"DTSTART:"+start,"DTEND:"+end,
-      "SUMMARY:"+icsEscape(title),"DESCRIPTION:"+icsEscape(description),
-      "LOCATION:"+icsEscape("MedicHall secure meeting"),"URL:"+icsEscape(deepLink),
-      "STATUS:CONFIRMED","END:VEVENT","END:VCALENDAR",""
-    ].map(icsFold).join("\r\n");
-    const dates=start+"/"+end;
-    return {
-      title,deepLink,ics,
-      filename:"medichall-meeting-"+meeting.id+".ics",
-      google:"https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(title)+"&dates="+encodeURIComponent(dates)+"&details="+encodeURIComponent(description)+"&location="+encodeURIComponent(deepLink),
-      outlook:"https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent&subject="+encodeURIComponent(title)+"&startdt="+encodeURIComponent(new Date(meeting.confirmed_start).toISOString())+"&enddt="+encodeURIComponent(new Date(meeting.confirmed_end).toISOString())+"&body="+encodeURIComponent(description)+"&location="+encodeURIComponent(deepLink)
-    };
-  }
-  function wallTimeToIso(dateValue,timeValue,timeZone){
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(text(dateValue))||!/^\d{2}:\d{2}$/.test(text(timeValue)))throw new Error("Choose a valid date and time for every option.");
-    const [year,month,day]=dateValue.split("-").map(Number);
-    const [hour,minute]=timeValue.split(":").map(Number);
-    let guess=Date.UTC(year,month-1,day,hour,minute);
-    const formatter=new Intl.DateTimeFormat("en-CA",{timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
-    for(let attempt=0;attempt<3;attempt++){
-      const parts=Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(part=>part.type!=="literal").map(part=>[part.type,Number(part.value)]));
-      const represented=Date.UTC(parts.year,parts.month-1,parts.day,parts.hour,parts.minute);
-      guess+=Date.UTC(year,month-1,day,hour,minute)-represented;
-    }
-    const verification=Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));
-    if(`${verification.year}-${verification.month}-${verification.day}`!==dateValue||`${verification.hour}:${verification.minute}`!==timeValue)throw new Error("That local time does not exist in the selected timezone.");
-    return new Date(guess).toISOString();
-  }
-  function proposalSlots(localValues,durationMinutes,timeZone){
-    const duration=Number(durationMinutes);
-    if(!Number.isFinite(duration)||duration<15||duration>240) throw new Error("Choose a valid duration.");
-    if(!Array.isArray(localValues)||localValues.length!==3)throw new Error("Provide exactly three meeting options.");
-    const zone=text(timeZone)||"UTC";
-    try{new Intl.DateTimeFormat("en",{timeZone:zone}).format(new Date());}catch(_){throw new Error("Choose a valid timezone.");}
-    const starts=localValues.map(value=>{
-      if(typeof value==="string"){
-        const [date,time]=value.split("T");
-        return new Date(wallTimeToIso(date,time,zone));
-      }
-      return new Date(wallTimeToIso(value&&value.date,value&&value.time,zone));
-    });
-    if(starts.some(date=>Number.isNaN(date.getTime()))) throw new Error("Choose three valid meeting options.");
-    if(starts.some(date=>date.getTime()<=Date.now()))throw new Error("Every meeting option must be in the future.");
-    const unique=new Set(starts.map(date=>date.toISOString()));
-    if(unique.size!==3) throw new Error("Each proposal must use a different time.");
-    return starts.map(start=>({
-      start_at:start.toISOString(),
-      end_at:new Date(start.getTime()+duration*60000).toISOString()
-    }));
-  }
-  return {array,csv,statusLabel,meetingRole,meetingStatusLabel,meetingPermissions,categorizeMeetings,badgeLabel,safeHttpUrl,dateTime,calendarEvent,wallTimeToIso,proposalSlots};
-})();
+globalThis.MatchmakingUtils = globalThis.MedicHallMatchmakingDomain;
 /* MATCHMAKING_WORKSPACE_UTILS_END */
 
 let MM = {
   data:null,detail:null,view:"matches",loading:false,loaded:false,
   filters:{q:"",role:"",country:"",min:"0"},meetingMode:null,
   connectionId:null,meetingId:null,detailMeetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
-  schedulerSlots:[],successMessage:null,modalFocus:[]
+  modalFocus:[]
 };
 let PN = {
   data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},
@@ -4585,29 +4343,7 @@ function renderPortalNotifications(){
   }).join(""):'<div class="mm-empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
 }
 function setPortalNotificationFilter(filter){PN.filter=filter;renderPortalNotifications();}
-function togglePortalProfileMenu(){
-  const menu=document.getElementById("portalProfileMenu");
-  const trigger=document.getElementById("portalProfileTrigger");
-  const open=!menu.classList.contains("open");
-  menu.classList.toggle("open",open);
-  trigger.setAttribute("aria-expanded",String(open));
-  if(open)closePortalNotifications();
-}
-function closePortalProfileMenu(){
-  document.getElementById("portalProfileMenu")?.classList.remove("open");
-  document.getElementById("portalProfileTrigger")?.setAttribute("aria-expanded","false");
-}
-function openPortalProfile(){
-  closePortalProfileMenu();
-  location.hash="#profile";
-  applyHash();
-}
-function openPortalNotificationCenter(){
-  closePortalProfileMenu();
-  if(!document.getElementById("portalNotificationModal").classList.contains("open"))togglePortalNotifications();
-}
 async function togglePortalNotifications(){
-  closePortalProfileMenu();
   const modal=document.getElementById("portalNotificationModal");
   if(modal.classList.contains("open")){closePortalNotifications();return;}
   document.getElementById("portalNotificationBell").setAttribute("aria-expanded","true");
@@ -4693,7 +4429,6 @@ function renderMatchmakingWorkspace(){
   root.innerHTML='<div class="mm-shell">'+
     '<section class="mm-hero"><div><div class="mm-kicker">Two-sided partner discovery</div><h2>Matchmaking Workspace</h2><p>Understand fit, build a relationship, agree on a time, meet securely and keep next steps in one auditable workspace.</p></div>'+
     '<div class="mm-hero-actions"><button class="btn btn-ghost btn-sm" onclick="mmSetView(\'profile\')">Edit match profile</button><button class="btn btn-grad btn-sm" onclick="refreshMmMatches(this)">Refresh matches</button></div></section>'+
-    (MM.successMessage?'<div class="mm-success" role="status">'+mmEsc(MM.successMessage)+'</div>':"")+
     '<div class="mm-metrics">'+mmMetric("Partner matches",matches.length)+mmMetric("Saved",matches.filter(m=>m.status==="saved").length)+mmMetric("Relationships",connections.filter(c=>c.status==="accepted").length)+mmMetric("Needs attention",awaiting)+mmMetric("Confirmed meetings",confirmed)+'</div>'+
     '<div class="mm-profile-health '+(profileGood?"good":"")+'"><div><b>'+Number(profile.profile_completeness||0)+'% profile completeness</b><p>'+(profileGood?"Your structured profile supports higher-confidence explanations.":"Add products, markets and certification needs to improve match quality.")+'</p></div><button class="btn btn-ghost btn-sm" onclick="mmSetView(\'profile\')">Review profile</button></div>'+
     '<nav class="mm-view-tabs" aria-label="Matchmaking workspace views">'+
@@ -5009,17 +4744,19 @@ function openMmMeetingForm(connectionId,meetingId=null,mode="propose"){
   mmPopulateTimezones(timeZone);
   const now=new Date();now.setMinutes(Math.ceil(now.getMinutes()/15)*15,0,0);
   const editable=["edit_draft","edit_proposal"].includes(mode)&&meeting?mmUtils.array(meeting.proposals).filter(proposal=>proposal.proposal_round===meeting.proposal_round&&proposal.status==="active"):[];
-  MM.schedulerSlots=editable.slice(0,3).map(proposal=>mmZonedInputParts(proposal.start_at,timeZone));
-  const initialDate=MM.schedulerSlots[0]?.date||mmZonedInputParts(new Date(now.getTime()+24*60*60*1000).toISOString(),timeZone).date;
-  const dateInput=document.getElementById("mm-scheduler-date");
-  dateInput.min=mmZonedInputParts(now.toISOString(),timeZone).date;
-  dateInput.value=initialDate;
+  [1,2,3].forEach((index)=>{
+    const candidate=new Date(now.getTime()+index*24*60*60*1000);
+    candidate.setHours(index===2?14:10,0,0,0);
+    const existing=editable[index-1];
+    const parts=existing?mmZonedInputParts(existing.start_at,timeZone):mmZonedInputParts(candidate.toISOString(),timeZone);
+    document.getElementById("mm-slot-date-"+index).value=parts.date;
+    document.getElementById("mm-slot-time-"+index).value=parts.time;
+  });
   document.getElementById("mmDraftBtn").style.display=mode==="propose"?"inline-flex":"none";
   document.getElementById("mmMeetingSubmit").textContent=mode==="counter"?"Send new times":mode==="reschedule"?"Send reschedule request":mode==="edit_proposal"?"Update times":mode==="edit_draft"?"Save changes":"Send proposal";
   document.getElementById("mmMeetingError").style.display="none";
   mmUpdateTimezoneNote();
-  mmShowMeetingStep("choose");
-  mmUpdateScheduler();
+  mmUpdateSlotEnds();
   mmOpenModal("mmMeetingModal","#mm-meeting-topic");
 }
 function mmLocalInputValue(date){
@@ -5041,93 +4778,19 @@ function mmPopulateTimezones(selected){
 function mmSelectedTimezone(){return document.getElementById("mm-meeting-timezone").value||mmTimezone();}
 function mmUpdateTimezoneNote(){
   const zone=mmSelectedTimezone();
-  document.getElementById("mmTimezoneNote").textContent="Choose exactly three options in "+zone+". MedicHall stores them in UTC and shows each participant their local time.";
-  mmUpdateScheduler();
+  document.getElementById("mmTimezoneNote").textContent="Enter three dates and times in "+zone+". They are stored in UTC and shown to each participant in their own timezone.";
+  mmUpdateSlotEnds();
 }
-function mmSchedulerTimes(){
-  const values=[];
-  for(let minutes=8*60;minutes<=18*60+30;minutes+=30){
-    values.push(String(Math.floor(minutes/60)).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0"));
-  }
-  return values;
-}
-function mmRenderTimeChoices(){
-  const target=document.getElementById("mmTimeChoices");
-  if(!target)return;
-  const date=document.getElementById("mm-scheduler-date").value;
-  target.innerHTML=mmSchedulerTimes().map(time=>{
-    const selected=MM.schedulerSlots.some(slot=>slot.date===date&&slot.time===time);
-    return '<button type="button" class="mm-time-choice '+(selected?"selected":"")+'" '+(!date||selected?"disabled":"")+' onclick="mmSelectSchedulerTime(\''+time+'\')">'+time+'</button>';
-  }).join("");
-}
-function mmSelectSchedulerTime(time){
-  const date=document.getElementById("mm-scheduler-date").value;
-  const error=document.getElementById("mmMeetingError");
-  error.style.display="none";
-  if(!date)return;
-  if(MM.schedulerSlots.length>=3){
-    error.textContent="Remove one selected option before choosing another.";
-    error.style.display="block";
-    return;
-  }
-  if(MM.schedulerSlots.some(slot=>slot.date===date&&slot.time===time))return;
-  MM.schedulerSlots.push({date,time});
-  mmUpdateScheduler();
-}
-function mmRemoveSchedulerSlot(index){
-  MM.schedulerSlots.splice(Number(index),1);
-  mmUpdateScheduler();
-}
-function mmSchedulerSlotLabel(slot){
-  try{
-    return mmUtils.dateTime(mmUtils.wallTimeToIso(slot.date,slot.time,mmSelectedTimezone()),mmSelectedTimezone());
-  }catch(_){
-    return slot.date+" · "+slot.time;
-  }
-}
-function mmRenderSelectedSlots(){
-  const target=document.getElementById("mmSelectedSlots");
-  const count=document.getElementById("mmSelectedCount");
-  if(!target||!count)return;
+function mmUpdateSlotEnds(){
   const duration=Number(document.getElementById("mm-meeting-duration").value||30);
-  count.textContent=MM.schedulerSlots.length+" of 3 selected";
-  target.innerHTML=MM.schedulerSlots.length?MM.schedulerSlots.map((slot,index)=>
-    '<div class="mm-selected-slot"><div><b>Option '+(index+1)+' · '+mmEsc(mmSchedulerSlotLabel(slot))+'</b><small>'+duration+' minutes · '+mmEsc(mmSelectedTimezone())+'</small></div><button type="button" aria-label="Remove option '+(index+1)+'" onclick="mmRemoveSchedulerSlot('+index+')">Remove</button></div>'
-  ).join(""):'<div class="mm-selected-empty">Choose a calendar date and click three distinct times.</div>';
-}
-function mmUpdateScheduler(){
-  mmRenderTimeChoices();
-  mmRenderSelectedSlots();
-  const complete=MM.schedulerSlots.length===3;
-  document.getElementById("mmMeetingReview").disabled=!complete;
-  document.getElementById("mmDraftBtn").disabled=!complete;
-}
-function mmShowMeetingStep(step){
-  const review=step==="review";
-  const error=document.getElementById("mmMeetingError");
-  error.style.display="none";
-  if(review&&MM.schedulerSlots.length!==3){
-    error.textContent="Choose exactly three meeting options before review.";
-    error.style.display="block";
-    return;
-  }
-  document.getElementById("mmMeetingChooseStep").style.display=review?"none":"block";
-  document.getElementById("mmMeetingReviewStep").style.display=review?"grid":"none";
-  document.getElementById("mmMeetingChooseActions").style.display=review?"none":"flex";
-  document.getElementById("mmMeetingReviewActions").style.display=review?"flex":"none";
-  document.getElementById("mmSchedulerStepOne").classList.toggle("active",!review);
-  document.getElementById("mmSchedulerStepTwo").classList.toggle("active",review);
-  if(review){
-    const topic=document.getElementById("mm-meeting-topic").value.trim()||"Matchmaking meeting";
-    const agenda=document.getElementById("mm-meeting-agenda").value.trim()||"No agenda provided.";
-    const duration=Number(document.getElementById("mm-meeting-duration").value||30);
-    document.getElementById("mmMeetingReviewStep").innerHTML='<div class="mm-review-summary"><div class="mm-kicker">Ready to send</div><h4>'+mmEsc(topic)+'</h4><p>'+mmEsc(agenda)+'</p><p>'+duration+' minutes · '+mmEsc(mmSelectedTimezone())+' · '+mmEsc(document.getElementById("mm-meeting-language").value.trim()||"Language not specified")+'</p></div>'+
-      MM.schedulerSlots.map((slot,index)=>'<div class="mm-selected-slot"><div><b>Option '+(index+1)+' · '+mmEsc(mmSchedulerSlotLabel(slot))+'</b><small>'+duration+' minutes · shown in '+mmEsc(mmSelectedTimezone())+'</small></div></div>').join("");
-    setTimeout(()=>document.getElementById("mmMeetingSubmit").focus(),0);
-  }else{
-    mmUpdateScheduler();
-    setTimeout(()=>document.getElementById("mm-meeting-topic").focus(),0);
-  }
+  [1,2,3].forEach(index=>{
+    const date=document.getElementById("mm-slot-date-"+index).value;
+    const time=document.getElementById("mm-slot-time-"+index).value;
+    const target=document.getElementById("mm-slot-end-"+index);
+    if(!date||!time){target.textContent="Required";return;}
+    const minutes=Number(time.slice(0,2))*60+Number(time.slice(3))+duration;
+    target.textContent="Ends "+String(Math.floor(minutes/60)%24).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0")+(minutes>=1440?" next day":"");
+  });
 }
 function closeMmMeetingModal(){mmCloseModal("mmMeetingModal");}
 async function submitMmMeeting(saveDraft){
@@ -5135,7 +4798,10 @@ async function submitMmMeeting(saveDraft){
   error.style.display="none";
   try{
     const timeZone=mmSelectedTimezone();
-    const slots=mmUtils.proposalSlots(MM.schedulerSlots,document.getElementById("mm-meeting-duration").value,timeZone);
+    const slots=mmUtils.proposalSlots([1,2,3].map(index=>({
+      date:document.getElementById("mm-slot-date-"+index).value,
+      time:document.getElementById("mm-slot-time-"+index).value
+    })),document.getElementById("mm-meeting-duration").value,timeZone);
     mmSetBusy(button,true,saveDraft?"Saving…":"Sending…");
     if(MM.meetingMode==="counter"){
       const meeting=mmFindMeeting(MM.meetingId);
@@ -5153,11 +4819,9 @@ async function submitMmMeeting(saveDraft){
     }else{
       await mmRpc("propose_matchmaking_meeting",{p_connection_id:MM.connectionId,p_title:document.getElementById("mm-meeting-topic").value.trim(),p_agenda:document.getElementById("mm-meeting-agenda").value.trim()||null,p_timezone:timeZone,p_language:document.getElementById("mm-meeting-language").value.trim()||null,p_slots:slots,p_save_as_draft:Boolean(saveDraft),p_idempotency_key:mmUuid()});
     }
-    const success=saveDraft?"Meeting draft saved.":MM.meetingMode==="edit_draft"?"Meeting draft updated.":MM.meetingMode==="edit_proposal"?"Proposed times updated.":MM.meetingMode==="counter"?"Three new times sent.":MM.meetingMode==="reschedule"?"Reschedule request sent.":"Meeting request sent with three proposed times.";
-    MM.successMessage=success;
     closeMmMeetingModal();MM.view="requests";await loadMatchmakingWorkspace(true);await loadPortalNotifications(true);
     if(MM.detail)await loadMmRelationship(MM.connectionId,true);
-    toast(success+" ✓");
+    toast(saveDraft?"Meeting draft saved ✓":MM.meetingMode==="edit_draft"?"Meeting draft updated ✓":MM.meetingMode==="edit_proposal"?"Proposed times updated ✓":MM.meetingMode==="counter"?"New times sent ✓":MM.meetingMode==="reschedule"?"Reschedule request sent ✓":"Meeting proposal sent ✓");
   }catch(caught){
     error.textContent=mmParseError(caught);error.style.display="block";
   }finally{mmSetBusy(button,false);}
@@ -5286,10 +4950,6 @@ document.addEventListener("keydown", e=>{
     }else if(document.getElementById("chatModal").classList.contains("open"))closeChat();
     else closeModals();
   }
-});
-document.addEventListener("click",event=>{
-  const profile=document.querySelector(".portal-profile");
-  if(profile&&!profile.contains(event.target))closePortalProfileMenu();
 });
 window.addEventListener("hashchange",()=>{MM.handledHash=null;applyHash();});
 document.addEventListener("visibilitychange",()=>{

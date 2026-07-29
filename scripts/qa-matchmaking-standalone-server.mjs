@@ -148,13 +148,20 @@ createServer(async (request, response) => {
       return;
     }
     let body = await readFile(filePath);
-    if (pathname === "/portal.html") {
-      const html = body.toString("utf8")
-        .replace("<body>", `<body>${qaBootstrap}`)
-        .replace(
+    if (pathname === "/portal.html" || pathname === "/matchmaking.html") {
+      let html = body.toString("utf8").replace("<body>", `<body>${qaBootstrap}`);
+      if (pathname === "/portal.html") {
+        html = html.replace(
           'let TOKEN = localStorage.getItem("mh_p_token") || null;',
           'let TOKEN = "qa-browser-session";'
         );
+      }
+      if (pathname === "/matchmaking.html") {
+        html = html.replace(
+          '<script src="matchmaking-workspace.js"></script>',
+          '<script>localStorage.setItem("mh_p_token","qa-browser-session")</script><script src="matchmaking-workspace.js"></script>'
+        );
+      }
       body = Buffer.from(html);
     }
     response.writeHead(200, {
@@ -167,5 +174,5 @@ createServer(async (request, response) => {
     response.end(String(error.message || error));
   }
 }).listen(port, "127.0.0.1", () => {
-  console.log(`MedicHall parity QA server: http://127.0.0.1:${port}`);
+  console.log(`MedicHall standalone QA server: http://127.0.0.1:${port}`);
 });
