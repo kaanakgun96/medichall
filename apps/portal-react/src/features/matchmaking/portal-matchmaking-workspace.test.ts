@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import portal from "../../../../../portal.html?raw";
+import standaloneMatchmaking from "../../../../../matchmaking.html?raw";
 
 type CalendarEvent = {
   ics: string;
@@ -207,19 +208,46 @@ describe("production Matchmaking Workspace", () => {
     expect(portal).toContain("Meeting Details");
   });
 
-  it("contains dedicated lifecycle navigation, explicit scheduling, and a global bell", () => {
+  it("contains dedicated lifecycle navigation, the guided scheduler, and the shared header", () => {
     expect(portal).toContain('"Requests"');
     expect(portal).toContain('"Upcoming Meetings"');
     expect(portal).toContain('"Past Meetings"');
     expect(portal).toContain('id="portalNotificationBell"');
+    expect(portal).toContain(">Messages</a>");
+    expect(portal).toContain('id="portalProfileMenu"');
+    expect(portal).toContain("Notification Center");
     expect(portal).toContain("get_portal_notification_center");
     expect(portal).toContain("mark_portal_notifications_read");
     expect(portal).toContain('id="mm-meeting-timezone"');
-    expect(portal).toContain('id="mm-slot-date-1"');
-    expect(portal).toContain('id="mm-slot-time-1"');
+    expect(portal).toContain('id="mm-scheduler-date"');
+    expect(portal).toContain('id="mmTimeChoices"');
+    expect(portal).toContain('id="mmSelectedSlots"');
+    expect(portal).toContain("Review three times");
+    expect(portal).toContain("mmRemoveSchedulerSlot");
     expect(portal).toContain("revise_matchmaking_meeting_proposal");
     expect(portal).toContain("reschedule_matchmaking_meeting");
     expect(portal).toContain("#rfq-chat=");
+  });
+
+  it("mounts the canonical portal workspace from the standalone entry point", () => {
+    expect(standaloneMatchmaking).toContain(
+      'fetch(new URL("portal.html",location.href)',
+    );
+    expect(standaloneMatchmaking).toContain(
+      'history.replaceState(null,"",location.pathname+location.search+"#matchmaking")',
+    );
+    expect(standaloneMatchmaking).toContain("document.write(html)");
+    expect(standaloneMatchmaking).not.toContain("SUPABASE_ANON_KEY");
+    expect(standaloneMatchmaking).not.toContain("matchmaking_meeting_requests");
+  });
+
+  it("removes every reachable legacy prompt-based meeting path", () => {
+    const productionMatchmaking = `${portal}\n${standaloneMatchmaking}`;
+    expect(productionMatchmaking).not.toContain(
+      "Meeting start (YYYY-MM-DDTHH:MM)",
+    );
+    expect(standaloneMatchmaking).not.toMatch(/\b(?:window\.)?prompt\s*\(/);
+    expect(standaloneMatchmaking).not.toContain('type="datetime-local"');
   });
 
   it("includes keyboard focus management and accessible status announcements", () => {
