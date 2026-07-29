@@ -448,6 +448,8 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .ti-modes{display:inline-flex;background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin:14px 0 10px}
 .ti-mode{border:none;background:transparent;color:var(--ink-soft);border-radius:7px;padding:7px 12px;font-size:.78rem;font-weight:600}
 .ti-mode.active{background:#fff;color:var(--teal-deep);box-shadow:0 2px 7px rgba(0,62,82,.09)}
+.ti-mode:focus-visible,.ti-drop .btn:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.ti-tabpanel[hidden]{display:none!important}
 .ti-drop{border:2px dashed #9CCEE4;border-radius:12px;background:#F7FBFD;padding:24px 18px;text-align:center;transition:.15s}
 .ti-drop.drag{border-color:var(--teal);background:var(--teal-tint)}
 .ti-drop b{display:block;font-size:.92rem}
@@ -479,7 +481,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .ti-fact span{display:block;font-size:.65rem;color:var(--ink-soft);margin-top:2px}
 .ti-evidence{border-left:3px solid var(--teal);background:var(--mist);padding:8px 10px;margin:6px 0;font-size:.72rem;color:var(--ink-soft);overflow-wrap:anywhere}
 @media(max-width:720px){.ti-url{grid-template-columns:1fr}.ti-facts{grid-template-columns:1fr 1fr}}
-@media(max-width:430px){.ti-facts{grid-template-columns:1fr}.ti-drop{padding:20px 12px}}
+@media(max-width:430px){.ti-facts{grid-template-columns:1fr}.ti-drop{padding:20px 12px}.ti-modes{display:flex;width:100%}.ti-mode{flex:1;min-width:0}}
 
 /* ---------- opportunities view toggle ---------- */
 .opp-seg{display:inline-flex;background:var(--mist);border:1.5px solid var(--line);border-radius:10px;padding:3px;margin:0 0 14px;gap:2px}
@@ -618,6 +620,27 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .mm-card-top{align-items:center}
   .mm-score{width:52px;height:52px}
 }
+
+/* ---------- narrow portal containment ---------- */
+@media(max-width:560px){
+  .wrap{padding-left:12px;padding-right:12px}
+  .nav{height:auto;min-height:64px;padding:8px 0;gap:8px}
+  .logo{gap:6px;font-size:1rem;min-width:0}
+  .logo .adm{display:none}
+  #headActions{gap:6px!important;margin-left:auto;min-width:0}
+  #headActions .marketplace-link{width:38px;height:38px;padding:0;justify-content:center;font-size:0}
+  #headActions .marketplace-link:after{content:"↗";font-size:1rem}
+  #headActions .btn:not(.marketplace-link){padding:7px 10px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain;padding-bottom:4px;scrollbar-width:thin}
+  .tab{flex:0 0 auto}
+  .card.pad{padding:17px}
+  .form-actions,.byod-row,.ti-item-foot{flex-wrap:wrap}
+  .form-actions .btn{max-width:100%;white-space:normal}
+  .mono,.byod-ref,.ti-item-meta{overflow-wrap:anywhere;word-break:break-word}
+  .modal-backdrop{padding:12px}
+  .modal{padding:24px 17px;max-width:calc(100vw - 24px)}
+  .toast{max-width:calc(100vw - 24px);width:max-content;text-align:center;border-radius:14px;padding:10px 16px}
+}
 </style>
 </head>
 <body>
@@ -638,7 +661,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <span class="adm">Partner Portal</span>
     </span>
     <div id="headActions" style="display:none;gap:10px;align-items:center">
-      <a class="btn btn-ghost btn-sm" href="index.html">View marketplace →</a>
+      <a class="btn btn-ghost btn-sm marketplace-link" href="index.html" aria-label="View marketplace">View marketplace →</a>
       <button class="portal-bell" id="portalNotificationBell" type="button" aria-label="Notifications" aria-expanded="false" onclick="togglePortalNotifications()">
         🔔<span class="portal-bell-badge" id="portalNotificationBadge"></span>
       </button>
@@ -867,19 +890,19 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
             <span class="mono" style="color:var(--ink-soft)">Private to your company</span>
           </div>
           <div class="ti-modes" role="tablist" aria-label="Tender import source">
-            <button class="ti-mode active" id="tiFilesMode" role="tab" aria-selected="true" onclick="setTenderImportMode('files')">Files</button>
-            <button class="ti-mode" id="tiUrlMode" role="tab" aria-selected="false" onclick="setTenderImportMode('url')">Public URL</button>
+            <button class="ti-mode active" id="tiFilesMode" role="tab" aria-selected="true" aria-controls="tiFilesPanel" tabindex="0" onclick="setTenderImportMode('files')" onkeydown="handleTenderImportTabKey(event)">Files</button>
+            <button class="ti-mode" id="tiUrlMode" role="tab" aria-selected="false" aria-controls="tiUrlPanel" tabindex="-1" onclick="setTenderImportMode('url')" onkeydown="handleTenderImportTabKey(event)">Public URL</button>
           </div>
-          <div class="ti-drop" id="tiDrop" role="button" tabindex="0" aria-label="Choose or drop tender documents"
-            onclick="document.getElementById('tiFiles').click()"
-            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('tiFiles').click()}"
-            ondragover="tenderImportDrag(event,true)" ondragleave="tenderImportDrag(event,false)" ondrop="tenderImportDrop(event)">
-            <b>Drop tender documents here</b>
-            <span>Up to 6 files · 25 MB each (ZIP 30 MB) · 100 MB total</span>
-            <button class="btn btn-solid btn-sm" type="button">Choose files</button>
-            <input id="tiFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.csv,.zip,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/zip" onchange="startTenderFileImport(this.files)">
+          <div class="ti-tabpanel" id="tiFilesPanel" role="tabpanel" aria-labelledby="tiFilesMode">
+            <div class="ti-drop" id="tiDrop" aria-describedby="tiDropHelp"
+              ondragover="tenderImportDrag(event,true)" ondragleave="tenderImportDrag(event,false)" ondrop="tenderImportDrop(event)">
+              <b>Drop tender documents here</b>
+              <span id="tiDropHelp">Up to 6 files · 25 MB each (ZIP 30 MB) · 100 MB total</span>
+              <button class="btn btn-solid btn-sm" type="button" onclick="document.getElementById('tiFiles').click()">Choose files</button>
+              <input id="tiFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.csv,.zip,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/zip" onchange="startTenderFileImport(this.files)">
+            </div>
           </div>
-          <div class="ti-url" id="tiUrlForm">
+          <div class="ti-url ti-tabpanel" id="tiUrlPanel" role="tabpanel" aria-labelledby="tiUrlMode" hidden>
             <div>
               <label for="tiUrlName">Import name</label>
               <input id="tiUrlName" maxlength="200" placeholder="e.g. Hospital consumables tender">
@@ -890,8 +913,8 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
             </div>
             <button class="btn btn-grad" id="tiUrlBtn" onclick="startTenderUrlImport()">Import URL</button>
           </div>
-          <div class="ti-live" id="tiLive" role="status" aria-live="polite"></div>
-          <div class="ti-list" id="tiList"></div>
+          <div class="ti-live" id="tiLive" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div class="ti-list" id="tiList" tabindex="-1"></div>
         </section>
 
         <div class="card pad" id="matchProfileCard">
@@ -2561,13 +2584,39 @@ const TENDER_IMPORT_MIME = {
 
 function setTenderImportMode(mode){
   const files = mode === "files";
-  document.getElementById("tiFilesMode").classList.toggle("active", files);
-  document.getElementById("tiUrlMode").classList.toggle("active", !files);
-  document.getElementById("tiFilesMode").setAttribute("aria-selected", String(files));
-  document.getElementById("tiUrlMode").setAttribute("aria-selected", String(!files));
-  document.getElementById("tiDrop").style.display = files ? "" : "none";
-  document.getElementById("tiUrlForm").classList.toggle("open", !files);
-  document.getElementById("tiLive").textContent = "";
+  const filesTab = document.getElementById("tiFilesMode");
+  const urlTab = document.getElementById("tiUrlMode");
+  filesTab.classList.toggle("active", files);
+  urlTab.classList.toggle("active", !files);
+  filesTab.setAttribute("aria-selected", String(files));
+  urlTab.setAttribute("aria-selected", String(!files));
+  filesTab.tabIndex = files ? 0 : -1;
+  urlTab.tabIndex = files ? -1 : 0;
+  document.getElementById("tiFilesPanel").hidden = !files;
+  const urlPanel = document.getElementById("tiUrlPanel");
+  urlPanel.hidden = files;
+  urlPanel.classList.toggle("open", !files);
+  tenderImportAnnounce("");
+}
+function handleTenderImportTabKey(event){
+  const tabs = [document.getElementById("tiFilesMode"),document.getElementById("tiUrlMode")];
+  const current = tabs.indexOf(event.currentTarget);
+  let next = current;
+  if(event.key === "ArrowRight") next = (current + 1) % tabs.length;
+  else if(event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+  else if(event.key === "Home") next = 0;
+  else if(event.key === "End") next = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  setTenderImportMode(next === 0 ? "files" : "url");
+  tabs[next].focus();
+}
+function tenderImportAnnounce(message,isError=false){
+  const live = document.getElementById("tiLive");
+  if(!live) return;
+  live.setAttribute("role",isError ? "alert" : "status");
+  live.setAttribute("aria-live",isError ? "assertive" : "polite");
+  live.textContent = String(message || "");
 }
 function tenderImportDrag(event, active){
   event.preventDefault();
@@ -2601,24 +2650,67 @@ function validateTenderImportFiles(fileList){
 function tenderImportSafeName(value){
   return String(value || "document").replace(/[^a-zA-Z0-9._-]+/g,"_").replace(/^_+/,"").slice(-140) || "document";
 }
-async function markTenderImportUploadFailed(importId){
+async function tenderImportSha256(value){
+  const bytes = value instanceof ArrayBuffer ? value : await value.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256",bytes);
+  return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("");
+}
+async function tenderImportFileFingerprint(files){
+  const hashes = [];
+  for(const file of files) hashes.push(await tenderImportSha256(file));
+  hashes.sort();
+  return tenderImportSha256(new TextEncoder().encode(hashes.join("\n")).buffer);
+}
+function tenderImportCanonicalUrl(url){
+  const normalized = new URL(url.href);
+  if(normalized.protocol !== "https:" || normalized.username || normalized.password || (normalized.port && normalized.port !== "443")){
+    throw new Error("Use a public HTTPS URL on port 443 without embedded credentials.");
+  }
+  normalized.hostname = normalized.hostname.toLowerCase().replace(/\.$/,"");
+  normalized.port = "";
+  normalized.hash = "";
+  for(const key of [...normalized.searchParams.keys()]){
+    if(key.toLowerCase().startsWith("utm_") || ["fbclid","gclid","ref","source"].includes(key.toLowerCase())){
+      normalized.searchParams.delete(key);
+    }
+  }
+  normalized.searchParams.sort();
+  if(normalized.pathname.length > 1) normalized.pathname = normalized.pathname.replace(/\/+$/,"");
+  return normalized.href;
+}
+async function cleanupTenderImportUploads(importId,storagePaths){
+  if(!importId || !storagePaths.length) return null;
+  return edgeCall("tender-import",{
+    action:"cleanup",
+    import_id:importId,
+    company_id:COMPANY.id,
+    storage_paths:storagePaths
+  });
+}
+async function markTenderImportUploadFailed(importId,message){
   if(!importId) return;
   try{
     await db("rpc/fail_universal_tender_import", {
       method:"POST",
-      body:JSON.stringify({p_import_id:importId,p_error_message:"Document upload could not be completed."})
+      body:JSON.stringify({
+        p_import_id:importId,
+        p_error_message:String(message || "Document upload could not be completed.").replace(/\s+/g," ").slice(0,500)
+      })
     });
   }catch(_){ /* the visible upload error remains the source of truth */ }
 }
 async function startTenderFileImport(fileList){
   if(!COMPANY) return;
   const input = document.getElementById("tiFiles");
-  const live = document.getElementById("tiLive");
   let created = null;
+  let registrationConfirmed = false;
+  const uploadedPaths = [];
   try{
     const files = validateTenderImportFiles(fileList);
     input.disabled = true;
-    live.textContent = "Preparing a private import…";
+    tenderImportAnnounce("Fingerprinting the selected documents for duplicate protection…");
+    const sourceFingerprint = await tenderImportFileFingerprint(files);
+    tenderImportAnnounce("Preparing a private import…");
     const firstName = files[0].name.replace(/\.[^.]+$/,"");
     created = await db("rpc/create_universal_tender_import", {
       method:"POST",
@@ -2626,15 +2718,38 @@ async function startTenderFileImport(fileList){
         p_company_id:COMPANY.id,
         p_source_kind:"files",
         p_display_name:(files.length === 1 ? firstName : firstName + " + " + (files.length - 1) + " more"),
-        p_source_url:null
+        p_source_url:null,
+        p_idempotency_key:"uti-files-" + sourceFingerprint,
+        p_source_fingerprint:sourceFingerprint
       })
     });
     if(!created || !created.import_id) throw new Error("The import record could not be created.");
+    if(created.replayed){
+      if(created.status !== "failed"){
+        tenderImportAnnounce("This exact file set is already imported or processing. The existing import was opened without uploading duplicates.");
+        input.value = "";
+        await loadTenderImports(true);
+        return;
+      }
+      const retry = await db("rpc/reopen_universal_tender_file_import", {
+        method:"POST",
+        body:JSON.stringify({p_import_id:created.import_id})
+      });
+      if(!retry || !retry.reopened){
+        tenderImportAnnounce("This file set already reached processing. Use the existing import's Retry control to start a new processing attempt.");
+        input.value = "";
+        await loadTenderImports(true);
+        return;
+      }
+      created.replayed = false;
+      created.status = "uploading";
+      tenderImportAnnounce("The failed upload was reopened. Uploading the selected documents again without creating a duplicate tender…");
+    }
     const registered = [];
     for(let index=0; index<files.length; index++){
       const file = files[index], ext = tenderImportExtension(file.name);
       const path = COMPANY.id + "/" + created.import_id + "/" + Date.now() + "-" + index + "-" + tenderImportSafeName(file.name);
-      live.textContent = "Uploading " + (index + 1) + "/" + files.length + " — " + file.name;
+      tenderImportAnnounce("Uploading " + (index + 1) + "/" + files.length + " — " + file.name);
       let response = await fetch(SUPABASE_URL + "/storage/v1/object/tender-imports/" + path, {
         method:"POST",
         headers:{
@@ -2658,24 +2773,39 @@ async function startTenderFileImport(fileList){
         });
       }
       if(!response.ok) throw new Error("Upload failed for " + file.name + " (HTTP " + response.status + ").");
+      uploadedPaths.push(path);
       registered.push({file_name:file.name.slice(0,200),storage_path:path,file_size:file.size});
     }
-    live.textContent = "Validating uploaded documents…";
+    tenderImportAnnounce("Validating uploaded documents…");
     await db("rpc/register_universal_tender_documents", {
       method:"POST",
       body:JSON.stringify({p_import_id:created.import_id,p_files:registered})
     });
+    registrationConfirmed = true;
     await edgeCall("tender-import", {
       action:"start",
       import_id:created.import_id,
       company_id:COMPANY.id
     });
-    live.textContent = "Import started. You can leave this page while the documents are processed.";
+    tenderImportAnnounce("Import started. You can leave this page while the documents are processed.");
     input.value = "";
     await loadTenderImports(true);
   }catch(error){
-    await markTenderImportUploadFailed(created && created.import_id);
-    live.textContent = friendlyError(error);
+    const originalMessage = friendlyError(error);
+    let cleanupMessage = "";
+    if(created && uploadedPaths.length && !registrationConfirmed){
+      try{
+        const cleanup = await cleanupTenderImportUploads(created.import_id,uploadedPaths);
+        if(Number(cleanup && cleanup.refused_count || 0)){
+          cleanupMessage = " Some uploaded objects were retained because they are already registered.";
+        }
+      }catch(cleanupError){
+        cleanupMessage = " Uploaded-object cleanup also failed and will be retried by the stale-orphan reconciler.";
+        console.error("Tender import cleanup failed",cleanupError);
+      }
+    }
+    await markTenderImportUploadFailed(created && created.import_id,originalMessage);
+    tenderImportAnnounce(originalMessage + cleanupMessage,true);
     await loadTenderImports(true);
   }finally{
     input.disabled = false;
@@ -2684,40 +2814,50 @@ async function startTenderFileImport(fileList){
 async function startTenderUrlImport(){
   if(!COMPANY) return;
   const button = document.getElementById("tiUrlBtn");
-  const live = document.getElementById("tiLive");
   const rawUrl = document.getElementById("tiPublicUrl").value.trim();
   let publicUrl;
+  let canonicalUrl;
   try{
     publicUrl = new URL(rawUrl);
-    if(publicUrl.protocol !== "https:") throw new Error("Use a public HTTPS tender URL.");
+    canonicalUrl = tenderImportCanonicalUrl(publicUrl);
   }catch(error){
-    live.textContent = error.message || "Enter a valid public HTTPS tender URL.";
+    tenderImportAnnounce(error.message || "Enter a valid public HTTPS tender URL.",true);
     return;
   }
   const displayName = document.getElementById("tiUrlName").value.trim() || ("Tender from " + publicUrl.hostname);
   button.disabled = true;
   try{
-    live.textContent = "Preparing public tender discovery…";
+    tenderImportAnnounce("Preparing public tender discovery…");
+    const sourceFingerprint = await tenderImportSha256(new TextEncoder().encode(canonicalUrl).buffer);
     const created = await db("rpc/create_universal_tender_import", {
       method:"POST",
       body:JSON.stringify({
         p_company_id:COMPANY.id,
         p_source_kind:"url",
         p_display_name:displayName,
-        p_source_url:publicUrl.href
+        p_source_url:canonicalUrl,
+        p_idempotency_key:"uti-url-" + sourceFingerprint,
+        p_source_fingerprint:sourceFingerprint
       })
     });
+    if(created.replayed){
+      tenderImportAnnounce(created.status === "failed"
+        ? "This URL import already failed. Use its Retry control to start a new processing attempt."
+        : "This URL is already imported or processing. The existing import was opened without creating a duplicate.");
+      await loadTenderImports(true);
+      return;
+    }
     await edgeCall("tender-import", {
       action:"start",
       import_id:created.import_id,
       company_id:COMPANY.id
     });
-    live.textContent = "URL import started. MedicHall is finding the official documents.";
+    tenderImportAnnounce("URL import started. MedicHall is finding the official documents.");
     document.getElementById("tiPublicUrl").value = "";
     document.getElementById("tiUrlName").value = "";
     await loadTenderImports(true);
   }catch(error){
-    live.textContent = friendlyError(error);
+    tenderImportAnnounce(friendlyError(error),true);
   }finally{
     button.disabled = false;
   }
@@ -2758,6 +2898,9 @@ function tenderImportProgress(row){
 function renderTenderImports(){
   const list = document.getElementById("tiList");
   if(!list) return;
+  const focusedKey = document.activeElement && document.activeElement.getAttribute
+    ? document.activeElement.getAttribute("data-ti-focus")
+    : null;
   if(!TENDER_IMPORT_ROWS.length){
     list.innerHTML = '<div class="ti-item-meta">No private tender imports yet.</div>';
     return;
@@ -2771,29 +2914,47 @@ function renderTenderImports(){
       new Date(row.created_at).toLocaleString(),
       row.document_confidence_score != null && ["completed","partial"].includes(status) ? Number(row.document_confidence_score) + "% confidence" : null
     ].filter(Boolean).join(" · ");
+    const accessibleName = String(row.title || row.display_name || "Imported tender");
+    const progressText = tenderImportStageLabel(row) + ", " + progress + " percent";
     return '<article class="ti-item" id="ti-' + esc(row.id) + '">'
       + '<div class="ti-item-top"><div><div class="ti-item-title">' + esc(String(row.title || row.display_name || "Imported tender")) + '</div><div class="ti-item-meta">' + esc(meta) + '</div></div>'
       + '<span class="ti-status ' + esc(status) + '">' + esc(status) + '</span></div>'
-      + '<div class="ti-progress" aria-label="Import progress"><span style="width:' + progress + '%"></span></div>'
+      + '<div class="ti-progress" role="progressbar" aria-label="' + esc(accessibleName) + ' progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + progress + '" aria-valuetext="' + esc(progressText) + '"><span style="width:' + progress + '%"></span></div>'
       + '<div class="ti-item-foot"><span>' + esc(tenderImportStageLabel(row)) + ' · ' + progress + '%</span><div class="ti-item-actions">'
       + (row.source_url ? '<a class="btn btn-ghost btn-sm" href="' + esc(row.source_url) + '" target="_blank" rel="noopener">Source ↗</a>' : '')
-      + (["completed","partial"].includes(status) ? '<button class="btn btn-solid btn-sm" onclick="openTenderImportDetail(\'' + row.id + '\')">View extraction</button>' : '')
-      + ((status === "failed" || stale) && (row.source_kind === "url" || Number(row.document_count || row.file_count || 0) > 0) ? '<button class="btn btn-grad btn-sm" onclick="retryTenderImport(\'' + row.id + '\')">Retry</button>' : '')
+      + (["completed","partial"].includes(status) ? '<button class="btn btn-solid btn-sm" data-ti-focus="detail-' + esc(row.id) + '" aria-label="View extraction for ' + esc(accessibleName) + '" onclick="openTenderImportDetail(\'' + row.id + '\')">View extraction</button>' : '')
+      + ((status === "failed" || stale) && (row.source_kind === "url" || Number(row.document_count || row.file_count || 0) > 0) ? '<button class="btn btn-grad btn-sm" data-ti-focus="retry-' + esc(row.id) + '" aria-label="Retry import ' + esc(accessibleName) + '" onclick="retryTenderImport(\'' + row.id + '\')">Retry</button>' : '')
       + '</div></div>'
-      + (row.error_message ? '<div class="ti-error">' + esc(String(row.error_message)) + '</div>' : '')
+      + (row.error_message ? '<div class="ti-error" role="alert">' + esc(String(row.error_message)) + '</div>' : '')
       + '<div class="ti-detail" id="tiDetail-' + esc(row.id) + '" hidden></div></article>';
   }).join("");
+  if(focusedKey){
+    const replacement = [...list.querySelectorAll("[data-ti-focus]")].find(element=>element.getAttribute("data-ti-focus") === focusedKey);
+    if(replacement) replacement.focus();
+    else list.focus();
+  }
 }
 async function loadTenderImports(silent){
   if(!COMPANY) return;
   const list = document.getElementById("tiList");
   if(list && !silent && !TENDER_IMPORT_ROWS.length) list.innerHTML = '<div class="loading">Loading imports…</div>';
   try{
+    const previousStatuses = new Map(TENDER_IMPORT_ROWS.map(row=>[row.id,row.status]));
     TENDER_IMPORT_ROWS = await db("rpc/get_universal_tender_imports", {
       method:"POST",
       body:JSON.stringify({p_company_id:COMPANY.id,p_import_id:null,p_limit:20})
     }) || [];
     renderTenderImports();
+    for(const row of TENDER_IMPORT_ROWS){
+      const previous = previousStatuses.get(row.id);
+      if(previous && previous !== row.status && ["completed","partial","failed"].includes(row.status)){
+        tenderImportAnnounce(
+          String(row.title || row.display_name || "Tender import") + " is now " +
+          String(row.status).replace(/_/g," ") + ".",
+          row.status === "failed"
+        );
+      }
+    }
     const active = TENDER_IMPORT_ROWS.some(row=>TENDER_IMPORT_ACTIVE.has(row.status));
     if(active && !window.__tenderImportTimer){
       window.__tenderImportTimer = setInterval(()=>loadTenderImports(true),4000);
@@ -2802,18 +2963,18 @@ async function loadTenderImports(silent){
       window.__tenderImportTimer = null;
     }
   }catch(error){
-    if(list) list.innerHTML = '<div class="ti-error">' + esc(friendlyError(error)) + '</div>';
+    if(list) list.innerHTML = '<div class="ti-error" role="alert">' + esc(friendlyError(error)) + '</div>';
+    tenderImportAnnounce(friendlyError(error),true);
   }
 }
 async function retryTenderImport(importId){
-  const live = document.getElementById("tiLive");
-  live.textContent = "Retrying the import…";
+  tenderImportAnnounce("Retrying the import…");
   try{
     await edgeCall("tender-import", {action:"retry",import_id:importId,company_id:COMPANY.id});
-    live.textContent = "Retry started.";
+    tenderImportAnnounce("Retry started.");
     await loadTenderImports(true);
   }catch(error){
-    live.textContent = friendlyError(error);
+    tenderImportAnnounce(friendlyError(error),true);
   }
 }
 function tenderImportFact(label,value){
