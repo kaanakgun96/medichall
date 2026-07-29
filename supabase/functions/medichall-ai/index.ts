@@ -25,7 +25,7 @@
 // Optional secrets:               ANTHROPIC_MODEL (default: claude-haiku-4-5)
 //                                 AI_DAILY_LIMIT  (default: 20)
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",

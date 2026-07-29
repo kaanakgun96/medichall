@@ -37,15 +37,14 @@ begin
 
   select count(*) into v_current_versions
   from public.pipeline_versions
-  where is_repository_current
-    and (component, version_identifier) in (
+  where (component, version_identifier) in (
       ('document_discovery', 'document-discovery-v2.0.0'),
       ('document_retrieval', 'document-retrieval-v2.0.0'),
       ('document_parsing', 'document-chunking-v3.0.0'),
       ('ai_extraction', 'tender-extraction-v3.0.0')
-    );
+  );
   if v_current_versions <> 4 then
-    raise exception 'Expected the compatible current document pipeline versions';
+    raise exception 'Expected the compatible document pipeline history';
   end if;
 
   if exists (

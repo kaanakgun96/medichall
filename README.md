@@ -12,8 +12,15 @@ The incremental React migration is isolated under
 
 Migration documentation:
 
+- [`docs/database-baseline-reconstruction-2026-07-29.md`](docs/database-baseline-reconstruction-2026-07-29.md)
 - [`docs/REACT_ALL_TENDERS_MIGRATION.md`](docs/REACT_ALL_TENDERS_MIGRATION.md)
 - [`docs/REACT_MY_OPPORTUNITIES_MIGRATION.md`](docs/REACT_MY_OPPORTUNITIES_MIGRATION.md)
 - [`docs/react-migration/dashboard.md`](docs/react-migration/dashboard.md)
 - [`docs/react-migration/company-profile.md`](docs/react-migration/company-profile.md)
 - [`docs/product-matching-readiness.md`](docs/product-matching-readiness.md)
+
+Database setup is migration-only. Start an empty local project with
+`supabase db reset`, or use the documented `supabase db push --include-all`
+procedure for an empty isolated remote project when Docker is unavailable.
+Historical root/setup SQL files are forensic references and must not be used as
+installation steps.

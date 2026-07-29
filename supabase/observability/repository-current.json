@@ -1,0 +1,128 @@
+{
+  "scope": "Current repository reconstruction inputs; historical deployment manifests remain immutable evidence of their original bundles",
+  "branch": "react-migration",
+  "metadata_migration": "supabase/migrations/202607290003_repository_metadata_reconciliation.sql",
+  "runtime": {
+    "supabase_js": "2.110.8",
+    "deno_config": {
+      "path": "supabase/functions/deno.json",
+      "sha256": "c84bbda11ef7a05a62ebcbad2e153e2267844ee80e1cb54ac3de352ea34d89e3"
+    },
+    "deno_lock": {
+      "path": "supabase/functions/deno.lock",
+      "sha256": "11342798bfbcd32f9b188d5a4358abc2bb6ac5e3be0a83878c6e0a52bf942cf0"
+    }
+  },
+  "functions": [
+    {
+      "name": "medichall-ai",
+      "entrypoint": "supabase/functions/medichall-ai/index.ts",
+      "verify_jwt": true,
+      "sha256": "453a4de9958ca993f669f82388c7aa9a82677e448f02ef8de25c0e14836c5f37"
+    },
+    {
+      "name": "ted-sync",
+      "entrypoint": "supabase/functions/ted-sync/index.ts",
+      "verify_jwt": false,
+      "sha256": "ea38bac44627fc17938a51c126260a1ff6386d33004d39029d1073ad86ae60f6"
+    },
+    {
+      "name": "ted-notice-resolver",
+      "entrypoint": "supabase/functions/ted-notice-resolver/index.ts",
+      "verify_jwt": true,
+      "sha256": "0583e60867380f04c7426a3638842f9ad420b69b9e8901d515f33c36dceb9f98"
+    },
+    {
+      "name": "tender-attachment-discovery",
+      "entrypoint": "supabase/functions/tender-attachment-discovery/index.ts",
+      "verify_jwt": true,
+      "sha256": "6aa03c4e1c1d16a4b9bc456681e992ed586a5c38f3db9df216043c2ff82b8907"
+    },
+    {
+      "name": "tender-archive-worker",
+      "entrypoint": "supabase/functions/tender-archive-worker/index.ts",
+      "verify_jwt": true,
+      "sha256": "4ce9e0c04e81769bb25b546775a9cf3eb0aa3845b67858d5cf70f99299ce9d5e"
+    },
+    {
+      "name": "tender-document-engine",
+      "entrypoint": "supabase/functions/tender-document-engine/index.ts",
+      "verify_jwt": false,
+      "sha256": "355fb054bf0b36f6e86e4e59426564aff1a4d9bfec6bf98b8953635f07af3459"
+    },
+    {
+      "name": "tender-import",
+      "entrypoint": "supabase/functions/tender-import/index.ts",
+      "verify_jwt": false,
+      "sha256": "2ce7369aaf16df613c84251030ed29f66ff12bb040a172bbd290996aa4d73d32"
+    },
+    {
+      "name": "tender-lot-matching",
+      "entrypoint": "supabase/functions/tender-lot-matching/index.ts",
+      "verify_jwt": false,
+      "sha256": "5a21b9b69c278a4d36824f684158e196f45faa1c7a3b04035e6f8a8de8788c1a"
+    },
+    {
+      "name": "product-profile",
+      "entrypoint": "supabase/functions/product-profile/index.ts",
+      "verify_jwt": false,
+      "sha256": "8a39ef616c7d41b8bbeafd93c0b71e28fb8c14436b00f00994f37b542c4bfedc"
+    },
+    {
+      "name": "meeting-video",
+      "entrypoint": "supabase/functions/meeting-video/index.ts",
+      "verify_jwt": false,
+      "sha256": "6821a11aaa5d6ab9b1b270d9a024d4426928cdf6a26e32b592d728c6d53b3f7b"
+    },
+    {
+      "name": "public-assistant",
+      "entrypoint": "supabase/functions/public-assistant/index.ts",
+      "verify_jwt": true,
+      "sha256": "efa624e6a24763e6d0e7b552fea4eb180c5de7297ad1f519ec54e0a929ccf37e"
+    },
+    {
+      "name": "tender-digest",
+      "entrypoint": "supabase/functions/tender-digest/index.ts",
+      "verify_jwt": true,
+      "sha256": "0bdc20a6fcf90446aada2bb3bd4c06625e4d85b888bbaf11656545d0a770d948"
+    }
+  ],
+  "source_files": [
+    {
+      "path": "supabase/functions/tender-import/handler.ts",
+      "sha256": "dacc0438859fb3ebf92684cf499b7fce72352311588e3579366dbba8c8398112",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/tender-document-engine/handler.ts",
+      "sha256": "273307c22ffe5ee7f35e7ad4ce38701d87f64b40d28d341562bc9745830b8392",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/attachment-discovery.ts",
+      "sha256": "a82c9ab3da43532da40f4dec1865b28b50a1ed5c002490f16ef8a8fd27245140",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3-1.ts",
+      "sha256": "4696204f734d8a37bb8cd3dc8206bb57934081685cace18657049e8009fc0f71",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/functions/_shared/document-intelligence-v3-1.test.ts",
+      "sha256": "e44c68dc7dca655350caf9e070983ee58d8fb4814a4826f9ba01dc322909395c",
+      "recorded_in_migration": true
+    },
+    {
+      "path": "supabase/tests/document_intelligence_v3_1.sql",
+      "sha256": "0b22b810c4ee7589dade4f575080a2e324adb8e34220d598e0b61731d666e64f",
+      "recorded_in_migration": true
+    }
+  ],
+  "historical_manifests": [
+    "supabase/observability/phase-zero-deployment.json",
+    "supabase/observability/backend-v2-deployment.json",
+    "supabase/observability/document-intelligence-v3.json",
+    "supabase/observability/document-intelligence-v3-1.json"
+  ]
+}

@@ -287,7 +287,6 @@ declare
   file_import_id uuid;
   upload_retry_id uuid;
   owner_path text;
-  affected integer;
   notification_count integer;
 begin
   created := public.create_universal_tender_import(
@@ -374,20 +373,6 @@ begin
     raise exception 'Owner cannot read the uploaded object';
   end if;
 
-  delete from storage.objects
-  where bucket_id = 'tender-imports'
-    and storage.objects.name = owner_path;
-  get diagnostics affected = row_count;
-  if affected <> 1 then
-    raise exception 'Owner cannot delete the uploaded object';
-  end if;
-
-  insert into storage.objects (bucket_id, name, metadata)
-  values (
-    'tender-imports',
-    owner_path,
-    '{"size":"120","mimetype":"application/pdf"}'::jsonb
-  );
   perform public.register_universal_tender_documents(
     file_import_id,
     jsonb_build_array(jsonb_build_object(
@@ -405,13 +390,6 @@ begin
       and document.access_status = 'uploaded_private'
   ) then
     raise exception 'Owner document registration did not complete';
-  end if;
-  delete from storage.objects
-  where bucket_id = 'tender-imports'
-    and storage.objects.name = owner_path;
-  get diagnostics affected = row_count;
-  if affected <> 0 then
-    raise exception 'Owner deleted an attached private document object';
   end if;
   perform public.fail_universal_tender_import(
     file_import_id,
@@ -522,7 +500,6 @@ declare
   );
   created jsonb;
   other_path text;
-  affected integer;
 begin
   created := public.create_universal_tender_import(
     own_company_id,
@@ -560,14 +537,6 @@ begin
   ) <> 0 then
     raise exception 'Another company can read an owner object';
   end if;
-  delete from storage.objects
-  where bucket_id = 'tender-imports'
-    and storage.objects.name = first_path;
-  get diagnostics affected = row_count;
-  if affected <> 0 then
-    raise exception 'Another company can delete an owner object';
-  end if;
-
   -- The same source fingerprint is intentionally reusable by a different
   -- company because both unique contracts are company-scoped.
   if created ->> 'replayed' <> 'false' then
@@ -606,17 +575,16 @@ set local role service_role;
 
 do $service_admin$
 declare
-  company_id bigint := (
+  fixture_company_id bigint := (
     select company_id from tender_import_test_tenants where ordinal = 2
   );
-  import_id uuid := (
+  fixture_import_id uuid := (
     select import_id from tender_import_test_tenants where ordinal = 2
   );
   admin_path text := (
     select object_path from tender_import_test_tenants where ordinal = 2
   );
-  affected integer;
-  stale_path text := company_id || '/' || import_id ||
+  stale_path text := fixture_company_id || '/' || fixture_import_id ||
     '/client-disconnected.pdf';
   referenced_path text := (
     select object_path from tender_import_test_tenants where ordinal = 1
@@ -636,14 +604,6 @@ begin
   ) then
     raise exception 'Service administrator cannot read private object';
   end if;
-  delete from storage.objects
-  where bucket_id = 'tender-imports'
-    and storage.objects.name = admin_path;
-  get diagnostics affected = row_count;
-  if affected <> 1 then
-    raise exception 'Service administrator cannot delete private object';
-  end if;
-
   update storage.objects
   set created_at = now() - interval '2 hours'
   where bucket_id = 'tender-imports'
@@ -670,7 +630,7 @@ begin
   );
   update public.tender_imports
   set updated_at = now() - interval '2 hours'
-  where id = import_id;
+  where id = fixture_import_id;
   if not exists (
     select 1
     from public.list_stale_tender_import_orphans(interval '15 minutes')

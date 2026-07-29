@@ -18,7 +18,7 @@
 //
 // Requires table public.public_assistant_usage (see migration).
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",

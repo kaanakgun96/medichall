@@ -44,7 +44,7 @@ set
   ),
   source_fingerprint = coalesce(
     source_fingerprint,
-    encode(digest('legacy:' || id::text, 'sha256'), 'hex')
+    encode(extensions.digest('legacy:' || id::text, 'sha256'), 'hex')
   ),
   idempotency_expires_at = coalesce(
     idempotency_expires_at,
@@ -360,7 +360,7 @@ begin
       normalized_url
     );
     normalized_fingerprint := encode(
-      digest(normalized_url, 'sha256'),
+      extensions.digest(normalized_url, 'sha256'),
       'hex'
     );
   else
@@ -528,7 +528,7 @@ as $function$
     p_source_url,
     gen_random_uuid()::text,
     encode(
-      digest(
+      extensions.digest(
         case
           when lower(trim(coalesce(p_source_kind, ''))) = 'url'
             then public.normalize_tender_import_source_url(p_source_url)

@@ -152,8 +152,11 @@ parallel portal implementation is introduced.
   rejection, and safe boot errors.
 - `supabase/tests/universal_tender_import.sql` covers schema, bucket privacy,
   exact RPC-only grants, access-status registration, owner Storage
-  upload/read/delete, cross-tenant and anonymous denial, service access,
-  document registration, URL/file replay, and HTTPS enforcement.
+  upload/read, delete-policy structure, cross-tenant and anonymous denial,
+  service access, document registration, URL/file replay, and HTTPS
+  enforcement. Hosted Storage rejects direct SQL deletion even for test
+  fixtures, so deletion behavior is exercised through policy inspection and
+  the Storage API cleanup unit tests rather than direct table mutation.
 - `portal-universal-tender-import.test.ts` covers portal parsing, duplicate
   identifiers, ARIA contracts, idempotency/cleanup wiring, responsive
   containment, and browser-secret exclusion.

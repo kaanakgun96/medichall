@@ -40,6 +40,9 @@ const documentIntelligenceV3 = JSON.parse(
 const documentIntelligenceV31 = JSON.parse(
   read("supabase/observability/document-intelligence-v3-1.json"),
 );
+const repositoryCurrent = JSON.parse(
+  read("supabase/observability/repository-current.json"),
+);
 const v31SourcePaths = new Set([
   ...documentIntelligenceV31.functions.map((entry) => entry.entrypoint),
   ...documentIntelligenceV31.shared_sources.map((entry) => entry.path),
@@ -167,21 +170,6 @@ for (const entry of deployment.functions) {
   );
   check(existsSync(repositoryPath(entry.entrypoint)), `missing ${entry.entrypoint}`);
 
-  const source = read(entry.entrypoint);
-  check(
-    source.includes('npm:@supabase/supabase-js@2.110.8'),
-    `${entry.entrypoint} does not pin @supabase/supabase-js`,
-  );
-  check(
-    !source.includes('npm:@supabase/supabase-js@2"'),
-    `${entry.entrypoint} contains a floating @supabase/supabase-js import`,
-  );
-  if (source.includes("EdgeRuntime.")) {
-    check(
-      source.includes('reference path="../_shared/edge-runtime.d.ts"'),
-      `${entry.entrypoint} uses EdgeRuntime without the shared declaration`,
-    );
-  }
 }
 
 const manifest = JSON.parse(
@@ -193,21 +181,10 @@ const phaseZeroMigration = read(
 const backendV2 = JSON.parse(
   read("supabase/observability/backend-v2-deployment.json"),
 );
-const supersededPhaseZeroSources = new Set([
-  ...backendV2.functions.map((entry) => entry.entrypoint),
-  ...backendV2.shared_sources.map((entry) => entry.path),
-]);
 for (const version of manifest.versions) {
   for (const [sourcePath, expectedHash] of Object.entries(version.sources)) {
     check(existsSync(repositoryPath(sourcePath)), `missing version source: ${sourcePath}`);
     if (!existsSync(repositoryPath(sourcePath))) continue;
-    if (!supersededPhaseZeroSources.has(sourcePath)) {
-      const actualHash = sha256(sourcePath);
-      check(
-        actualHash === expectedHash,
-        `hash mismatch for ${sourcePath}: expected ${expectedHash}, got ${actualHash}`,
-      );
-    }
     check(
       phaseZeroMigration.includes(expectedHash),
       `Phase 0 migration does not record the manifest hash for ${sourcePath}`,
@@ -247,22 +224,9 @@ for (const entry of backendV2.functions) {
     entry.entrypoint === `supabase/functions/${entry.name}/index.ts`,
     `Backend v2 function must use the root entrypoint: ${entry.name}`,
   );
-  if (!v3SourcePaths.has(entry.entrypoint)) {
-    check(
-      sha256(entry.entrypoint) === entry.sha256,
-      `Backend v2 function hash mismatch: ${entry.entrypoint}`,
-    );
-  }
 }
 for (const source of backendV2.shared_sources) {
   check(existsSync(repositoryPath(source.path)), `missing Backend v2 source: ${source.path}`);
-  if (!existsSync(repositoryPath(source.path))) continue;
-  if (!v3SourcePaths.has(source.path)) {
-    check(
-      sha256(source.path) === source.sha256,
-      `Backend v2 source hash mismatch: ${source.path}`,
-    );
-  }
 }
 const backendV2Text = JSON.stringify(backendV2);
 check(
@@ -304,12 +268,6 @@ for (const entry of [
 ]) {
   check(existsSync(repositoryPath(entry.path)), `missing v3 input: ${entry.path}`);
   if (!existsSync(repositoryPath(entry.path))) continue;
-  if (!v31SourcePaths.has(entry.path)) {
-    check(
-      sha256(entry.path) === entry.sha256,
-      `Document Intelligence v3 hash mismatch: ${entry.path}`,
-    );
-  }
 }
 const v3Migration = documentIntelligenceV3.migrations.map(read).join("\n");
 const v3ManifestText = JSON.stringify(documentIntelligenceV3);
@@ -385,10 +343,12 @@ for (const entry of [
     existsSync(repositoryPath(entry.path)),
     `missing Document Intelligence v3.1 input: ${entry.path}`,
   );
+}
+for (const entry of documentIntelligenceV31.migrations) {
   if (!existsSync(repositoryPath(entry.path))) continue;
   check(
     sha256(entry.path) === entry.sha256,
-    `Document Intelligence v3.1 hash mismatch: ${entry.path}`,
+    `Document Intelligence v3.1 migration hash mismatch: ${entry.path}`,
   );
 }
 const v31Migration = documentIntelligenceV31.migrations.map((item) =>
@@ -424,6 +384,147 @@ check(
     documentIntelligenceV31.safety?.frontend_changed === false,
   "Document Intelligence v3.1 compatibility boundaries changed",
 );
+
+check(
+  repositoryCurrent.branch === "react-migration",
+  "Current repository manifest targets the wrong branch",
+);
+check(
+  repositoryCurrent.metadata_migration ===
+    "supabase/migrations/202607290003_repository_metadata_reconciliation.sql",
+  "Current repository manifest targets an unexpected metadata migration",
+);
+check(
+  existsSync(repositoryPath(repositoryCurrent.metadata_migration)),
+  "Current repository metadata migration is missing",
+);
+check(
+  repositoryCurrent.runtime?.supabase_js === "2.110.8",
+  "Current repository manifest has an unexpected Supabase client version",
+);
+for (const runtimeInput of [
+  repositoryCurrent.runtime?.deno_config,
+  repositoryCurrent.runtime?.deno_lock,
+]) {
+  check(Boolean(runtimeInput?.path), "Current runtime input path is missing");
+  if (!runtimeInput?.path || !existsSync(repositoryPath(runtimeInput.path))) {
+    continue;
+  }
+  check(
+    sha256(runtimeInput.path) === runtimeInput.sha256,
+    `Current runtime input hash mismatch: ${runtimeInput.path}`,
+  );
+}
+
+const currentFunctionPolicies = new Map([
+  ["medichall-ai", true],
+  ["public-assistant", true],
+  ["tender-digest", true],
+  ["ted-sync", false],
+  ["ted-notice-resolver", true],
+  ["tender-attachment-discovery", true],
+  ["tender-archive-worker", true],
+  ["tender-document-engine", false],
+  ["tender-import", false],
+  ["tender-lot-matching", false],
+  ["product-profile", false],
+  ["meeting-video", false],
+]);
+const clientSourceOverrides = new Map([
+  [
+    "tender-document-engine",
+    "supabase/functions/tender-document-engine/handler.ts",
+  ],
+  ["tender-import", "supabase/functions/tender-import/handler.ts"],
+]);
+check(
+  repositoryCurrent.functions.length === currentFunctionPolicies.size,
+  "Current repository manifest has an unexpected function count",
+);
+for (const entry of repositoryCurrent.functions) {
+  check(
+    currentFunctionPolicies.has(entry.name),
+    `unexpected current repository function: ${entry.name}`,
+  );
+  check(
+    entry.verify_jwt === currentFunctionPolicies.get(entry.name),
+    `unexpected current verify_jwt value for ${entry.name}`,
+  );
+  check(
+    entry.entrypoint === `supabase/functions/${entry.name}/index.ts`,
+    `Current function must use the root entrypoint: ${entry.name}`,
+  );
+  check(
+    existsSync(repositoryPath(entry.entrypoint)),
+    `missing current entrypoint: ${entry.entrypoint}`,
+  );
+  if (!existsSync(repositoryPath(entry.entrypoint))) continue;
+  check(
+    sha256(entry.entrypoint) === entry.sha256,
+    `Current function hash mismatch: ${entry.entrypoint}`,
+  );
+
+  const clientSourcePath = clientSourceOverrides.get(entry.name) ??
+    entry.entrypoint;
+  check(
+    existsSync(repositoryPath(clientSourcePath)),
+    `missing current client source: ${clientSourcePath}`,
+  );
+  if (!existsSync(repositoryPath(clientSourcePath))) continue;
+  const clientSource = read(clientSourcePath);
+  check(
+    clientSource.includes('npm:@supabase/supabase-js@2.110.8'),
+    `${clientSourcePath} does not pin @supabase/supabase-js`,
+  );
+  check(
+    !clientSource.includes('npm:@supabase/supabase-js@2"'),
+    `${clientSourcePath} contains a floating @supabase/supabase-js import`,
+  );
+
+  const entrypointSource = read(entry.entrypoint);
+  if (entrypointSource.includes("EdgeRuntime.")) {
+    check(
+      entrypointSource.includes('reference path="../_shared/edge-runtime.d.ts"'),
+      `${entry.entrypoint} uses EdgeRuntime without the shared declaration`,
+    );
+  }
+}
+
+const currentMetadataMigration = existsSync(
+  repositoryPath(repositoryCurrent.metadata_migration),
+)
+  ? read(repositoryCurrent.metadata_migration)
+  : "";
+for (const entry of repositoryCurrent.source_files) {
+  check(
+    existsSync(repositoryPath(entry.path)),
+    `missing current repository source: ${entry.path}`,
+  );
+  if (!existsSync(repositoryPath(entry.path))) continue;
+  check(
+    sha256(entry.path) === entry.sha256,
+    `Current repository source hash mismatch: ${entry.path}`,
+  );
+  if (entry.recorded_in_migration) {
+    check(
+      currentMetadataMigration.includes(entry.sha256),
+      `Current metadata migration does not record ${entry.path}`,
+    );
+  }
+}
+for (const functionName of [
+  "tender-attachment-discovery",
+  "tender-archive-worker",
+  "tender-document-engine",
+]) {
+  const entry = repositoryCurrent.functions.find((item) =>
+    item.name === functionName
+  );
+  check(
+    Boolean(entry) && currentMetadataMigration.includes(entry.sha256),
+    `Current metadata migration does not record ${functionName}`,
+  );
+}
 const matchScoreV2 = JSON.parse(
   read("supabase/observability/match-score-v2.json"),
 );
@@ -503,7 +604,7 @@ for (const path of repositoryFiles) {
 }
 
 const config = read("supabase/config.toml");
-for (const [name, verifyJwt] of expectedFunctions) {
+for (const [name, verifyJwt] of currentFunctionPolicies) {
   const escapedName = name.replaceAll("-", "\\-");
   const blockPattern = new RegExp(
     `\\[functions\\.${escapedName}\\][\\s\\S]*?verify_jwt\\s*=\\s*${verifyJwt}(?:\\s|$)`,

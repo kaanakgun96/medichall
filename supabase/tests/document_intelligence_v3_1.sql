@@ -7,6 +7,7 @@ do $structure$
 declare
   v_missing_columns integer;
   v_current_versions integer;
+  v_recovery_result jsonb;
 begin
   select count(*) into v_missing_columns
   from (
@@ -106,6 +107,19 @@ begin
     )
   then
     raise exception 'Document intelligence v3.1 RLS policies are missing';
+  end if;
+
+  v_recovery_result :=
+    public.recover_stale_tender_document_analysis_jobs(5, 4);
+  if not (
+    v_recovery_result ?& array[
+      'leases_released',
+      'requeued_job_ids',
+      'finalized_partial_job_ids',
+      'finalized_failed_job_ids'
+    ]
+  ) then
+    raise exception 'Stale document recovery RPC returned an invalid contract';
   end if;
 end
 $structure$;

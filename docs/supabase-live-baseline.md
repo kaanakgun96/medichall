@@ -1,38 +1,30 @@
 # Supabase live structural baseline
 
-## Status in this task
+## Status on 2026-07-29
 
-The repository and migrations were inspected, but the live Supabase project
-was not accessible from the task environment. The following were not present:
+Production was inspected read-only during the database baseline reconstruction.
+Catalog queries verified public/storage relations, columns, functions, indexes,
+foreign keys, triggers, RLS policies, grants, extensions, buckets, and the
+Supabase migration ledger. No production SQL mutation, Edge Function
+deployment, secret read, or data export occurred.
 
-- Supabase CLI;
-- a linked `supabase/.temp/project-ref`;
-- an authorized access token;
-- a database URL;
-- a Deno runtime.
+The read-only inventory found 55 public tables, 5 views/materialized views, 123
+public functions, 143 public indexes, 122 public foreign keys, 86
+public/storage policies, 28 non-internal public/storage triggers, and 55
+RLS-enabled public tables. Production has the public `media` and
+`tender-documents` buckets and migration history through `202607280007`.
 
-Successfully verified:
+The production comparison also proved that the original core schema,
+`company_certificates`, `companies.is_verified`, `tenders.ai_lots`,
+`opportunity_matches.fit_narrative`, the public-statistics RPC, legacy RFQ
+notification triggers, and selected Storage policies were created outside the
+ordered migration history. They are now represented by committed corrective
+migrations. Full reconciliation details are in
+`database-baseline-reconstruction-2026-07-29.md`.
 
-- the current repository branch and its relationship to `origin/develop`;
-- repository SQL, Edge Function, React, and legacy portal definitions;
-- the absence of live credentials from the task environment by variable name
-  only;
-- that the repository has conflicting definitions for the matching RPC and
-  duplicate document Edge Function source trees.
-
-Still unverified:
-
-- live tables, views, materialized views, functions/RPC bodies, triggers,
-  indexes, constraints, RLS, grants, cron jobs, extensions, storage buckets and
-  policies;
-- deployed Edge Function names, versions, JWT settings, and source;
-- deployed cron URL/header configuration;
-- whether manual setup SQL was applied;
-- which candidate/scoring definition is active;
-- whether uploaded documents are public or tenant-restricted in production.
-
-No live export is committed and no live status is inferred from repository
-files.
+No live export is committed. The optional owner-run capture below remains a
+sanitized way to refresh comparison evidence; it is not an installation
+baseline.
 
 ## Authorized owner-run capture
 
@@ -47,7 +39,7 @@ and `shasum`. Set the values in the current shell or a secure secret manager:
 ```bash
 export SUPABASE_PROJECT_REF='your-project-ref'
 export SUPABASE_ACCESS_TOKEN='your-short-lived-access-token'
-export SUPABASE_DB_URL='postgresql://read-only-user:password@host:5432/postgres?sslmode=require'
+export SUPABASE_DB_URL='retrieve-from-your-protected-secret-manager'
 ```
 
 Run from the repository root:

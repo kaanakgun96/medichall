@@ -19,7 +19,7 @@
 //                  DIGEST_MAX_HITS_PER_SEARCH (varsayılan 15)
 // Verify JWT: KAPALI (x-cron-secret ile korunur — ted-sync ile aynı)
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 
 type SavedSearch = {
   search_id: number;
