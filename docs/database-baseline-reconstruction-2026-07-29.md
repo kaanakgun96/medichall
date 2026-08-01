@@ -232,7 +232,7 @@ must not be deleted by a schema rollback.
 
 | Check | Result |
 | --- | --- |
-| Complete SQL migration chain | Passed on disposable QA after discovery fixes |
+| Complete SQL migration chain | Passed twice from the exact commit archive after discovery fixes |
 | Database lint | 0 errors; public recovery RPC warning covered by a passing runtime assertion; Supabase-owned Storage dynamic-SQL warnings remain |
 | SQL regressions | 11/11 passed, transactionally rolled back |
 | Deno Edge tests | 111/111 passed |
@@ -242,20 +242,45 @@ must not be deleted by a schema rollback.
 | React ESLint | Passed |
 | React production build | Passed; 1,850 modules |
 | Portal JavaScript/static IDs | 2 scripts parsed; 220 unique static IDs |
-| Working-tree secret scan | 330 text files; no credential literals |
-| Edge deployment contract | 12 isolated deployments; every unauthenticated POST returned 401 |
-| Application smoke | Auth, company, product, marketplace, RFQ, messages, connection, meeting proposal, notifications, workspace, tender search and public stats passed |
-| QA portal artifact | HTTPS fetch/parse passed; QA-bound; production ref absent |
+| Working-tree secret scan | 333 text files; no credential literals |
+| Edge deployment contract | All 12 functions deployed and passed the secret-free POST/OPTIONS matrix on both accepted projects |
+| Application smoke | Passed twice: auth, company, product, marketplace, RFQ, messages, connection, meeting proposal, notifications, workspace, tender search and public stats |
+| QA portal artifact | Passed twice; the second HTTPS artifact was 331,781 bytes, QA-bound, and contained no production ref |
 | Repository readiness/current-source hashes | Passed with 39 unique migrations and all 12 current function sources/policies verified |
 | `git diff --check` | Passed during development; rerun before commit |
+
+### Fresh-install acceptance evidence
+
+Both accepted installs used the exact `supabase/` archive from commit
+`66034a02c95ecfdb59f4ab6bc4540ef07da767fd`. The archive SHA-256 was
+`cfd0397d543f7e5049d13fab3e59c5ce863a2cf73291a601e07acf21c57f5ad4`
+for both projects and contained 39 migrations.
+
+| Run | Empty project | Migration time | Result |
+| --- | --- | ---: | --- |
+| Acceptance 1 | `tjtxfgzgrflthgmcurzw` | 26.83 seconds | 39/39 migrations, lint, 11/11 SQL suites, 12 Edge deployments/contracts and full application smoke passed |
+| Acceptance 2 | `gskvajrghfwcvvykrdni` | 24.57 seconds | 39/39 migrations, lint, 11/11 SQL suites, 12 Edge deployments/contracts, structural inventory and full application smoke passed |
+
+The final second-project inventory was 56 public tables, 5 views, 131 public
+functions, 149 public indexes, 126 public foreign keys, 92 public/storage
+policies, 29 non-internal triggers, 56 RLS-enabled tables, and the expected
+three buckets. Its ledger contained 39 versions through `202607290003`, all
+four current-source metadata rows were reconciled, and the temporary migration
+ledger guard function/trigger were absent.
+
+Acceptance 1 was permanently deleted after validation, as required. Preserved
+before-deletion QA counts were: one project, two auth users, one company, one
+product, one RFQ, one offer, two messages, two matchmaking profiles, one
+connection, one meeting, four visible notifications, and one QA portal object.
+After deletion, project inventory contained zero records for
+`tjtxfgzgrflthgmcurzw`; therefore all project-scoped QA users, database rows,
+Storage objects and function deployments were removed with it. Production
+`azdmuarzntzqdyirysux` remained active and was never targeted by a write.
 
 Discovery attempts found and fixed two deterministic blockers:
 
 - 23.951 seconds: duplicate migration-ledger key at `202607280007`;
 - 22.420 seconds: unresolved `digest()` in `202607290002`.
-
-The final two clean-install timings and commit identifiers are appended after
-the committed acceptance runs.
 
 ## Remaining technical debt
 
