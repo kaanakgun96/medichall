@@ -75,6 +75,12 @@
       "sha256": "6821a11aaa5d6ab9b1b270d9a024d4426928cdf6a26e32b592d728c6d53b3f7b"
     },
     {
+      "name": "company-admin-notification",
+      "entrypoint": "supabase/functions/company-admin-notification/index.ts",
+      "verify_jwt": false,
+      "sha256": "4ca0090522e8dab81276f06fe59184553a51867007f534a475489d4d84ebe31c"
+    },
+    {
       "name": "public-assistant",
       "entrypoint": "supabase/functions/public-assistant/index.ts",
       "verify_jwt": true,

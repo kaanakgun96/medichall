@@ -49,3 +49,8 @@ verify_jwt = false
 # and the Supabase service-role key remain confined to the Edge runtime.
 [functions.meeting-video]
 verify_jwt = false
+
+# Invoked only by the Vault-backed pg_cron dispatcher. The function validates
+# x-cron-secret itself before claiming any internal notification outbox rows.
+[functions.company-admin-notification]
+verify_jwt = false

@@ -429,6 +429,7 @@ const currentFunctionPolicies = new Map([
   ["tender-lot-matching", false],
   ["product-profile", false],
   ["meeting-video", false],
+  ["company-admin-notification", false],
 ]);
 const clientSourceOverrides = new Map([
   [
