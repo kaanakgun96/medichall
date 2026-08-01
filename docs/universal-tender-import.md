@@ -1,5 +1,12 @@
 # Universal Tender Import — Module 1
 
+> **Sequencing status (2026-08-01):** Module 1 remains intentionally
+> undeployed. Its original SQL is preserved byte-for-byte under
+> `supabase/migration-archive/universal-tender-import/` and is not part of the
+> executable production chain. A future release must port it into new
+> forward-only versions after the then-current production head. Do not follow
+> the historical version numbers below as production deployment instructions.
+
 ## Scope
 
 Module 1 adds company-private tender imports to the production `portal.html`
@@ -39,8 +46,8 @@ the canonical child jobs through their existing idempotent queue contracts.
 
 Migrations:
 
-- `supabase/migrations/202607290001_universal_tender_import.sql`
-- `supabase/migrations/202607290002_universal_tender_import_hardening.sql`
+- `supabase/migration-archive/universal-tender-import/202607290001_universal_tender_import.sql`
+- `supabase/migration-archive/universal-tender-import/202607290002_universal_tender_import_hardening.sql`
 
 - Adds `tender_imports` as the company/requester-scoped orchestration record.
 - Adds nullable `tender_documents.storage_bucket`; existing public URL rows
@@ -202,8 +209,11 @@ parallel portal implementation is introduced.
 
 ## Deployment order
 
-1. Apply `202607290001_universal_tender_import.sql`.
-2. Apply `202607290002_universal_tender_import_hardening.sql`.
+1. Create newly timestamped migrations after the current production head by
+   porting and revalidating both archived sources; do not restore or repair the
+   archived `202607290001`/`202607290002` versions.
+2. Apply the new forward-only versions only in an isolated Module 1 staging
+   project.
 3. Run the exact SQL integration test and verify migration rollback/reapply in
    the target staging environment.
 4. Deploy the updated `tender-attachment-discovery`.

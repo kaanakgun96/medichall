@@ -12,6 +12,7 @@ The incremental React migration is isolated under
 
 Migration documentation:
 
+- [`docs/production-migration-sequencing-2026-08-01.md`](docs/production-migration-sequencing-2026-08-01.md)
 - [`docs/database-baseline-reconstruction-2026-07-29.md`](docs/database-baseline-reconstruction-2026-07-29.md)
 - [`docs/REACT_ALL_TENDERS_MIGRATION.md`](docs/REACT_ALL_TENDERS_MIGRATION.md)
 - [`docs/REACT_MY_OPPORTUNITIES_MIGRATION.md`](docs/REACT_MY_OPPORTUNITIES_MIGRATION.md)

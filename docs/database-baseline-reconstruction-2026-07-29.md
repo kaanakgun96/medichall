@@ -251,6 +251,13 @@ must not be deleted by a schema rollback.
 
 ### Fresh-install acceptance evidence
 
+The results below are immutable evidence for the 2026-07-29 reconstruction
+chain. The later 2026-08-01 sequencing remediation archives the intentionally
+undeployed Module 1 versions and supersedes `202607290003` with a safe
+forward-only metadata migration. See
+`docs/production-migration-sequencing-2026-08-01.md` for the current canonical
+chain and its separate fresh-install acceptance result.
+
 Both accepted installs used the exact `supabase/` archive from commit
 `66034a02c95ecfdb59f4ab6bc4540ef07da767fd`. The archive SHA-256 was
 `cfd0397d543f7e5049d13fab3e59c5ce863a2cf73291a601e07acf21c57f5ad4`

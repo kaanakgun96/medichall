@@ -118,7 +118,11 @@ provider configuration.
 
 ## Required production deployment sequence
 
-No step below was performed automatically.
+No step below was performed automatically. Before step 6, complete the exact
+compatibility and target-only dry-run gates in
+`docs/production-migration-sequencing-2026-08-01.md`; stop if any migration
+other than `202608010001_company_admin_notification_outbox.sql` remains in the
+canonical dry run.
 
 1. Rotate the legacy Resend API key whose value was embedded in the production
    database function. Revoke the old key after the new configuration is ready.
