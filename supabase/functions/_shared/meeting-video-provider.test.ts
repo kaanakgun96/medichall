@@ -107,6 +107,11 @@ Deno.test("Daily join tokens are room-scoped and short-lived", () => {
 });
 
 Deno.test("Daily provider keeps its API key in authorization headers only", async () => {
+  const activeClaim: VideoRoomClaim = {
+    ...claim,
+    roomNotBefore: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    roomExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  };
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const mockFetch = (
     input: string | URL | Request,
@@ -132,7 +137,7 @@ Deno.test("Daily provider keeps its API key in authorization headers only", asyn
     dailyApiBaseUrl: "https://api.daily.co/v1",
   }, mockFetch);
 
-  const room = await provider.createRoom(claim);
+  const room = await provider.createRoom(activeClaim);
   await provider.createJoinToken({
     roomName: room.roomName,
     roomUrl: room.roomUrl,

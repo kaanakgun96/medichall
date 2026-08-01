@@ -126,13 +126,18 @@ begin
   ) then
     raise exception 'Tender documents bucket contract is invalid';
   end if;
-  if not exists (
+  if exists (
     select 1
     from storage.buckets
     where id = 'tender-imports'
-      and not public
   ) then
-    raise exception 'Private tender imports bucket is missing';
+    raise exception 'Intentionally undeployed tender imports bucket exists';
+  end if;
+  if to_regclass('public.tender_imports') is not null
+     or to_regprocedure(
+       'public.create_universal_tender_import(bigint,text,text,text)'
+     ) is not null then
+    raise exception 'Intentionally undeployed Module 1 objects exist';
   end if;
 
   if (
