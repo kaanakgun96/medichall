@@ -391,7 +391,7 @@ check(
 );
 check(
   repositoryCurrent.metadata_migration ===
-    "supabase/migrations/202607290003_repository_metadata_reconciliation.sql",
+    "supabase/migrations/202608010002_production_compatibility_and_metadata.sql",
   "Current repository manifest targets an unexpected metadata migration",
 );
 check(

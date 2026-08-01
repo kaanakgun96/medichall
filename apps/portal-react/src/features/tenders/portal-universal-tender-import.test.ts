@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import portal from "../../../../../portal.html?raw";
-import hardeningMigration from "../../../../../supabase/migrations/202607290002_universal_tender_import_hardening.sql?raw";
+import hardeningMigration from "../../../../../supabase/migration-archive/universal-tender-import/202607290002_universal_tender_import_hardening.sql?raw";
 import archiveWorker from "../../../../../supabase/functions/tender-archive-worker/index.ts?raw";
 import tenderImportHandler from "../../../../../supabase/functions/tender-import/handler.ts?raw";
 

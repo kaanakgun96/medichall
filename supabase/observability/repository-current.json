@@ -1,7 +1,7 @@
 {
   "scope": "Current repository reconstruction inputs; historical deployment manifests remain immutable evidence of their original bundles",
   "branch": "react-migration",
-  "metadata_migration": "supabase/migrations/202607290003_repository_metadata_reconciliation.sql",
+  "metadata_migration": "supabase/migrations/202608010002_production_compatibility_and_metadata.sql",
   "runtime": {
     "supabase_js": "2.110.8",
     "deno_config": {

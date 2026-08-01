@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "branch": "react-migration",
+  "production_project_ref": "azdmuarzntzqdyirysux",
+  "verified_remote_versions": [
+    "202607100001",
+    "202607100002",
+    "202607100003",
+    "202607100004",
+    "202607100005",
+    "202607100006",
+    "202607100007",
+    "202607100008",
+    "202607100010",
+    "202607120001",
+    "202607140001",
+    "202607170001",
+    "202607200001",
+    "202607200002",
+    "202607200003",
+    "202607230001",
+    "202607230002",
+    "202607230003",
+    "202607230004",
+    "202607230005",
+    "202607230006",
+    "202607240002",
+    "202607270001",
+    "202607270002",
+    "202607270003",
+    "202607280000",
+    "202607280001",
+    "202607280002",
+    "202607280003",
+    "202607280004",
+    "202607280005",
+    "202607280006",
+    "202607280007",
+    "202607280008"
+  ],
+  "verified_definition_drift": [
+    "202607090001",
+    "202607100009"
+  ],
+  "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
+  "notification_migration": "202608010001_company_admin_notification_outbox.sql",
+  "archived_unapplied": [
+    {
+      "version": "202607290001",
+      "classification": "intentionally_undeployed_module_1",
+      "path": "supabase/migration-archive/universal-tender-import/202607290001_universal_tender_import.sql",
+      "sha256": "57978a29937d21e2ecd1d95eeab4ecbda0e5c78c6c03800438f296f83eaf77ac"
+    },
+    {
+      "version": "202607290002",
+      "classification": "intentionally_undeployed_module_1",
+      "path": "supabase/migration-archive/universal-tender-import/202607290002_universal_tender_import_hardening.sql",
+      "sha256": "85f3581131f3ba49d078492af68f2704649399cb53e92a81d9845d6a5ab782f7"
+    },
+    {
+      "version": "202607290003",
+      "classification": "superseded_unsafe_metadata_reconciliation",
+      "path": "supabase/migration-archive/superseded-production-drift/202607290003_repository_metadata_reconciliation.sql",
+      "sha256": "cc49867008e8fe3f8b7d68ad45b9f145207f8ad81dd8dfdb0f4c87bdda6a776b"
+    }
+  ],
+  "allowed_history_repairs_after_compatibility_verification": [
+    "202607090001",
+    "202607100009"
+  ],
+  "expected_target_only_dry_run": [
+    "202608010001_company_admin_notification_outbox.sql"
+  ]
+}
