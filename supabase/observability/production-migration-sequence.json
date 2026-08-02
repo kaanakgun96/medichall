@@ -44,6 +44,9 @@
   ],
   "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
   "notification_migration": "202608010001_company_admin_notification_outbox.sql",
+  "planned_forward_migrations": [
+    "202608020001_enterprise_marketplace.sql"
+  ],
   "archived_unapplied": [
     {
       "version": "202607290001",
@@ -69,6 +72,7 @@
     "202607100009"
   ],
   "expected_target_only_dry_run": [
-    "202608010001_company_admin_notification_outbox.sql"
+    "202608010001_company_admin_notification_outbox.sql",
+    "202608020001_enterprise_marketplace.sql"
   ]
 }

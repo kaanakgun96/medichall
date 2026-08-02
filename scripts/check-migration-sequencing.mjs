@@ -52,9 +52,11 @@ for (const version of sequence.verified_definition_drift) {
 
 const compatibilityVersion = sequence.compatibility_migration.slice(0, 12);
 const notificationVersion = sequence.notification_migration.slice(0, 12);
+const plannedForwardMigrations = sequence.planned_forward_migrations ?? [];
 for (const file of [
   sequence.compatibility_migration,
   sequence.notification_migration,
+  ...plannedForwardMigrations,
 ]) {
   if (!migrationFiles.includes(file)) fail(`required migration is missing: ${file}`);
 }
@@ -67,12 +69,19 @@ const expectedCanonicalVersions = new Set([
   ...sequence.verified_definition_drift,
   notificationVersion,
   compatibilityVersion,
+  ...plannedForwardMigrations.map((file) => file.slice(0, 12)),
 ]);
 if (
   migrationVersions.length !== expectedCanonicalVersions.size ||
   migrationVersions.some((version) => !expectedCanonicalVersions.has(version))
 ) {
   fail("canonical production migration set differs from the audited sequence");
+}
+
+for (const file of plannedForwardMigrations) {
+  if (file.slice(0, 12) <= compatibilityVersion) {
+    fail(`planned forward migration is not after compatibility: ${file}`);
+  }
 }
 
 const compatibilitySql = read(

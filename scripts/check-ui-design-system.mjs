@@ -41,6 +41,11 @@ for (const breakpoint of [1120, 920, 680, 390]) {
 }
 assert.match(designSystem, /prefers-reduced-motion: reduce/, "shared design system must respect reduced-motion preferences");
 
+const products = await readFile(resolve(repositoryRoot, "products.html"), "utf8");
+assert.match(products, /\.catalog>\.side\{grid-column:1\}/, "product filters must stay in the desktop sidebar column");
+assert.match(products, /\.catalog>main\{grid-column:2;min-width:0\}/, "product results must stay in the flexible desktop column");
+assert.doesNotMatch(products, /grid-column:1\/-1;display:contents/, "product filter toggle must not rely on ambiguous display:contents grid placement");
+
 const reactHeader = await readFile(resolve(repositoryRoot, "apps/portal-react/src/shared/components/PortalHeader.tsx"), "utf8");
 const reactEntry = await readFile(resolve(repositoryRoot, "apps/portal-react/src/main.tsx"), "utf8");
 const reactStyles = await readFile(resolve(repositoryRoot, "apps/portal-react/src/app/styles.css"), "utf8");
