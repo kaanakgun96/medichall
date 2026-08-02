@@ -91,7 +91,8 @@ describe("production Universal Tender Import hardening", () => {
     expect(portal).not.toMatch(/body\s*\{[^}]*overflow-x\s*:\s*hidden/i);
     expect(portal).toContain(".tabs{flex-wrap:nowrap;overflow-x:auto");
     expect(portal).toContain(".wrap{padding-left:12px;padding-right:12px}");
-    expect(portal).toContain("#headActions .marketplace-link");
+    expect(portal).toContain('<medichall-header mode="portal"');
+    expect(portal).toContain('href="medichall-design-system.css"');
   });
 
   it("keeps privileged secrets and unbounded ZIP decompression out of browser and worker source", () => {

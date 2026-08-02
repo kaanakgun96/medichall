@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import portal from "../../../../../portal.html?raw";
 import matchmakingDomain from "../../../../../matchmaking-domain.js?raw";
+import sharedNavigation from "../../../../../medichall-navigation.js?raw";
 import standaloneMatchmaking from "../../../../../matchmaking.html?raw";
 import standaloneWorkspace from "../../../../../matchmaking-workspace.js?raw";
 
@@ -38,6 +39,11 @@ type MatchmakingUtils = {
   badgeLabel: (value: number) => string;
   safeHttpUrl: (value: unknown) => string | null;
   dateTime: (value: unknown, timeZone: string) => string;
+  relativeTime: (value: unknown, nowValue?: number) => string;
+  groupNotifications: (
+    notifications: Array<Record<string, unknown>>,
+    nowValue?: number,
+  ) => Array<{ label: string; items: Array<Record<string, unknown>> }>;
   proposalSlots: (
     values: Array<string | { date: string; time: string }>,
     durationMinutes: number,
@@ -146,6 +152,19 @@ describe("production Matchmaking Workspace", () => {
     expect(utils.badgeLabel(100)).toBe("99+");
   });
 
+  it("groups notifications and formats concise relative timestamps", () => {
+    const now = Date.parse("2030-08-02T12:00:00.000Z");
+    expect(utils.relativeTime("2030-08-02T11:55:00.000Z", now)).toBe("5m ago");
+    expect(utils.relativeTime("2030-08-02T09:00:00.000Z", now)).toBe("3h ago");
+    const groups = utils.groupNotifications([
+      { id: 1, created_at: "2030-08-02T11:55:00.000Z" },
+      { id: 2, created_at: "2030-08-01T18:00:00.000Z" },
+      { id: 3, created_at: "2030-07-20T18:00:00.000Z" },
+    ], now);
+    expect(groups.map((group) => group.label)).toEqual(["Today", "Yesterday", "Older"]);
+    expect(groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([1, 2, 3]);
+  });
+
   it("generates a standards-shaped ICS event and safe calendar compose links", () => {
     const event = utils.calendarEvent({
       id: 72,
@@ -202,7 +221,8 @@ describe("production Matchmaking Workspace", () => {
     expect(portal).toContain('"Requests"');
     expect(portal).toContain('"Upcoming Meetings"');
     expect(portal).toContain('"Past Meetings"');
-    expect(portal).toContain('id="portalNotificationBell"');
+    expect(portal).toContain('<medichall-header mode="portal"');
+    expect(sharedNavigation).toContain('id="portalNotificationBell"');
     expect(portal).toContain("get_portal_notification_center");
     expect(portal).toContain("mark_portal_notifications_read");
     expect(portal).toContain('id="mm-meeting-timezone"');
@@ -216,7 +236,8 @@ describe("production Matchmaking Workspace", () => {
     expect(standaloneMatchmaking).toContain("Find the right medical business partner.");
     expect(standaloneMatchmaking).toContain('id="workspaceTabs"');
     expect(standaloneMatchmaking).toContain('id="schedulerModal"');
-    expect(standaloneMatchmaking).toContain('id="notificationBell"');
+    expect(standaloneMatchmaking).toContain('<medichall-header mode="matchmaking"');
+    expect(sharedNavigation).toContain('id="notificationBell"');
     expect(standaloneMatchmaking).toContain('id="meetingDate"');
     expect(standaloneMatchmaking).toContain('id="timeChoices"');
     expect(standaloneMatchmaking).toContain('id="selectedSlots"');

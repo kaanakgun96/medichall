@@ -25,23 +25,6 @@ button{font-family:inherit;cursor:pointer}
 .wrap{max-width:1000px;margin:0 auto;padding:0 22px}
 .mono{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
 
-header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;justify-content:space-between;height:64px;gap:20px}
-.logo{display:flex;align-items:center;gap:9px;font-size:1.15rem;letter-spacing:.04em}
-.logo-mark{width:26px;height:30px;flex-shrink:0}
-.logo .mword{color:var(--teal);font-weight:500}
-.logo .hword{color:var(--teal-deep);font-weight:700}
-.logo .adm{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
-.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-weight:600;font-size:.87rem;border:1.5px solid transparent;transition:all .15s}
-.btn-ghost{border-color:var(--line);color:var(--ink);background:#fff}
-.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
-.btn-solid{background:var(--teal);color:#fff}
-.btn-solid:hover{background:#3184B4}
-.btn-grad{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border:none}
-.btn-grad:hover{filter:brightness(1.05)}
-.btn-danger{background:none;border:none;color:var(--danger);font-weight:600;font-size:.82rem;padding:6px 10px}
-.btn-sm{padding:7px 14px;font-size:.8rem}
-
 /* auth */
 .auth-shell{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:30px 20px;background:linear-gradient(115deg,#FAF6E4 0%,#E9F6F2 42%,#E2F2FA 100%)}
 .auth-card{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:36px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,62,82,.12)}
@@ -624,13 +607,6 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 /* ---------- narrow portal containment ---------- */
 @media(max-width:560px){
   .wrap{padding-left:12px;padding-right:12px}
-  .nav{height:auto;min-height:64px;padding:8px 0;gap:8px}
-  .logo{gap:6px;font-size:1rem;min-width:0}
-  .logo .adm{display:none}
-  #headActions{gap:6px!important;margin-left:auto;min-width:0}
-  #headActions .marketplace-link{width:38px;height:38px;padding:0;justify-content:center;font-size:0}
-  #headActions .marketplace-link:after{content:"↗";font-size:1rem}
-  #headActions .btn:not(.marketplace-link){padding:7px 10px}
   .tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain;padding-bottom:4px;scrollbar-width:thin}
   .tab{flex:0 0 auto}
   .card.pad{padding:17px}
@@ -642,33 +618,12 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .toast{max-width:calc(100vw - 24px);width:max-content;text-align:center;border-radius:14px;padding:10px 16px}
 }
 </style>
+<link rel="stylesheet" href="medichall-design-system.css">
+<script src="medichall-navigation.js"></script>
 </head>
 <body>
 
-<header>
-  <div class="wrap nav">
-    <span class="logo">
-      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
-        </linearGradient></defs>
-        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
-        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
-        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
-        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
-      </svg>
-      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
-      <span class="adm">Partner Portal</span>
-    </span>
-    <div id="headActions" style="display:none;gap:10px;align-items:center">
-      <a class="btn btn-ghost btn-sm marketplace-link" href="index.html" aria-label="View marketplace">View marketplace →</a>
-      <button class="portal-bell" id="portalNotificationBell" type="button" aria-label="Notifications" aria-expanded="false" onclick="togglePortalNotifications()">
-        🔔<span class="portal-bell-badge" id="portalNotificationBadge"></span>
-      </button>
-      <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
-    </div>
-  </div>
-</header>
+<medichall-header mode="portal" active="portal"></medichall-header>
 
 <!-- AUTH -->
 <div class="auth-shell" id="authShell">
@@ -1761,7 +1716,7 @@ function hideAllViews(){
     document.getElementById(id).style.display = "none";
   });
 }
-function setBadge(t){ const b = document.querySelector(".logo .adm"); if(b) b.textContent = t; }
+function setBadge(t){ const b = document.querySelector("medichall-header .mh-brand__context"); if(b) b.textContent = t; }
 async function enterApp(){
   document.getElementById("authShell").style.display = "none";
   document.getElementById("app").style.display = "block";
@@ -4918,10 +4873,10 @@ function renderPortalNotifications(){
   document.getElementById("portalNotificationFilters").innerHTML=filters.map(([value,label])=>'<button class="'+(PN.filter===value?"active":"")+'" onclick="setPortalNotificationFilter(\''+value+'\')">'+label+'</button>').join("");
   document.getElementById("portalNotificationSummary").textContent=Number(PN.data.action_required_count||0)+" action required · "+Number(PN.data.unread_count||0)+" unread";
   const rows=portalNotificationRows();
-  document.getElementById("portalNotificationList").innerHTML=rows.length?rows.map(item=>{
+  document.getElementById("portalNotificationList").innerHTML=rows.length?mmUtils.groupNotifications(rows).map(group=>'<section class="notification-group"><h4>'+mmEsc(group.label)+'</h4>'+group.items.map(item=>{
     const state=(item.read_at?"":" unread")+(item.action_required&&!item.resolved_at?" action":"")+(item.resolved_at?" resolved":"");
-    return '<article class="portal-notification-card'+state+'"><div class="mm-card-top"><div><div class="portal-notification-source">'+mmEsc(item.source_kind||"system")+(item.action_required&&!item.resolved_at?" · Action required":"")+'</div><div class="mm-company-name">'+mmEsc(item.title)+'</div><p>'+mmEsc(item.body)+'</p><time>'+mmEsc(mmUtils.dateTime(item.created_at,mmTimezone()))+'</time></div>'+(!item.read_at?'<span class="mm-status proposed">New</span>':item.resolved_at?'<span class="mm-status completed">Resolved</span>':"")+'</div><div class="mm-actions"><button class="btn btn-solid btn-sm" onclick="openPortalNotification('+Number(item.id)+')">Open</button></div></article>';
-  }).join(""):'<div class="mm-empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
+    return '<article class="portal-notification-card'+state+'"><div class="mm-card-top"><div><div class="portal-notification-source">'+mmEsc(item.source_kind||"system")+(item.action_required&&!item.resolved_at?" · Action required":"")+'</div><div class="mm-company-name">'+mmEsc(item.title)+'</div><p>'+mmEsc(item.body)+'</p><time datetime="'+mmEsc(item.created_at)+'" title="'+mmEsc(mmUtils.dateTime(item.created_at,mmTimezone()))+'">'+mmEsc(mmUtils.relativeTime(item.created_at))+'</time></div>'+(!item.read_at?'<span class="mm-status proposed">New</span>':item.resolved_at?'<span class="mm-status completed">Resolved</span>':"")+'</div><div class="mm-actions"><button class="btn btn-solid btn-sm" onclick="openPortalNotification('+Number(item.id)+')">Open</button></div></article>';
+  }).join("")+'</section>').join(""):'<div class="mm-empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
 }
 function setPortalNotificationFilter(filter){PN.filter=filter;renderPortalNotifications();}
 async function togglePortalNotifications(){

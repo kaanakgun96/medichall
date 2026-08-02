@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
   --navy:#003E52;--teal:#3F738D;--blue:#4197CB;--sky:#6FCFEB;
@@ -19,22 +19,6 @@
 }
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#F7FAFB;color:var(--ink);font-family:"DM Sans",sans-serif}
 button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}
-.topbar{background:var(--navy);color:#fff;position:sticky;top:0;z-index:40;box-shadow:0 8px 30px rgba(0,42,57,.16)}
-.topbar-inner{max-width:1240px;margin:auto;min-height:68px;padding:0 22px;display:flex;align-items:center;justify-content:space-between;gap:18px}
-.logo{display:flex;align-items:center;gap:9px;font-size:1.15rem;letter-spacing:.04em}.logo-mark{width:26px;height:30px;flex-shrink:0}
-.logo .mword{color:#fff;font-weight:500}.logo .hword{color:var(--mint);font-weight:700}
-.logo .adm{font-family:"DM Mono",monospace;font-size:.62rem;letter-spacing:.1em;background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;border-radius:100px;padding:3px 10px;margin-left:6px;text-transform:uppercase}
-.nav-actions{display:flex;align-items:center;gap:9px}.top-link{font-size:.78rem;color:#D8EDF3;padding:8px}.top-link:hover{color:#fff}
-.profile-menu{position:relative}.profile-trigger{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:100px;padding:8px 12px;font-weight:600}
-.profile-popover{display:none;position:absolute;right:0;top:calc(100% + 9px);width:190px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:var(--shadow)}
-.profile-popover.open{display:grid}.profile-popover button,.profile-popover a{border:0;background:#fff;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ink);font-size:.78rem}.profile-popover button:hover,.profile-popover a:hover{background:var(--mist)}
-.bell{position:relative;width:39px;height:39px;border:1px solid rgba(255,255,255,.24);border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:1rem}
-.bell:hover,.bell[aria-expanded="true"]{background:#fff;color:var(--navy)}.bell-badge{display:none;position:absolute;right:-5px;top:-6px;min-width:19px;height:19px;border-radius:100px;background:#D63D51;color:#fff;border:2px solid var(--navy);padding:0 4px;font:700 .58rem/15px "DM Mono";text-align:center}
-.btn{border:0;border-radius:10px;padding:9px 14px;font-weight:600;transition:.16s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
-.btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
-.btn-primary{background:linear-gradient(135deg,var(--mint),var(--blue));color:#fff}.btn-solid{background:var(--navy);color:#fff}
-.btn-light{background:#fff;color:var(--navy)}.btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn-danger{background:#FFF0F2;color:var(--danger)}
-.btn-sm{font-size:.76rem;padding:7px 10px}
 .wrap{max-width:1240px;margin:auto;padding:25px 22px 60px}
 .hero{background:linear-gradient(120deg,var(--navy),#17657E 60%,var(--blue));border-radius:20px;color:#fff;padding:30px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;box-shadow:var(--shadow)}
 .eyebrow{font-family:"DM Mono";font-size:.68rem;text-transform:uppercase;letter-spacing:.11em;opacity:.8}.hero h1{margin:7px 0 6px;font-size:1.9rem}.hero p{margin:0;opacity:.86;max-width:720px}
@@ -82,45 +66,18 @@ input:focus,textarea:focus,select:focus{outline:3px solid rgba(65,151,203,.18);b
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 @media(max-width:920px){.match-list{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:1fr 1fr}.driver-grid{grid-template-columns:1fr 1fr}.detail-grid{grid-template-columns:1fr}.scheduler-grid{grid-template-columns:1fr}}
 @media(max-width:680px){
-  .topbar-inner{padding:10px 14px;min-height:64px}.logo .adm{display:none}.top-link{display:none}.profile-trigger{max-width:94px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wrap{padding:16px 14px 45px}
+  .wrap{padding:16px 14px 45px}
   .hero{grid-template-columns:1fr;padding:22px;border-radius:16px}.hero h1{font-size:1.55rem}.role-badge{min-width:0}.workspace-tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.workspace-tab{white-space:nowrap}
   .grid2,.grid3{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.driver-grid{grid-template-columns:1fr}.time-grid{grid-template-columns:repeat(3,1fr)}.stepper{grid-template-columns:1fr}.modal-backdrop{padding:0;align-items:flex-end}.modal{max-height:94vh;border-radius:18px 18px 0 0;padding:21px}.modal-video{width:100%}.match-top,.card-top{align-items:center}
 }
 </style>
+<link rel="stylesheet" href="medichall-design-system.css">
+<script src="medichall-navigation.js"></script>
 </head>
 <body>
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="logo" href="index.html" aria-label="MedicHall marketplace">
-      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs><linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#F2E5B3"/><stop offset=".5" stop-color="#6CCCB9"/><stop offset="1" stop-color="#4298CC"/>
-        </linearGradient></defs>
-        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
-        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
-        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
-        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
-      </svg>
-      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
-      <span class="adm">Matchmaking</span>
-    </a>
-    <div class="nav-actions" id="navActions" style="display:none">
-      <a class="top-link" href="portal.html#inbox">Messages</a>
-      <a class="top-link" href="portal.html">Partner Portal</a>
-      <button class="bell" id="notificationBell" aria-label="Notifications" aria-expanded="false" onclick="toggleNotifications()">🔔<span class="bell-badge" id="notificationBadge"></span></button>
-      <div class="profile-menu">
-        <button class="profile-trigger" id="profileTrigger" aria-expanded="false" onclick="toggleProfileMenu()">Account ▾</button>
-        <div class="profile-popover" id="profilePopover">
-          <button onclick="showView('profile');toggleProfileMenu(false)">Match profile</button>
-          <a href="portal.html">Partner Portal</a>
-          <button onclick="logout()">Log out</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
+<medichall-header mode="matchmaking" active="matchmaking"></medichall-header>
 
-<main class="wrap">
+<main class="wrap" id="main-content">
   <section class="hero">
     <div>
       <div class="eyebrow">MedicHall AI Matchmaking</div>

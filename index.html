@@ -52,7 +52,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
    BRAND COLORS — change only these values to re-theme the site
@@ -108,41 +108,6 @@ h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.6rem,3vw,2.
 .section-head p{max-width:520px;color:var(--ink-soft);margin-top:12px}
 .link-more{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);border-bottom:2px solid var(--indicator);padding-bottom:4px;white-space:nowrap;transition:color .15s}
 .link-more:hover{color:var(--teal-deep)}
-
-/* ---------- header ---------- */
-header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;justify-content:space-between;height:70px;gap:24px}
-.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:1.3rem;letter-spacing:.04em}
-.logo-mark{width:30px;height:34px;flex-shrink:0;display:block}
-.logo .mword{color:var(--teal);font-weight:500}
-.logo .hword{color:var(--teal-deep);font-weight:700}
-.nav-links{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;min-width:0}
-.nav-links a{padding:8px 12px;border-radius:8px;font-size:.92rem;font-weight:500;color:var(--ink-soft);transition:all .15s;white-space:nowrap}
-.nav-links a:hover{background:var(--mist);color:var(--ink)}
-.nav-cta{display:flex;gap:10px;align-items:center;flex-shrink:0}
-.nav-cta .btn{white-space:nowrap}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:6px;font-weight:600;font-size:.92rem;border:1px solid transparent;transition:all .15s}
-.btn-ghost{border-color:var(--line);color:var(--ink)}
-.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
-.btn-solid{background:var(--teal-deep);color:#fff}
-.btn-solid:hover{background:var(--teal)}
-.btn-indicator{background:linear-gradient(95deg,#6CCCB9,#4298CC);color:#fff;font-weight:600;border:none}
-.btn-indicator:hover{filter:brightness(1.06)}
-.menu-toggle{display:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:42px;height:42px;font-size:1.2rem;color:var(--ink)}
-@media(max-width:1024px){
-  .nav-links{display:none;position:absolute;top:70px;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;padding:16px 24px 24px;border-bottom:1px solid var(--line);gap:4px}
-  .nav-links.open{display:flex}
-  .nav-links a{padding:12px 14px}
-  .menu-toggle{display:grid;place-items:center}
-  .nav-cta .btn-ghost{display:none}
-}
-@media(max-width:620px){
-  /* dar ekranda header yatay taşmayı önle (logo + Join for free + menü) */
-  .nav{gap:10px}
-  .nav-cta{gap:8px}
-  .nav-cta .btn{padding:10px 14px;font-size:.86rem}
-  .logo{font-size:1.15rem}
-}
 
 /* ---------- hero ---------- */
 .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);background:#fff}
@@ -289,7 +254,7 @@ footer{background:#02293A;color:#9CC2CF;padding:60px 0 34px;font-size:.9rem}
 .foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:40px;margin-bottom:44px}
 @media(max-width:800px){.foot-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:500px){.foot-grid{grid-template-columns:1fr}}
-footer .logo{color:#fff;margin-bottom:14px}
+footer .mh-brand{color:#fff;margin-bottom:14px}
 
 .foot-col h5{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:16px}
 .foot-col a{display:block;padding:5px 0;transition:color .15s}
@@ -491,43 +456,12 @@ footer .logo{color:#fff;margin-bottom:14px}
   .flow.in .flow-arrow svg{animation:none}
 }
 </style>
+<link rel="stylesheet" href="medichall-design-system.css">
+<script src="medichall-navigation.js"></script>
 </head>
 <body>
 
-<header>
-  <div class="wrap nav">
-    <a href="#" class="logo" aria-label="MedicHall home">
-      <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="mhgrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stop-color="#F2E5B3"/>
-            <stop offset=".5" stop-color="#6CCCB9"/>
-            <stop offset="1" stop-color="#4298CC"/>
-          </linearGradient>
-        </defs>
-        <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
-        <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
-        <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
-        <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
-      </svg>
-      <span><span class="mword">MEDIC</span><span class="hword">HALL</span></span>
-    </a>
-    <nav class="nav-links" id="navLinks" aria-label="Main navigation">
-      <a href="products.html">Products</a>
-      <a href="companies.html">Manufacturers</a>
-      <a href="#tenders">Tenders <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
-      <a href="matchmaking.html">Matchmaking <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
-      <a href="#how">How it works</a>
-    </nav>
-    <div class="nav-cta">
-      <span id="authArea" style="display:flex;gap:10px;align-items:center">
-      <a class="btn btn-ghost" href="portal.html">Partner login</a>
-      <a class="btn btn-solid" href="portal.html">Join for free</a>
-      </span>
-      <button class="menu-toggle" aria-label="Open menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
-    </div>
-  </div>
-</header>
+<medichall-header mode="public" active="marketplace"></medichall-header>
 
 <!-- HERO -->
 <section class="hero">
@@ -913,14 +847,17 @@ footer .logo{color:#fff;margin-bottom:14px}
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <div class="logo" style="margin-bottom:6px">
-          <svg class="logo-mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <polygon fill="url(#mhgrad)" points="0,16 15,8 15,80 0,80"/>
-            <polygon fill="url(#mhgrad)" points="24,8 39,2 39,36 24,42"/>
-            <polygon fill="url(#mhgrad)" points="24,50 39,44 39,80 24,80"/>
-            <polygon fill="url(#mhgrad)" points="48,2 63,10 63,80 48,80"/>
+        <div class="mh-brand" style="margin-bottom:6px">
+          <svg class="mh-brand__mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs><linearGradient id="mh-footer-gradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#f2e5b3"/><stop offset=".5" stop-color="#6cccb9"/><stop offset="1" stop-color="#4298cc"/>
+            </linearGradient></defs>
+            <polygon fill="url(#mh-footer-gradient)" points="0,16 15,8 15,80 0,80"/>
+            <polygon fill="url(#mh-footer-gradient)" points="24,8 39,2 39,36 24,42"/>
+            <polygon fill="url(#mh-footer-gradient)" points="24,50 39,44 39,80 24,80"/>
+            <polygon fill="url(#mh-footer-gradient)" points="48,2 63,10 63,80 48,80"/>
           </svg>
-          <span><span class="mword" style="color:var(--sky)">MEDIC</span><span class="hword" style="color:#fff">HALL</span></span>
+          <span class="mh-brand__wordmark" style="color:var(--sky)">MEDIC<span style="color:#fff">HALL</span></span>
         </div>
         <p class="mono" style="color:var(--mint-soft);margin-bottom:16px">Where Health Meets</p>
         <p>The AI-powered B2B platform for the medical industry — European tenders, business matchmaking and digital showrooms in one place.</p>
@@ -1196,15 +1133,6 @@ function scrollToProducts(){
 function quickSearch(term){
   location.href = "products.html?q="+encodeURIComponent(term);
 }
-function toggleMenu(btn){
-  const nav=document.getElementById("navLinks");
-  const open=nav.classList.toggle("open");
-  btn.setAttribute("aria-expanded",open);
-}
-document.getElementById("navLinks").addEventListener("click",e=>{
-  if(e.target.tagName==="A"){document.getElementById("navLinks").classList.remove("open")}
-});
-
 /* ---------------- modal ---------------- */
 function openModal(view){
   document.getElementById("modalBackdrop").classList.add("open");

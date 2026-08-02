@@ -99,6 +99,36 @@
     }catch(_){ return date.toLocaleString(); }
   }
 
+  function relativeTime(value,nowValue=Date.now()){
+    const timestamp=Date.parse(value),now=Number(nowValue);
+    if(!Number.isFinite(timestamp)||!Number.isFinite(now))return "Time unavailable";
+    const seconds=Math.max(0,Math.floor((now-timestamp)/1000));
+    if(seconds<60)return "Just now";
+    const minutes=Math.floor(seconds/60);
+    if(minutes<60)return minutes+"m ago";
+    const hours=Math.floor(minutes/60);
+    if(hours<24)return hours+"h ago";
+    const days=Math.floor(hours/24);
+    if(days<7)return days+"d ago";
+    return dateTime(value);
+  }
+
+  function groupNotifications(notifications,nowValue=Date.now()){
+    const now=new Date(nowValue),today=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+    const groups=[];
+    array(notifications).forEach(notification=>{
+      const timestamp=Date.parse(notification&&notification.created_at);
+      const date=Number.isFinite(timestamp)?new Date(timestamp):null;
+      const day=date?new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime():NaN;
+      const age=Number.isFinite(day)?Math.floor((today-day)/86400000):Infinity;
+      const label=age<=0?"Today":age===1?"Yesterday":age<7?"Earlier this week":"Older";
+      let group=groups.find(item=>item.label===label);
+      if(!group){group={label,items:[]};groups.push(group);}
+      group.items.push(notification);
+    });
+    return groups;
+  }
+
   function isoToCalendar(value){
     const date=new Date(value);
     if(Number.isNaN(date.getTime())) return "";
@@ -192,7 +222,7 @@
 
   global.MedicHallMatchmakingDomain={
     array,csv,statusLabel,meetingRole,meetingStatusLabel,meetingPermissions,
-    categorizeMeetings,badgeLabel,safeHttpUrl,dateTime,calendarEvent,
+    categorizeMeetings,badgeLabel,safeHttpUrl,dateTime,relativeTime,groupNotifications,calendarEvent,
     wallTimeToIso,proposalSlots
   };
 })(globalThis);

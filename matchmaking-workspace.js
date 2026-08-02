@@ -627,10 +627,10 @@ function renderNotifications(){
   document.getElementById("notificationFilters").innerHTML=filters.map(([value,label])=>'<button class="'+(state.notifications.filter===value?"active":"")+'" onclick="setNotificationFilter(\''+value+'\')">'+label+'</button>').join("");
   document.getElementById("notificationSummary").textContent=Number(state.notifications.data.action_required_count||0)+" action required · "+Number(state.notifications.data.unread_count||0)+" unread";
   const rows=notificationRows();
-  document.getElementById("notificationList").innerHTML=rows.length?rows.map(item=>{
+  document.getElementById("notificationList").innerHTML=rows.length?utils.groupNotifications(rows).map(group=>'<section class="notification-group"><h4>'+esc(group.label)+'</h4>'+group.items.map(item=>{
     const classes=(item.read_at?"":" unread")+(item.action_required&&!item.resolved_at?" action":"")+(item.resolved_at?" resolved":"");
-    return '<article class="notification-card'+classes+'"><div class="card-top"><div><div class="kicker">'+esc(item.source_kind||"system")+(item.action_required&&!item.resolved_at?" · Action required":"")+'</div><div class="company-name">'+esc(item.title)+'</div><p>'+esc(item.body)+'</p><time>'+esc(utils.dateTime(item.created_at,timezone()))+'</time></div>'+(!item.read_at?'<span class="status proposed">New</span>':item.resolved_at?'<span class="status completed">Resolved</span>':"")+'</div><div class="actions"><button class="btn btn-solid btn-sm" onclick="openNotification('+Number(item.id)+')">Open</button></div></article>';
-  }).join(""):'<div class="empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
+    return '<article class="notification-card'+classes+'"><div class="card-top"><div><div class="kicker">'+esc(item.source_kind||"system")+(item.action_required&&!item.resolved_at?" · Action required":"")+'</div><div class="company-name">'+esc(item.title)+'</div><p>'+esc(item.body)+'</p><time datetime="'+esc(item.created_at)+'" title="'+esc(utils.dateTime(item.created_at,timezone()))+'">'+esc(utils.relativeTime(item.created_at))+'</time></div>'+(!item.read_at?'<span class="status proposed">New</span>':item.resolved_at?'<span class="status completed">Resolved</span>':"")+'</div><div class="actions"><button class="btn btn-solid btn-sm" onclick="openNotification('+Number(item.id)+')">Open</button></div></article>';
+  }).join("")+'</section>').join(""):'<div class="empty"><b>Nothing in this view</b>Your notification state is up to date.</div>';
 }
 
 function setNotificationFilter(filter){state.notifications.filter=filter;renderNotifications();}
