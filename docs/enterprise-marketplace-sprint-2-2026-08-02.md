@@ -273,7 +273,7 @@ and `portal.html` last. Every item is required for a coherent Sprint 2 release.
 | 5 | `marketplace-companies.js` | `public_html/marketplace-companies.js` | `23727484e67c63c82d5a6b4a415c6c0b5034d3959caab1d48073d3850286b6ad` | 14,957 | Required |
 | 6 | `medichall-navigation.js` | `public_html/medichall-navigation.js` | `13915e7f97796410e087aa4824155e921de9b513518513b8b14769af483ada9d` | 21,942 | Required |
 | 7 | `index.html` | `public_html/index.html` | `dac4400706b5990e9820613917815722f815417e68898b1267e67c32e1739288` | 104,952 | Required |
-| 8 | `products.html` | `public_html/products.html` | `3b6cf60b6bfbc2f69575c3da296e5170943134d157f06821575ba41a03557ee8` | 65,669 | Required |
+| 8 | `products.html` | `public_html/products.html` | `7584a89b11d4b2565d12387ba625ff392892d173d324a32d3b859d5e466e7015` | 65,677 | Required |
 | 9 | `companies.html` | `public_html/companies.html` | `c72bd07ffdfdc96701e732f2938ac5a22f50ebbe7dcb06cc977cb07adca29fa8` | 59,168 | Required |
 | 10 | `matchmaking.html` | `public_html/matchmaking.html` | `da42efb7bdb9560f4ddea5611aa2e08768076cab51a6c1e6ddd6b81a83118799` | 20,790 | Required (shared-asset cache key) |
 | 11 | `admin.html` | `public_html/admin.html` | `b0e49f89f5c5cbfdff1d00e9b003698248f194f5632ecee34cf4efeefd644f22` | 56,213 | Required (terminology and shared-asset cache key) |
