@@ -28,6 +28,23 @@ if (duplicateIds.length) {
   throw new Error(`duplicate portal IDs: ${duplicateIds.join(", ")}`);
 }
 
+const loginContracts = [
+  ["bounded authentication request", "async function fetchWithTimeout"],
+  ["bounded post-login initialization", "POST_LOGIN_TIMEOUT_MS"],
+  ["awaited post-login flow", "await finishAuthenticatedEntry();"],
+  ["post-login homepage fallback", "location.assign(target);"],
+];
+
+for (const [label, contract] of loginContracts) {
+  if (!source.includes(contract)) {
+    throw new Error(`missing ${label}: ${contract}`);
+  }
+}
+
+if (/LOGIN_REDIRECT\s*=\s*true;\s*enterApp\(\);/.test(source)) {
+  throw new Error("login still starts the post-login flow without awaiting it");
+}
+
 console.log(
   `PASS portal artifact: ${inlineScripts.length} inline scripts, ` +
     `${staticIds.length} unique static IDs`,

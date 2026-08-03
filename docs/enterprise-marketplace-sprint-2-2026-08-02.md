@@ -236,6 +236,7 @@ Passed:
 - focused marketplace domain, terminology and security checks;
 - UI design-system check;
 - portal artifact parse/duplicate-ID check;
+- portal login timeout, awaited initialization and homepage-fallback contract check;
 - migration sequencing check;
 - linked migration dry run (one migration only);
 - linked production database lint (zero errors);
@@ -277,7 +278,7 @@ and `portal.html` last. Every item is required for a coherent Sprint 2 release.
 | 9 | `companies.html` | `public_html/companies.html` | `c72bd07ffdfdc96701e732f2938ac5a22f50ebbe7dcb06cc977cb07adca29fa8` | 59,168 | Required |
 | 10 | `matchmaking.html` | `public_html/matchmaking.html` | `da42efb7bdb9560f4ddea5611aa2e08768076cab51a6c1e6ddd6b81a83118799` | 20,790 | Required (shared-asset cache key) |
 | 11 | `admin.html` | `public_html/admin.html` | `b0e49f89f5c5cbfdff1d00e9b003698248f194f5632ecee34cf4efeefd644f22` | 56,213 | Required (terminology and shared-asset cache key) |
-| 12 | `portal.html` | `public_html/portal.html` | `bed3ab34214032d4dcc35529ac945fcf77a46c1cc59dfcc23b56a11a43295408` | 329,918 | Required; upload last |
+| 12 | `portal.html` | `public_html/portal.html` | `6aef0964dde0a61a7fe2f82f2aafb4d83a559b6da089f9424a9f1f484abfaf10` | 331,508 | Required; upload last |
 
 There is no separate `manufacturers.html`. The exact mixed directory filename is
 `companies.html`. The release must not rename it. The version query

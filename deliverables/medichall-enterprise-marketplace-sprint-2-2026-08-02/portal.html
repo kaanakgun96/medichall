@@ -1384,6 +1384,52 @@ function friendlyError(e){
   return "Error: " + m.slice(0,120);
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+const POST_LOGIN_TIMEOUT_MS = 12000;
+
+async function fetchWithTimeout(url, options={}, timeoutMs=AUTH_REQUEST_TIMEOUT_MS){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    return await fetch(url, {...options, signal:controller.signal});
+  }catch(error){
+    if(error && error.name === "AbortError"){
+      const timeoutError = new Error("Login request timed out");
+      timeoutError.code = "AUTH_TIMEOUT";
+      throw timeoutError;
+    }
+    throw error;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+function withTimeout(task, timeoutMs, code){
+  let timer;
+  const deadline = new Promise((_, reject)=>{
+    timer = setTimeout(()=>{
+      const error = new Error(code);
+      error.code = code;
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([task, deadline]).finally(()=>clearTimeout(timer));
+}
+
+async function finishAuthenticatedEntry(){
+  LOGIN_REDIRECT = true;
+  try{
+    await withTimeout(enterApp(), POST_LOGIN_TIMEOUT_MS, "POST_LOGIN_TIMEOUT");
+  }catch(error){
+    console.error("Post-login initialization failed.");
+  }
+  if(LOGIN_REDIRECT){
+    LOGIN_REDIRECT = false;
+    const target = marketplaceReturnUrl() || "index.html";
+    location.assign(target);
+  }
+}
+
 /* ---------------- auth ---------------- */
 function pickRole(r){
   REGROLE = r;
@@ -1441,7 +1487,7 @@ async function login(){
   msg.style.display = "none";
   btn.disabled = true; btn.textContent = "Logging in…";
   try{
-    const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+    const res = await fetchWithTimeout(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
       method:"POST",
       headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
       body: JSON.stringify({
@@ -1455,13 +1501,17 @@ async function login(){
     localStorage.setItem("mh_p_token", TOKEN);
     if(data.refresh_token) localStorage.setItem("mh_p_refresh", data.refresh_token);
     USER = data.user;
-    LOGIN_REDIRECT = true;
-    enterApp();
+    btn.textContent = "Opening MedicHall…";
+    await finishAuthenticatedEntry();
   }catch(e){
     const m = e.message||"";
-    msg.textContent = m.includes("Email not confirmed")
-      ? "Please confirm your email first (check your inbox), then log in."
-      : "Login failed. Check your email and password.";
+    msg.textContent = e && e.code === "AUTH_TIMEOUT"
+      ? "Login timed out. Check your connection and try again."
+      : m.includes("Email not confirmed")
+        ? "Please confirm your email first (check your inbox), then log in."
+        : m.includes("Failed to fetch")
+          ? "Unable to reach the login service. Check your connection and try again."
+          : "Login failed. Check your email and password.";
     msg.style.display = "block";
   }finally{
     btn.disabled = false; btn.textContent = "Log in";
