@@ -1,0 +1,6 @@
+After restoring every file in rollback-f843cf7/, delete only:
+
+public_html/tenders.html
+public_html/tenders.js
+
+These files were not present at production baseline commit f843cf7.

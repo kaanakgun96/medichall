@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Matchmaking — MedicHall</title>
+<meta name="description" content="Two-sided medical B2B matchmaking for manufacturers, distributors and buyers.">
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#003E52;--teal:#3F738D;--blue:#4197CB;--sky:#6FCFEB;
+  --mint:#6BCBB8;--pale:#9DD4CA;--cream:#F1E4B2;
+  --ink:#12303D;--soft:#627982;--line:#DCE8EC;--mist:#F3F8FA;
+  --white:#fff;--ok:#198765;--warn:#9A6B13;--danger:#B44353;
+  --shadow:0 18px 50px rgba(0,62,82,.10);
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#F7FAFB;color:var(--ink);font-family:"DM Sans",sans-serif}
+button,input,textarea,select{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}
+.wrap{max-width:1240px;margin:auto;padding:25px 22px 60px}
+.hero{background:linear-gradient(120deg,var(--navy),#17657E 60%,var(--blue));border-radius:20px;color:#fff;padding:30px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;box-shadow:var(--shadow)}
+.eyebrow{font-family:"DM Mono";font-size:.68rem;text-transform:uppercase;letter-spacing:.11em;opacity:.8}.hero h1{margin:7px 0 6px;font-size:1.9rem}.hero p{margin:0;opacity:.86;max-width:720px}
+.role-badge{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);padding:12px 15px;border-radius:13px;min-width:190px}
+.role-badge small{display:block;opacity:.75;font-family:"DM Mono";font-size:.62rem;text-transform:uppercase}.role-badge strong{display:block;margin-top:4px}
+.workspace-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0}.workspace-tab{border:1px solid var(--line);background:#fff;border-radius:100px;padding:9px 14px;color:var(--soft);font-weight:600}
+.workspace-tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}.tab-count{font-family:"DM Mono";font-size:.64rem;opacity:.85}
+.panel{display:none}.panel.active{display:block}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:14px;flex-wrap:wrap}.panel-head h2{margin:0;font-size:1.18rem}
+.sub{font-size:.82rem;color:var(--soft);margin:4px 0 0}.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 7px 22px rgba(0,62,82,.04)}.pad{padding:20px}
+.metric-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}.metric{padding:15px;background:#fff;border:1px solid var(--line);border-radius:13px}
+.metric small{font-family:"DM Mono";text-transform:uppercase;font-size:.58rem;color:var(--soft);letter-spacing:.06em}.metric strong{display:block;font-size:1.3rem;margin-top:5px}
+.health{border:1px solid #A9DECF;background:#EAF8F3;border-radius:13px;padding:13px 15px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}.health.warn{border-color:#F0D69C;background:#FFF8E8}.health p{margin:2px 0 0;font-size:.76rem;color:var(--soft)}
+.filters{display:grid;grid-template-columns:1.3fr repeat(3,.7fr);gap:10px;margin-bottom:14px}
+label{display:block;font-size:.72rem;font-weight:700;color:var(--soft);margin:10px 0 6px}input,textarea,select{width:100%;border:1px solid #C9DCE3;border-radius:10px;padding:10px 11px;background:#fff;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:3px solid rgba(65,151,203,.18);border-color:var(--blue)}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.match-list,.stack{display:grid;gap:13px}.match-list{grid-template-columns:repeat(2,minmax(0,1fr))}.match-card,.request-card,.meeting-card,.connection-card{padding:18px;background:#fff;border:1px solid var(--line);border-radius:15px}
+.match-top,.card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.match-role,.kicker{font-family:"DM Mono";font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--teal)}
+.match-title,.company-name{font-size:1rem;font-weight:700;margin-top:3px}.match-meta,.meta{font-size:.77rem;color:var(--soft);margin-top:4px}
+.company-ident{display:flex;gap:11px;align-items:center}.company-logo{width:43px;height:43px;border-radius:11px;border:1px solid var(--line);background:var(--mist);display:grid;place-items:center;overflow:hidden;font-weight:700;color:var(--teal);flex:0 0 auto}.company-logo img{width:100%;height:100%;object-fit:cover}
+.verified{font-size:.65rem;color:var(--ok);font-weight:700}.score{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--mint) calc(var(--score)*1%),#E8F0F3 0);position:relative;flex:0 0 58px}.score:after{content:"";position:absolute;inset:5px;background:#fff;border-radius:50%}.score b{position:relative;z-index:1;font-size:.78rem}
+.driver-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:13px}.driver{background:var(--mist);border-radius:8px;padding:8px}.driver b{display:flex;justify-content:space-between;font-size:.7rem}.driver p{font-size:.64rem;color:var(--soft);margin:3px 0 0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}.chip{font-size:.67rem;border-radius:100px;padding:5px 8px;background:#EAF7F2;color:var(--ok)}.chip.risk{background:#FFF4DE;color:var(--warn)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+.status{display:inline-flex;align-items:center;font-size:.63rem;padding:4px 8px;border-radius:100px;border:1px solid var(--line);background:var(--mist);text-transform:uppercase;font-weight:700;color:var(--soft)}
+.status.accepted,.status.confirmed,.status.completed,.status.connected{background:#EAF7F2;border-color:#A9DECF;color:var(--ok)}.status.pending,.status.proposed,.status.awaiting_response,.status.counter_proposed{background:#FFF4DE;border-color:#F0D69C;color:var(--warn)}
+.status.declined,.status.cancelled,.status.no_show,.status.expired,.status.dismissed{background:#FFF0F2;border-color:#F1B9C1;color:var(--danger)}
+.proposal-list{display:grid;gap:7px;margin-top:12px}.proposal{border:1px solid var(--line);border-radius:10px;padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:10px}.proposal.active{border-color:#8EC9E5;background:#F7FCFE}.proposal.accepted{border-color:#A9DECF;background:#EAF8F3}.proposal time{display:block;font-size:.78rem;font-weight:700}.proposal small{font-size:.66rem;color:var(--soft)}
+.video-state{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.75rem;margin-top:10px;background:var(--mist)}.video-state.ready{background:#EAF8F3;border-color:#A9DECF;color:var(--ok)}.video-state.unconfigured,.video-state.failed{background:#FFF8E8;border-color:#F0D69C;color:#6E5700}
+.empty{text-align:center;padding:48px 20px;color:var(--soft);background:#fff;border:1px dashed var(--line);border-radius:15px}.empty b{display:block;color:var(--ink);font-size:1rem;margin-bottom:5px}.loading{padding:35px;text-align:center;color:var(--soft)}
+.auth-warning{margin-top:18px;padding:18px;background:#FFF8E8;border:1px solid #F0D69C;border-radius:14px;display:none}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,36,49,.6);z-index:80;align-items:center;justify-content:center;padding:20px}.modal-backdrop.open{display:flex}.modal{position:relative;width:min(680px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 25px 80px rgba(0,36,49,.28)}.modal-wide{width:min(980px,100%)}.modal-video{width:min(1100px,96vw)}
+.modal-close{position:absolute;right:16px;top:14px;width:35px;height:35px;border:0;border-radius:50%;background:var(--mist);color:var(--ink)}.modal h3{margin:0 42px 3px 0}.dialog-sub{font-size:.79rem;color:var(--soft);margin:3px 0 15px}.form-error{display:none;color:var(--danger);font-size:.75rem;font-weight:700;margin-top:10px}
+.stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0 16px}.step{border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:.7rem;font-weight:700;color:var(--soft);background:var(--mist)}.step.active{border-color:var(--blue);background:#EDF7FC;color:var(--navy)}.step.done{border-color:#A9DECF;background:#EAF8F3;color:var(--ok)}
+.scheduler-grid{display:grid;grid-template-columns:minmax(220px,.75fr) minmax(300px,1.25fr);gap:13px}.scheduler-card{border:1px solid var(--line);border-radius:13px;padding:14px}.time-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.time-choice{border:1px solid var(--line);border-radius:8px;padding:8px 5px;background:#fff;font:600 .69rem "DM Mono"}.time-choice:hover{border-color:var(--blue);background:#F2FAFD}.time-choice.selected{background:var(--navy);border-color:var(--navy);color:#fff}.time-choice:disabled{opacity:.38;cursor:not-allowed}
+.slot-heading{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px}.slot-heading h4{margin:0}.selected-slots{display:grid;gap:7px}.selected-slot{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--mist)}.selected-slot b{display:block;font-size:.77rem}.selected-slot small{font-size:.66rem;color:var(--soft)}.selected-slot button{border:0;background:#fff;color:var(--danger);border-radius:7px;padding:6px 8px;font-size:.68rem}.selected-empty{text-align:center;border:1px dashed var(--line);border-radius:10px;padding:15px;color:var(--soft);font-size:.74rem}
+.review-card{background:var(--mist);border:1px solid var(--line);border-radius:13px;padding:15px}.review-slots{display:grid;gap:7px;margin-top:12px}.review-slot{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px;font-size:.77rem}.success{text-align:center;padding:25px 8px}.success-mark{width:58px;height:58px;display:grid;place-items:center;margin:auto;border-radius:50%;background:#EAF8F3;color:var(--ok);font-size:1.7rem}.success h3{margin:12px 0 5px}.success p{font-size:.82rem;color:var(--soft);max-width:440px;margin:0 auto}
+.notification-modal{width:min(720px,100%)}.notification-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px}.notification-toolbar button{border:1px solid var(--line);background:#fff;border-radius:100px;padding:6px 10px;font-size:.72rem;font-weight:600;color:var(--soft)}.notification-toolbar button.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.notification-card{border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:8px}.notification-card.unread{border-color:#8EC9E5;background:#F5FBFE}.notification-card.action{border-left:5px solid #D99F19}.notification-card.resolved{opacity:.7}.notification-card p{font-size:.78rem;color:var(--soft);margin:4px 0}.notification-card time{font:400 .62rem "DM Mono";color:var(--soft)}
+.detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:14px;margin-top:14px}.section{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px}.section h4{margin:0 0 8px;font-size:.86rem}
+.timeline{display:grid}.event{border-left:2px solid var(--line);padding:0 0 13px 14px;position:relative;font-size:.74rem}.event:before{content:"";position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--teal)}.event time{display:block;font:400 .59rem "DM Mono";color:var(--soft)}
+.message-list{max-height:280px;overflow:auto;display:grid;gap:7px}.message{border-radius:10px;padding:8px 10px;background:var(--mist);font-size:.76rem}.message.mine{background:#DFF2FA;margin-left:12%}.message.system{background:#FFF8E8;text-align:center}.message time{display:block;font:400 .6rem "DM Mono";color:var(--soft);margin-top:3px}.compose{display:flex;gap:7px;margin-top:9px}.compose input{flex:1}
+.video-frame{background:#002C3B;border-radius:12px;overflow:hidden;aspect-ratio:16/9;margin-top:10px}.video-frame iframe{border:0;width:100%;height:100%;display:block}
+.toast{position:fixed;right:20px;bottom:20px;background:var(--navy);color:#fff;padding:12px 15px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:120;max-width:340px}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+@media(max-width:920px){.match-list{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:1fr 1fr}.driver-grid{grid-template-columns:1fr 1fr}.detail-grid{grid-template-columns:1fr}.scheduler-grid{grid-template-columns:1fr}}
+@media(max-width:680px){
+  .wrap{padding:16px 14px 45px}
+  .hero{grid-template-columns:1fr;padding:22px;border-radius:16px}.hero h1{font-size:1.55rem}.role-badge{min-width:0}.workspace-tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.workspace-tab{white-space:nowrap}
+  .grid2,.grid3{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.driver-grid{grid-template-columns:1fr}.time-grid{grid-template-columns:repeat(3,1fr)}.stepper{grid-template-columns:1fr}.modal-backdrop{padding:0;align-items:flex-end}.modal{max-height:94vh;border-radius:18px 18px 0 0;padding:21px}.modal-video{width:100%}.match-top,.card-top{align-items:center}
+}
+</style>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260808s2auth3">
+<script src="medichall-session.js?v=20260808s2auth3"></script>
+<script src="medichall-navigation.js?v=20260808s2auth3"></script>
+</head>
+<body>
+<medichall-header mode="matchmaking" active="matchmaking"></medichall-header>
+
+<main class="wrap" id="main-content">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">MedicHall AI Matchmaking</div>
+      <h1>Find the right medical business partner.</h1>
+      <p>Two-sided matching for manufacturers, distributors and buyers—based on products, markets, certificates and commercial intent.</p>
+    </div>
+    <div class="role-badge"><small>Your matchmaking profile</small><strong id="heroRole">Loading…</strong></div>
+  </section>
+
+  <div class="auth-warning" id="authWarning">
+    <b>Please log in first.</b>
+    <p style="margin:5px 0 12px;font-size:.84rem">Matchmaking uses your existing MedicHall partner account.</p>
+    <a class="btn btn-primary" href="portal.html">Open Partner Portal</a>
+  </div>
+
+  <div id="app" style="display:none">
+    <nav class="workspace-tabs" aria-label="Matchmaking sections" id="workspaceTabs"></nav>
+    <div id="workspaceRoot"><div class="card loading">Loading your Matchmaking Workspace…</div></div>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="actionModal" onclick="if(event.target===this)closeModal('actionModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="actionTitle">
+    <button class="modal-close" onclick="closeModal('actionModal')" aria-label="Close">✕</button>
+    <h3 id="actionTitle">Matchmaking action</h3><p class="dialog-sub" id="actionSub"></p>
+    <div id="actionBody"></div><div class="actions" id="actionButtons"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="schedulerModal" onclick="if(event.target===this)closeScheduler()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="schedulerTitle">
+    <button class="modal-close" onclick="closeScheduler()" aria-label="Close scheduler">✕</button>
+    <h3 id="schedulerTitle">Propose a meeting</h3><p class="dialog-sub" id="schedulerPartner"></p>
+    <div class="stepper" aria-label="Meeting request progress">
+      <div class="step active" id="schedulerStep1">1 · Choose three times</div><div class="step" id="schedulerStep2">2 · Review request</div><div class="step" id="schedulerStep3">3 · Sent</div>
+    </div>
+    <div id="schedulerPick">
+      <div class="grid2">
+        <div><label for="meetingTopic">Topic</label><input id="meetingTopic" maxlength="160" placeholder="Product portfolio and cooperation"></div>
+        <div><label for="meetingLanguage">Meeting language</label><input id="meetingLanguage" maxlength="40" value="English"></div>
+        <div><label for="meetingDuration">Duration</label><select id="meetingDuration" onchange="renderSelectedSlots()"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="90">90 minutes</option></select></div>
+        <div><label for="meetingTimezone">Timezone</label><select id="meetingTimezone" onchange="schedulerTimezoneChanged()"></select></div>
+      </div>
+      <label for="meetingAgenda">Agenda</label><textarea id="meetingAgenda" rows="3" maxlength="4000" placeholder="What should both parties prepare and discuss?"></textarea>
+      <div class="scheduler-grid">
+        <div class="scheduler-card"><label for="meetingDate" style="margin-top:0">Choose a date</label><input id="meetingDate" type="date" onchange="renderTimeChoices()"><p class="sub">Times are displayed in <b id="timezoneLabel"></b>.</p></div>
+        <div class="scheduler-card"><label style="margin-top:0">Choose a time</label><div class="time-grid" id="timeChoices"></div></div>
+      </div>
+      <div class="slot-heading"><h4>Your three options</h4><span class="sub" id="slotCount">0 / 3 selected</span></div>
+      <div class="selected-slots" id="selectedSlots"></div>
+      <p class="form-error" id="schedulerError" role="alert"></p>
+      <div class="actions"><button class="btn btn-ghost" onclick="closeScheduler()">Cancel</button><button class="btn btn-ghost" id="saveDraftButton" onclick="sendMeeting(true)">Save draft</button><button class="btn btn-primary" onclick="reviewMeeting()">Review request</button></div>
+    </div>
+    <div id="schedulerReview" style="display:none">
+      <div class="review-card" id="reviewCard"></div><p class="form-error" id="reviewError" role="alert"></p>
+      <div class="actions"><button class="btn btn-ghost" onclick="editMeeting()">Back to edit</button><button class="btn btn-primary" id="sendMeetingButton" onclick="sendMeeting(false)">Send meeting request</button></div>
+    </div>
+    <div id="schedulerSuccess" class="success" style="display:none">
+      <div class="success-mark">✓</div><h3>Meeting request sent</h3><p>Your partner received all three options. You can track the response in Requests.</p>
+      <div class="actions" style="justify-content:center"><button class="btn btn-primary" onclick="finishScheduler()">View request</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop mh-notification-backdrop" id="notificationModal" onclick="if(event.target===this)closeNotifications()">
+  <div class="modal notification-modal mh-notification-panel" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+    <button class="modal-close" onclick="closeNotifications()" aria-label="Close notifications">✕</button>
+    <h3 id="notificationTitle">Notifications</h3><p class="dialog-sub" id="notificationSummary">Updates across meetings, connections, messages and RFQs.</p>
+    <div class="notification-toolbar" id="notificationFilters"></div><div id="notificationList"><div class="loading">Loading notifications…</div></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="detailModal" onclick="if(event.target===this)closeDetail()">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <button class="modal-close" onclick="closeDetail()" aria-label="Close details">✕</button>
+    <h3 id="detailTitle">Relationship workspace</h3><div id="detailBody"><div class="loading">Loading details…</div></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="videoModal" onclick="if(event.target===this)closeVideo()">
+  <div class="modal modal-video" role="dialog" aria-modal="true" aria-labelledby="videoTitle">
+    <button class="modal-close" onclick="closeVideo()" aria-label="Leave video room">✕</button>
+    <h3 id="videoTitle">Secure MedicHall meeting</h3><p class="dialog-sub">Recording is disabled. The join token exists only for this session.</p>
+    <div class="video-frame"><iframe id="videoFrame" title="Secure video meeting" src="about:blank" allow="camera; microphone; fullscreen; display-capture; autoplay" referrerpolicy="no-referrer"></iframe></div>
+    <div class="actions"><button class="btn btn-ghost" onclick="closeVideo()">Leave room</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<script src="matchmaking-domain.js?v=20260808s2auth3"></script>
+<script src="matchmaking-workspace.js?v=20260808s2auth3"></script>
+</body>
+</html>
