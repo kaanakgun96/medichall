@@ -131,13 +131,18 @@ test("admin authentication failures remain distinguishable", () => {
 });
 
 test("root pages load one canonical session helper before shared navigation", () => {
+  const releaseVersions = new Set();
   for (const page of rootPages) {
     const source = readFileSync(page, "utf8");
     const sessionIndex = source.indexOf("medichall-session.js");
     const navigationIndex = source.indexOf("medichall-navigation.js");
     assert.ok(sessionIndex >= 0, `${page} is missing medichall-session.js`);
     assert.ok(navigationIndex > sessionIndex, `${page} loads navigation before the session helper`);
+    for (const match of source.matchAll(/(?:src|href)="[^"]+\?v=([^"']+)/g)) {
+      releaseVersions.add(match[1]);
+    }
   }
+  assert.deepEqual([...releaseVersions], ["20260808s2auth3"]);
 });
 
 test("Messages, admin authorization, analytics, mobile auth, and notification contracts are present", () => {
@@ -145,6 +150,8 @@ test("Messages, admin authorization, analytics, mobile auth, and notification co
   const admin = readFileSync("admin.html", "utf8");
   const nav = readFileSync("medichall-navigation.js", "utf8");
   const matchmaking = readFileSync("matchmaking-workspace.js", "utf8");
+  const companies = readFileSync("marketplace-companies.js", "utf8");
+  const products = readFileSync("marketplace-products.js", "utf8");
   const css = readFileSync("medichall-design-system.css", "utf8");
 
   assert.match(portal, /if\(h === "#inbox"\) showPanel/);
@@ -154,9 +161,22 @@ test("Messages, admin authorization, analytics, mobile auth, and notification co
   assert.match(admin, /\/rest\/v1\/rpc\/is_admin/);
   assert.match(admin, /You do not have admin access\./);
   assert.match(admin, /AUTH_INVALID_CREDENTIALS/);
+  assert.match(admin, /id="loginErr" role="alert" aria-live="polite"><\/p>/);
   assert.match(nav, /portal\.html#inbox">Messages/);
   assert.match(nav, />Log In<\/a>/);
   assert.match(nav, />Sign Up<\/a>/);
+  assert.match(nav, /skipTarget\.id = "main-content"/);
+  assert.doesNotMatch(nav, /if \(mainTarget && !document\.getElementById\("main-content"\)\) mainTarget\.id/);
+  assert.match(nav, /!bell\.offsetParent \|\| rect\.width === 0 \|\| rect\.height === 0/);
+  assert.match(css, /\.mh-main-anchor/);
+  assert.match(companies, /row\.company_id/);
+  assert.match(companies, /filter\(Number\.isFinite\)/);
+  assert.match(companies, /session\.getUser\(\)/);
+  assert.match(companies, /session\.request/);
+  assert.match(products, /session\.getUser\(\)/);
+  assert.match(products, /session\.request/);
+  assert.doesNotMatch(companies, /localStorage\.getItem\("mh_p_token"\)/);
+  assert.doesNotMatch(products, /localStorage\.getItem\("mh_p_token"\)/);
   assert.match(matchmaking, /AUTH_SESSION\.getUser\(\)/);
   assert.match(css, /\.modal\.mh-notification-panel/);
 });

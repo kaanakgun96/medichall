@@ -7,9 +7,9 @@
 
   const API_URL = "https://azdmuarzntzqdyirysux.supabase.co";
   const API_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+  const session = global.MedicHallSession?.configure({ url: API_URL, key: API_KEY }) || null;
   const PAGE_SIZE = 12;
   const COMPARE_KEY = "mh_marketplace_compare_v1";
-  const token = () => localStorage.getItem("mh_p_token") || "";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[character]);
@@ -20,21 +20,23 @@
     recommendationResults: [], selectedProduct: null, rfqReviewed: false,
   };
 
-  function headers(authenticated = false, extra = {}) {
-    const accessToken = authenticated ? token() : "";
+  function headers(extra = {}) {
     return {
       apikey: API_KEY,
-      Authorization: `Bearer ${accessToken || API_KEY}`,
+      Authorization: `Bearer ${API_KEY}`,
       "Content-Type": "application/json",
       ...extra,
     };
   }
 
   async function request(path, options = {}) {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: headers(Boolean(options.authenticated), options.headers || {}),
-    });
+    const { authenticated = false, ...requestOptions } = options;
+    const response = authenticated && session
+      ? await session.request(path, requestOptions)
+      : await fetch(`${API_URL}${path}`, {
+        ...requestOptions,
+        headers: headers(requestOptions.headers || {}),
+      });
     const body = response.status === 204 ? null : await response.json().catch(() => null);
     if (!response.ok) throw new Error(body && (body.message || body.error_description || body.error) || `Request failed (${response.status})`);
     return body;
@@ -58,9 +60,9 @@
   }
 
   async function loadUserAndFavorites() {
-    if (!token()) return;
+    if (!session?.hasStoredSession()) return;
     try {
-      state.user = await request("/auth/v1/user", { authenticated: true });
+      state.user = await session.getUser();
       const rows = await request(`/rest/v1/favorites?select=product_id&user_id=eq.${encodeURIComponent(state.user.id)}`, { authenticated: true });
       state.favoriteIds = new Set(rows.map((row) => Number(row.product_id)));
     } catch (_) {

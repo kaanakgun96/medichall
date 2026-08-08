@@ -4,6 +4,7 @@
 
   const API_URL = "https://azdmuarzntzqdyirysux.supabase.co";
   const PUBLIC_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+  const session = global.MedicHallSession?.configure({ url: API_URL, key: PUBLIC_KEY }) || null;
   const D = global.MedicHallMarketplaceDomain;
   const state = {
     companies: [], products: [], followed: new Set(), user: null,
@@ -13,7 +14,6 @@
   const e = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const list = (value) => D ? D.asArray(value) : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
   const initials = (value) => String(value || "?").split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-  const token = () => localStorage.getItem("mh_p_token") || "";
   const companyUrl = (company) => company.slug ? `/m/${encodeURIComponent(company.slug)}` : `companies.html?c=${encodeURIComponent(company.id)}`;
   const productsFor = (companyId) => state.products.filter((product) => Number(product.company_id) === Number(companyId));
   const values = (rows) => [...new Set(rows.filter(Boolean))].sort((left, right) => String(left).localeCompare(String(right)));
@@ -22,11 +22,13 @@
   const option = (value, label, current) => `<option value="${e(value)}"${String(value) === String(current) ? " selected" : ""}>${e(label)}</option>`;
 
   async function request(path, options = {}) {
-    const auth = token() || PUBLIC_KEY;
-    const response = await fetch(`${API_URL}/rest/v1/${path}`, {
-      ...options,
-      headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${auth}`, "Content-Type": "application/json", ...(options.headers || {}) },
-    });
+    const { authenticated = false, ...requestOptions } = options;
+    const response = authenticated && session
+      ? await session.request(`/rest/v1/${path}`, requestOptions)
+      : await fetch(`${API_URL}/rest/v1/${path}`, {
+        ...requestOptions,
+        headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}`, "Content-Type": "application/json", ...(requestOptions.headers || {}) },
+      });
     if (!response.ok) throw new Error(`Marketplace API ${response.status}`);
     if (response.status === 204) return null;
     const body = await response.text();
@@ -34,13 +36,14 @@
   }
 
   async function loadSession() {
-    if (!token()) return;
+    if (!session?.hasStoredSession()) return;
     try {
-      const response = await fetch(`${API_URL}/auth/v1/user`, { headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${token()}` } });
-      if (response.ok) state.user = await response.json();
+      state.user = await session.getUser();
       if (state.user) {
-        const ids = await request("rpc/get_my_followed_company_ids", { method: "POST", body: "{}" });
-        state.followed = new Set((ids || []).map(Number));
+        const ids = await request("rpc/get_my_followed_company_ids", { method: "POST", body: "{}", authenticated: true });
+        state.followed = new Set((ids || [])
+          .map((row) => Number(row && typeof row === "object" ? row.company_id : row))
+          .filter(Number.isFinite));
       }
     } catch (_) {
       state.user = null;
@@ -62,7 +65,7 @@
     updateFollowButton(button, id);
     try {
       await request(`rpc/${wasFollowed ? "unfollow_company" : "follow_company"}`, {
-        method: "POST", body: JSON.stringify({ p_company_id: id }),
+        method: "POST", body: JSON.stringify({ p_company_id: id }), authenticated: true,
       });
       if (state.filters.followedOnly) renderDirectory();
     } catch (_) {

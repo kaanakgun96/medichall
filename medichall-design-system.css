@@ -88,6 +88,7 @@ medichall-header { display: block; position: sticky; top: 0; z-index: 90; }
   transition: transform 150ms ease;
 }
 .mh-skip-link:focus { transform: translateY(0); }
+.mh-main-anchor { display:block; height:0; overflow:hidden; }
 .mh-header {
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.96);

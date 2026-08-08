@@ -76,6 +76,11 @@
       return;
     }
     const rect = bell.getBoundingClientRect();
+    if (!bell.offsetParent || rect.width === 0 || rect.height === 0) {
+      backdrop.style.setProperty("--mh-notification-top", "72px");
+      backdrop.style.setProperty("--mh-notification-right", "12px");
+      return;
+    }
     const top = Math.max(8, Math.min(rect.bottom + 8, globalThis.innerHeight - 180));
     const right = Math.max(12, globalThis.innerWidth - rect.right);
     backdrop.style.setProperty("--mh-notification-top", `${Math.round(top)}px`);
@@ -416,7 +421,17 @@
   function enhanceInterface() {
     enhancementQueued = false;
     const mainTarget = document.querySelector("main, .auth-shell, .login-shell, #directoryView, .hero");
-    if (mainTarget && !document.getElementById("main-content")) mainTarget.id = "main-content";
+    if (mainTarget && !document.getElementById("main-content")) {
+      if (!mainTarget.id) {
+        mainTarget.id = "main-content";
+      } else {
+        const skipTarget = document.createElement("span");
+        skipTarget.id = "main-content";
+        skipTarget.className = "mh-main-anchor";
+        skipTarget.tabIndex = -1;
+        mainTarget.parentNode.insertBefore(skipTarget, mainTarget);
+      }
+    }
 
     document.querySelectorAll("table").forEach((table) => {
       const horizontalOnly = table.hasAttribute("data-mh-horizontal-table");
