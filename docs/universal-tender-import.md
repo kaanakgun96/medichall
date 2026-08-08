@@ -1,11 +1,12 @@
 # Universal Tender Import — Module 1
 
-> **Sequencing status (2026-08-01):** Module 1 remains intentionally
-> undeployed. Its original SQL is preserved byte-for-byte under
-> `supabase/migration-archive/universal-tender-import/` and is not part of the
-> executable production chain. A future release must port it into new
-> forward-only versions after the then-current production head. Do not follow
-> the historical version numbers below as production deployment instructions.
+> **Production reissue status (2026-08-08):** The immutable original SQL remains
+> preserved byte-for-byte under
+> `supabase/migration-archive/universal-tender-import/`. Its final base and
+> hardening contracts are ported atomically after the current production head
+> as `supabase/migrations/202608080001_universal_tender_import_reissue.sql`.
+> The historical `202607290001` and `202607290002` versions remain intentionally
+> absent from the executable chain and must never be ledger-repaired.
 
 ## Scope
 
@@ -44,10 +45,19 @@ the canonical child jobs through their existing idempotent queue contracts.
 
 ## Database changes
 
-Migrations:
+Archived source migrations:
 
 - `supabase/migration-archive/universal-tender-import/202607290001_universal_tender_import.sql`
 - `supabase/migration-archive/universal-tender-import/202607290002_universal_tender_import_hardening.sql`
+
+Executable forward-only migration:
+
+- `supabase/migrations/202608080001_universal_tender_import_reissue.sql`
+
+The executable file removes only the two archived files' outer transaction
+wrappers and runs their unchanged contracts inside one transaction. This
+prevents the base policy/grant state from becoming visible if final hardening
+fails.
 
 - Adds `tender_imports` as the company/requester-scoped orchestration record.
 - Adds nullable `tender_documents.storage_bucket`; existing public URL rows
@@ -209,10 +219,10 @@ parallel portal implementation is introduced.
 
 ## Deployment order
 
-1. Create newly timestamped migrations after the current production head by
-   porting and revalidating both archived sources; do not restore or repair the
-   archived `202607290001`/`202607290002` versions.
-2. Apply the new forward-only versions only in an isolated Module 1 staging
+1. Verify the linked dry run proposes only
+   `202608080001_universal_tender_import_reissue.sql`; do not restore or repair
+   the archived `202607290001`/`202607290002` versions.
+2. Apply the forward-only reissue first in an isolated Module 1 staging
    project.
 3. Run the exact SQL integration test and verify migration rollback/reapply in
    the target staging environment.

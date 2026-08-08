@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import mammoth from "npm:mammoth@1.9.0";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { Buffer } from "node:buffer";
 import { normalizePublicUrl } from "../_shared/attachment-discovery.ts";
 import {
   type NormalizedDocumentAnalysis,
@@ -327,7 +328,7 @@ async function downloadPrivateDocument(
   };
 }
 
-async function documentText(
+export async function documentText(
   bytes: Uint8Array,
   mimeType: string,
   maximumCharacters: number,
@@ -340,7 +341,7 @@ async function documentText(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
     const result = await mammoth.extractRawText({
-      arrayBuffer: Uint8Array.from(bytes).buffer,
+      buffer: Buffer.from(bytes),
     });
     return String(result.value || "").slice(0, maximumCharacters);
   }

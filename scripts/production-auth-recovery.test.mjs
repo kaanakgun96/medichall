@@ -8,6 +8,7 @@ const rootPages = [
   "index.html",
   "companies.html",
   "products.html",
+  "tenders.html",
   "matchmaking.html",
   "portal.html",
   "admin.html",
@@ -142,7 +143,7 @@ test("root pages load one canonical session helper before shared navigation", ()
       releaseVersions.add(match[1]);
     }
   }
-  assert.deepEqual([...releaseVersions], ["20260808s2auth3"]);
+  assert.deepEqual([...releaseVersions], ["20260808s21rc1"]);
 });
 
 test("Messages, admin authorization, analytics, mobile auth, and notification contracts are present", () => {

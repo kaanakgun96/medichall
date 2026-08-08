@@ -100,7 +100,7 @@ medichall-header { display: block; position: sticky; top: 0; z-index: 90; }
   min-height: 72px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: auto minmax(180px, 300px) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(160px, 270px) minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
 }
@@ -693,9 +693,13 @@ tbody tr:last-child td { border-bottom: 0; }
   .mh-brand__context { display: none; }
 }
 
-@media (max-width: 920px) {
+/* Switch the full navigation before its intrinsic link widths can collide
+   with search or account controls. At 1280px and above the complete desktop
+   header remains visible; intermediate widths use the same accessible menu as
+   tablets and phones. */
+@media (max-width: 1240px) {
   .mh-header__inner { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .mh-header-search { max-width: 300px; justify-self: end; }
+  .mh-header-search { width: min(100%, 320px); max-width: 320px; justify-self: end; }
   .mh-primary-nav {
     display: none;
     position: absolute;

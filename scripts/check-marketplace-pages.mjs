@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pages = ["index.html", "products.html", "companies.html", "portal.html", "matchmaking.html", "admin.html"];
+const pages = ["index.html", "products.html", "companies.html", "tenders.html", "portal.html", "matchmaking.html", "admin.html"];
 
 for (const page of pages) {
   const source = await readFile(resolve(root, page), "utf8");

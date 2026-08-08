@@ -8,6 +8,7 @@ const activeHtmlPages = [
   "index.html",
   "companies.html",
   "products.html",
+  "tenders.html",
   "matchmaking.html",
   "portal.html",
   "admin.html",
@@ -36,7 +37,7 @@ for (const token of ["--ink", "--teal", "--mint", "--mist", "--line", "--danger"
 for (const variant of ["primary", "secondary", "quiet", "danger", "success", "small", "large"]) {
   assert.match(designSystem, new RegExp(`\\.button--${variant}`), `shared button system must define ${variant}`);
 }
-for (const breakpoint of [1120, 920, 680, 390]) {
+for (const breakpoint of [1120, 1240, 680, 390]) {
   assert.match(designSystem, new RegExp(`max-width: ${breakpoint}px`), `shared design system must cover ${breakpoint}px`);
 }
 assert.match(designSystem, /prefers-reduced-motion: reduce/, "shared design system must respect reduced-motion preferences");

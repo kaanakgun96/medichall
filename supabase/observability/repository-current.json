@@ -101,8 +101,8 @@
     },
     {
       "path": "supabase/functions/tender-document-engine/handler.ts",
-      "sha256": "273307c22ffe5ee7f35e7ad4ce38701d87f64b40d28d341562bc9745830b8392",
-      "recorded_in_migration": true
+      "sha256": "201e306dd8dce9f0d7acd0c8dbae37b42ca94bd436ca4d049e9df2fe795b83c6",
+      "recorded_in_migration": false
     },
     {
       "path": "supabase/functions/_shared/attachment-discovery.ts",

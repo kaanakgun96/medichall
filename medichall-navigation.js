@@ -31,27 +31,28 @@
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
-      ["tenders", "Tenders", "index.html#tenders"],
+      ["tenders", "Tenders", "tenders.html"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     portal: [
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
-      ["tenders", "Tenders", "index.html#tenders"],
+      ["tenders", "Tenders", "tenders.html"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     matchmaking: [
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
-      ["tenders", "Tenders", "index.html#tenders"],
+      ["tenders", "Tenders", "tenders.html"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     admin: [
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
+      ["tenders", "Tenders", "tenders.html"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     react: [

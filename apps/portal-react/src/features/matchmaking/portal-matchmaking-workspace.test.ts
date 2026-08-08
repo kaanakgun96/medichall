@@ -229,7 +229,7 @@ describe("production Matchmaking Workspace", () => {
     expect(portal).toContain("revise_matchmaking_meeting_proposal");
     expect(portal).toContain("reschedule_matchmaking_meeting");
     expect(portal).toContain(
-      '<script src="matchmaking-domain.js?v=20260808s2auth3"></script>',
+      '<script src="matchmaking-domain.js?v=20260808s21rc1"></script>',
     );
     expect(portal).not.toContain('src="matchmaking-workspace.js');
   });
@@ -246,7 +246,7 @@ describe("production Matchmaking Workspace", () => {
     expect(standaloneMatchmaking).toContain("Review request");
     expect(standaloneMatchmaking).toContain("Meeting request sent");
     expect(standaloneMatchmaking).toContain(
-      '<script src="matchmaking-workspace.js?v=20260808s2auth3"></script>',
+      '<script src="matchmaking-workspace.js?v=20260808s21rc1"></script>',
     );
     expect(standaloneMatchmaking).not.toContain("document.write");
     expect(standaloneMatchmaking).not.toContain("SUPABASE_ANON_KEY");
