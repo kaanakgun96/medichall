@@ -3,8 +3,9 @@
 
 const SUPABASE_URL="https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+const AUTH_SESSION=globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
 const utils=globalThis.MedicHallMatchmakingDomain;
-let TOKEN=localStorage.getItem("mh_p_token")||null;
+let TOKEN=AUTH_SESSION.accessToken();
 let USER=null,COMPANY=null,BUYER=null;
 let state={
   data:null,detail:null,view:"matches",filters:{q:"",role:"",country:"",min:"0"},
@@ -35,19 +36,22 @@ function parseError(error){
 }
 
 async function request(path,options={}){
-  const response=await fetch(SUPABASE_URL+path,{
+  const response=await AUTH_SESSION.request(path,{
     ...options,
     headers:{
-      apikey:SUPABASE_ANON_KEY,
-      Authorization:"Bearer "+(TOKEN||SUPABASE_ANON_KEY),
       "Content-Type":"application/json",
       ...(options.headers||{})
     }
   });
+  TOKEN=AUTH_SESSION.accessToken();
   const text=await response.text();
   let data=null;
   try{data=text?JSON.parse(text):null;}catch(_){data=text;}
-  if(!response.ok)throw new Error(data?.message||data?.error_description||data?.hint||data?.details||text||"Request failed");
+  if(!response.ok){
+    const error=new Error(response.status===401?"Session expired":(data?.message||data?.error_description||data?.hint||data?.details||text||"Request failed"));
+    if(response.status===401)error.code="AUTH_SESSION_EXPIRED";
+    throw error;
+  }
   return data;
 }
 
@@ -619,7 +623,9 @@ function notificationRows(){
 
 function updateNotificationBadge(){
   const count=Number(state.notifications.data.badge_count||0),badge=document.getElementById("notificationBadge");
-  badge.textContent=utils.badgeLabel(count);badge.style.display=count?"block":"none";
+  const bell=document.getElementById("notificationBell");
+  badge.textContent=utils.badgeLabel(count);badge.style.display=count?"block":"none";badge.setAttribute("aria-hidden","true");
+  if(bell)bell.setAttribute("aria-label",count?"Notifications, "+count+" updates":"Notifications");
 }
 
 function renderNotifications(){
@@ -648,10 +654,11 @@ async function loadNotifications(silent=false){
 
 async function toggleNotifications(){
   if(document.getElementById("notificationModal").classList.contains("open")){closeNotifications();return;}
-  document.getElementById("notificationBell").setAttribute("aria-expanded","true");openModal("notificationModal",".modal-close");renderNotifications();await loadNotifications(true);
+  const modal=document.getElementById("notificationModal"),bell=document.getElementById("notificationBell");
+  bell.setAttribute("aria-expanded","true");globalThis.MedicHallNavigation?.positionNotificationPanel(modal,bell);document.body.classList.add("mh-notification-open");openModal("notificationModal",".modal-close");renderNotifications();await loadNotifications(true);
 }
 
-function closeNotifications(){document.getElementById("notificationBell").setAttribute("aria-expanded","false");closeModal("notificationModal");}
+function closeNotifications(){document.getElementById("notificationBell").setAttribute("aria-expanded","false");closeModal("notificationModal");document.body.classList.remove("mh-notification-open");}
 
 async function openNotification(id){
   const item=utils.array(state.notifications.data.notifications).find(row=>Number(row.id)===Number(id));if(!item)return;
@@ -671,7 +678,7 @@ function toggleProfileMenu(force){
   menu.classList.toggle("open",open);trigger.setAttribute("aria-expanded",String(open));
 }
 
-function logout(){localStorage.removeItem("mh_p_token");location.href="portal.html";}
+function logout(){AUTH_SESSION.clear();document.querySelector("medichall-header")?.setAuthState(false);location.href="portal.html";}
 
 async function loadWorkspace(silent=false){
   if(state.loading||!TOKEN||!USER)return;
@@ -687,15 +694,16 @@ async function loadWorkspace(silent=false){
 function applyDeepLink(){
   const hash=location.hash;if(state.handledHash===hash)return;
   const meeting=hash.match(/^#matchmaking-meeting=(\d+)$/),relationship=hash.match(/^#matchmaking-relationship=(\d+)$/);
-  if(meeting&&findMeeting(meeting[1])){state.handledHash=hash;openMeetingDetails(Number(meeting[1]));}
+  if(hash==="#profile"){state.handledHash=hash;showView("profile");}
+  else if(meeting&&findMeeting(meeting[1])){state.handledHash=hash;openMeetingDetails(Number(meeting[1]));}
   else if(relationship){state.handledHash=hash;openRelationship(Number(relationship[1]));}
 }
 
 async function init(){
   if(!utils)throw new Error("Matchmaking domain helpers failed to load.");
-  if(!TOKEN){document.getElementById("authWarning").style.display="block";document.getElementById("heroRole").textContent="Login required";return;}
+  if(!AUTH_SESSION.hasStoredSession()){document.getElementById("authWarning").style.display="block";document.getElementById("heroRole").textContent="Login required";return;}
   try{
-    USER=await request("/auth/v1/user");
+    USER=await AUTH_SESSION.getUser();TOKEN=AUTH_SESSION.accessToken();
     const safe=path=>db(path).catch(()=>[]);
     const [companies,buyers]=await Promise.all([
       safe("companies?select=id,name,country,website,description,certifications&owner_id=eq."+USER.id+"&limit=1"),
@@ -703,6 +711,7 @@ async function init(){
     ]);
     COMPANY=companies?.[0]||null;BUYER=buyers?.[0]||null;
     document.getElementById("app").style.display="block";document.getElementById("navActions").style.display="flex";
+    document.querySelector("medichall-header")?.setAuthState(true);
     await Promise.all([loadWorkspace(),loadNotifications(true)]);
   }catch(error){
     console.error(error);document.getElementById("authWarning").style.display="block";document.getElementById("heroRole").textContent="Login required";
@@ -724,6 +733,7 @@ document.addEventListener("keydown",event=>{
 document.addEventListener("click",event=>{if(!event.target.closest(".profile-menu"))toggleProfileMenu(false);});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){loadWorkspace(true);loadNotifications(true);}});
 window.addEventListener("hashchange",()=>{state.handledHash=null;applyDeepLink();});
+window.addEventListener("resize",()=>{const modal=document.getElementById("notificationModal");if(modal?.classList.contains("open"))globalThis.MedicHallNavigation?.positionNotificationPanel(modal,document.getElementById("notificationBell"));});
 
 Object.assign(globalThis,{
   showView,saveProfile,refreshMatches,setFilter,setMatchStatus,openConnectionRequest,sendConnection,

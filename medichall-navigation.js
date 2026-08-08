@@ -12,6 +12,7 @@
     url: "https://azdmuarzntzqdyirysux.supabase.co",
     key: "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-"
   };
+  const session = globalThis.MedicHallSession?.configure(marketplaceApi) || null;
 
   const logo = `
     <svg class="mh-brand__mark" viewBox="0 0 66 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -37,12 +38,14 @@
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
+      ["tenders", "Tenders", "index.html#tenders"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     matchmaking: [
       ["marketplace", "Marketplace", "index.html"],
       ["products", "Products", "products.html"],
       ["companies", "Companies", "companies.html"],
+      ["tenders", "Tenders", "index.html#tenders"],
       ["matchmaking", "Matchmaking", "matchmaking.html"]
     ],
     admin: [
@@ -65,6 +68,22 @@
     })[character]);
   }
 
+  function positionNotificationPanel(backdrop, bell) {
+    if (!backdrop || !bell) return;
+    if (globalThis.innerWidth <= 680) {
+      backdrop.style.removeProperty("--mh-notification-top");
+      backdrop.style.removeProperty("--mh-notification-right");
+      return;
+    }
+    const rect = bell.getBoundingClientRect();
+    const top = Math.max(8, Math.min(rect.bottom + 8, globalThis.innerHeight - 180));
+    const right = Math.max(12, globalThis.innerWidth - rect.right);
+    backdrop.style.setProperty("--mh-notification-top", `${Math.round(top)}px`);
+    backdrop.style.setProperty("--mh-notification-right", `${Math.round(right)}px`);
+  }
+
+  globalThis.MedicHallNavigation = Object.freeze({ positionNotificationPanel });
+
   class MedicHallHeader extends HTMLElement {
     static get observedAttributes() { return ["active", "active-route", "legacy-url", "context"]; }
 
@@ -74,6 +93,7 @@
       this.addEventListener("keydown", this.handleKeydown);
       this.addEventListener("input", this.handleSearchInput);
       this.addEventListener("submit", this.handleSearchSubmit);
+      this.syncSessionState();
     }
 
     disconnectedCallback() {
@@ -90,9 +110,17 @@
     }
 
     handleClick = (event) => {
+      const logoutAction = event.target.closest("[data-mh-logout]");
       const menuButton = event.target.closest(".mh-menu-button");
       const search = event.target.closest(".mh-header-search");
       const nav = this.querySelector(".mh-primary-nav");
+      if (logoutAction) {
+        event.preventDefault();
+        session?.clear();
+        if (typeof globalThis.logout === "function") globalThis.logout();
+        else globalThis.location.assign("index.html");
+        return;
+      }
       if (search && window.matchMedia("(max-width: 680px)").matches) search.querySelector("input")?.focus();
       if (menuButton && nav) {
         const open = !nav.classList.contains("is-open");
@@ -104,6 +132,34 @@
         this.querySelector(".mh-menu-button")?.setAttribute("aria-expanded", "false");
       }
     };
+
+    setAuthState(authenticated) {
+      const state = authenticated ? "authenticated" : "guest";
+      this.dataset.authState = state;
+      this.querySelectorAll("[data-mh-auth]").forEach((element) => {
+        element.hidden = element.dataset.mhAuth !== state;
+      });
+      const authArea = this.querySelector("#authArea");
+      if (authArea && this.getAttribute("mode") === "public") {
+        authArea.outerHTML = authenticated
+          ? this.renderPublicAccount()
+          : this.renderGuestUtilities();
+      }
+    }
+
+    async syncSessionState() {
+      if (!session?.hasStoredSession()) {
+        this.setAuthState(false);
+        return;
+      }
+      this.dataset.authState = "checking";
+      try {
+        await session.getUser();
+        if (this.isConnected) this.setAuthState(true);
+      } catch (_) {
+        if (this.isConnected) this.setAuthState(false);
+      }
+    }
 
     handleKeydown = (event) => {
       const results = this.querySelector(".mh-search-results");
@@ -187,12 +243,46 @@
       }
     }
 
+    renderGuestUtilities() {
+      return `<span class="mh-header__dynamic" id="authArea">
+        <a class="btn btn-ghost btn-sm" href="portal.html">Partner login</a>
+        <a class="btn btn-solid btn-sm" href="portal.html#register">Join for free</a>
+      </span>`;
+    }
+
+    renderPublicAccount() {
+      return `<span class="mh-header__dynamic is-authenticated" id="authArea">
+        <details class="mh-account"><summary aria-label="Account menu">${icons.user}<span>Account</span></summary><div class="mh-account__menu">
+          <a href="portal.html#dashboard">Dashboard</a>
+          <a href="portal.html#inbox">Messages</a>
+          <a href="portal.html#notifications">Notification Center</a>
+          <a href="portal.html#profile">Company Profile</a>
+          <button type="button" data-mh-logout>Log Out</button>
+        </div></details>
+      </span>`;
+    }
+
+    renderMobileActions(mode) {
+      const matchProfile = mode === "matchmaking"
+        ? `<a href="matchmaking.html#profile">Match Profile</a>`
+        : "";
+      return `<div class="mh-mobile-nav-actions" data-mh-auth="guest">
+          <a href="portal.html">Log In</a>
+          <a href="portal.html#register">Sign Up</a>
+        </div>
+        <div class="mh-mobile-nav-actions" data-mh-auth="authenticated" hidden>
+          <a href="portal.html#dashboard">Dashboard</a>
+          <a href="portal.html#inbox">Messages</a>
+          <a href="portal.html#notifications">Notifications</a>
+          <a href="portal.html#profile">Profile</a>
+          ${matchProfile}
+          <button type="button" data-mh-logout>Log Out</button>
+        </div>`;
+    }
+
     renderUtilities(mode, legacyUrl) {
       if (mode === "public") {
-        return `<span class="mh-header__dynamic" id="authArea">
-          <a class="btn btn-ghost btn-sm" href="portal.html">Partner login</a>
-          <a class="btn btn-solid btn-sm" href="portal.html">Join for free</a>
-        </span>`;
+        return this.renderGuestUtilities();
       }
       if (mode === "portal") {
         return `<div class="mh-header__dynamic" id="headActions" style="display:none;gap:8px;align-items:center">
@@ -201,8 +291,11 @@
             ${icons.bell}<span class="portal-bell-badge" id="portalNotificationBadge"></span>
           </button>
           <details class="mh-account"><summary aria-label="Account menu">${icons.user}<span>Account</span></summary><div class="mh-account__menu">
-            <button type="button" onclick="showPanel('profile')">Company profile</button>
-            <button type="button" onclick="logout()">Log out</button>
+            <a href="portal.html#profile">Company Profile</a>
+            <a href="portal.html#inbox">Messages</a>
+            <button type="button" onclick="togglePortalNotifications()">Notification Center</button>
+            <a href="portal.html#settings">Settings</a>
+            <button type="button" data-mh-logout>Log Out</button>
           </div></details>
         </div>`;
       }
@@ -216,8 +309,10 @@
             <button class="profile-trigger" id="profileTrigger" type="button" aria-expanded="false" onclick="toggleProfileMenu()">Account ▾</button>
             <div class="profile-popover" id="profilePopover">
               <button type="button" onclick="showView('profile');toggleProfileMenu(false)">Match profile</button>
+              <a href="portal.html#inbox">Messages</a>
+              <button type="button" onclick="toggleNotifications();toggleProfileMenu(false)">Notifications</button>
               <a href="portal.html">Partner Portal</a>
-              <button type="button" onclick="logout()">Log out</button>
+              <button type="button" data-mh-logout>Log Out</button>
             </div>
           </div>
         </div>`;
@@ -257,13 +352,14 @@
               <input id="mh-search-${mode}" name="q" type="search" autocomplete="off" placeholder="Search products and companies" aria-controls="mh-search-results-${mode}" aria-expanded="false">
               <div class="mh-search-results" id="mh-search-results-${mode}" hidden></div>
             </form>
-            <nav class="mh-primary-nav" id="navLinks" aria-label="Primary navigation">${navLinks}</nav>
+            <nav class="mh-primary-nav" id="navLinks" aria-label="Primary navigation">${navLinks}${this.renderMobileActions(mode)}</nav>
             <div class="mh-header__utilities">
               ${this.renderUtilities(mode, legacyUrl)}
               <button class="mh-icon-button mh-menu-button" type="button" aria-label="Open navigation" aria-expanded="false">${icons.menu}</button>
             </div>
           </div>
         </header>`;
+      this.setAuthState(this.dataset.authState === "authenticated");
     }
   }
 

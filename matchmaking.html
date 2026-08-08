@@ -72,6 +72,7 @@ input:focus,textarea:focus,select:focus{outline:3px solid rgba(65,151,203,.18);b
 }
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260802s2rc1">
+<script src="medichall-session.js?v=20260808auth1"></script>
 <script src="medichall-navigation.js?v=20260802s2rc1"></script>
 </head>
 <body>
@@ -142,8 +143,8 @@ input:focus,textarea:focus,select:focus{outline:3px solid rgba(65,151,203,.18);b
   </div>
 </div>
 
-<div class="modal-backdrop" id="notificationModal" onclick="if(event.target===this)closeNotifications()">
-  <div class="modal notification-modal" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+<div class="modal-backdrop mh-notification-backdrop" id="notificationModal" onclick="if(event.target===this)closeNotifications()">
+  <div class="modal notification-modal mh-notification-panel" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
     <button class="modal-close" onclick="closeNotifications()" aria-label="Close notifications">✕</button>
     <h3 id="notificationTitle">Notifications</h3><p class="dialog-sub" id="notificationSummary">Updates across meetings, connections, messages and RFQs.</p>
     <div class="notification-toolbar" id="notificationFilters"></div><div id="notificationList"><div class="loading">Loading notifications…</div></div>

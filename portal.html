@@ -286,6 +286,10 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .metric-card .metric-label{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
 .metric-card strong{display:block;font-size:1.55rem;line-height:1.1;margin-top:7px}
 .metric-card small{display:block;color:var(--ink-soft);font-size:.72rem;margin-top:4px}
+.dashboard-metrics-status{min-height:22px;display:flex;align-items:center;gap:8px;margin:2px 0 6px;color:var(--ink-soft);font:.68rem var(--mono)}
+.dashboard-metrics-status.loading:before{content:"";width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:mh-spin .8s linear infinite}
+.dashboard-metrics-status.error{padding:8px 10px;border:1px solid #F2B8B5;border-radius:8px;color:#9F2D24;background:#FDECEA}
+.dashboard-metrics-status.success{color:var(--success)}
 @media(max-width:760px){.metric-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:430px){.metric-grid{grid-template-columns:1fr}.portal-welcome h1{font-size:1.3rem}}
 .dashboard-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,.75fr);gap:16px}
@@ -619,6 +623,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 }
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260802s2rc1">
+<script src="medichall-session.js?v=20260808auth1"></script>
 <script src="medichall-navigation.js?v=20260802s2rc1"></script>
 </head>
 <body>
@@ -781,6 +786,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
           <h1 id="dashWelcome">Your opportunity dashboard</h1>
           <p>Tenders and distributors matched to your company — refreshed every morning from official EU sources.</p>
         </div>
+        <div class="dashboard-metrics-status loading" id="dashboardMetricsStatus" role="status" aria-live="polite">Loading dashboard metrics…</div>
         <div class="metric-grid">
           <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">Total matches</span><strong id="mTotal">—</strong><small>Tenders + distributors</small></div>
           <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">High matches</span><strong id="mHigh">—</strong><small>Score of 80% or higher</small></div>
@@ -1255,8 +1261,8 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   </div>
 </div>
 
-<div class="modal-backdrop" id="portalNotificationModal" onclick="if(event.target===this)closePortalNotifications()">
-  <div class="modal portal-notification-modal" role="dialog" aria-modal="true" aria-labelledby="portalNotificationTitle">
+<div class="modal-backdrop mh-notification-backdrop" id="portalNotificationModal" onclick="if(event.target===this)closePortalNotifications()">
+  <div class="modal portal-notification-modal mh-notification-panel" role="dialog" aria-modal="true" aria-labelledby="portalNotificationTitle">
     <button class="modal-close" onclick="closePortalNotifications()" aria-label="Close notifications">✕</button>
     <h3 id="portalNotificationTitle">Notifications</h3>
     <p class="mm-dialog-sub" id="portalNotificationSummary">Your work across meetings, connections, messages and quotation requests.</p>
@@ -1329,8 +1335,9 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 /* ---------------- config ---------------- */
 const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+const AUTH_SESSION = globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
 
-let TOKEN = localStorage.getItem("mh_p_token") || null;
+let TOKEN = AUTH_SESSION.accessToken();
 let REGROLE = "buyer", JUSTSIGNED = false, LOGIN_REDIRECT = false;
 let BUYER = null;   // buyer profile row
 let USER = null;      // {id, email}
@@ -1343,7 +1350,7 @@ function marketplaceReturnUrl(){
   if(!raw) return null;
   try{
     const target = new URL(raw, location.href);
-    const rootPage = /^\/(?:index|products|companies|matchmaking)\.html$/.test(target.pathname);
+    const rootPage = target.pathname === "/" || /^\/(?:index|products|companies|matchmaking)(?:\.html)?$/.test(target.pathname);
     const showroom = /^\/m\/[^/]+$/.test(target.pathname);
     if(target.origin !== location.origin || (!rootPage && !showroom)) return null;
     return target.pathname + target.search + target.hash;
@@ -1351,15 +1358,14 @@ function marketplaceReturnUrl(){
 }
 
 async function api(path, options={}){
-  const res = await fetch(SUPABASE_URL + path, {
+  const res = await AUTH_SESSION.request(path, {
     ...options,
     headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": "Bearer " + (TOKEN || SUPABASE_ANON_KEY),
       "Content-Type": "application/json",
       ...(options.headers||{})
     }
   });
+  TOKEN = AUTH_SESSION.accessToken();
   if(res.status===401){ logout(); throw new Error("Session expired — please log in again."); }
   if(!res.ok){ throw new Error(await res.text()); }
   const t = await res.text();
@@ -1386,23 +1392,6 @@ function friendlyError(e){
 
 const AUTH_REQUEST_TIMEOUT_MS = 15000;
 const POST_LOGIN_TIMEOUT_MS = 12000;
-
-async function fetchWithTimeout(url, options={}, timeoutMs=AUTH_REQUEST_TIMEOUT_MS){
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), timeoutMs);
-  try{
-    return await fetch(url, {...options, signal:controller.signal});
-  }catch(error){
-    if(error && error.name === "AbortError"){
-      const timeoutError = new Error("Login request timed out");
-      timeoutError.code = "AUTH_TIMEOUT";
-      throw timeoutError;
-    }
-    throw error;
-  }finally{
-    clearTimeout(timer);
-  }
-}
 
 function withTimeout(task, timeoutMs, code){
   let timer;
@@ -1462,11 +1451,9 @@ async function register(){
     if(data.access_token){
       // email confirmation disabled -> logged in immediately
       JUSTSIGNED = true;
-      TOKEN = data.access_token;
-      localStorage.setItem("mh_p_token", TOKEN);
-    if(data.refresh_token) localStorage.setItem("mh_p_refresh", data.refresh_token);
+      TOKEN = AUTH_SESSION.persist(data);
       USER = data.user;
-      enterApp();
+      await enterApp();
     }else{
       msg.textContent = "✓ Account created. Please check your inbox and confirm your email, then log in.";
       msg.className = "msg ok"; msg.style.display = "block";
@@ -1487,30 +1474,24 @@ async function login(){
   msg.style.display = "none";
   btn.disabled = true; btn.textContent = "Logging in…";
   try{
-    const res = await fetchWithTimeout(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
-      method:"POST",
-      headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
-      body: JSON.stringify({
-        email: document.getElementById("li-email").value.trim(),
-        password: document.getElementById("li-pass").value
-      })
+    const data = await AUTH_SESSION.signIn({
+      email: document.getElementById("li-email").value,
+      password: document.getElementById("li-pass").value,
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error_description || data.msg || "bad credentials");
-    TOKEN = data.access_token;
-    localStorage.setItem("mh_p_token", TOKEN);
-    if(data.refresh_token) localStorage.setItem("mh_p_refresh", data.refresh_token);
+    TOKEN = AUTH_SESSION.accessToken();
     USER = data.user;
     btn.textContent = "Opening MedicHall…";
     await finishAuthenticatedEntry();
   }catch(e){
-    const m = e.message||"";
-    msg.textContent = e && e.code === "AUTH_TIMEOUT"
+    msg.textContent = e?.code === "AUTH_TIMEOUT"
       ? "Login timed out. Check your connection and try again."
-      : m.includes("Email not confirmed")
+      : e?.code === "AUTH_EMAIL_UNCONFIRMED"
         ? "Please confirm your email first (check your inbox), then log in."
-        : m.includes("Failed to fetch")
+        : e?.code === "AUTH_NETWORK"
           ? "Unable to reach the login service. Check your connection and try again."
+          : e?.code === "AUTH_RATE_LIMITED"
+            ? "Too many login attempts. Please wait and try again."
           : "Login failed. Check your email and password.";
     msg.style.display = "block";
   }finally{
@@ -1518,8 +1499,7 @@ async function login(){
   }
 }
 async function getUser(){
-  const data = await api("/auth/v1/user");
-  USER = data;
+  USER = await AUTH_SESSION.getUser();
 }
 function logout(){
   TOKEN = null; USER = null; COMPANY = null;
@@ -1539,10 +1519,11 @@ function logout(){
     clearInterval(PN.timer);PN.timer=null;
     PN.data={notifications:[],unread_count:0,action_required_count:0,badge_count:0};
   }
-  localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
+  AUTH_SESSION.clear();
   document.getElementById("app").style.display = "none";
   document.getElementById("headActions").style.display = "none";
   document.getElementById("authShell").style.display = "grid";
+  document.querySelector("medichall-header")?.setAuthState(false);
 }
 document.getElementById("li-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
 
@@ -1792,7 +1773,20 @@ async function enterApp(){
     ]);
     COMPANY = cRows && cRows.length ? cRows[0] : null;
     BUYER   = bRows && bRows.length ? bRows[0] : null;
-  }catch(e){ toast(friendlyError(e)); return; }
+  }catch(e){
+    if(e?.code === "AUTH_SESSION_EXPIRED"){
+      logout();
+      const msg=document.getElementById("loginMsg");
+      msg.textContent="Your session expired. Please log in again.";
+      msg.style.display="block";
+    }else{
+      const banner=document.getElementById("statusBanner");
+      if(banner)banner.innerHTML='<div class="status-banner pending"><b>Workspace unavailable</b><span>We could not validate your session. Your account data was not changed.</span></div>';
+      toast(e?.code === "AUTH_NETWORK" ? "Network error — try again shortly." : friendlyError(e));
+    }
+    return;
+  }
+  document.querySelector("medichall-header")?.setAuthState(true);
   const marketplaceReturn = marketplaceReturnUrl();
   if(LOGIN_REDIRECT || marketplaceReturn){
     LOGIN_REDIRECT = false;
@@ -1815,7 +1809,6 @@ async function enterApp(){
     renderAssets();
     loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers(); loadMatchProfile();
     const dw = document.getElementById("dashWelcome"); if(dw && COMPANY) dw.textContent = "Welcome back, " + (COMPANY.name || "partner") + " 👋";
-    setTimeout(updateDashboard, 1500); setTimeout(updateDashboard, 4000);
     setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
     setTimeout(()=>loadPortalNotifications(true), 400);
     applyHash(); startUnreadTimer();
@@ -2128,10 +2121,20 @@ function removeProductBrochure(){
 
 /* ---------------- rfq ---------------- */
 async function loadRfq(){
+  DASHBOARD_METRICS_STATE.rfq = "loading";
+  DASHBOARD_METRICS_STATE.errors.rfq = null;
+  updateDashboard();
   try{
     RFQS = await db("rfq_requests?select=*&company_id=eq." + COMPANY.id + "&order=created_at.desc");
     renderRfq();
-  }catch(e){ toast(friendlyError(e)); }
+    DASHBOARD_METRICS_STATE.rfq = "success";
+  }catch(e){
+    DASHBOARD_METRICS_STATE.rfq = "error";
+    DASHBOARD_METRICS_STATE.errors.rfq = friendlyError(e);
+    toast(DASHBOARD_METRICS_STATE.errors.rfq);
+  }finally{
+    updateDashboard();
+  }
 }
 function renderRfq(){
   document.getElementById("nRfq").textContent = RFQS.length;
@@ -2402,7 +2405,15 @@ function fmtOffer(o){
 function applyHash(){
   const h = location.hash;
   if(!h) return;
+  if(h === "#register" && !USER){ authView("register"); return; }
   if(h === "#inbox") showPanel(COMPANY ? "rfq" : "b-requests");
+  else if(h === "#notifications"){
+    showPanel(COMPANY ? "dashboard" : "b-favorites");
+    setTimeout(()=>{
+      const modal=document.getElementById("portalNotificationModal");
+      if(modal&&!modal.classList.contains("open"))togglePortalNotifications();
+    },0);
+  }
   else if(h === "#settings" || h === "#profile") showPanel(COMPANY ? "profile" : "b-profile");
   else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
   else if(h === "#opportunities" && COMPANY) showPanel("opps");
@@ -2594,6 +2605,11 @@ async function runBuyerAiAssistant(){
 /* ---------------- misc ---------------- */
 /* ---------------- opportunities (match engine) ---------------- */
 let OPP_ROWS = [];
+let DASHBOARD_METRICS_STATE = {
+  opportunities:"loading",
+  rfq:"loading",
+  errors:{opportunities:null,rfq:null}
+};
 
 /* ---------------- Universal Tender Import ---------------- */
 let TENDER_IMPORT_ROWS = [];
@@ -3087,12 +3103,12 @@ async function loadMatchProfile(){
       document.getElementById("mp-minscore").value  = p.min_match_score ?? 60;
       document.getElementById("mp-oem").checked     = !!p.oem_available;
       document.getElementById("mp-pl").checked      = !!p.private_label_available;
-      loadOpportunities();
     }else{
       // sensible defaults from the company profile
       document.getElementById("mp-certs").value = COMPANY.certifications || "";
     }
-  }catch(e){ /* table may be empty on first visit */ }
+  }catch(e){ /* Profile setup is optional; opportunity metrics still load below. */ }
+  await loadOpportunities();
 }
 
 async function saveMatchProfile(){
@@ -3141,6 +3157,9 @@ async function findMatches(){
 async function loadOpportunities(){
   if(!COMPANY) return;
   const list = document.getElementById("oppList");
+  DASHBOARD_METRICS_STATE.opportunities = "loading";
+  DASHBOARD_METRICS_STATE.errors.opportunities = null;
+  updateDashboard();
   try{
     OPP_ROWS = await db(
       "opportunity_matches?select=*,tenders(*),distributor_candidates(*)" +
@@ -3148,10 +3167,14 @@ async function loadOpportunities(){
       "&status=neq.dismissed&order=match_score.desc,generated_at.desc&limit=50"
     ) || [];
     document.getElementById("nOpps").textContent = OPP_ROWS.length;
+    DASHBOARD_METRICS_STATE.opportunities = "success";
     renderOppList();
     updateDashboard();
   }catch(e){
-    list.innerHTML = '<div class="card pad" style="color:var(--ink-soft)">' + esc(friendlyError(e)) + '</div>';
+    DASHBOARD_METRICS_STATE.opportunities = "error";
+    DASHBOARD_METRICS_STATE.errors.opportunities = friendlyError(e);
+    list.innerHTML = '<div class="card pad" role="alert" style="color:var(--danger)">' + esc(DASHBOARD_METRICS_STATE.errors.opportunities) + '</div>';
+    updateDashboard();
   }
 }
 
@@ -3966,17 +3989,34 @@ function fillCountryFilter(){
 }
 
 function updateDashboard(){
+  const oppReady = DASHBOARD_METRICS_STATE.opportunities === "success";
+  const rfqReady = DASHBOARD_METRICS_STATE.rfq === "success";
+  const hasError = DASHBOARD_METRICS_STATE.opportunities === "error" || DASHBOARD_METRICS_STATE.rfq === "error";
   const total = OPP_ROWS.length;
   const high = OPP_ROWS.filter(m => (m.match_score ?? 0) >= 80).length;
   const tenders = OPP_ROWS.filter(m => m.opportunity_type === "tender").length;
   const put = (id, v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
-  put("mTotal", total); put("mHigh", high); put("mTenders", tenders);
-  put("mRfq", (RFQS || []).length);
+  put("mTotal", oppReady ? total : "—");
+  put("mHigh", oppReady ? high : "—");
+  put("mTenders", oppReady ? tenders : "—");
+  put("mRfq", rfqReady ? (RFQS || []).length : "—");
+  const status = document.getElementById("dashboardMetricsStatus");
+  if(status){
+    status.className = "dashboard-metrics-status " + (hasError ? "error" : (oppReady&&rfqReady ? "success" : "loading"));
+    status.setAttribute("role", hasError ? "alert" : "status");
+    status.textContent = hasError
+      ? "Dashboard metrics are unavailable. Your data was not changed."
+      : (oppReady&&rfqReady ? "Dashboard metrics loaded." : "Loading dashboard metrics…");
+  }
   const top = document.getElementById("dashboardOpportunities");
   if(top){
-    top.innerHTML = OPP_ROWS.length
-      ? OPP_ROWS.slice(0, 3).map(m => renderOppCard(m, true)).join("")
-      : '<div class="opp-empty"><div class="icon">🎯</div><b>No opportunities yet</b><p>Set up your matching profile in the Opportunities tab and click Find matches.</p><button class="btn btn-grad" onclick="showPanel(\'opps\')">Set up matching →</button></div>';
+    top.innerHTML = DASHBOARD_METRICS_STATE.opportunities === "loading"
+      ? '<div class="loading" role="status">Loading matches…</div>'
+      : DASHBOARD_METRICS_STATE.opportunities === "error"
+        ? '<div class="opp-empty" role="alert"><b>Opportunities unavailable</b><p>We could not load this metric. Try again or contact MedicHall support.</p></div>'
+        : OPP_ROWS.length
+          ? OPP_ROWS.slice(0, 3).map(m => renderOppCard(m, true)).join("")
+          : '<div class="opp-empty"><div class="icon">🎯</div><b>No opportunities yet</b><p>Set up your matching profile in the Opportunities tab and click Find matches.</p><button class="btn btn-grad" onclick="showPanel(\'opps\')">Set up matching →</button></div>';
   }
   updateReadiness();
 }
@@ -4011,29 +4051,17 @@ function updateReadiness(){
 let REFRESHING = null;
 async function refreshSession(){
   if(REFRESHING) return REFRESHING;
-  REFRESHING = (async()=>{
-    const rt = localStorage.getItem("mh_p_refresh");
-    if(!rt) return false;
-    try{
-      const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
-        method:"POST",
-        headers:{ "apikey": SUPABASE_ANON_KEY, "Content-Type":"application/json" },
-        body: JSON.stringify({ refresh_token: rt })
-      });
-      const d = await res.json().catch(()=>({}));
-      if(!res.ok || !d.access_token) return false;
-      TOKEN = d.access_token;
-      localStorage.setItem("mh_p_token", TOKEN);
-      if(d.refresh_token) localStorage.setItem("mh_p_refresh", d.refresh_token);
-      return true;
-    }catch(_){ return false; }
-    finally{ setTimeout(()=>{ REFRESHING = null; }, 500); }
-  })();
+  REFRESHING = AUTH_SESSION.refresh()
+    .then(refreshed=>{
+      TOKEN = AUTH_SESSION.accessToken();
+      return refreshed;
+    })
+    .finally(()=>{ REFRESHING = null; });
   return REFRESHING;
 }
 function sessionExpired(){
   toast("Session expired — please sign in again");
-  localStorage.removeItem("mh_p_token"); localStorage.removeItem("mh_p_refresh");
+  AUTH_SESSION.clear();
   setTimeout(()=>location.reload(), 1400);
 }
 
@@ -4901,10 +4929,13 @@ function updateMmBadge(){
 function updatePortalNotificationBadge(){
   const count=Number(PN.data&&PN.data.badge_count||0);
   const badge=document.getElementById("portalNotificationBadge");
+  const bell=document.getElementById("portalNotificationBell");
   if(badge){
     badge.textContent=mmUtils.badgeLabel(count);
     badge.style.display=count?"block":"none";
+    badge.setAttribute("aria-hidden","true");
   }
+  if(bell)bell.setAttribute("aria-label",count?"Notifications, "+count+" updates":"Notifications");
   renderPortalWorkSummary();
 }
 function startPortalNotificationTimer(){
@@ -4951,7 +4982,10 @@ function setPortalNotificationFilter(filter){PN.filter=filter;renderPortalNotifi
 async function togglePortalNotifications(){
   const modal=document.getElementById("portalNotificationModal");
   if(modal.classList.contains("open")){closePortalNotifications();return;}
-  document.getElementById("portalNotificationBell").setAttribute("aria-expanded","true");
+  const bell=document.getElementById("portalNotificationBell");
+  bell.setAttribute("aria-expanded","true");
+  globalThis.MedicHallNavigation?.positionNotificationPanel(modal,bell);
+  document.body.classList.add("mh-notification-open");
   mmOpenModal("portalNotificationModal",".modal-close");
   renderPortalNotifications();
   await loadPortalNotifications(true);
@@ -4959,7 +4993,14 @@ async function togglePortalNotifications(){
 function closePortalNotifications(){
   document.getElementById("portalNotificationBell")?.setAttribute("aria-expanded","false");
   mmCloseModal("portalNotificationModal");
+  document.body.classList.remove("mh-notification-open");
 }
+window.addEventListener("resize",()=>{
+  const modal=document.getElementById("portalNotificationModal");
+  if(modal?.classList.contains("open")){
+    globalThis.MedicHallNavigation?.positionNotificationPanel(modal,document.getElementById("portalNotificationBell"));
+  }
+});
 async function markPortalNotificationsRead(ids){
   await mmRpc("mark_portal_notifications_read",{p_notification_ids:ids||null});
   await loadPortalNotifications(true);
@@ -5563,7 +5604,8 @@ document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&TOKEN&&USER)loadPortalNotifications(true);
 });
 
-if(TOKEN) enterApp();
+if(AUTH_SESSION.hasStoredSession()) enterApp();
+else applyHash();
 </script>
 </body>
 </html>

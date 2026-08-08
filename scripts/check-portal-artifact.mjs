@@ -29,7 +29,10 @@ if (duplicateIds.length) {
 }
 
 const loginContracts = [
-  ["bounded authentication request", "async function fetchWithTimeout"],
+  ["canonical shared session", "globalThis.MedicHallSession.configure"],
+  ["bounded authentication request", "timeoutMs: AUTH_REQUEST_TIMEOUT_MS"],
+  ["shared password authentication", "await AUTH_SESSION.signIn"],
+  ["refresh-aware API requests", "await AUTH_SESSION.request"],
   ["bounded post-login initialization", "POST_LOGIN_TIMEOUT_MS"],
   ["awaited post-login flow", "await finishAuthenticatedEntry();"],
   ["post-login homepage fallback", "location.assign(target);"],

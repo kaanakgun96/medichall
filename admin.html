@@ -118,6 +118,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .loading{text-align:center;padding:50px;color:var(--ink-soft)}
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260802s2rc1">
+<script src="medichall-session.js?v=20260808auth1"></script>
 <script src="medichall-navigation.js?v=20260802s2rc1"></script>
 </head>
 <body>
@@ -141,6 +142,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 <!-- APP -->
 <div id="app">
   <div class="wrap">
+    <div class="msg err" id="adminAppError" role="alert" style="display:none;margin-bottom:14px"></div>
     <div class="tabs">
       <button class="tab active" data-panel="products" onclick="showPanel('products')">Products <span class="n" id="nProducts">0</span></button>
       <button class="tab" data-panel="rfq" onclick="showPanel('rfq')">RFQ Inbox <span class="n" id="nRfq">0</span></button>
@@ -345,21 +347,22 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 /* ---------------- config ---------------- */
 const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
+const AUTH_SESSION = globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
 
-let TOKEN = sessionStorage.getItem("mh_token") || null;
+sessionStorage.removeItem("mh_token");
+let TOKEN = AUTH_SESSION.accessToken();
 
 async function api(path, options={}, raw=false){
-  const res = await fetch(SUPABASE_URL + path, {
+  const res = await AUTH_SESSION.request(path, {
     ...options,
     headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": "Bearer " + (TOKEN || SUPABASE_ANON_KEY),
       "Content-Type": "application/json",
       ...(options.headers||{})
     }
   });
-  if(res.status===401){ logout(); throw new Error("Session expired"); }
-  if(!res.ok){ throw new Error("API " + res.status + ": " + await res.text()); }
+  TOKEN = AUTH_SESSION.accessToken();
+  if(res.status===401){ const error=new Error("Session expired");error.code="AUTH_SESSION_EXPIRED";throw error; }
+  if(!res.ok){ const error=new Error("API " + res.status);error.code=res.status===403?"ADMIN_PERMISSION":"ADMIN_API_ERROR";throw error; }
   if(raw || res.status===204) return null;
   const t = await res.text();
   return t ? JSON.parse(t) : null;
@@ -367,43 +370,65 @@ async function api(path, options={}, raw=false){
 const db = (p,o) => api("/rest/v1/" + p, o);
 
 /* ---------------- auth ---------------- */
+function adminLoginMessage(error){
+  if(error?.code === "AUTH_INVALID_CREDENTIALS") return "Invalid email or password.";
+  if(error?.code === "AUTH_EMAIL_UNCONFIRMED") return "Please confirm your email before logging in.";
+  if(error?.code === "ADMIN_UNAUTHORIZED") return "You do not have admin access.";
+  if(error?.code === "AUTH_SESSION_EXPIRED") return "Your session expired. Please log in again.";
+  if(error?.code === "AUTH_RATE_LIMITED") return "Too many login attempts. Please wait and try again.";
+  if(error?.code === "AUTH_NETWORK") return "Unable to reach the authentication service. Try again.";
+  if(error?.code === "AUTH_CONFIG_MISSING") return "Admin authentication is not configured.";
+  if(error?.code === "AUTH_MALFORMED_RESPONSE") return "The authentication service returned an invalid response.";
+  if(error?.code === "ADMIN_PERMISSION") return "Admin authorization could not be verified because database access was denied.";
+  return "Admin login could not be completed because of a technical error.";
+}
+function showAdminLoginError(error){
+  const err=document.getElementById("loginErr");
+  err.textContent=adminLoginMessage(error);err.style.display="block";
+  document.getElementById("app").style.display="none";
+  document.getElementById("headActions").style.display="none";
+  document.getElementById("loginShell").style.display="grid";
+}
+async function checkAdminAccess(){
+  const allowed=await api("/rest/v1/rpc/is_admin",{method:"POST",body:"{}"});
+  if(allowed!==true){const error=new Error("Admin access denied");error.code="ADMIN_UNAUTHORIZED";throw error;}
+}
 async function login(){
   const btn = document.getElementById("loginBtn");
   const err = document.getElementById("loginErr");
   err.style.display = "none";
   btn.disabled = true; btn.textContent = "Logging in…";
   try{
-    const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
-      method:"POST",
-      headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
-      body: JSON.stringify({
-        email: document.getElementById("email").value.trim(),
-        password: document.getElementById("password").value
-      })
+    await AUTH_SESSION.signIn({
+      email:document.getElementById("email").value,
+      password:document.getElementById("password").value,
+      timeoutMs:15000
     });
-    if(!res.ok) throw new Error("bad credentials");
-    const data = await res.json();
-    TOKEN = data.access_token;
-    sessionStorage.setItem("mh_token", TOKEN);
-    enterApp();
+    TOKEN = AUTH_SESSION.accessToken();
+    await enterApp();
   }catch(e){
-    err.style.display = "block";
+    showAdminLoginError(e);
   }finally{
     btn.disabled = false; btn.textContent = "Log in";
   }
 }
 function logout(){
   TOKEN = null;
-  sessionStorage.removeItem("mh_token");
+  AUTH_SESSION.clear();
   document.getElementById("app").style.display = "none";
   document.getElementById("headActions").style.display = "none";
   document.getElementById("loginShell").style.display = "grid";
+  document.querySelector("medichall-header")?.setAuthState(false);
 }
-function enterApp(){
+async function enterApp(){
+  await AUTH_SESSION.getUser();
+  TOKEN=AUTH_SESSION.accessToken();
+  await checkAdminAccess();
   document.getElementById("loginShell").style.display = "none";
   document.getElementById("app").style.display = "block";
   document.getElementById("headActions").style.display = "flex";
-  loadAll();
+  document.querySelector("medichall-header")?.setAuthState(true);
+  await loadAll().catch(()=>{});
 }
 document.getElementById("password").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
 
@@ -413,6 +438,8 @@ const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g
 function friendlyError(e){
   const m = (e && e.message) ? e.message : "";
   console.error("MedicHall admin error:", m);
+  if(e?.code === "ADMIN_PERMISSION")
+    return "Admin data access was denied. Your login succeeded, but database authorization failed.";
   if(m.includes("row-level security") || m.includes("42501"))
     return "Permission error: run supabase-admin-setup.sql in the SQL Editor, then try again.";
   if(m.includes("duplicate") || m.includes("23505"))
@@ -435,6 +462,8 @@ function showPanel(name){
 
 /* ---------------- load ---------------- */
 async function loadAll(){
+  const appError=document.getElementById("adminAppError");
+  appError.style.display="none";
   try{
     [PRODUCTS, PARTNERS, RFQS, COMPANIES, BANNERS] = await Promise.all([
       db("products?select=*&order=ref"),
@@ -445,8 +474,10 @@ async function loadAll(){
     ]);
     renderProducts(); renderPartners(); renderRfq(); renderCompanies(); renderBanners();
   }catch(e){
-    toast("Could not load data — check your connection");
-    console.error(e);
+    const message=friendlyError(e);
+    appError.textContent=message;appError.style.display="block";
+    toast("Could not load admin data");
+    throw e;
   }
 }
 
@@ -1075,8 +1106,8 @@ async function deleteBanner(id){
 function closeModals(){ document.querySelectorAll(".modal-backdrop").forEach(m=>m.classList.remove("open")); }
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
 
-/* auto-login if session token exists */
-if(TOKEN) enterApp();
+/* Resume the canonical portal session, then re-check admin authorization. */
+if(AUTH_SESSION.hasStoredSession()) enterApp().catch(showAdminLoginError);
 </script>
 </body>
 </html>

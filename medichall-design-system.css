@@ -324,6 +324,56 @@ medichall-header { display: block; position: sticky; top: 0; z-index: 90; }
   background: var(--mist);
 }
 .mh-menu-button { display: none; }
+.mh-mobile-nav-actions { display: none; }
+.mh-mobile-nav-actions button {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+}
+.mh-mobile-nav-actions button:hover { color: var(--teal-dark); background: var(--mist); }
+
+/* Canonical notification popover / mobile sheet. */
+.modal-backdrop.mh-notification-backdrop {
+  display: none;
+  padding: 0;
+  place-items: initial;
+  background: transparent;
+  backdrop-filter: none;
+}
+.modal-backdrop.mh-notification-backdrop.open { display: block; }
+.modal.mh-notification-panel {
+  width: min(430px, calc(100vw - 24px));
+  max-width: none;
+  max-height: min(640px, calc(100dvh - var(--mh-notification-top, 80px) - 12px));
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: var(--mh-notification-top, 80px);
+  right: var(--mh-notification-right, 16px);
+  margin: 0;
+  padding: 22px 20px 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 62, 82, 0.2);
+}
+.mh-notification-panel h3 { flex: 0 0 auto; margin: 0 42px 3px 0; }
+.mh-notification-panel .mm-dialog-sub,
+.mh-notification-panel .dialog-sub,
+.mh-notification-panel .portal-notification-toolbar,
+.mh-notification-panel .notification-toolbar { flex: 0 0 auto; }
+.mh-notification-panel #portalNotificationList,
+.mh-notification-panel #notificationList { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+body.mh-notification-open { overflow: hidden; }
 
 /* Buttons: primary, secondary, ghost, danger, success, size and state variants. */
 .button, .btn, .btn-danger {
@@ -657,12 +707,21 @@ tbody tr:last-child td { border-bottom: 0; }
     border-radius: var(--radius);
     background: #fff;
     box-shadow: var(--shadow);
+    max-height: calc(100dvh - 88px);
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   .mh-primary-nav.is-open { display: grid; animation: mh-popover-in 150ms ease-out; }
   .mh-primary-nav a { width: 100%; justify-content: flex-start; }
   .mh-menu-button { display: inline-grid; }
-  .mh-header__dynamic { display: none; }
-  .mh-header__dynamic.is-authenticated { display: flex; }
+  .mh-header__dynamic, .mh-header__dynamic.is-authenticated { display: none !important; }
+  .mh-mobile-nav-actions:not([hidden]) {
+    display: grid;
+    gap: 2px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 680px) {
@@ -698,6 +757,22 @@ tbody tr:last-child td { border-bottom: 0; }
   .button, .btn, .btn-danger { min-height: 40px; }
   .modal-backdrop, .dialog-backdrop { padding: 10px; align-items: end; }
   .modal, .cpv-dialog, .save-dialog { width: 100%; max-width: 100%; max-height: calc(100vh - 20px); border-radius: 18px 18px 0 0; }
+  .modal-backdrop.mh-notification-backdrop {
+    align-items: flex-end;
+    padding: 0;
+    background: rgba(0, 36, 49, 0.35);
+  }
+  .modal-backdrop.mh-notification-backdrop.open { display: flex; }
+  .modal.mh-notification-panel {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    position: relative;
+    inset: auto;
+    margin: 0;
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 18px 18px 0 0;
+  }
   .table-wrap table.responsive-table thead { display: none; }
   .table-wrap table.responsive-table, .table-wrap table.responsive-table tbody, .table-wrap table.responsive-table tr, .table-wrap table.responsive-table td { display: block; width: 100%; }
   .table-wrap table.responsive-table tr { padding: 10px; border-bottom: 1px solid var(--line); }

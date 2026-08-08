@@ -236,7 +236,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.6rem,3vw,2.
 
 /* ---------- partners ---------- */
 .partner-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-@media(max-width:900px){.partner-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.partner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.partner{min-width:0;padding:18px}}
 .partner{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:22px;display:flex;flex-direction:column;gap:10px;transition:all .2s}
 .partner:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 12px 28px rgba(11,95,91,.1)}
 .partner-logo{width:46px;height:46px;border-radius:11px;background:linear-gradient(135deg,#6CCCB9,#4298CC);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:700;font-size:1.1rem}
@@ -457,6 +457,7 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
 }
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260802s2rc1">
+<script src="medichall-session.js?v=20260808auth1"></script>
 <script src="medichall-navigation.js?v=20260802s2rc1"></script>
 </head>
 <body>
