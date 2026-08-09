@@ -1584,6 +1584,8 @@ async function getUser(){
   USER = await AUTH_SESSION.getUser();
 }
 function logout(){
+  if(PORTAL_ACTIVITY_TIMER) clearInterval(PORTAL_ACTIVITY_TIMER);
+  PORTAL_ACTIVITY_TIMER = null;
   TOKEN = null; USER = null; COMPANY = null;
   if(window.__tenderImportTimer){
     clearInterval(window.__tenderImportTimer);
@@ -1845,6 +1847,28 @@ function hideAllViews(){
   });
 }
 function setBadge(t){ const b = document.querySelector("medichall-header .mh-brand__context"); if(b) b.textContent = t; }
+let PORTAL_ACTIVITY_TIMER = null;
+function portalActivityRoute(){
+  const page = location.pathname.split("/").pop() || "portal.html";
+  const safeHash = (location.hash.match(/^#[a-z0-9_-]+/i) || [""])[0];
+  return (page + safeHash).slice(0, 160);
+}
+async function recordPortalActivity(){
+  if(!TOKEN || !USER) return;
+  try{
+    await db("rpc/record_user_activity_v1",{
+      method:"POST",
+      body:JSON.stringify({p_route:portalActivityRoute()})
+    });
+  }catch(_error){
+    // Activity telemetry is best-effort and must never block portal use.
+  }
+}
+function startPortalActivityHeartbeat(){
+  if(PORTAL_ACTIVITY_TIMER) clearInterval(PORTAL_ACTIVITY_TIMER);
+  recordPortalActivity();
+  PORTAL_ACTIVITY_TIMER = setInterval(recordPortalActivity, 5 * 60 * 1000);
+}
 async function enterApp(){
   document.getElementById("authShell").style.display = "none";
   document.getElementById("app").style.display = "block";
@@ -1870,6 +1894,7 @@ async function enterApp(){
     }
     return;
   }
+  startPortalActivityHeartbeat();
   document.querySelector("medichall-header")?.setAuthState(true);
   const marketplaceReturn = marketplaceReturnUrl();
   if(LOGIN_REDIRECT || marketplaceReturn){
@@ -5985,6 +6010,7 @@ window.addEventListener("hashchange",()=>{MM.handledHash=null;applyHash();});
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&MM.loaded)loadMatchmakingWorkspace(true);
   if(!document.hidden&&TOKEN&&USER)loadPortalNotifications(true);
+  if(!document.hidden&&TOKEN&&USER)recordPortalActivity();
 });
 
 if(AUTH_SESSION.hasStoredSession()) enterApp();
