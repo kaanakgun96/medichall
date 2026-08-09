@@ -142,6 +142,36 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .dp-table summary{cursor:pointer;color:var(--teal)}
 .dp-missing{margin-top:12px;font-size:.8rem;background:#FFF6E5;border:1.5px solid #F1D48A;border-radius:10px;padding:10px 14px}
 .dp-missing b{display:block;margin-bottom:4px}
+.opp-intel-status{display:inline-flex;align-items:center;border:1px solid rgba(255,255,255,.35);border-radius:100px;padding:4px 9px;font:700 .65rem var(--mono);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px}
+.opp-intel-note{font-size:.7rem;opacity:.78;max-width:420px;margin-top:5px;line-height:1.45}
+.opp-intel-components{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.opp-intel-component{border:1.5px solid var(--line);border-radius:10px;padding:10px;background:#fff;min-width:0}
+.opp-intel-component b{display:flex;justify-content:space-between;gap:7px;font-size:.73rem}
+.opp-intel-component p{font-size:.68rem;color:var(--ink-soft);line-height:1.45;margin-top:4px;overflow-wrap:anywhere}
+.opp-intel-component.supported{border-color:#A9DECF;background:#F3FBF8}
+.opp-intel-component.risk{border-color:#F1D48A;background:#FFF9EB}
+.opp-intel-component.unknown{border-style:dashed}
+.tender-ask{margin-top:22px;border:1.5px solid #A9D4EA;border-radius:14px;padding:17px;background:linear-gradient(145deg,#F7FCFF,#fff)}
+.tender-ask-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.tender-ask-head h3{font-size:1.02rem;margin:0}
+.tender-ask-head p{font-size:.76rem;color:var(--ink-soft);margin-top:3px;max-width:720px}
+.tender-ask-label{font:700 .62rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.tender-ask-chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 9px}
+.tender-ask-chip{border:1px solid var(--line);background:#fff;border-radius:100px;padding:6px 10px;font-size:.7rem;font-weight:600;color:var(--ink)}
+.tender-ask-chip:hover{border-color:var(--teal);color:var(--teal-deep)}
+.tender-ask-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.tender-ask-form textarea{min-height:76px;resize:vertical}
+.tender-ask-form .btn{align-self:stretch;min-width:150px}
+.tender-ask-result{margin-top:13px}
+.tender-ask-answer{border-left:3px solid var(--teal);padding:10px 12px;background:#fff;border-radius:0 9px 9px 0;font-size:.8rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.tender-ask-uncertainty{margin-top:8px;background:#FFF9EB;border:1px solid #F1D48A;border-radius:9px;padding:9px 11px;font-size:.72rem;color:#6E5700}
+.tender-ask-citations{display:grid;gap:7px;margin-top:10px}
+.tender-ask-citation{border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:#fff}
+.tender-ask-citation b{display:block;font-size:.7rem}
+.tender-ask-citation p{font-size:.68rem;color:var(--ink-soft);margin-top:3px;line-height:1.45;overflow-wrap:anywhere}
+.tender-ask-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;font:600 .62rem var(--mono);color:var(--ink-soft)}
+@media(max-width:760px){.opp-intel-components{grid-template-columns:1fr 1fr}.tender-ask-form{grid-template-columns:1fr}.tender-ask-form .btn{min-height:44px}}
+@media(max-width:480px){.opp-intel-components{grid-template-columns:1fr}.tender-ask{padding:14px}}
 
 /* lot-level tender matching */
 .lot-match-section{margin-top:22px;padding-top:20px;border-top:2px solid var(--line)}
@@ -393,7 +423,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .dtl-h{font-family:var(--mono);font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin:16px 0 6px}
 
 /* ---------- opportunity verdict + product detail ---------- */
-.op-card{display:flex;gap:22px;align-items:center;background:linear-gradient(115deg,#003E52,#17637C);border-radius:14px;padding:18px 22px;color:#fff;margin:10px 0 14px;flex-wrap:wrap}
+.deep-panel .op-card{display:flex;gap:22px;align-items:center;background:linear-gradient(115deg,#003E52,#17637C);border-radius:14px;padding:18px 22px;color:#fff;margin:10px 0 14px;flex-wrap:wrap}
 .op-big{font-family:var(--mono);font-weight:700;font-size:2.1rem;line-height:1}
 .op-big small{font-size:.9rem;opacity:.7;font-weight:400}
 .op-verdict{font-size:.95rem;font-weight:700}
@@ -523,6 +553,10 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .mm-driver{background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}
 .mm-driver b{display:flex;justify-content:space-between;gap:6px;font-size:.72rem}
 .mm-driver p{font-size:.66rem;color:var(--ink-soft);line-height:1.4;margin-top:2px}
+.mm-driver.supported{border-color:#A9DECF;background:#F3FBF8}
+.mm-driver.risk{border-color:#F1D48A;background:#FFF9EB}
+.mm-driver.unknown{border-style:dashed;background:#fff}
+.mm-evidence-note{border:1px dashed var(--line);border-radius:9px;padding:9px 10px;font-size:.7rem;color:var(--ink-soft);margin:9px 0;background:#fff}
 .mm-risk-list{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .mm-risk{background:#FFF6E5;border:1px solid #F1D48A;color:#6E5700;border-radius:100px;padding:3px 9px;font-size:.68rem}
 .mm-confidence{font-size:.69rem;color:var(--ink-soft);border-left:3px solid var(--teal);padding-left:9px;margin:8px 0}
@@ -3252,7 +3286,7 @@ function renderOppCard(m, compact){
     + '</div>'
     + (reasons.length ? '<div class="opp-reasons">' + reasons.map(r=>'<span class="opp-reason">✔ ' + esc(String(r)) + '</span>').join("") + '</div>' : "")
     + '<div class="opp-actions">'
-    +   '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">🤖 Analyze with AI</button>'
+    +   (isTender ? '<button class="btn btn-grad" onclick="openTenderAsk(' + m.id + ')">Ask MedicHall about this tender</button>' : '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">Draft partner outreach</button>')
     +   (isTender && t.source === 'TED' ? '<button class="btn btn-solid" onclick="deepAnalyze(' + m.id + ')">📑 Deep analysis</button>' : "")
     +   (isTender ? '<button class="btn btn-solid" aria-label="View lot-level match analysis for ' + esc(title) + '" onclick="openLotAnalysis(' + m.id + ',' + Number(t.id) + ')">View lot analysis</button>' : "")
     +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener" onclick="markOpportunityViewed(' + m.id + ')">Open source ↗</a>' : "")
@@ -4429,15 +4463,130 @@ async function deepAnalyze(matchId){
 const DEEP_CACHE = {};
 
 async function renderDeepResult(matchId, tenderId){
-  const [rows, mrows] = await Promise.all([
+  const [rows, mrows, intelligence] = await Promise.all([
     db("tenders?select=document_analysis_status,document_confidence_score,data_completeness_score,analyzed_document_count,extracted_products,missing_information,procurement_documents_url,document_analysis_notes,ai_lots&id=eq." + tenderId),
-    db("opportunity_matches?select=fit_narrative,keyword_score,geography_score,category_score&id=eq." + matchId)
+    db("opportunity_matches?select=fit_narrative,keyword_score,geography_score,category_score&id=eq." + matchId),
+    db("rpc/get_tender_opportunity_intelligence_v1", {
+      method:"POST",
+      body:JSON.stringify({p_company_id:COMPANY.id,p_tender_id:Number(tenderId)})
+    }).catch(()=>null)
   ]);
   const t = rows && rows[0];
   if(!t) return;
   t._match = (mrows && mrows[0]) || {};
+  t._intelligence = intelligence && typeof intelligence === "object" ? intelligence : null;
   DEEP_CACHE[matchId] = { base: t, en: null, showing: "orig", busy: false };
   paintDeepResult(matchId);
+}
+
+function tenderIntelligenceComponents(intelligence){
+  const raw = intelligence && intelligence.components;
+  if(Array.isArray(raw)) return raw.map((item,index)=>({
+    key:String((item&&item.key)||"component_"+index),
+    label:String((item&&item.label)||"Evidence component"),
+    score:item&&item.score!=null?Number(item.score):null,
+    source:String((item&&(item.reason||item.source))||"No explicit supporting evidence is available."),
+    evidence_status:String((item&&item.evidence_status)||(item&&item.score!=null?"supported":"unknown"))
+  }));
+  if(!raw || typeof raw!=="object") return [];
+  return Object.entries(raw).map(([key,value])=>{
+    const item=value&&typeof value==="object"?value:{};
+    const score=item.score!=null&&Number.isFinite(Number(item.score))?Number(item.score):null;
+    return {
+      key,
+      label:key.replace(/_/g," ").replace(/\b\w/g,letter=>letter.toUpperCase()),
+      score,
+      source:String(item.source||(score==null?"No comparable structured evidence is available.":"Deterministic structured comparison.")),
+      evidence_status:score==null?"unknown":(score<35?"risk":"supported")
+    };
+  });
+}
+
+function tenderStatusLabel(status){
+  return ({match:"MATCH",possible_match:"POSSIBLE MATCH",review_required:"REVIEW REQUIRED",not_supported:"NOT SUPPORTED"})[status]||"REVIEW REQUIRED";
+}
+
+const TENDER_ASK_STATE = {};
+
+function tenderAskHtml(matchId,tenderId,evidenceStatus){
+  const state=TENDER_ASK_STATE[matchId]||{};
+  const result=state.result||null;
+  const questions=[
+    "Which product lots appear relevant to our catalog?",
+    "What certification requirements must we verify?",
+    "Which quantities, deadlines or requirements are still unknown?"
+  ];
+  let resultHtml="";
+  if(state.error){
+    resultHtml='<div class="lot-match-notice error" role="alert">'+esc(state.error)+'</div>';
+  }else if(state.processing){
+    resultHtml='<div class="lot-match-notice">An identical question is already being processed. Reopen this tender shortly; resubmitting does not create a duplicate AI call.</div>';
+  }else if(result){
+    const citations=Array.isArray(result.citations)?result.citations:[];
+    resultHtml='<div class="tender-ask-answer">'+esc(result.answer||"")+'</div>'
+      +(result.uncertainty?'<div class="tender-ask-uncertainty"><b>What still needs verification</b><br>'+esc(result.uncertainty)+'</div>':"")
+      +(citations.length?'<div class="tender-ask-citations">'+citations.map(citation=>{
+        const meta=citation&&citation.meta&&typeof citation.meta==="object"?citation.meta:{};
+        const location=[meta.page_number?"Page "+meta.page_number:"",meta.sheet_name?"Sheet "+meta.sheet_name:"",meta.cell_range?"Cell "+meta.cell_range:""].filter(Boolean).join(" · ");
+        return '<article class="tender-ask-citation"><b>['+esc(citation.id||"evidence") + '] '+esc(citation.label||citation.kind||"Tender evidence")+'</b><p>'+esc(citation.excerpt||"")+'</p>'+(location?'<div class="tender-ask-meta"><span>'+esc(location)+'</span></div>':"")+'</article>';
+      }).join("")+'</div>':"")
+      +'<div class="tender-ask-meta"><span>'+(result.cached?"Cached answer · no new AI request":"New grounded answer")+'</span><span>'+citations.length+' cited source'+(citations.length===1?"":"s")+'</span></div>';
+  }
+  return '<section class="tender-ask" id="tenderAsk-'+matchId+'" aria-labelledby="tenderAskTitle-'+matchId+'">'
+    +'<div class="tender-ask-head"><div><div class="tender-ask-label">Evidence-grounded tender Q&amp;A</div><h3 id="tenderAskTitle-'+matchId+'">Ask MedicHall about this tender</h3><p>Answers are limited to this company, this tender and the cited stored evidence. MedicHall will state uncertainty instead of inventing missing facts.</p></div><span class="lot-badge '+(evidenceStatus==="available"?"strong":"unknown")+'">'+(evidenceStatus==="available"?"Document evidence available":"Evidence may be incomplete")+'</span></div>'
+    +'<div class="tender-ask-chips">'+questions.map((question,index)=>'<button class="tender-ask-chip" type="button" onclick="tenderAskPreset('+matchId+','+index+')">'+esc(question)+'</button>').join("")+'</div>'
+    +'<div class="tender-ask-form"><textarea id="tenderAskInput-'+matchId+'" maxlength="600" aria-label="Question about this tender" placeholder="Ask a specific question about products, lots, quantities, certifications, deadlines or evidence gaps…">'+esc(state.question||"")+'</textarea><button class="btn btn-grad" id="tenderAskButton-'+matchId+'" onclick="askTender('+matchId+','+Number(tenderId)+')" '+(state.busy?'disabled':'')+'>'+(state.busy?'Checking evidence…':'Get cited answer')+'</button></div>'
+    +'<div class="tender-ask-result" aria-live="polite">'+resultHtml+'</div>'
+    +'</section>';
+}
+
+function tenderAskPreset(matchId,index){
+  const questions=[
+    "Which product lots appear relevant to our catalog?",
+    "What certification requirements must we verify?",
+    "Which quantities, deadlines or requirements are still unknown?"
+  ];
+  const input=document.getElementById("tenderAskInput-"+matchId);
+  if(input){input.value=questions[index]||"";input.focus();}
+}
+
+function refreshTenderAsk(matchId,tenderId,evidenceStatus){
+  const host=document.getElementById("tenderAsk-"+matchId);
+  if(host) host.outerHTML=tenderAskHtml(matchId,tenderId,evidenceStatus);
+}
+
+async function askTender(matchId,tenderId){
+  const input=document.getElementById("tenderAskInput-"+matchId);
+  const question=String(input&&input.value||"").trim().slice(0,600);
+  if(question.length<3){toast("Enter a specific tender question.");if(input)input.focus();return;}
+  const intelligence=DEEP_CACHE[matchId]&&DEEP_CACHE[matchId].base._intelligence;
+  const evidenceStatus=intelligence&&intelligence.document_evidence_status;
+  TENDER_ASK_STATE[matchId]={question,busy:true,result:null,error:null,processing:false};
+  refreshTenderAsk(matchId,tenderId,evidenceStatus);
+  try{
+    const response=await edgeCall("tender-ask",{company_id:COMPANY.id,tender_id:Number(tenderId),question});
+    TENDER_ASK_STATE[matchId]={question,busy:false,result:response.status==="completed"?response:null,error:null,processing:response.status==="processing"};
+  }catch(error){
+    TENDER_ASK_STATE[matchId]={question,busy:false,result:null,error:friendlyError(error),processing:false};
+  }
+  refreshTenderAsk(matchId,tenderId,evidenceStatus);
+}
+
+async function openTenderAsk(matchId){
+  const match=OPP_ROWS.find(row=>row.id===matchId);
+  const tenderId=Number(match&&match.tenders&&match.tenders.id);
+  const panel=document.getElementById("deep-"+matchId);
+  if(!panel||!Number.isFinite(tenderId)) return;
+  markOpportunityViewed(matchId);
+  panel.classList.add("open");
+  if(!DEEP_CACHE[matchId]){
+    panel.innerHTML='<div id="dpResult-'+matchId+'"><div class="loading">Loading tender evidence and company-specific match signals…</div></div>';
+    try{await renderDeepResult(matchId,tenderId);}catch(error){panel.innerHTML='<div class="lot-match-notice error" role="alert">'+esc(friendlyError(error))+'</div>';return;}
+  }else{
+    paintDeepResult(matchId);
+  }
+  const ask=document.getElementById("tenderAsk-"+matchId);
+  if(ask){ask.scrollIntoView({behavior:"smooth",block:"center"});const input=document.getElementById("tenderAskInput-"+matchId);if(input)input.focus();}
 }
 
 function certStatusList(t){
@@ -4464,29 +4613,34 @@ function paintDeepResult(matchId){
   const om = OPP_ROWS.find(r => r.id === matchId) || {};
   const prods = Array.isArray(t.extracted_products) ? t.extracted_products : [];
   const lots = Array.isArray(t.ai_lots) ? t.ai_lots : [];
+  const intelligence = c.base._intelligence || null;
+  const components = tenderIntelligenceComponents(intelligence);
   const stars = s => { const n = Math.max(0, Math.min(5, Math.round((s||0)/20))); return "★".repeat(n) + "☆".repeat(5-n); };
   const evTotal = prods.reduce((a,p)=>a + ((p.evidence||[]).length), 0);
 
-  // ---- 1) Büyük Opportunity Score kartı ----
-  const score = Math.max(0, Math.min(100, Number(om.match_score) || 0));
-  const verdict = score >= 80 ? ["🟢 Excellent match","Strong overlap with your profile — worth a serious look."]
-              : score >= 60 ? ["🟡 Good match","Relevant, but review the gaps below before committing."]
-              : ["⚪ Low match","Limited overlap — probably not worth your time."];
+  // Deterministic status: incomplete evidence never becomes a positive claim.
+  const score = Math.max(0, Math.min(100, Number(intelligence&&intelligence.overall_score!=null?intelligence.overall_score:om.match_score) || 0));
+  const status = intelligence&&intelligence.status ? intelligence.status : (score>=60?"possible_match":score>=35?"review_required":"not_supported");
+  const verdict = [tenderStatusLabel(status),String((intelligence&&intelligence.summary)||"Review the structured evidence and unknowns before acting.")];
   const certs = certStatusList(c.base);
-  const certPct = certs.length ? Math.round(100 * certs.filter(x=>x.ok).length / certs.length) : null;
-  const minis = [
-    ["Product", om.keyword_score],
-    ["Country", om.geography_score],
-    ["CPV", om.category_score],
-    ["Certificates", certPct]
-  ];
+  const preferredKeys=["exact_product","normalized_text","cpv","country","certification"];
+  const minis=preferredKeys.map(key=>components.find(item=>item.key===key)).filter(Boolean).slice(0,4);
+  if(!minis.length){
+    minis.push({label:"Product",score:om.keyword_score},{label:"Country",score:om.geography_score},{label:"CPV",score:om.category_score},{label:"Certificates",score:certs.length?Math.round(100*certs.filter(x=>x.ok).length/certs.length):null});
+  }
   let html = '<div class="op-card">'
     + '<div><div class="op-big">' + score + '<small> /100</small></div></div>'
-    + '<div class="op-verdict">' + verdict[0] + '<span>' + verdict[1] + '</span></div>'
+    + '<div class="op-verdict"><span class="opp-intel-status">' + esc(verdict[0]) + '</span><span>' + esc(verdict[1]) + '</span><p class="opp-intel-note">Score signals are decision support, not proof of eligibility. Unknown fields contribute no positive evidence.</p></div>'
     + '<div class="mini-grid">' + minis.map(x =>
-        '<div class="mini"><b>' + (x[1] != null ? Math.max(0,Math.min(100,Number(x[1])||0)) + '%' : '—') + '</b><span>' + x[0] + '</span></div>'
+        '<div class="mini"><b>' + (x.score != null ? Math.max(0,Math.min(100,Number(x.score)||0)) + '%' : '—') + '</b><span>' + esc(x.label) + '</span></div>'
       ).join('') + '</div>'
     + '</div>';
+
+  if(components.length){
+    html += '<div class="dtl-h">Why this status</div><div class="opp-intel-components">'
+      + components.map(component=>'<article class="opp-intel-component '+esc(component.evidence_status)+'"><b><span>'+esc(component.label)+'</span><span>'+(component.score==null?'Unknown':Math.max(0,Math.min(100,component.score))+'%')+'</span></b><p>'+esc(component.source)+'</p></article>').join("")
+      + '</div>';
+  }
 
   // ---- 3) AI Confidence + kanıt sayısı ----
   html += '<div class="dp-scores">'
@@ -4602,9 +4756,10 @@ function paintDeepResult(matchId){
   html += '<div class="dtl-h">Recommended next actions</div><div class="next-actions">'
     + '<div class="na">📄 Review the official tender documents' + (c.base.procurement_documents_url ? ' <a class="btn btn-solid na-btn" style="font-size:.74rem;padding:5px 10px" href="' + esc(c.base.procurement_documents_url) + '" target="_blank" rel="noopener">Open ↗</a>' : '') + '</div>'
     + '<div class="na">📋 Verify the 🟡 items above before quoting</div>'
-    + '<div class="na">🤖 Ask MedicHall AI for a risk review <button class="btn btn-solid na-btn" style="font-size:.74rem;padding:5px 10px" onclick="analyzeOpp(' + matchId + ')">Analyze</button></div>'
+    + '<div class="na">Ask one evidence-grounded question about this tender <button class="btn btn-solid na-btn" style="font-size:.74rem;padding:5px 10px" onclick="document.getElementById(\'tenderAskInput-' + matchId + '\').focus()">Ask MedicHall</button></div>'
     + '<div class="na">💼 Prepare your commercial offer</div>'
-    + '</div>';
+    + '</div>'
+    + tenderAskHtml(matchId,Number(om.tenders&&om.tenders.id),intelligence&&intelligence.document_evidence_status);
 
   const target = document.getElementById("dpResult-" + matchId);
   if(target){
@@ -5322,6 +5477,7 @@ function mmFilter(key,value){MM.filters[key]=value;const content=document.getEle
 function mmMatchCard(match){
   const target=match.target||{},explanation=match.explanation||{};
   const drivers=mmUtils.array(explanation.top_reasons);
+  const components=mmUtils.array(explanation.components);
   const risks=Object.values(explanation.risk_signals||{}).filter(Boolean);
   const connection=match.connection;
   const status=connection?connection.status:match.status;
@@ -5332,7 +5488,8 @@ function mmMatchCard(match){
   else primary='<button class="btn btn-grad btn-sm" onclick="openMmConnectionRequest(\''+mmEsc(target.id)+'\')">Request connection</button>';
   return '<article class="mm-match-card '+(match.status==="saved"?"saved":"")+'"><div class="mm-card-top"><div><div class="mm-kicker">'+mmEsc(target.role||"partner")+'</div><div class="mm-company-name">'+mmEsc(target.display_name||"Unnamed company")+'</div><div class="mm-meta">'+mmEsc(target.country||"Country not specified")+(target.company_size?" · "+mmEsc(target.company_size):"")+' · <span class="mm-status '+mmEsc(status)+'">'+mmEsc(mmUtils.statusLabel(status))+'</span></div></div><div class="mm-score" style="--mm-score:'+Number(match.match_score||0)+'"><b>'+Number(match.match_score||0)+'%</b></div></div>'+
     '<p class="mm-summary">'+mmEsc(explanation.summary||"Review the structured compatibility evidence below.")+'</p>'+
-    '<div class="mm-driver-grid">'+drivers.map(driver=>'<div class="mm-driver"><b><span>'+mmEsc(driver.label)+'</span><span>'+Number(driver.score||0)+'%</span></b><p>'+mmEsc(driver.reason)+' · '+Number(driver.weight_percent||0)+'% weight</p></div>').join("")+'</div>'+
+    (drivers.length?'<div class="mm-driver-grid">'+drivers.slice(0,3).map(driver=>'<div class="mm-driver supported"><b><span>'+mmEsc(driver.label)+'</span><span>'+Number(driver.score||0)+'%</span></b><p>'+mmEsc(driver.reason)+' · '+Number(driver.weight_percent||0)+'% weight</p></div>').join("")+'</div>':'<div class="mm-evidence-note">No supported positive drivers yet. This score is directional until both companies add explicit structured profile evidence.</div>')+
+    (components.length?'<details><summary class="mm-confidence">Review every score component</summary><div class="mm-driver-grid">'+components.map(component=>'<div class="mm-driver '+mmEsc(component.evidence_status||"unknown")+'"><b><span>'+mmEsc(component.label||"Evidence component")+'</span><span>'+(component.evidence_status==="unknown"?"Unknown":Number(component.score||0)+"%")+'</span></b><p>'+mmEsc(component.reason||"No explicit evidence is available.")+' · '+Number(component.weight_percent||0)+'% weight</p></div>').join("")+'</div></details>':"")+
     (risks.length?'<div class="mm-risk-list">'+risks.map(risk=>'<span class="mm-risk">Check: '+mmEsc(risk)+'</span>').join("")+'</div>':"")+
     '<p class="mm-confidence">'+mmEsc(explanation.confidence_note||match.confidence_level+" confidence based on available profile data.")+'</p>'+
     '<div class="mm-actions">'+primary+(match.status!=="saved"&&(!connection||connection.status!=="accepted")?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'saved\')">Save</button>':"")+(match.status==="saved"?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'viewed\')">Unsave</button>':"")+(!connection?'<button class="btn btn-ghost btn-sm" onclick="setMmMatchStatus('+Number(match.id)+',\'dismissed\')">Not interested</button>':"")+(website?'<a class="btn btn-ghost btn-sm" href="'+mmEsc(website)+'" target="_blank" rel="noopener noreferrer">Website ↗</a>':"")+'</div></article>';

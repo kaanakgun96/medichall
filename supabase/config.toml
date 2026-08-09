@@ -54,3 +54,9 @@ verify_jwt = false
 # x-cron-secret itself before claiming any internal notification outbox rows.
 [functions.company-admin-notification]
 verify_jwt = false
+
+# JWT verification happens in-function with auth.getUser. Every request is then
+# scoped to a company owned by that user and an existing tender opportunity;
+# provider calls, cached answers, and usage metadata remain server-side.
+[functions.tender-ask]
+verify_jwt = false
