@@ -625,6 +625,18 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 .portal-notification-source{font:600 .61rem var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
 .portal-notification-card p{font-size:.78rem;color:var(--ink-soft);margin:3px 0 5px}
 .portal-notification-card time{font:400 .62rem var(--mono);color:var(--ink-soft)}
+.portal-notification-settings-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#f8fbfc}
+.portal-notification-settings-toggle span{font-size:.75rem;color:var(--ink-soft)}
+.portal-notification-preferences{display:none;margin:0 0 14px;padding:14px;border:1.5px solid var(--line);border-radius:12px;background:#fff}
+.portal-notification-preferences.open{display:block}
+.portal-notification-preferences h4{margin:0 0 4px;color:var(--ink)}
+.portal-notification-preferences>p{font-size:.72rem;color:var(--ink-soft);margin:0 0 10px}
+.portal-notification-preference{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.portal-notification-preference input{width:17px;height:17px;margin-top:2px;accent-color:var(--teal)}
+.portal-notification-preference b{display:block;font-size:.75rem;color:var(--ink)}
+.portal-notification-preference span{display:block;font-size:.68rem;color:var(--ink-soft);margin-top:2px}
+.portal-notification-preference-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin-top:10px}
+.portal-notification-preference-status{font-size:.68rem;color:var(--ink-soft);margin-right:auto}
 .portal-work-summary{margin:14px 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
 .portal-work-item{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px;text-align:left;cursor:pointer}
 .portal-work-item strong{display:block;font:700 1.15rem var(--mono)}
@@ -1314,6 +1326,20 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
     <h3 id="portalNotificationTitle">Notifications</h3>
     <p class="mm-dialog-sub" id="portalNotificationSummary">Your work across meetings, connections, messages and quotation requests.</p>
     <div class="portal-notification-toolbar" id="portalNotificationFilters"></div>
+    <div class="portal-notification-settings-toggle">
+      <span>Choose which useful updates MedicHall also sends by email.</span>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="togglePortalNotificationPreferences()" aria-controls="portalNotificationPreferences" aria-expanded="false" id="portalNotificationPreferenceToggle">Email preferences</button>
+    </div>
+    <section class="portal-notification-preferences" id="portalNotificationPreferences" aria-label="Email notification preferences">
+      <h4>Email preferences</h4>
+      <p>Changes apply to new and queued emails. In-app notifications remain available here.</p>
+      <label class="portal-notification-preference"><input type="checkbox" id="pnPrefRfq"><span><b>RFQ and message alerts</b><span>Quotation requests and direct business messages.</span></span></label>
+      <label class="portal-notification-preference"><input type="checkbox" id="pnPrefTender"><span><b>Tender alerts</b><span>Relevant tender matches, import completion and deadline reminders.</span></span></label>
+      <label class="portal-notification-preference"><input type="checkbox" id="pnPrefMatchmaking"><span><b>Matchmaking alerts</b><span>Company matches and connection updates.</span></span></label>
+      <label class="portal-notification-preference"><input type="checkbox" id="pnPrefMeeting"><span><b>Meeting reminders</b><span>Proposals, confirmations and upcoming meeting reminders.</span></span></label>
+      <label class="portal-notification-preference"><input type="checkbox" id="pnPrefDigest"><span><b>Weekly digest</b><span>Your actual tender matches, company matches, RFQs and upcoming meetings.</span></span></label>
+      <div class="portal-notification-preference-actions"><span class="portal-notification-preference-status" id="pnPreferenceStatus"></span><button class="btn btn-solid btn-sm" id="pnPreferenceSave" type="button" onclick="savePortalNotificationPreferences()">Save preferences</button></div>
+    </section>
     <div id="portalNotificationList"><div class="loading">Loading notifications…</div></div>
   </div>
 </div>
@@ -5133,7 +5159,7 @@ let MM = {
 };
 let PN = {
   data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},
-  loading:false,filter:"all",timer:null
+  loading:false,filter:"all",timer:null,preferences:null,preferencesLoading:false
 };
 
 const mmUtils=globalThis.MatchmakingUtils;
@@ -5275,7 +5301,57 @@ async function togglePortalNotifications(){
   document.body.classList.add("mh-notification-open");
   mmOpenModal("portalNotificationModal",".modal-close");
   renderPortalNotifications();
-  await loadPortalNotifications(true);
+  await Promise.all([loadPortalNotifications(true),loadPortalNotificationPreferences(true)]);
+}
+function paintPortalNotificationPreferences(){
+  if(!PN.preferences)return;
+  const pairs=[
+    ["pnPrefRfq","immediate_rfq_message_enabled"],
+    ["pnPrefTender","tender_alerts_enabled"],
+    ["pnPrefMatchmaking","matchmaking_alerts_enabled"],
+    ["pnPrefMeeting","meeting_reminders_enabled"],
+    ["pnPrefDigest","weekly_digest_enabled"]
+  ];
+  pairs.forEach(([id,key])=>{const input=document.getElementById(id);if(input)input.checked=PN.preferences[key]!==false;});
+}
+async function loadPortalNotificationPreferences(silent=false){
+  if(PN.preferencesLoading||!TOKEN||!USER)return;
+  PN.preferencesLoading=true;
+  try{
+    PN.preferences=await mmRpc("get_user_notification_preferences");
+    paintPortalNotificationPreferences();
+  }catch(error){
+    if(!silent){const status=document.getElementById("pnPreferenceStatus");if(status)status.textContent=mmParseError(error);}
+  }finally{PN.preferencesLoading=false;}
+}
+function togglePortalNotificationPreferences(){
+  const panel=document.getElementById("portalNotificationPreferences");
+  const toggle=document.getElementById("portalNotificationPreferenceToggle");
+  if(!panel||!toggle)return;
+  const open=!panel.classList.contains("open");
+  panel.classList.toggle("open",open);
+  toggle.setAttribute("aria-expanded",String(open));
+  if(open)loadPortalNotificationPreferences(false);
+}
+async function savePortalNotificationPreferences(){
+  const button=document.getElementById("pnPreferenceSave");
+  const status=document.getElementById("pnPreferenceStatus");
+  mmSetBusy(button,true,"Saving…");
+  if(status)status.textContent="";
+  try{
+    PN.preferences=await mmRpc("update_user_notification_preferences",{
+      p_immediate_rfq_message_enabled:document.getElementById("pnPrefRfq").checked,
+      p_tender_alerts_enabled:document.getElementById("pnPrefTender").checked,
+      p_matchmaking_alerts_enabled:document.getElementById("pnPrefMatchmaking").checked,
+      p_meeting_reminders_enabled:document.getElementById("pnPrefMeeting").checked,
+      p_weekly_digest_enabled:document.getElementById("pnPrefDigest").checked,
+      p_timezone:mmTimezone()
+    });
+    paintPortalNotificationPreferences();
+    if(status)status.textContent="Preferences saved.";
+    toast("Email preferences saved ✓");
+  }catch(error){if(status)status.textContent=mmParseError(error);}
+  finally{mmSetBusy(button,false);}
 }
 function closePortalNotifications(){
   document.getElementById("portalNotificationBell")?.setAttribute("aria-expanded","false");

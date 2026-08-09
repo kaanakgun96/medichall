@@ -55,6 +55,11 @@ verify_jwt = false
 [functions.company-admin-notification]
 verify_jwt = false
 
+# Invoked only by the Vault-backed pg_cron dispatcher. The function validates
+# x-cron-secret before scheduling or claiming private user email outbox rows.
+[functions.user-notifications]
+verify_jwt = false
+
 # JWT verification happens in-function with auth.getUser. Every request is then
 # scoped to a company owned by that user and an existing tender opportunity;
 # provider calls, cached answers, and usage metadata remain server-side.

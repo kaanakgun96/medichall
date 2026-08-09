@@ -59,6 +59,12 @@ begin
     null;
   end;
 
+  begin
+    perform cron.unschedule('medichall-user-notifications');
+  exception when others then
+    null;
+  end;
+
   perform cron.schedule(
     'medichall-ted-sync',
     '30 6 * * *',
@@ -114,10 +120,42 @@ begin
       and cron_secret is not null;
     $job$
   );
+
+  perform cron.schedule(
+    'medichall-user-notifications',
+    '*/15 * * * *',
+    $job$
+    with runtime_config as (
+      select
+        max(decrypted_secret) filter (
+          where name = 'medichall_project_url'
+        ) as project_url,
+        max(decrypted_secret) filter (
+          where name = 'medichall_cron_secret'
+        ) as cron_secret
+      from vault.decrypted_secrets
+    )
+    select net.http_post(
+      url := rtrim(project_url, '/') || '/functions/v1/user-notifications',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', cron_secret
+      ),
+      body := '{}'::jsonb
+    )
+    from runtime_config
+    where project_url is not null
+      and cron_secret is not null;
+    $job$
+  );
 end
 $configure$;
 
 select jobid, jobname, schedule
 from cron.job
-where jobname in ('medichall-ted-sync', 'medichall-tender-digest')
+where jobname in (
+  'medichall-ted-sync',
+  'medichall-tender-digest',
+  'medichall-user-notifications'
+)
 order by jobname;
