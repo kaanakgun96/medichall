@@ -42,7 +42,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .msg.ok{color:var(--ok)}
 
 /* role picker */
-.role-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.role-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:4px}
 .role-opt{border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:14px 12px;text-align:left;font-weight:700;font-size:.92rem;color:var(--ink);transition:all .15s}
 .role-opt span{display:block;font-weight:400;font-size:.76rem;color:var(--ink-soft);margin-top:3px}
 .role-opt.active{border-color:var(--teal);background:var(--teal-tint)}
@@ -51,7 +51,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .role-big button:hover{border-color:var(--teal);transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,62,82,.12)}
 .role-big b{display:block;font-size:1.1rem;margin-bottom:4px}
 .role-big span{font-size:.86rem;color:var(--ink-soft)}
-@media(max-width:560px){.role-big{grid-template-columns:1fr}}
+@media(max-width:680px){.role-pick{grid-template-columns:1fr}.role-big{grid-template-columns:1fr}}
 
 /* app */
 #app{display:none}
@@ -290,6 +290,14 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .dashboard-metrics-status.loading:before{content:"";width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:mh-spin .8s linear infinite}
 .dashboard-metrics-status.error{padding:8px 10px;border:1px solid #F2B8B5;border-radius:8px;color:#9F2D24;background:#FDECEA}
 .dashboard-metrics-status.success{color:var(--success)}
+.activation-guide{margin:20px 0;padding:20px;border:1.5px solid var(--line);border-radius:16px;background:linear-gradient(120deg,#fff,#F2FAFD);box-shadow:0 8px 26px rgba(0,62,82,.06)}
+.activation-guide.compact{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;background:#fff}
+.activation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.activation-head h2{font-size:1.05rem;margin:2px 0}.activation-head p{font-size:.78rem;color:var(--ink-soft);margin:2px 0 0;max-width:620px}
+.activation-score{min-width:92px;text-align:right}.activation-score strong{display:block;font-size:1.4rem}.activation-score span{font-size:.65rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+.activation-meter{height:8px;margin:13px 0 15px;border-radius:100px;background:var(--mist);overflow:hidden}.activation-meter span{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:inherit;transition:width .25s ease}
+.activation-value{margin-bottom:14px;padding:11px 13px;border:1px solid #A9DECF;border-radius:11px;background:#EAF8F3;color:var(--ok);font-size:.76rem;font-weight:600}
+.activation-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.activation-item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left}.activation-item.done{color:var(--ok);background:#F7FCFA}.activation-item span{display:flex;align-items:center;gap:8px;font-size:.72rem;font-weight:600}.activation-item small{color:var(--ink-soft);font-size:.6rem}.activation-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+@media(max-width:680px){.activation-checks{grid-template-columns:1fr}.activation-guide.compact{align-items:flex-start;flex-direction:column}.activation-score{text-align:left}}
 @media(max-width:760px){.metric-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:430px){.metric-grid{grid-template-columns:1fr}.portal-welcome h1{font-size:1.3rem}}
 .dashboard-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,.75fr);gap:16px}
@@ -306,7 +314,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .profile-meter{height:9px;background:var(--mist);border-radius:100px;overflow:hidden;margin:11px 0 7px}
 .profile-meter span{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--mint),var(--teal));width:0;transition:width .5s}
 .todo-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
-.todo-item{display:flex;gap:9px;font-size:.8rem;color:var(--ink-soft);align-items:flex-start;cursor:pointer}
+.todo-item{display:flex;width:100%;gap:9px;padding:0;border:0;background:none;text-align:left;font:inherit;font-size:.8rem;color:var(--ink-soft);align-items:flex-start;cursor:pointer}
 .todo-item:hover{color:var(--ink)}
 .todo-dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--mist);color:var(--teal);font-size:.68rem;flex:0 0 18px}
 .todo-item.done .todo-dot{background:#E7F6EE;color:#177245}
@@ -655,6 +663,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       <div class="role-pick">
         <button type="button" class="role-opt active" id="roleBuyer" onclick="pickRole('buyer')">🛒 Buyer<span>Source products, save favorites</span></button>
         <button type="button" class="role-opt" id="roleManu" onclick="pickRole('manufacturer')">🏭 Manufacturer<span>List your company & products</span></button>
+        <button type="button" class="role-opt" id="roleDistributor" onclick="pickRole('distributor')">🚚 Distributor<span>Build supplier partnerships and source products</span></button>
       </div>
       <label for="re-email">Work email</label>
       <input id="re-email" type="email" autocomplete="email" placeholder="you@yourcompany.com">
@@ -692,6 +701,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
         <div class="role-big">
           <button onclick="chooseRole('buyer')"><b>🛒 I'm a buyer</b><span>Browse companies, save favorite products and send quotation requests.</span></button>
           <button onclick="chooseRole('manufacturer')"><b>🏭 I'm a manufacturer</b><span>Create a company profile and list your products on the marketplace.</span></button>
+          <button onclick="chooseRole('distributor')"><b>🚚 I'm a distributor</b><span>Create a company profile, describe your markets and find suppliers.</span></button>
         </div>
       </div>
     </div>
@@ -725,6 +735,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
       </div>
 
       <div class="panel active" id="panel-b-favorites">
+        <div id="bActivationGuide"></div>
         <div class="portal-work-summary" id="bPortalWorkSummary"></div>
         <div class="panel-head"><h2>Saved products</h2><a class="btn btn-solid btn-sm" href="products.html">Browse catalog ↗</a></div>
         <div class="card" id="favList"><div class="loading">Loading…</div></div>
@@ -783,10 +794,11 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 
       <div class="panel active" id="panel-dashboard">
         <div class="portal-welcome">
-          <div class="pw-eyebrow">Manufacturer portal</div>
+          <div class="pw-eyebrow" id="dashboardRoleLabel">Company portal</div>
           <h1 id="dashWelcome">Your opportunity dashboard</h1>
           <p>Tenders and distributors matched to your company — refreshed every morning from official EU sources.</p>
         </div>
+        <div id="activationGuide"></div>
         <div class="dashboard-metrics-status loading" id="dashboardMetricsStatus" role="status" aria-live="polite">Loading dashboard metrics…</div>
         <div class="metric-grid">
           <div class="metric-card" onclick="showPanel('opps')"><span class="metric-label">Total matches</span><strong id="mTotal">—</strong><small>Tenders + distributors</small></div>
@@ -1428,6 +1440,7 @@ function pickRole(r){
   REGROLE = r;
   document.getElementById("roleBuyer").classList.toggle("active", r==="buyer");
   document.getElementById("roleManu").classList.toggle("active", r==="manufacturer");
+  document.getElementById("roleDistributor").classList.toggle("active", r==="distributor");
 }
 function authView(v){
   document.getElementById("tabLogin").classList.toggle("active", v==="login");
@@ -1570,6 +1583,7 @@ async function uploadCompanyAsset(kind){ // 'logo_url' (image) or 'catalog_url' 
       await db("companies?id=eq." + COMPANY.id, {method:"PATCH", body:JSON.stringify({[kind]: url})});
       COMPANY[kind] = url;
       renderAssets();
+      scheduleActivationRefresh();
       toast(kind==="logo_url" ? "Logo uploaded ✓" : "Catalog uploaded ✓");
     }catch(e){ toast(friendlyError(e)); }
   });
@@ -1636,12 +1650,13 @@ function addCertificate(){
       })});
       toast("Certificate added ✓");
       loadCerts();
+      scheduleActivationRefresh();
     }catch(e){ toast(friendlyError(e)); }
   });
 }
 async function deleteCertificate(id){
   if(!confirm("Remove this certificate?")) return;
-  try{ await db("company_certificates?id=eq." + id, {method:"DELETE"}); loadCerts(); }
+  try{ await db("company_certificates?id=eq." + id, {method:"DELETE"}); loadCerts(); scheduleActivationRefresh(); }
   catch(e){ toast(friendlyError(e)); }
 }
 
@@ -1817,6 +1832,7 @@ async function enterApp(){
     document.getElementById("profileFormFields").innerHTML = companyFormHTML("pf", COMPANY);
     renderAssets();
     loadProducts(); loadRfq(); loadUnread(); loadCatalogs(); loadCerts(); loadMyOffers(); loadMatchProfile();
+    loadActivationState();
     const dw = document.getElementById("dashWelcome"); if(dw && COMPANY) dw.textContent = "Welcome back, " + (COMPANY.name || "partner") + " 👋";
     setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
     setTimeout(()=>loadPortalNotifications(true), 400);
@@ -1829,6 +1845,7 @@ async function enterApp(){
     document.getElementById("bp-company").value = BUYER.company_name || "";
     document.getElementById("bp-country").value = BUYER.country || "";
     loadFavorites(); loadUnread();
+    loadActivationState();
     (async()=>{ await loadMyRequests(); loadBuyerOffers(); })();
     setTimeout(()=>loadMatchmakingWorkspace(true), 1200);
     setTimeout(()=>loadPortalNotifications(true), 400);
@@ -1844,9 +1861,10 @@ async function enterApp(){
 }
 function chooseRole(role){
   hideAllViews();
-  if(role === "manufacturer"){
+  if(role === "manufacturer" || role === "distributor"){
     setBadge("Partner Portal");
     document.getElementById("companyFormFields").innerHTML = companyFormHTML("cf");
+    document.getElementById("cf-type").value = role === "distributor" ? "Medical device distributor" : "Medical device manufacturer";
     document.getElementById("onboarding").style.display = "block";
   }else{
     setBadge("Buyer Account");
@@ -1882,6 +1900,7 @@ async function saveCompany(){
     toast("Profile saved ✓");
     const rows = await db("companies?select=*&id=eq." + COMPANY.id);
     COMPANY = rows[0]; renderStatus();
+    scheduleActivationRefresh();
   }catch(e){ toast(friendlyError(e)); }
 }
 
@@ -2049,7 +2068,7 @@ async function saveProduct(){
       product_id:id ? Number(id) : null,
       product:body
     });
-    closeModals(); toast("Product saved ✓"); loadProducts();
+    closeModals(); toast("Product saved ✓"); loadProducts(); scheduleActivationRefresh();
   }catch(e){
     const message = friendlyError(e);
     showProductError(message);
@@ -2069,7 +2088,7 @@ async function toggleProduct(id){
 async function deleteProduct(id){
   const p = PRODUCTS.find(x=>x.id===id);
   if(!confirm(`Delete "${p.name}" permanently?\n\nTip: use Hide if you may need it again.`)) return;
-  try{ await db("products?id=eq."+id, {method:"DELETE"}); toast("Product deleted"); loadProducts(); }
+  try{ await db("products?id=eq."+id, {method:"DELETE"}); toast("Product deleted"); loadProducts(); scheduleActivationRefresh(); }
   catch(e){ toast(friendlyError(e)); }
 }
 
@@ -2239,6 +2258,7 @@ async function saveBuyerProfile(){
       country: document.getElementById("bp-country").value.trim() || null
     })});
     toast("Profile saved ✓");
+    scheduleActivationRefresh();
   }catch(e){ toast(friendlyError(e)); }
 }
 
@@ -2617,6 +2637,8 @@ let DASHBOARD_METRICS_STATE = {
   rfq:"loading",
   errors:{opportunities:null,rfq:null}
 };
+let ACTIVATION_STATE = null;
+let ACTIVATION_REFRESH_TIMER = null;
 
 /* ---------------- Universal Tender Import ---------------- */
 let TENDER_IMPORT_ROWS = [];
@@ -3144,6 +3166,7 @@ async function saveMatchProfile(){
       body: JSON.stringify(body)
     });
     toast("Matching profile saved ✔");
+    scheduleActivationRefresh();
   }catch(e){ toast(friendlyError(e)); }
   finally{ btn.disabled = false; }
 }
@@ -3232,7 +3255,7 @@ function renderOppCard(m, compact){
     +   '<button class="btn btn-grad" onclick="analyzeOpp(' + m.id + ')">🤖 Analyze with AI</button>'
     +   (isTender && t.source === 'TED' ? '<button class="btn btn-solid" onclick="deepAnalyze(' + m.id + ')">📑 Deep analysis</button>' : "")
     +   (isTender ? '<button class="btn btn-solid" aria-label="View lot-level match analysis for ' + esc(title) + '" onclick="openLotAnalysis(' + m.id + ',' + Number(t.id) + ')">View lot analysis</button>' : "")
-    +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener">Open source ↗</a>' : "")
+    +   (link ? '<a class="btn btn-solid" href="' + esc(link) + '" target="_blank" rel="noopener" onclick="markOpportunityViewed(' + m.id + ')">Open source ↗</a>' : "")
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'' + (saved ? "viewed" : "saved") + '\')">' + (saved ? "★ Saved" : "☆ Save") + '</button>'
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'contacted\')">' + (m.status === "contacted" ? "✔ Contacted" : "Mark contacted") + '</button>'
     +   '<button class="btn btn-solid" onclick="setOppStatus(' + m.id + ',\'dismissed\')">✕ Dismiss</button>'
@@ -3639,6 +3662,7 @@ async function loadLotMatchesIntoHost(matchId,tenderId,force=false){
 function openLotAnalysis(matchId,tenderId){
   const panel = document.getElementById("deep-" + matchId);
   if(!panel || !Number.isFinite(Number(tenderId))) return;
+  markOpportunityViewed(matchId);
   panel.classList.add("open");
   panel.innerHTML = lotMatchShell(matchId);
   loadLotMatchesIntoHost(matchId,Number(tenderId));
@@ -3666,7 +3690,19 @@ async function setOppStatus(id, status){
       const row = OPP_ROWS.find(r => r.id === id);
       if(row){ row.status = status; const el = document.getElementById("opp-" + id); if(el) el.outerHTML = renderOppCard(row); }
     }
+    scheduleActivationRefresh();
   }catch(e){ toast(friendlyError(e)); }
+}
+
+function markOpportunityViewed(id){
+  const row = OPP_ROWS.find(item=>item.id===id);
+  if(row && row.status==="new") setOppStatus(id,"viewed");
+}
+
+function recordFirstTenderMatchView(){
+  const row=OPP_ROWS.find(item=>item.opportunity_type==="tender"&&item.status==="new");
+  if(row) setOppStatus(row.id,"viewed");
+  else scheduleActivationRefresh();
 }
 
 function analyzeOpp(id){
@@ -4029,25 +4065,126 @@ function updateReadiness(){
   const txt = document.getElementById("profileScoreText");
   const todo = document.getElementById("profileTodo");
   if(!bar || !COMPANY) return;
-  const kw = (document.getElementById("mp-keywords")?.value || "").trim();
-  const co = (document.getElementById("mp-countries")?.value || "").trim();
-  const checks = [
-    { ok: !!(COMPANY.description && COMPANY.description.length > 30), label: "Add a company description", panel: "profile" },
-    { ok: !!(COMPANY.certifications), label: "List your certifications", panel: "profile" },
-    { ok: (PRODUCTS || []).length > 0, label: "Add at least one product", panel: "products" },
-    { ok: !!kw, label: "Set product keywords for matching", panel: "opps" },
-    { ok: !!co, label: "Choose target countries", panel: "opps" }
-  ];
-  const done = checks.filter(c => c.ok).length;
-  const pct = Math.round(100 * done / checks.length);
-  bar.style.width = pct + "%";
-  if(txt) txt.textContent = pct + "%";
+  const score=Number(ACTIVATION_STATE&&ACTIVATION_STATE.profile_score||0);
+  bar.style.width=score+"%";
+  if(txt)txt.textContent=ACTIVATION_STATE?score+"%":"Loading…";
   if(todo){
-    todo.innerHTML = checks.map(c =>
-      '<div class="todo-item' + (c.ok ? " done" : "") + '" onclick="showPanel(\'' + c.panel + '\')">' +
-      '<span class="todo-dot">' + (c.ok ? "✓" : "•") + '</span><span>' + c.label + '</span></div>'
-    ).join("");
+    const checks=Array.isArray(ACTIVATION_STATE&&ACTIVATION_STATE.checks)?ACTIVATION_STATE.checks:[];
+    todo.innerHTML=checks.length?checks.map(check=>{
+      const action=safeActivationAction(check.action);
+      const available=Number(check.available_count||0);
+      return '<button type="button" class="todo-item'+(check.completed?' done':'')+'" onclick="activationAction(\''+action+'\')">'+
+        '<span class="todo-dot">'+(check.completed?'✓':'•')+'</span><span>'+esc(check.label||"Activation step")+(check.weight===0&&!check.completed?'<small>'+(available?available+' available':'Complete your profile to unlock')+'</small>':'')+'</span></button>';
+    }).join(""):'<div class="loading">Loading activation checklist…</div>';
   }
+}
+
+const ACTIVATION_ACTIONS=new Set([
+  "dashboard","buyer_dashboard","account_type","company_profile","company_logo",
+  "certifications","first_product","tender_preferences","matchmaking_profile",
+  "company_match","tender_match","buyer_profile"
+]);
+function safeActivationAction(value){
+  const action=String(value||"");
+  return ACTIVATION_ACTIONS.has(action)?action:"dashboard";
+}
+function activationValueMessage(state){
+  const value=state&&state.first_value||{};
+  const messages=[];
+  const companies=Number(value.company_matches||0);
+  const tenders=Number(value.tender_matches||0);
+  const distributors=Number(value.distributor_matches||0);
+  if(companies)messages.push(companies+" company match"+(companies===1?"":"es"));
+  if(tenders)messages.push(tenders+" tender match"+(tenders===1?"":"es"));
+  if(distributors)messages.push(distributors+" distributor match"+(distributors===1?"":"es"));
+  return messages.length?"We found "+messages.join(", ")+" from your current profile.":"";
+}
+function activationChecklistHtml(state){
+  const checks=Array.isArray(state&&state.checks)?state.checks:[];
+  return checks.map(check=>{
+    const action=safeActivationAction(check.action);
+    const available=Number(check.available_count||0);
+    return '<button type="button" class="activation-item'+(check.completed?' done':'')+'" onclick="activationAction(\''+action+'\')">'+
+      '<span><b aria-hidden="true">'+(check.completed?'✓':'○')+'</b>'+esc(check.label||"Activation step")+'</span>'+
+      '<small>'+(check.completed?'Complete':available?available+' available':'Open →')+'</small></button>';
+  }).join("");
+}
+function renderActivationState(){
+  const companyTarget=document.getElementById("activationGuide");
+  const buyerTarget=document.getElementById("bActivationGuide");
+  if(companyTarget)companyTarget.innerHTML="";
+  if(buyerTarget)buyerTarget.innerHTML="";
+  updateReadiness();
+  if(!ACTIVATION_STATE)return;
+  const target=ACTIVATION_STATE.account_kind==="buyer"?buyerTarget:companyTarget;
+  if(!target)return;
+  const score=Number(ACTIVATION_STATE.profile_score||0);
+  const valueMessage=activationValueMessage(ACTIVATION_STATE);
+  const dismissed=Boolean(ACTIVATION_STATE.progress&&ACTIVATION_STATE.progress.dismissed_at);
+  if(ACTIVATION_STATE.account_kind==="company"){
+    const role=String(ACTIVATION_STATE.account_role||"company");
+    const roleLabel=document.getElementById("dashboardRoleLabel");
+    if(roleLabel)roleLabel.textContent=role.charAt(0).toUpperCase()+role.slice(1)+" portal";
+    const welcome=document.querySelector(".portal-welcome p");
+    if(welcome)welcome.textContent=role==="buyer"?"Find qualified suppliers and manage business opportunities from your organization profile.":"Tenders and business partners matched to your company from current profile evidence.";
+  }
+  if(dismissed){
+    target.innerHTML='<section class="activation-guide compact" aria-label="Profile activation"><div><b>Profile strength: '+score+'%</b><p>Continue whenever you are ready. Your completed steps are saved automatically.</p></div><button class="btn btn-ghost btn-sm" type="button" onclick="resumeActivationGuide()">Resume setup</button></section>';
+    return;
+  }
+  if(score===100){
+    target.innerHTML='<section class="activation-guide compact" aria-label="Profile activation complete"><div><b>Profile strength: 100%</b><p>'+(valueMessage?esc(valueMessage):'Your core profile is complete and ready for opportunities.')+'</p></div><span class="status-banner live" style="margin:0;padding:7px 10px">Ready</span></section>';
+    return;
+  }
+  target.innerHTML='<section class="activation-guide" aria-labelledby="activationGuideTitle"><div class="activation-head"><div><span class="mono">Guided setup</span><h2 id="activationGuideTitle">Reach your first useful opportunity</h2><p>Complete only the steps relevant to your account. You can leave now and resume later.</p></div><div class="activation-score"><strong>'+score+'%</strong><span>Profile strength</span></div></div><div class="activation-meter" aria-label="Profile strength '+score+' percent"><span style="width:'+score+'%"></span></div>'+(valueMessage?'<div class="activation-value">'+esc(valueMessage)+'</div>':'')+'<div class="activation-checks">'+activationChecklistHtml(ACTIVATION_STATE)+'</div><div class="activation-actions"><button class="btn btn-ghost btn-sm" type="button" onclick="dismissActivationGuide()">Hide for now</button></div></section>';
+}
+async function loadActivationState(){
+  if(!TOKEN||!USER)return;
+  try{
+    ACTIVATION_STATE=await db("rpc/get_account_activation_state_v1",{method:"POST",body:"{}"});
+    renderActivationState();
+  }catch(error){
+    UI.report("portal.activation",error);
+    document.getElementById("activationGuide")?.replaceChildren();
+    document.getElementById("bActivationGuide")?.replaceChildren();
+  }
+}
+function scheduleActivationRefresh(){
+  clearTimeout(ACTIVATION_REFRESH_TIMER);
+  ACTIVATION_REFRESH_TIMER=setTimeout(loadActivationState,350);
+}
+async function updateActivationProgress(lastStep,dismissed=false,completed=false){
+  try{
+    ACTIVATION_STATE=await db("rpc/set_account_onboarding_progress_v1",{
+      method:"POST",body:JSON.stringify({p_last_step:lastStep||null,p_dismissed:Boolean(dismissed),p_completed:Boolean(completed)})
+    });
+    renderActivationState();
+  }catch(error){UI.report("portal.activation_progress",error);}
+}
+function dismissActivationGuide(){updateActivationProgress("dashboard",true,false);}
+function resumeActivationGuide(){updateActivationProgress("dashboard",false,false);}
+function activationAction(action){
+  action=safeActivationAction(action);
+  updateActivationProgress(action,false,false);
+  if(action==="account_type"){hideAllViews();document.getElementById("roleChooser").style.display="block";return;}
+  if(action==="buyer_dashboard"){showPanel("b-favorites");return;}
+  if(action==="buyer_profile"){showPanel("b-profile");setTimeout(()=>document.getElementById("bp-name")?.focus(),0);return;}
+  if(action==="company_profile"||action==="company_logo"||action==="certifications"){
+    showPanel("profile");
+    setTimeout(()=>{
+      const target=action==="company_profile"?document.getElementById("pf-name"):action==="company_logo"?document.getElementById("assetRow"):document.getElementById("certManager");
+      target?.scrollIntoView({behavior:"smooth",block:"center"});
+      target?.querySelector?.("button,input")?.focus();
+      if(target instanceof HTMLInputElement)target.focus();
+    },0);
+    return;
+  }
+  if(action==="first_product"){showPanel("products");setTimeout(openProductForm,0);return;}
+  if(action==="tender_preferences"){showPanel("opps");setTimeout(()=>document.getElementById("mp-countries")?.focus(),0);return;}
+  if(action==="matchmaking_profile"){showPanel(COMPANY?"matchmaking":"b-matchmaking");MM.view="profile";renderMatchmakingWorkspace();return;}
+  if(action==="company_match"){showPanel(COMPANY?"matchmaking":"b-matchmaking");MM.view="matches";renderMatchmakingWorkspace();recordFirstMmMatchView();return;}
+  if(action==="tender_match"){showPanel("opps");setTimeout(()=>{document.getElementById("oppList")?.scrollIntoView({behavior:"smooth",block:"start"});recordFirstTenderMatchView();},0);return;}
+  showPanel(COMPANY?"dashboard":"b-favorites");
 }
 
 /* ---------------- deep document analysis pipeline ---------------- */
@@ -4247,6 +4384,7 @@ function dpSet(mid, step, cls, msg){
 async function deepAnalyze(matchId){
   const m = OPP_ROWS.find(r => r.id === matchId);
   if(!m || !m.tenders) return;
+  markOpportunityViewed(matchId);
   const t = m.tenders;
   const panel = document.getElementById("deep-" + matchId);
   panel.classList.add("open");
@@ -4836,7 +4974,7 @@ let MM = {
   data:null,detail:null,view:"matches",loading:false,loaded:false,
   filters:{q:"",role:"",country:"",min:"0"},meetingMode:null,
   connectionId:null,meetingId:null,detailMeetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
-  modalFocus:[]
+  modalFocus:[],activationViewPromise:null
 };
 let PN = {
   data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},
@@ -5085,6 +5223,20 @@ function mmViewButton(view,label,count){
 function mmSetView(view){
   MM.view=view;
   renderMatchmakingWorkspace();
+  if(view==="matches") recordFirstMmMatchView();
+}
+
+function recordFirstMmMatchView(){
+  if(MM.activationViewPromise||!MM.data?.profile)return;
+  const match=mmUtils.array(MM.data.matches).find(item=>item.status==="new");
+  if(!match){scheduleActivationRefresh();return;}
+  MM.activationViewPromise=mmRpc("set_matchmaking_match_status",{
+    p_match_id:Number(match.id),p_status:"viewed",p_idempotency_key:mmUuid()
+  }).then(()=>{
+    match.status="viewed";
+    scheduleActivationRefresh();
+  }).catch(error=>UI.report("portal.activation_match_view",error))
+    .finally(()=>{MM.activationViewPromise=null;});
 }
 function mmViewContent(){
   if(MM.view==="relationships")return mmRelationshipsView();
@@ -5143,6 +5295,7 @@ async function saveMmProfile(){
   try{
     await db("matchmaking_profiles?on_conflict=user_id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(payload)});
     MM.view="matches";MM.loaded=false;await loadMatchmakingWorkspace();toast("Matchmaking profile saved ✓");
+    scheduleActivationRefresh();
   }catch(error){toast(mmParseError(error));}
   finally{mmSetBusy(button,false);}
 }
@@ -5188,6 +5341,7 @@ async function setMmMatchStatus(matchId,status){
   try{
     await mmRpc("set_matchmaking_match_status",{p_match_id:Number(matchId),p_status:status,p_idempotency_key:mmUuid()});
     await loadMatchmakingWorkspace(true);toast(status==="dismissed"?"Partner hidden":"Match updated ✓");
+    scheduleActivationRefresh();
   }catch(error){toast(mmParseError(error));}
 }
 function openMmConnectionRequest(targetId){

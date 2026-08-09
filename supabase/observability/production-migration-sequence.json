@@ -39,7 +39,9 @@
     "202607280008",
     "202608010001",
     "202608010002",
-    "202608020001"
+    "202608020001",
+    "202608080001",
+    "202608090001"
   ],
   "verified_definition_drift": [
     "202607090001",
@@ -47,9 +49,7 @@
   ],
   "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
   "notification_migration": "202608010001_company_admin_notification_outbox.sql",
-  "planned_forward_migrations": [
-    "202608080001_universal_tender_import_reissue.sql"
-  ],
+  "planned_forward_migrations": [],
   "archived_unapplied": [
     {
       "version": "202607290001",
@@ -74,7 +74,5 @@
     "202607090001",
     "202607100009"
   ],
-  "expected_target_only_dry_run": [
-    "202608080001_universal_tender_import_reissue.sql"
-  ]
+  "expected_target_only_dry_run": []
 }
