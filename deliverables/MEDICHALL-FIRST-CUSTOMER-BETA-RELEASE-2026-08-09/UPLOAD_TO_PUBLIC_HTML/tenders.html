@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medical Tenders — MedicHall</title>
+<meta name="description" content="Browse open medical tenders from official European procurement sources and sign in for company-specific matching and analysis.">
+<meta name="robots" content="index,follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:#f5fafb;font-family:var(--font);overflow-x:hidden}
+button,input,select{font:inherit}
+a{color:inherit}
+.tender-shell{min-height:calc(100vh - 72px)}
+.tender-width{width:min(1180px,calc(100% - 40px));margin:0 auto}
+.tender-hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);background:linear-gradient(118deg,#fff9e9 0%,#eef9f6 48%,#e8f5fb 100%)}
+.tender-hero::after{content:"";width:390px;height:390px;position:absolute;right:-90px;top:-210px;border:1px solid rgba(66,152,204,.2);border-radius:50%;box-shadow:0 0 0 64px rgba(108,204,185,.07),0 0 0 128px rgba(66,152,204,.04)}
+.tender-hero__inner{min-height:280px;display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,340px);align-items:center;gap:54px;padding-block:48px;position:relative;z-index:1}
+.tender-eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--teal-dark);font:600 .68rem var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.tender-eyebrow::before{content:"";width:26px;height:2px;background:var(--mint)}
+.tender-hero h1{margin:0;font-size:clamp(2rem,4.6vw,3.7rem);line-height:1.02;letter-spacing:-.045em}
+.tender-hero h1 span{color:var(--teal-dark)}
+.tender-hero p{max-width:720px;margin:17px 0 0;color:var(--ink-soft);font-size:clamp(.9rem,1.5vw,1.05rem);line-height:1.75}
+.tender-hero__facts{display:grid;gap:10px;padding:18px;border:1px solid rgba(121,169,186,.35);border-radius:18px;background:rgba(255,255,255,.72);box-shadow:0 20px 45px rgba(0,62,82,.08);backdrop-filter:blur(12px)}
+.tender-hero__facts div{display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:start;padding:10px;border-radius:12px;background:#fff}
+.tender-fact-mark{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;color:var(--teal-dark);background:var(--mist-deep);font:600 .72rem var(--mono)}
+.tender-hero__facts b{display:block;font-size:.76rem}.tender-hero__facts span span{display:block;margin-top:2px;color:var(--ink-faint);font-size:.66rem;line-height:1.45}
+.tender-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:24px;padding-block:32px 60px;align-items:start}
+.tender-filters{position:sticky;top:92px;padding:20px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 12px 32px rgba(0,62,82,.05)}
+.tender-filters__head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:17px}
+.tender-filters h2{margin:0;font-size:.92rem}.tender-filter-count{min-width:25px;height:25px;display:grid;place-items:center;border-radius:999px;color:var(--teal-dark);background:var(--mist-deep);font:600 .62rem var(--mono)}
+.tender-field{display:grid;gap:6px;margin-top:13px}.tender-field:first-of-type{margin-top:0}
+.tender-field label{font:600 .62rem var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.tender-field input,.tender-field select{width:100%;height:43px;padding:0 11px}
+.tender-filter-actions{display:grid;gap:8px;margin-top:18px}
+.tender-filter-actions button{width:100%}
+.tender-main{min-width:0}
+.tender-personalization{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:16px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.tender-personalization b{display:block;font-size:.78rem}.tender-personalization p{margin:3px 0 0;color:var(--ink-soft);font-size:.7rem;line-height:1.55}
+.tender-personalization__action{flex:0 0 auto}
+.tender-active-filters{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+.tender-active-filters[hidden]{display:none}
+.tender-filter-chip{min-height:31px;display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink-soft);background:#fff;font-size:.65rem;cursor:pointer}
+.tender-filter-chip:hover,.tender-filter-chip:focus-visible{color:var(--teal-dark);border-color:var(--teal);background:var(--mist)}
+.tender-results-head{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:13px}
+.tender-results-head h2{margin:0;font-size:1.15rem}.tender-results-head p{margin:4px 0 0;color:var(--ink-faint);font-size:.7rem}
+.tender-results-status{color:var(--ink-soft);font:500 .68rem var(--mono)}
+.tender-list{display:grid;gap:12px}
+.tender-card{padding:19px}
+.tender-card__top{display:flex;justify-content:space-between;gap:20px;align-items:start}
+.tender-card__kickers{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.tender-badge{display:inline-flex;align-items:center;min-height:24px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--ink-faint);background:#f8fbfc;font:500 .58rem var(--mono);letter-spacing:.035em}
+.tender-badge.is-match{color:var(--success);border-color:#b8e1d8;background:var(--success-soft)}
+.tender-card h3{margin:0;font-size:1rem;line-height:1.45;letter-spacing:-.015em}
+.tender-title-en{margin:5px 0 0;color:var(--ink-soft);font-size:.7rem;font-style:italic}
+.tender-score{min-width:76px;padding:10px 11px;border:1px solid var(--line);border-radius:13px;text-align:center;background:var(--mist)}
+.tender-score strong{display:block;color:var(--teal-dark);font-size:1.2rem}.tender-score span{display:block;color:var(--ink-faint);font:500 .54rem var(--mono);text-transform:uppercase}
+.tender-meta{display:flex;flex-wrap:wrap;gap:7px 13px;margin-top:13px;color:var(--ink-soft);font-size:.7rem;line-height:1.5}
+.tender-meta span{display:inline-flex;align-items:center;gap:5px}.tender-meta span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--mint)}
+.tender-cpv{margin-top:11px;color:var(--ink-faint);font:500 .63rem/1.6 var(--mono)}
+.tender-card__actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:15px;border-top:1px solid var(--line)}
+.tender-load-more{width:100%;margin-top:15px}
+.tender-state{min-height:220px;display:grid;place-items:center;padding:34px;border:1px dashed var(--line-strong);border-radius:16px;text-align:center;background:#fff}
+.tender-state__inner{max-width:460px}.tender-state h3{margin:0;font-size:1rem}.tender-state p{margin:8px 0 16px;color:var(--ink-soft);font-size:.74rem;line-height:1.65}
+.tender-skeleton{height:186px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(90deg,#eef4f6 25%,#fff 50%,#eef4f6 75%);background-size:220% 100%;animation:tender-shimmer 1.35s infinite}
+.tender-footer{padding:32px 0;border-top:1px solid var(--line);color:#9cc2cf;background:#02293a;font-size:.68rem}
+.tender-footer__inner{display:flex;justify-content:space-between;gap:20px;align-items:center}.tender-footer a{color:#d9edf3;text-decoration:none}.tender-footer nav{display:flex;flex-wrap:wrap;gap:16px}
+@keyframes tender-shimmer{to{background-position:-220% 0}}
+@media(max-width:900px){.tender-hero__inner{grid-template-columns:1fr;gap:24px}.tender-hero__facts{grid-template-columns:repeat(2,minmax(0,1fr))}.tender-layout{grid-template-columns:1fr}.tender-filters{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tender-filters__head,.tender-filter-actions{grid-column:1/-1}.tender-field{margin-top:0}}
+@media(max-width:680px){.tender-width{width:min(100% - 28px,1180px)}.tender-hero__inner{min-height:0;padding-block:34px}.tender-hero__facts{grid-template-columns:1fr}.tender-layout{padding-block:22px 44px}.tender-filters{grid-template-columns:1fr;padding:16px}.tender-personalization{align-items:flex-start;flex-direction:column}.tender-card{padding:16px}.tender-card__top{gap:12px}.tender-card__actions{justify-content:stretch}.tender-card__actions .btn{flex:1 1 140px}.tender-footer__inner{align-items:flex-start;flex-direction:column}}
+@media(max-width:390px){.tender-score{min-width:66px}.tender-score strong{font-size:1rem}.tender-card h3{font-size:.9rem}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.tender-skeleton{animation:none}}
+</style>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
+</head>
+<body>
+<medichall-header mode="public" active="tenders"></medichall-header>
+<div class="tender-shell">
+  <section class="tender-hero" aria-labelledby="tender-page-title">
+    <div class="tender-width tender-hero__inner">
+      <div>
+        <div class="tender-eyebrow">Official procurement discovery</div>
+        <h1 id="tender-page-title">Medical <span>Tenders</span></h1>
+        <p>Search open medical procurement notices from the MedicHall feed. Browse public facts here, then use the Partner Portal for private company matching, evidence-backed analysis, Document Intelligence, lot matching, and imports.</p>
+      </div>
+      <aside class="tender-hero__facts" aria-label="Tender data principles">
+        <div><span class="tender-fact-mark">01</span><span><b>Official-source links</b><span>Open the original notice before making a procurement decision.</span></span></div>
+        <div><span class="tender-fact-mark">02</span><span><b>Private analysis stays private</b><span>Company scores and imported documents require an authorized session.</span></span></div>
+      </aside>
+    </div>
+  </section>
+
+  <main class="tender-width tender-layout" id="main-content">
+    <form class="tender-filters" id="tenderFilters" aria-labelledby="tender-filter-title">
+      <div class="tender-filters__head"><h2 id="tender-filter-title">Filter tenders</h2><span class="tender-filter-count" id="tenderFilterCount" aria-label="0 active filters">0</span></div>
+      <div class="tender-field"><label for="tenderSearch">Keyword</label><input id="tenderSearch" name="query" type="search" autocomplete="off" placeholder="Product, buyer or country"></div>
+      <div class="tender-field"><label for="tenderCountry">Country</label><select id="tenderCountry" name="country"><option value="">All countries</option></select></div>
+      <div class="tender-field"><label for="tenderCpv">CPV code</label><input id="tenderCpv" name="cpv" inputmode="numeric" placeholder="e.g. 3319"></div>
+      <div class="tender-field"><label for="tenderDeadline">Deadline</label><select id="tenderDeadline" name="deadline"><option value="">Any open deadline</option><option value="7">Next 7 days</option><option value="14">Next 14 days</option><option value="30">Next 30 days</option><option value="60">Next 60 days</option><option value="90">Next 90 days</option></select></div>
+      <div class="tender-field"><label for="tenderNoticeType">Category / notice type</label><select id="tenderNoticeType" name="notice"><option value="">All notice types</option></select></div>
+      <div class="tender-filter-actions"><button class="btn btn-solid" type="submit">Apply filters</button><button class="btn btn-ghost" id="tenderClearFilters" type="button">Clear all</button></div>
+    </form>
+
+    <section class="tender-main" aria-labelledby="tender-results-title">
+      <div class="tender-personalization" id="tenderPersonalization" role="status" aria-live="polite">
+        <div><b>Personalized tender intelligence</b><p>Sign in to see existing company match scores and continue into private analysis.</p></div>
+        <a class="btn btn-solid tender-personalization__action" href="portal.html?return=tenders.html">Sign in for matching</a>
+      </div>
+      <div class="tender-active-filters" id="tenderActiveFilters" aria-label="Active tender filters" hidden></div>
+      <div class="tender-results-head">
+        <div><h2 id="tender-results-title">Open tenders</h2><p>Public discovery feed · company-private data is never requested while signed out</p></div>
+        <div class="tender-results-status" id="tenderResultsStatus" aria-live="polite">Loading…</div>
+      </div>
+      <div class="tender-list" id="tenderList" aria-live="polite" aria-busy="true">
+        <div class="tender-skeleton" aria-hidden="true"></div><div class="tender-skeleton" aria-hidden="true"></div><div class="tender-skeleton" aria-hidden="true"></div>
+      </div>
+      <button class="btn btn-solid tender-load-more" id="tenderLoadMore" type="button" hidden>Load more tenders</button>
+    </section>
+  </main>
+</div>
+
+<footer class="tender-footer"><div class="tender-width tender-footer__inner"><span>MedicHall · medical procurement discovery</span><nav aria-label="Footer navigation"><a href="products.html">Products</a><a href="companies.html">Companies</a><a href="tenders.html" aria-current="page">Tenders</a><a href="matchmaking.html">Matchmaking</a><a href="portal.html">Partner Portal</a></nav></div></footer>
+<script src="tenders.js?v=20260809s22rc1"></script>
+</body>
+</html>
