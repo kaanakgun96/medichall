@@ -25,10 +25,10 @@ test("dedicated Tenders page uses the canonical public architecture", () => {
   assert.match(tenders, /<title>Medical Tenders — MedicHall<\/title>/);
   assert.match(tenders, /<medichall-header mode="public" active="tenders">/);
   assert.match(tenders, /id="main-content"/);
-  assert.match(tenders, /medichall-design-system\.css\?v=20260808s21rc1/);
-  assert.match(tenders, /medichall-session\.js\?v=20260808s21rc1/);
-  assert.match(tenders, /medichall-navigation\.js\?v=20260808s21rc1/);
-  assert.match(tenders, /tenders\.js\?v=20260808s21rc1/);
+  assert.match(tenders, /medichall-design-system\.css\?v=20260809s22rc1/);
+  assert.match(tenders, /medichall-session\.js\?v=20260809s22rc1/);
+  assert.match(tenders, /medichall-navigation\.js\?v=20260809s22rc1/);
+  assert.match(tenders, /tenders\.js\?v=20260809s22rc1/);
   for (const id of [
     "tenderFilters",
     "tenderSearch",
@@ -81,7 +81,7 @@ test("all root pages use one coherent Sprint 2.1 cache version", () => {
     const source = read(page);
     for (const match of source.matchAll(/(?:src|href)="[^"]+\?v=([^"']+)/g)) versions.add(match[1]);
   }
-  assert.deepEqual([...versions], ["20260808s21rc1"]);
+  assert.deepEqual([...versions], ["20260809s22rc1"]);
 });
 
 test("Universal Tender Import is reissued once after the current production head", () => {

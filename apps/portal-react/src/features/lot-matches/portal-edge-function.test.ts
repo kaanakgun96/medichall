@@ -66,12 +66,14 @@ describe("production portal Edge Function invocation", () => {
     expect(helpers.edgeFailureMessage({ status: 409 })).toContain(
       "already processing",
     );
-    expect(
-      helpers.edgeFailureMessage({
-        status: 400,
-        backendMessage: "Valid tender_id and company_id are required.",
-      }),
-    ).toContain("Valid tender_id and company_id are required.");
+    const validationMessage = helpers.edgeFailureMessage({
+      status: 400,
+      backendMessage: "Valid tender_id and company_id are required.",
+    });
+    expect(validationMessage).toBe(
+      "The analysis request was not valid. Check the tender and try again.",
+    );
+    expect(validationMessage).not.toContain("tender_id");
   });
 
   it("records safe request diagnostics without logging credentials", () => {

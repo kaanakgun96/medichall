@@ -6,6 +6,7 @@
   const PUBLIC_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
   const session = global.MedicHallSession?.configure({ url: API_URL, key: PUBLIC_KEY }) || null;
   const D = global.MedicHallMarketplaceDomain;
+  const UI = global.MedicHallUI;
   const state = {
     companies: [], products: [], followed: new Set(), user: null,
     filters: { q: "", type: "", country: "", category: "", certification: "", verifiedOnly: false, followedOnly: false, sort: "name" },
@@ -29,10 +30,12 @@
         ...requestOptions,
         headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}`, "Content-Type": "application/json", ...(requestOptions.headers || {}) },
       });
-    if (!response.ok) throw new Error(`Marketplace API ${response.status}`);
     if (response.status === 204) return null;
-    const body = await response.text();
-    return body ? JSON.parse(body) : null;
+    const text = await response.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch (_) { body = null; }
+    if (!response.ok) throw UI.httpError(response, body);
+    return body;
   }
 
   async function loadSession() {

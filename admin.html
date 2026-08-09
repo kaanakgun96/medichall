@@ -117,9 +117,10 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .loading{text-align:center;padding:50px;color:var(--ink-soft)}
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260808s21rc1">
-<script src="medichall-session.js?v=20260808s21rc1"></script>
-<script src="medichall-navigation.js?v=20260808s21rc1"></script>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
 </head>
 <body>
 
@@ -348,6 +349,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
 const AUTH_SESSION = globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
+const UI = globalThis.MedicHallUI;
 
 sessionStorage.removeItem("mh_token");
 let TOKEN = AUTH_SESSION.accessToken();
@@ -436,19 +438,11 @@ document.getElementById("password").addEventListener("keydown", e=>{ if(e.key===
 let PRODUCTS = [], PARTNERS = [], RFQS = [], COMPANIES = [], BANNERS = [];
 const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 function friendlyError(e){
-  const m = (e && e.message) ? e.message : "";
-  console.error("MedicHall admin error:", m);
   if(e?.code === "ADMIN_PERMISSION")
     return "Admin data access was denied. Your login succeeded, but database authorization failed.";
-  if(m.includes("row-level security") || m.includes("42501"))
-    return "Permission error: run supabase-admin-setup.sql in the SQL Editor, then try again.";
-  if(m.includes("duplicate") || m.includes("23505"))
+  if(e?.code === "23505")
     return "This REF code already exists — use a different one.";
-  if(m.includes("Session expired") || m.includes("401"))
-    return "Session expired — please log in again.";
-  if(m.includes("Failed to fetch"))
-    return "Network error — check your internet connection.";
-  return "Error: " + m.slice(0, 120);
+  return UI.safeError("admin.request",e,"The admin action could not be completed. Please try again.");
 }
 function toast(msg){
   const t = document.getElementById("toast");
@@ -601,7 +595,7 @@ async function uploadFile(file, folder){
     },
     body: file
   });
-  if(!res.ok) throw new Error(await res.text());
+  if(!res.ok) throw UI.httpError(res,null);
   return SUPABASE_URL + "/storage/v1/object/public/media/" + path;
 }
 function pickFile(accept, cb){
@@ -842,7 +836,7 @@ async function pdfFirstPageFile(file){
     const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", .85));
     if(!blob) return null;
     return new File([blob], file.name.replace(/\.pdf$/i,"") + "-cover.jpg", {type:"image/jpeg"});
-  }catch(e){ console.warn("thumb failed", e); return null; }
+  }catch(e){ UI.report("admin.pdf_thumbnail",e); return null; }
 }
 
 

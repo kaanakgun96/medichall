@@ -622,9 +622,10 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .toast{max-width:calc(100vw - 24px);width:max-content;text-align:center;border-radius:14px;padding:10px 16px}
 }
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260808s21rc1">
-<script src="medichall-session.js?v=20260808s21rc1"></script>
-<script src="medichall-navigation.js?v=20260808s21rc1"></script>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
 </head>
 <body>
 
@@ -1330,12 +1331,13 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="matchmaking-domain.js?v=20260808s21rc1"></script>
+<script src="matchmaking-domain.js?v=20260809s22rc1"></script>
 <script>
 /* ---------------- config ---------------- */
 const SUPABASE_URL = "https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
 const AUTH_SESSION = globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
+const UI = globalThis.MedicHallUI;
 
 let TOKEN = AUTH_SESSION.accessToken();
 let REGROLE = "buyer", JUSTSIGNED = false, LOGIN_REDIRECT = false;
@@ -1366,10 +1368,12 @@ async function api(path, options={}){
     }
   });
   TOKEN = AUTH_SESSION.accessToken();
-  if(res.status===401){ logout(); throw new Error("Session expired — please log in again."); }
-  if(!res.ok){ throw new Error(await res.text()); }
-  const t = await res.text();
-  return t ? JSON.parse(t) : null;
+  const text = res.status===204 ? "" : await res.text();
+  let payload = null;
+  try{ payload = text ? JSON.parse(text) : null; }catch(_){ payload = null; }
+  if(res.status===401){ const error=UI.httpError(res,payload);error.code="AUTH_SESSION_EXPIRED";logout();throw error; }
+  if(!res.ok) throw UI.httpError(res,payload);
+  return payload;
 }
 const db = (p,o) => api("/rest/v1/" + p, o);
 
@@ -1381,13 +1385,13 @@ function toast(msg){
 }
 function friendlyError(e){
   if(e && e.userMessage) return e.userMessage;
-  const m = (e && e.message) ? e.message : "";
-  console.error("Portal error:", m);
-  if(m.includes("row-level security")) return "Permission error — please contact MedicHall support.";
-  if(m.includes("duplicate")) return "This product code already exists in your catalog.";
-  if(m.includes("Session expired")) return m;
-  if(m.includes("Failed to fetch")) return "Network error — check your internet connection.";
-  return "Error: " + m.slice(0,120);
+  if(e?.code==="23505") return "This record already exists. Check its reference and try again.";
+  return UI.safeError("portal.request",e,"We could not complete that action. Please try again.");
+}
+function clientError(message){
+  const error = new Error("Client validation failed");
+  error.userMessage = String(message || "Check the information and try again.").slice(0,240);
+  return error;
 }
 
 const AUTH_REQUEST_TIMEOUT_MS = 15000;
@@ -1446,8 +1450,16 @@ async function register(){
       headers:{ "apikey":SUPABASE_ANON_KEY, "Content-Type":"application/json" },
       body: JSON.stringify({ email, password: pass })
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.msg || data.error_description || data.message || "Signup failed");
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      const error=UI.httpError(res,data);
+      const code=String(data.code||data.error_code||"").toLowerCase();
+      if(code==="user_already_exists") error.userMessage="An account already exists for this email. Try logging in instead.";
+      else if(code==="signup_disabled") error.userMessage="Registration is temporarily closed. Please contact info@medichall.com.";
+      else if(code==="email_address_invalid") error.userMessage="Please enter a valid work email address.";
+      else if(code==="weak_password") error.userMessage="Choose a stronger password and try again.";
+      throw error;
+    }
     if(data.access_token){
       // email confirmation disabled -> logged in immediately
       JUSTSIGNED = true;
@@ -1459,10 +1471,7 @@ async function register(){
       msg.className = "msg ok"; msg.style.display = "block";
     }
   }catch(e){
-    const m = (e.message||"");
-    msg.textContent = m.includes("Signups not allowed")
-      ? "Registration is temporarily closed. Please contact info@medichall.com."
-      : ("Signup failed: " + m.slice(0,100));
+    msg.textContent = e?.userMessage || UI.safeError("portal.registration",e,"Account creation could not be completed. Please try again.");
     msg.className = "msg err"; msg.style.display = "block";
   }finally{
     btn.disabled = false; btn.textContent = "Create account";
@@ -1541,7 +1550,7 @@ async function uploadFile(file, folder){
     },
     body: file
   });
-  if(!res.ok) throw new Error(await res.text());
+  if(!res.ok) throw UI.httpError(res,null);
   return SUPABASE_URL + "/storage/v1/object/public/media/" + path;
 }
 function pickFile(accept, cb){
@@ -1715,7 +1724,7 @@ async function pdfFirstPageFile(file){
     const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", .85));
     if(!blob) return null;
     return new File([blob], file.name.replace(/\.pdf$/i,"") + "-cover.jpg", {type:"image/jpeg"});
-  }catch(e){ console.warn("thumb failed", e); return null; }
+  }catch(e){ UI.report("portal.pdf_thumbnail",e); return null; }
 }
 
 
@@ -1878,19 +1887,10 @@ async function saveCompany(){
 
 /* ---------------- products ---------------- */
 async function productProfileRequest(payload){
-  try{
-    return await api("/functions/v1/product-profile", {
-      method:"POST",
-      body:JSON.stringify(payload)
-    });
-  }catch(e){
-    let message = (e && e.message) ? e.message : "Product request failed.";
-    try{
-      const parsed = JSON.parse(message);
-      if(parsed && parsed.error) message = parsed.error;
-    }catch(_ignored){}
-    throw new Error(message);
-  }
+  return api("/functions/v1/product-profile", {
+    method:"POST",
+    body:JSON.stringify(payload)
+  });
 }
 function productListValue(value){
   if(Array.isArray(value)) return value.filter(Boolean);
@@ -2445,13 +2445,14 @@ function openRfqDeepLink(rfqId,openConversation,attempt=0){
 function startUnreadTimer(){
   if(!TOKEN || !USER) return;
   if(window.__unreadTimer) return;
-  window.__unreadTimer = setInterval(loadUnread, 20000);
+  window.__unreadTimer = setInterval(()=>{if(!document.hidden)loadUnread();}, 20000);
 }
 
 /* ---------------- unread messages ---------------- */
-let UNREAD = {};
+let UNREAD = {}, UNREAD_LOADING = false;
 async function loadUnread(){
-  if(!TOKEN || !USER) return;
+  if(!TOKEN || !USER || UNREAD_LOADING) return;
+  UNREAD_LOADING = true;
   try{
     const ms = await db("rfq_messages?select=rfq_id,sender_id&is_read=eq.false");
     UNREAD = {};
@@ -2461,7 +2462,8 @@ async function loadUnread(){
     if(el){ el.textContent = total + " new"; el.style.display = total ? "inline" : "none"; }
     if(COMPANY && RFQS.length) renderRfq();
     if(!COMPANY && BUYER && MYRFQS.length) renderMyRequests();
-  }catch(e){}
+  }catch(e){ UI.report("portal.unread",e); }
+  finally{ UNREAD_LOADING = false; }
 }
 async function markRead(rfqId){
   try{
@@ -2472,7 +2474,7 @@ async function markRead(rfqId){
 }
 
 /* ---------------- chat ---------------- */
-let CHAT = { rfqId:null, timer:null, lastCount:-1 };
+let CHAT = { rfqId:null, timer:null, lastCount:-1, loading:false };
 function myRole(){ return COMPANY ? "manufacturer" : "buyer"; }
 function openChat(rfqId){
   const r = (COMPANY ? RFQS : MYRFQS).find(x=>x.id===rfqId);
@@ -2485,7 +2487,8 @@ function openChat(rfqId){
   document.getElementById("chatModal").classList.add("open");
   loadChat();
   markRead(rfqId);
-  CHAT.timer = setInterval(loadChat, 4000);
+  if(CHAT.timer)clearInterval(CHAT.timer);
+  CHAT.timer = setInterval(()=>{if(!document.hidden)loadChat();}, 4000);
   setTimeout(()=>document.getElementById("chatInput").focus(), 100);
 }
 function closeChat(){
@@ -2494,9 +2497,12 @@ function closeChat(){
   CHAT.rfqId = null;
 }
 async function loadChat(){
-  if(!CHAT.rfqId) return;
+  if(!CHAT.rfqId || CHAT.loading) return;
+  const requestedRfqId = CHAT.rfqId;
+  CHAT.loading = true;
   try{
-    const msgs = await db("rfq_messages?select=*&rfq_id=eq." + CHAT.rfqId + "&order=created_at");
+    const msgs = await db("rfq_messages?select=*&rfq_id=eq." + requestedRfqId + "&order=created_at");
+    if(CHAT.rfqId!==requestedRfqId)return;
     if(msgs.length === CHAT.lastCount) return;
     CHAT.lastCount = msgs.length;
     const body = document.getElementById("chatBody");
@@ -2507,8 +2513,9 @@ async function loadChat(){
     body.innerHTML = msgs.map(m=>`
       <div class="bubble ${m.sender_id===USER.id?"mine":"theirs"}">${esc(m.body)}<time>${new Date(m.created_at).toLocaleString()}</time></div>`).join("");
     body.scrollTop = body.scrollHeight;
-    markRead(CHAT.rfqId);
-  }catch(e){ console.error(e); }
+    markRead(requestedRfqId);
+  }catch(e){ UI.report("portal.chat",e); }
+  finally{ CHAT.loading = false; }
 }
 async function sendChat(){
   const inp = document.getElementById("chatInput");
@@ -2566,7 +2573,7 @@ async function callMedicHallAI(payload){
     return callMedicHallAI(payload);
   }
   if(res.status === 401){ sessionExpired(); }
-  if(!res.ok) throw new Error(data.error || data.message || "AI request failed");
+  if(!res.ok) throw UI.httpError(res,data);
   return data;
 }
 async function runAiAssistant(){
@@ -2613,6 +2620,7 @@ let DASHBOARD_METRICS_STATE = {
 
 /* ---------------- Universal Tender Import ---------------- */
 let TENDER_IMPORT_ROWS = [];
+let TENDER_IMPORT_LOADING = false;
 const TENDER_IMPORT_ACTIVE = new Set(["draft","uploading","queued","discovering","extracting_archive","analyzing"]);
 const TENDER_IMPORT_MIME = {
   pdf:"application/pdf",
@@ -2674,17 +2682,17 @@ function tenderImportExtension(name){
 }
 function validateTenderImportFiles(fileList){
   const files = [...(fileList || [])];
-  if(!files.length) throw new Error("Choose at least one tender document.");
-  if(files.length > 6) throw new Error("Choose no more than 6 documents at once.");
+  if(!files.length) throw clientError("Choose at least one tender document.");
+  if(files.length > 6) throw clientError("Choose no more than 6 documents at once.");
   let total = 0;
   for(const file of files){
     const ext = tenderImportExtension(file.name);
-    if(!TENDER_IMPORT_MIME[ext]) throw new Error(file.name + " is not a supported PDF, DOCX, XLSX, CSV or ZIP file.");
+    if(!TENDER_IMPORT_MIME[ext]) throw clientError(file.name + " is not a supported PDF, DOCX, XLSX, CSV or ZIP file.");
     const maximum = (ext === "zip" ? 30 : 25) * 1024 * 1024;
-    if(!file.size || file.size > maximum) throw new Error(file.name + " exceeds the " + (ext === "zip" ? 30 : 25) + " MB limit.");
+    if(!file.size || file.size > maximum) throw clientError(file.name + " exceeds the " + (ext === "zip" ? 30 : 25) + " MB limit.");
     total += file.size;
   }
-  if(total > 100 * 1024 * 1024) throw new Error("The selected documents exceed the 100 MB total limit.");
+  if(total > 100 * 1024 * 1024) throw clientError("The selected documents exceed the 100 MB total limit.");
   return files;
 }
 function tenderImportSafeName(value){
@@ -2704,7 +2712,7 @@ async function tenderImportFileFingerprint(files){
 function tenderImportCanonicalUrl(url){
   const normalized = new URL(url.href);
   if(normalized.protocol !== "https:" || normalized.username || normalized.password || (normalized.port && normalized.port !== "443")){
-    throw new Error("Use a public HTTPS URL on port 443 without embedded credentials.");
+    throw clientError("Use a public HTTPS URL on port 443 without embedded credentials.");
   }
   normalized.hostname = normalized.hostname.toLowerCase().replace(/\.$/,"");
   normalized.port = "";
@@ -2841,7 +2849,7 @@ async function startTenderFileImport(fileList){
         }
       }catch(cleanupError){
         cleanupMessage = " Uploaded-object cleanup also failed and will be retried by the stale-orphan reconciler.";
-        console.error("Tender import cleanup failed",cleanupError);
+        UI.report("portal.tender_import_cleanup",cleanupError);
       }
     }
     await markTenderImportUploadFailed(created && created.import_id,originalMessage);
@@ -2965,7 +2973,7 @@ function renderTenderImports(){
       + (["completed","partial"].includes(status) ? '<button class="btn btn-solid btn-sm" data-ti-focus="detail-' + esc(row.id) + '" aria-label="View extraction for ' + esc(accessibleName) + '" onclick="openTenderImportDetail(\'' + row.id + '\')">View extraction</button>' : '')
       + ((status === "failed" || stale) && (row.source_kind === "url" || Number(row.document_count || row.file_count || 0) > 0) ? '<button class="btn btn-grad btn-sm" data-ti-focus="retry-' + esc(row.id) + '" aria-label="Retry import ' + esc(accessibleName) + '" onclick="retryTenderImport(\'' + row.id + '\')">Retry</button>' : '')
       + '</div></div>'
-      + (row.error_message ? '<div class="ti-error" role="alert">' + esc(String(row.error_message)) + '</div>' : '')
+      + (row.error_message ? '<div class="ti-error" role="alert">This import could not be completed. Review the source and retry.</div>' : '')
       + '<div class="ti-detail" id="tiDetail-' + esc(row.id) + '" hidden></div></article>';
   }).join("");
   if(focusedKey){
@@ -2975,7 +2983,8 @@ function renderTenderImports(){
   }
 }
 async function loadTenderImports(silent){
-  if(!COMPANY) return;
+  if(!COMPANY || TENDER_IMPORT_LOADING) return;
+  TENDER_IMPORT_LOADING = true;
   const list = document.getElementById("tiList");
   if(list && !silent && !TENDER_IMPORT_ROWS.length) list.innerHTML = '<div class="loading">Loading imports…</div>';
   try{
@@ -2997,15 +3006,16 @@ async function loadTenderImports(silent){
     }
     const active = TENDER_IMPORT_ROWS.some(row=>TENDER_IMPORT_ACTIVE.has(row.status));
     if(active && !window.__tenderImportTimer){
-      window.__tenderImportTimer = setInterval(()=>loadTenderImports(true),4000);
+      window.__tenderImportTimer = setInterval(()=>{if(!document.hidden)loadTenderImports(true);},4000);
     }else if(!active && window.__tenderImportTimer){
       clearInterval(window.__tenderImportTimer);
       window.__tenderImportTimer = null;
     }
   }catch(error){
-    if(list) list.innerHTML = '<div class="ti-error" role="alert">' + esc(friendlyError(error)) + '</div>';
-    tenderImportAnnounce(friendlyError(error),true);
-  }
+    const message=friendlyError(error);
+    if(list) list.innerHTML = '<div class="ti-error" role="alert">' + esc(message) + '</div>';
+    tenderImportAnnounce(message,true);
+  }finally{TENDER_IMPORT_LOADING=false;}
 }
 async function retryTenderImport(importId){
   tenderImportAnnounce("Retrying the import…");
@@ -3565,11 +3575,10 @@ async function ensureLotProductContext(){
   }
 }
 function lotRequestState(error){
-  const message = lotUiText(error && error.message).toLowerCase();
-  if(message.includes("get_tender_lot_matches_v1") && (message.includes("not find") || message.includes("does not exist") || message.includes("pgrst202"))){
+  if(error?.code==="PGRST202" || error?.status===404){
     return ["Lot matching is not configured","The lot-match database migration is not available in this environment."];
   }
-  if(message.includes("access denied") || message.includes("session expired")){
+  if(error?.code==="AUTH_SESSION_EXPIRED" || error?.status===401 || error?.status===403){
     return ["Partner session required","Sign in again through the current portal login flow to view company-specific lot matches."];
   }
   return ["Lot matches could not be loaded",friendlyError(error)];
@@ -3838,13 +3847,7 @@ async function loadFeed(reset){
       })
     }) || [];
   }catch(e){
-    const msg = (e && e.message) || "";
-    if(msg.includes("search_tenders") || msg.includes("PGRST202") || msg.includes("404")){
-      // Sprint A migration henüz kurulmamış — kırık sayfa yerine net talimat.
-      list.innerHTML = '<div class="opp-empty"><div class="icon">🛠️</div><b>Advanced filters need a database update</b><p>The Sprint A migration (202607170001_tender_filters.sql) has not been installed on this database yet. Run it in the Supabase SQL Editor, then reload this page.</p></div>';
-      return;
-    }
-    list.innerHTML = '<div class="opp-empty"><b>Could not load the feed</b><p>' + esc(friendlyError(e)) + '</p></div>';
+    list.innerHTML = '<div class="opp-empty"><b>Could not load the feed</b><p>' + esc(friendlyError(e)) + '</p><button class="btn btn-ghost btn-sm" type="button" onclick="loadFeed(true)">Try again</button></div>';
     return;
   }
   const total = rows.length ? Number(rows[0].total_count || 0) : 0;
@@ -4098,11 +4101,7 @@ function edgeFailureMessage(details){
   if([502,503,504].includes(status) || ["BOOT_ERROR","FUNCTION_UNAVAILABLE"].includes(code)){
     return "Tender analysis is temporarily unavailable. Please try again shortly.";
   }
-  if(status === 400){
-    return backend
-      ? "Analysis request rejected: " + backend
-      : "The analysis request was not valid. Refresh the page and try again.";
-  }
+  if(status === 400) return "The analysis request was not valid. Check the tender and try again.";
   return "Unexpected tender analysis error. Please try again.";
 }
 /* EDGE_FUNCTION_ERROR_PURE_END */
@@ -4229,7 +4228,7 @@ function dpFailureMessage(job, prog){
   if(job && ["queued","processing"].includes(job.status)){
     return "The analysis is taking longer than expected. It is still running in the background — reopen Deep analysis in a few minutes to see the result.";
   }
-  return (job && job.error_message) || "Document analysis did not finish";
+  return "Document analysis did not finish. Please retry, or contact MedicHall support if the issue continues.";
 }
 
 function dpStepsHtml(mid){
@@ -4898,13 +4897,8 @@ function mmRoot(){
   return document.getElementById(COMPANY?"matchmaking-root":"b-matchmaking-root");
 }
 function mmParseError(error){
-  const raw=error&&error.message?error.message:String(error||"");
-  try{
-    const parsed=JSON.parse(raw);
-    return parsed.message||parsed.error||parsed.details||"The matchmaking request failed.";
-  }catch(_){}
-  if(raw.includes("40001")) return "This record changed. Refresh and try again.";
-  return raw.replace(/^Error:\s*/,"").slice(0,220)||"The matchmaking request failed.";
+  if(error?.userMessage)return String(error.userMessage).slice(0,220);
+  return UI.safeError("portal.matchmaking",error,"The matchmaking request failed. Please try again.");
 }
 function mmSetBusy(button,busy,label){
   if(!button)return;
@@ -5352,7 +5346,7 @@ async function joinMmVideo(id,button){
     const result=await mmVideoRequest("join",id);
     const room=mmUtils.safeHttpUrl(result.room_url);
     const parsed=room?new URL(room):null;
-    if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token)throw new Error("The secure room response was invalid.");
+    if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token){const error=new Error("Invalid provider response");error.status=502;throw error;}
     parsed.searchParams.set("t",result.token);
     document.getElementById("mmVideoFrame").src=parsed.toString();
     mmOpenModal("mmVideoModal","#mmVideoFrame");
@@ -5493,11 +5487,13 @@ async function openMmMeetingDetails(meetingId){
   MM.detailTimer=setInterval(()=>{if(!document.hidden&&document.getElementById("mmDetailModal").classList.contains("open"))loadMmRelationship(meeting.connection_id,true);},10000);
 }
 async function loadMmRelationship(connectionId,silent){
-  try{
-    MM.detail=await mmRpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
-    if(MM.detailMeetingId)renderMmMeetingDetail();
-    else renderMmRelationshipDetail();
-  }catch(error){if(!silent)document.getElementById("mmDetailBody").innerHTML='<div class="mm-empty"><b>Relationship unavailable</b>'+mmEsc(mmParseError(error))+'</div>';}
+  return UI.singleFlight("portal.matchmaking.relationship:"+Number(connectionId),async()=>{
+    try{
+      MM.detail=await mmRpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
+      if(MM.detailMeetingId)renderMmMeetingDetail();
+      else renderMmRelationshipDetail();
+    }catch(error){if(!silent)document.getElementById("mmDetailBody").innerHTML='<div class="mm-empty"><b>Relationship unavailable</b>'+mmEsc(mmParseError(error))+'</div>';}
+  });
 }
 function renderMmMeetingDetail(){
   const meeting=mmUtils.array(MM.detail&&MM.detail.meetings).find(item=>Number(item.id)===Number(MM.detailMeetingId));

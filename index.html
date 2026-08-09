@@ -456,9 +456,10 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
   .flow.in .flow-arrow svg{animation:none}
 }
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260808s21rc1">
-<script src="medichall-session.js?v=20260808s21rc1"></script>
-<script src="medichall-navigation.js?v=20260808s21rc1"></script>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
 </head>
 <body>
 
@@ -875,13 +876,13 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
         <h5>Company</h5>
         <a href="companies.html">Companies</a>
       <a href="tenders.html">Tenders <span style="font-family:var(--font-mono);font-size:.6rem;background:var(--mint);color:var(--teal-deep);border-radius:100px;padding:2px 7px;vertical-align:middle;letter-spacing:.05em">NEW</span></a>
-        <a href="#">F.A.Q.</a>
+        <a href="mailto:info@medichall.com?subject=MedicHall%20question">F.A.Q.</a>
         <a href="blog/">Blog / News</a>
       </div>
       <div class="foot-col">
         <h5>Contact</h5>
         <a href="mailto:info@medichall.com">info@medichall.com</a>
-        <a href="#">İzmir, Türkiye</a>
+        <span>İzmir, Türkiye</span>
         <a href="portal.html">Become a seller</a>
       </div>
     </div>
@@ -903,7 +904,7 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
       <input id="li-email" type="email" placeholder="you@company.com" autocomplete="email">
       <label for="li-pass">Password</label>
       <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password">
-      <button class="btn btn-solid" onclick="fakeAuth()">Log in</button>
+      <a class="btn btn-solid" href="portal.html">Continue to secure login</a>
       <p class="swap">No account yet? <button onclick="openModal('signup')">Join free</button></p>
     </div>
     <div id="signupView" style="display:none">
@@ -915,7 +916,7 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
       <input id="su-email" type="email" placeholder="you@company.com" autocomplete="email">
       <label for="su-pass">Password</label>
       <input id="su-pass" type="password" placeholder="Choose a password" autocomplete="new-password">
-      <button class="btn btn-solid" onclick="fakeAuth()">Create account</button>
+      <a class="btn btn-solid" href="portal.html#register">Continue to registration</a>
       <p class="swap">Already a member? <button onclick="openModal('login')">Log in</button></p>
     </div>
   </div>
@@ -1179,10 +1180,6 @@ function closeHomeProduct(){
   document.getElementById("hpBackdrop").classList.remove("open");
   document.body.style.overflow = "";
 }
-function fakeAuth(){
-  alert("Account features will be connected to your backend (e.g. Supabase). This is the design preview.");
-}
-
 renderProducts();
 renderPartners();
 
@@ -1264,9 +1261,6 @@ function chipLogout(){
   localStorage.removeItem("mh_p_token");
   location.reload();
 }
-initAuthChip();
-
-
 /* ---- featured products from database ---- */
 async function loadFeaturedProducts(){
   try{

@@ -143,7 +143,7 @@ test("root pages load one canonical session helper before shared navigation", ()
       releaseVersions.add(match[1]);
     }
   }
-  assert.deepEqual([...releaseVersions], ["20260808s21rc1"]);
+  assert.deepEqual([...releaseVersions], ["20260809s22rc1"]);
 });
 
 test("Messages, admin authorization, analytics, mobile auth, and notification contracts are present", () => {

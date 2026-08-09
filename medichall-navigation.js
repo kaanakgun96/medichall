@@ -481,6 +481,11 @@
         const heading = item.querySelector("h1, h2, h3, .modal-title");
         item.setAttribute("aria-label", heading?.textContent?.trim() || "MedicHall dialog");
       }
+      if (!item.hasAttribute("tabindex")) item.tabIndex = -1;
+    });
+    document.querySelectorAll(".modal-backdrop, .dialog-backdrop").forEach((backdrop) => {
+      const visible = !backdrop.hidden && getComputedStyle(backdrop).display !== "none";
+      backdrop.setAttribute("aria-hidden", visible ? "false" : "true");
     });
     document.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach((control) => {
       const labelled = control.closest("label") ||
@@ -518,5 +523,10 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", enhanceInterface, { once: true });
   else enhanceInterface();
-  new MutationObserver(queueEnhancement).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(queueEnhancement).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "hidden"]
+  });
 }());

@@ -3,6 +3,7 @@
   "use strict";
 
   const D = global.MedicHallMarketplaceDomain;
+  const UI = global.MedicHallUI;
   if (!D || !document.getElementById("grid")) return;
 
   const API_URL = "https://azdmuarzntzqdyirysux.supabase.co";
@@ -38,7 +39,7 @@
         headers: headers(requestOptions.headers || {}),
       });
     const body = response.status === 204 ? null : await response.json().catch(() => null);
-    if (!response.ok) throw new Error(body && (body.message || body.error_description || body.error) || `Request failed (${response.status})`);
+    if (!response.ok) throw UI.httpError(response, body);
     return body;
   }
 
@@ -233,6 +234,14 @@
     renderFilters(); renderCatalog(); syncUrl();
   }
 
+  function toggleFilters(button) {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+    const open = sidebar.classList.toggle("open");
+    button?.setAttribute("aria-expanded", String(open));
+    if (open) sidebar.querySelector("input, select, button")?.focus();
+  }
+
   function loginUrl() {
     sessionStorage.setItem("mh_marketplace_return", location.href);
     return `portal.html?redirect=${encodeURIComponent(location.href)}`;
@@ -258,7 +267,7 @@
     } catch (error) {
       wasFavorite ? state.favoriteIds.add(id) : state.favoriteIds.delete(id);
       renderCatalog();
-      toastMessage(`Favorite was not saved: ${error.message}`);
+      toastMessage(UI.safeError("products.favorite", error, "The favorite was not saved. Please try again."));
     }
   }
 
@@ -458,7 +467,7 @@
       const first = Array.isArray(rows) ? rows[0] : rows;
       document.getElementById("rfqView").innerHTML = `<div class="marketplace-rfq-success"><h3>Request submitted</h3><p>Your request was delivered to ${ids.length} intended compan${ids.length === 1 ? "y" : "ies"}. Duplicate recipients were removed.</p>${state.user && first && first.id ? `<a class="btn btn-solid" href="portal.html#rfq-chat=${Number(first.id)}">Open exact RFQ conversation</a>` : `<a class="btn btn-solid" href="portal.html#inbox">Open your requests</a>`}</div>`;
     } catch (error) {
-      show(`Request was not submitted: ${error.message}`, false);
+      show(UI.safeError("products.rfq", error, "The request was not submitted. Please try again."), false);
       button.disabled = false; button.textContent = "Submit request";
     }
   }
@@ -568,6 +577,7 @@
     // Neutralize the legacy renderer while its already-started request settles.
     global.render = () => {};
     global.clearFilters = resetFilters;
+    global.toggleMarketplaceFilters = toggleFilters;
     global.closeDrawer = closeDetail;
     global.sendRFQ = submitRfq;
     document.getElementById("grid").innerHTML = Array.from({ length: 6 }, () => '<div class="loading">Loading products…</div>').join("");
@@ -586,6 +596,7 @@
   }
 
   init().catch((error) => {
-    document.getElementById("grid").innerHTML = `<div class="no-results" style="display:block"><b>Product catalog unavailable</b>${escapeHtml(error.message)}<br><button class="btn btn-ghost btn-sm" type="button" onclick="location.reload()">Try again</button></div>`;
+    const message = UI.safeError("products.catalog", error, "The product catalog could not be loaded. Please try again.");
+    document.getElementById("grid").innerHTML = `<div class="no-results" style="display:block"><b>Product catalog unavailable</b>${escapeHtml(message)}<br><button class="btn btn-ghost btn-sm" type="button" onclick="location.reload()">Try again</button></div>`;
   });
 })(globalThis);

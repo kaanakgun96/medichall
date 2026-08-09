@@ -4,6 +4,7 @@
 const SUPABASE_URL="https://azdmuarzntzqdyirysux.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_RaV2ekM6rJTfdfBFUYIbVA_XSJBZ3Z-";
 const AUTH_SESSION=globalThis.MedicHallSession.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY});
+const UI=globalThis.MedicHallUI;
 const utils=globalThis.MedicHallMatchmakingDomain;
 let TOKEN=AUTH_SESSION.accessToken();
 let USER=null,COMPANY=null,BUYER=null;
@@ -26,13 +27,8 @@ function toast(message){
 }
 
 function parseError(error){
-  const raw=error&&error.message?error.message:String(error||"");
-  try{
-    const parsed=JSON.parse(raw);
-    return parsed.message||parsed.error||parsed.details||"The matchmaking request failed.";
-  }catch(_){}
-  if(raw.includes("40001"))return "This record changed. Refresh and try again.";
-  return raw.replace(/^Error:\s*/,"").slice(0,240)||"The matchmaking request failed.";
+  if(error?.userMessage)return String(error.userMessage).slice(0,240);
+  return UI.safeError("matchmaking.workspace",error,"The matchmaking request failed. Please try again.");
 }
 
 async function request(path,options={}){
@@ -48,7 +44,7 @@ async function request(path,options={}){
   let data=null;
   try{data=text?JSON.parse(text):null;}catch(_){data=text;}
   if(!response.ok){
-    const error=new Error(response.status===401?"Session expired":(data?.message||data?.error_description||data?.hint||data?.details||text||"Request failed"));
+    const error=UI.httpError(response,data);
     if(response.status===401)error.code="AUTH_SESSION_EXPIRED";
     throw error;
   }
@@ -408,7 +404,7 @@ async function joinVideo(id,button){
   setBusy(button,true,"Authorizing…");
   try{
     const result=await videoRequest("join",id),room=utils.safeHttpUrl(result.room_url),parsed=room?new URL(room):null;
-    if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token)throw new Error("The secure room response was invalid.");
+    if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token){const error=new Error("Invalid provider response");error.status=502;throw error;}
     parsed.searchParams.set("t",result.token);document.getElementById("videoFrame").src=parsed.toString();openModal("videoModal","#videoFrame");
   }catch(error){toast(parseError(error));}
   finally{setBusy(button,false);}
@@ -501,7 +497,7 @@ function schedulerPayload(){
   const zone=document.getElementById("meetingTimezone").value||timezone();
   const slots=utils.proposalSlots(state.scheduler.slots,document.getElementById("meetingDuration").value,zone);
   const topic=document.getElementById("meetingTopic").value.trim();
-  if(!topic)throw new Error("Add a meeting topic.");
+  if(!topic){const error=new Error("Validation failed");error.userMessage="Add a meeting topic.";throw error;}
   return {slots,zone,topic,agenda:document.getElementById("meetingAgenda").value.trim()||null,language:document.getElementById("meetingLanguage").value.trim()||null};
 }
 
@@ -552,10 +548,12 @@ async function openMeetingDetails(meetingId){
 }
 
 async function loadRelationship(connectionId,silent,meetingId=null){
-  try{
-    state.detail=await rpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
-    if(meetingId)renderMeetingDetail(meetingId);else renderRelationshipDetail();
-  }catch(error){if(!silent)document.getElementById("detailBody").innerHTML='<div class="empty"><b>Relationship unavailable</b>'+esc(parseError(error))+'</div>';}
+  return UI.singleFlight("matchmaking.relationship:"+Number(connectionId),async()=>{
+    try{
+      state.detail=await rpc("get_matchmaking_relationship",{p_connection_id:Number(connectionId)});
+      if(meetingId)renderMeetingDetail(meetingId);else renderRelationshipDetail();
+    }catch(error){if(!silent)document.getElementById("detailBody").innerHTML='<div class="empty"><b>Relationship unavailable</b>'+esc(parseError(error))+'</div>';}
+  });
 }
 
 function renderMeetingDetail(meetingId){
@@ -714,7 +712,7 @@ async function init(){
     document.querySelector("medichall-header")?.setAuthState(true);
     await Promise.all([loadWorkspace(),loadNotifications(true)]);
   }catch(error){
-    console.error(error);document.getElementById("authWarning").style.display="block";document.getElementById("heroRole").textContent="Login required";
+    UI.report("matchmaking.init",error);document.getElementById("authWarning").style.display="block";document.getElementById("heroRole").textContent="Login required";
   }
 }
 

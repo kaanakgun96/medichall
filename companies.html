@@ -203,12 +203,13 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem}
 .mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
 
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260808s21rc1">
-<link rel="stylesheet" href="marketplace-enterprise.css?v=20260808s21rc1">
-<script src="medichall-session.js?v=20260808s21rc1"></script>
-<script src="medichall-navigation.js?v=20260808s21rc1"></script>
-<script src="marketplace-domain.js?v=20260808s21rc1"></script>
-<script src="marketplace-companies.js?v=20260808s21rc1"></script>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<link rel="stylesheet" href="marketplace-enterprise.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
+<script src="marketplace-domain.js?v=20260809s22rc1"></script>
+<script src="marketplace-companies.js?v=20260809s22rc1"></script>
 </head>
 <body>
 
@@ -484,7 +485,7 @@ async function loadProfile(key, bySlug){
             <span class="t">${esc(k.title)}</span>
           </button>`).join("");
       }
-    }catch(e){ console.warn(e); }
+    }catch(e){ globalThis.MedicHallUI.report("companies.showroom_products",e); }
     const cl = [];
     cl.push(`<div class="row"><span class="k">Message</span><a href="#" onclick="openContact();return false" style="color:var(--teal);font-weight:600">Send a message via MedicHall →</a></div>`);
     if(c.phone) cl.push(`<div class="row"><span class="k">Phone</span><span>${esc(c.phone)}</span></div>`);
@@ -510,7 +511,7 @@ async function loadProfile(key, bySlug){
         </button>`).join("");
     }
   }catch(e){
-    console.error(e);
+    globalThis.MedicHallUI.report("companies.showroom",e);
     document.getElementById("proName").textContent = "Could not load this profile";
   }
 }
@@ -649,7 +650,7 @@ async function sendInquiry(){
       headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, "Content-Type":"application/json", "Prefer":"return=minimal" },
       body: JSON.stringify(body)
     });
-    if(!res.ok) throw new Error(await res.text());
+    if(!res.ok) throw globalThis.MedicHallUI.httpError(res,null);
   };
   const base = {
     user_id: uid,
@@ -681,7 +682,7 @@ async function sendInquiry(){
     }
     btn.textContent = "Sent ✓";
   }catch(e){
-    console.error(e);
+    globalThis.MedicHallUI.report("companies.contact",e);
     show("Something went wrong, please try again.", false);
     btn.disabled = false; btn.textContent = "Send message";
   }
@@ -835,9 +836,6 @@ function chipLogout(){
   localStorage.removeItem("mh_p_token");
   location.reload();
 }
-initAuthChip();
-
-
 /* ---- banner ads (sliding carousel) ---- */
 const HOUSE_SLIDE = `<a class="banner-slide" href="portal.html" style="flex:0 0 100%;min-width:100%;display:block;position:relative;text-decoration:none;background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%)">
   <span class="banner-tag">Ad space</span>

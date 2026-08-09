@@ -222,11 +222,12 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem;marg
 .mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
 
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260808s21rc1">
-<link rel="stylesheet" href="marketplace-enterprise.css?v=20260808s21rc1">
-<script src="medichall-session.js?v=20260808s21rc1"></script>
-<script src="medichall-navigation.js?v=20260808s21rc1"></script>
-<script src="marketplace-domain.js?v=20260808s21rc1"></script>
+<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<link rel="stylesheet" href="marketplace-enterprise.css?v=20260809s22rc1">
+<script src="medichall-session.js?v=20260809s22rc1"></script>
+<script src="medichall-ui.js?v=20260809s22rc1"></script>
+<script src="medichall-navigation.js?v=20260809s22rc1"></script>
+<script src="marketplace-domain.js?v=20260809s22rc1"></script>
 </head>
 <body>
 
@@ -243,7 +244,7 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem;marg
 <section class="marketplace-compare-page" id="marketplaceCompareView" aria-labelledby="marketplaceCompareTitle" hidden></section>
 
 <div class="wrap catalog">
-  <button class="btn btn-ghost filters-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">Filters ☰</button>
+  <button class="btn btn-ghost filters-toggle" type="button" aria-controls="sidebar" aria-expanded="false" onclick="toggleMarketplaceFilters(this)">Filters ☰</button>
 
   <!-- SIDEBAR -->
   <aside class="side" id="sidebar" aria-label="Product filters">
@@ -316,7 +317,7 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem;marg
       <input id="li-email" type="email" placeholder="you@company.com" autocomplete="email">
       <label for="li-pass">Password</label>
       <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password">
-      <button class="btn btn-solid" onclick="fakeAuth()">Log in</button>
+      <a class="btn btn-solid" href="portal.html">Continue to secure login</a>
     </div>
     <div id="signupView" style="display:none">
       <h3>Create your account</h3>
@@ -327,7 +328,7 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem;marg
       <input id="su-email" type="email" placeholder="you@company.com" autocomplete="email">
       <label for="su-pass">Password</label>
       <input id="su-pass" type="password" placeholder="Choose a password" autocomplete="new-password">
-      <button class="btn btn-solid" onclick="fakeAuth()">Create account</button>
+      <a class="btn btn-solid" href="portal.html#register">Continue to registration</a>
     </div>
     <div id="rfqView" style="display:none">
       <h3 id="marketplaceRfqTitle">Request a quotation</h3>
@@ -709,15 +710,11 @@ async function sendRFQ(){
     document.getElementById("rfq-msg").value = "";
     btn.textContent = "Sent ✓";
   }catch(e){
-    console.error(e);
+    globalThis.MedicHallUI.report("products.legacy_rfq",e);
     show("Something went wrong, please try again.", false);
     btn.disabled = false; btn.textContent = "Send request";
   }
 }
-function fakeAuth(){
-  alert("Account & RFQ features will be connected to your backend (e.g. Supabase). This is the design preview.");
-}
-
 /* ---------------- init ---------------- */
 async function init(){
   if(backendReady()){
@@ -726,7 +723,7 @@ async function init(){
       if(rows && rows.length){
         PRODUCTS = rows.map(r=>({name:r.name,cat:r.category,ref:r.ref,img:r.image_url||"",desc:r.description||"",coId:r.companies?r.companies.id:null,coName:r.companies?r.companies.name:null,coSlug:r.companies?r.companies.slug:null,coLogo:r.companies?r.companies.logo_url:null,coVer:r.companies?!!r.companies.is_verified:false,broch:r.brochure_url||null,feat:!!r.is_featured,pid:r.id}));
       }
-    }catch(e){ console.warn("Falling back to built-in catalog:", e); }
+    }catch(e){ globalThis.MedicHallUI.report("products.legacy_catalog_fallback",e); }
   }
   render();
   const deepLink = params.get("p");
@@ -814,9 +811,6 @@ function chipLogout(){
   localStorage.removeItem("mh_p_token");
   location.reload();
 }
-initAuthChip();
-
-
 /* ---- banner ads (sliding carousel) ---- */
 const HOUSE_SLIDE = `<a class="banner-slide" href="portal.html" style="flex:0 0 100%;min-width:100%;display:block;position:relative;text-decoration:none;background:linear-gradient(100deg,#F2E5B3 0%,#6CCCB9 45%,#4298CC 100%)">
   <span class="banner-tag">Ad space</span>
@@ -953,7 +947,7 @@ async function toggleFav(pid){
       fb.textContent = FAVS.has(cur.pid) ? "♥ Saved" : "♥ Save";
       fb.style.color = FAVS.has(cur.pid) ? "#E0475B" : "";
     }
-  }catch(e){ console.error(e); }
+  }catch(e){ globalThis.MedicHallUI.report("products.legacy_favorite",e); }
 }
 // Sprint 2 marketplace-products.js loads authenticated favorites with the catalog in one coordinated pass.
 
@@ -1086,7 +1080,7 @@ async function mhaSend(){
   </div>
 </div>
 
-<script src="marketplace-products.js?v=20260808s21rc1"></script>
+<script src="marketplace-products.js?v=20260809s22rc1"></script>
 
 </body>
 </html>
