@@ -75,13 +75,13 @@ test("header switches before search and navigation intrinsic widths collide", ()
   assert.doesNotMatch(design, /Marketplace[^\n]*display:\s*none/i);
 });
 
-test("all root pages use one coherent Sprint 2.1 cache version", () => {
+test("root pages use only the deployed Sprint 2.1 and final-beta cache versions", () => {
   const versions = new Set();
   for (const page of rootPages) {
     const source = read(page);
     for (const match of source.matchAll(/(?:src|href)="[^"]+\?v=([^"']+)/g)) versions.add(match[1]);
   }
-  assert.deepEqual([...versions], ["20260809s22rc1"]);
+  assert.deepEqual([...versions].sort(), ["20260809s22rc1", "20260810beta1"].sort());
 });
 
 test("Universal Tender Import is reissued once after the current production head", () => {

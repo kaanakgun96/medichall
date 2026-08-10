@@ -6,10 +6,12 @@ import vm from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pages = ["index.html", "products.html", "companies.html", "tenders.html", "matchmaking.html", "portal.html", "admin.html"];
-const expectedVersion = "20260809s22rc1";
+const defaultVersion = "20260809s22rc1";
+const expectedVersions = { "products.html": "20260810beta1", "companies.html": "20260810beta1" };
 
 for (const page of pages) {
   const source = await readFile(resolve(root, page), "utf8");
+  const expectedVersion = expectedVersions[page] || defaultVersion;
   assert.equal((source.match(/medichall-ui\.js/g) || []).length, 1, `${page} must load the shared UI safety helper once`);
   assert.match(source, new RegExp(`medichall-ui\\.js\\?v=${expectedVersion}`), `${page} must cache-bust the shared UI helper`);
   const sharedVersions = [...source.matchAll(/(?:medichall-(?:design-system|session|ui|navigation)|marketplace-(?:enterprise|domain|products|companies)|matchmaking-(?:domain|workspace)|tenders)\.(?:css|js)\?v=([a-zA-Z0-9]+)/g)]
@@ -22,7 +24,7 @@ for (const page of pages) {
 }
 
 const files = await Promise.all([
-  "medichall-ui.js", "medichall-navigation.js", "medichall-design-system.css",
+  "medichall-ui.js", "medichall-navigation.js", "medichall-design-system.css", "marketplace-domain.js",
   "marketplace-products.js", "marketplace-companies.js", "matchmaking-workspace.js",
   "portal.html", "admin.html",
 ].map(async (file) => [file, await readFile(resolve(root, file), "utf8")]));
@@ -38,6 +40,20 @@ assert.doesNotMatch(sourceByFile["portal.html"], /esc\(String\(row\.error_messag
 assert.doesNotMatch(sourceByFile["admin.html"], /run supabase-admin-setup\.sql/i, "admin users must not receive internal SQL instructions");
 assert.doesNotMatch(sourceByFile["marketplace-products.js"], /\$\{error\.message\}/, "product actions must not interpolate raw API errors");
 assert.doesNotMatch(sourceByFile["matchmaking-workspace.js"], /return raw\.replace/, "matchmaking must not return raw API errors");
+
+const marketplaceSandbox = { URLSearchParams };
+marketplaceSandbox.globalThis = marketplaceSandbox;
+vm.runInNewContext(sourceByFile["marketplace-domain.js"], marketplaceSandbox, { filename: "marketplace-domain.js" });
+const marketplaceDomain = marketplaceSandbox.MedicHallMarketplaceDomain;
+const malformedCountryProduct = marketplaceDomain.normalizeProduct({
+  id: 1,
+  company_id: 5,
+  companies: { id: 5, name: "Example Medical", country: "TüRkiye" },
+});
+assert.equal(malformedCountryProduct.company_country, "Türkiye", "country presentation must use the canonical Türkiye spelling");
+assert.equal(marketplaceDomain.queryFilters("?country=T%C3%BCRkiye").country, "Türkiye", "legacy country URLs must normalize without losing the filter");
+assert.equal(marketplaceDomain.companyFilterLabel([malformedCountryProduct], "5"), "Example Medical", "company filter chips must use loaded company names");
+assert.equal(marketplaceDomain.companyFilterLabel([], "999"), "Selected company", "unresolved company filters must use a safe fallback");
 
 const diagnostics = [];
 const sandbox = {

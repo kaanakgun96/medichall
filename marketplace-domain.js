@@ -14,6 +14,11 @@
   const words = (value) => unique(lower(value).replace(/[^a-z0-9çğıöşü]+/gi, " ").split(/\s+/).filter((word) => word.length > 1));
   const companyOf = (row) => Array.isArray(row && row.companies) ? row.companies[0] : row && row.companies || null;
 
+  function canonicalCountry(value) {
+    const country = text(value).normalize("NFC");
+    return lower(country) === "türkiye" ? "Türkiye" : country;
+  }
+
   function sourceFor(product, field) {
     const value = product && product[field];
     const configured = product && product.matching_profile_sources && product.matching_profile_sources[field];
@@ -61,7 +66,7 @@
       company_name: text(company.name) || null,
       company_slug: text(company.slug) || null,
       company_logo_url: text(company.logo_url) || null,
-      company_country: text(company.country) || null,
+      company_country: canonicalCountry(company.country) || null,
       company_type: text(company.type) || null,
       company_verified: Boolean(company.is_verified),
       company_certifications: asArray(company.certifications),
@@ -135,6 +140,11 @@
     };
   }
 
+  function companyFilterLabel(products, companyId, fallback = "Selected company") {
+    const company = products.find((product) => String(product.company_id) === String(companyId) && product.company_name);
+    return company ? company.company_name : fallback;
+  }
+
   function overlapScore(left, right) {
     const a = new Set(asArray(left).flatMap(words));
     const b = new Set(asArray(right).flatMap(words));
@@ -201,7 +211,7 @@
     const params = search instanceof URLSearchParams ? search : new URLSearchParams(String(search || "").replace(/^\?/, ""));
     return {
       q: params.get("q") || "", category: params.get("cat") || "", company: params.get("company") || "",
-      country: params.get("country") || "", certification: params.get("cert") || "",
+      country: canonicalCountry(params.get("country") || ""), certification: params.get("cert") || "",
       sterility: params.get("sterility") || "", useType: params.get("use") || "",
       material: params.get("material") || "", readiness: params.get("readiness") || "", sort: params.get("sort") || "featured",
       page: Math.max(1, Number(params.get("page")) || 1), favoritesOnly: params.get("view") === "favorites",
@@ -249,9 +259,9 @@
   ];
 
   global.MedicHallMarketplaceDomain = {
-    UNKNOWN, asArray, text, words, displayValue, sourceFor, normalizeProduct,
+    UNKNOWN, asArray, text, words, displayValue, canonicalCountry, sourceFor, normalizeProduct,
     productReadiness, productSearchText, matchesFilters, sortProducts, productFacets,
-    similarProduct, similarProducts, recommendation, recommendations,
+    companyFilterLabel, similarProduct, similarProducts, recommendation, recommendations,
     queryFilters, filtersQuery, safeHttpUrl, fileMeta, comparisonRows,
   };
 })(globalThis);

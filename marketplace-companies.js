@@ -25,7 +25,10 @@
   async function request(path, options = {}) {
     const { authenticated = false, ...requestOptions } = options;
     const response = authenticated && session
-      ? await session.request(`/rest/v1/${path}`, requestOptions)
+      ? await session.request(`/rest/v1/${path}`, {
+        ...requestOptions,
+        headers: { "Content-Type": "application/json", ...(requestOptions.headers || {}) },
+      })
       : await fetch(`${API_URL}/rest/v1/${path}`, {
         ...requestOptions,
         headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}`, "Content-Type": "application/json", ...(requestOptions.headers || {}) },
@@ -201,6 +204,15 @@
 
   async function enhanceProfile(company, products, certificates = []) {
     if (!company) return;
+    const assistantContext = {
+      kind: "company",
+      name: company.name,
+      label: `${company.name} · Public company showroom`,
+      company,
+      products: products || [],
+    };
+    if (global.MedicHallAssistant) global.MedicHallAssistant.setContext(assistantContext);
+    else global.__mhAssistantPendingContext = assistantContext;
     await loadSession();
     const trust = document.getElementById("companyShowroomTrust");
     const profileSignals = [company.description, company.country, company.type, company.certifications, company.catalog_url, (products || []).length ? "products" : ""].filter(Boolean).length;

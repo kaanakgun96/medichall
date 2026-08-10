@@ -267,6 +267,14 @@ begin
 end
 $deadline_and_digest$;
 
+-- Production can already contain more than the claimer's bounded 100-row
+-- lease window. Keep the synthetic fixture deterministic without touching the
+-- priority of any real row; the entire regression still rolls back.
+update public.user_notification_email_outbox
+set next_attempt_at = '-infinity'::timestamptz
+where recipient_user_id = '60000000-0000-4000-8000-000000000001'
+  and event_type = 'NEW_MESSAGE';
+
 create temporary table claimed_retention_jobs as
 select * from public.claim_user_notification_emails(100, 120);
 

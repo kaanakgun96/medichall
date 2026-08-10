@@ -677,6 +677,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 }
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<link rel="stylesheet" href="medichall-assistant.css?v=20260810beta1">
 <script src="medichall-session.js?v=20260809s22rc1"></script>
 <script src="medichall-ui.js?v=20260809s22rc1"></script>
 <script src="medichall-navigation.js?v=20260809s22rc1"></script>
@@ -4569,12 +4570,12 @@ function tenderAskHtml(matchId,tenderId,evidenceStatus){
   ];
   let resultHtml="";
   if(state.error){
-    resultHtml='<div class="lot-match-notice error" role="alert">'+esc(state.error)+'</div>';
+    resultHtml='<div class="lot-match-notice error mh-assistant__message mh-assistant__message--error" role="alert">'+esc(state.error)+'</div>';
   }else if(state.processing){
-    resultHtml='<div class="lot-match-notice">An identical question is already being processed. Reopen this tender shortly; resubmitting does not create a duplicate AI call.</div>';
+    resultHtml='<div class="lot-match-notice mh-assistant__message mh-assistant__message--loading">An identical question is already being processed. Reopen this tender shortly; resubmitting does not create a duplicate AI call.</div>';
   }else if(result){
     const citations=Array.isArray(result.citations)?result.citations:[];
-    resultHtml='<div class="tender-ask-answer">'+esc(result.answer||"")+'</div>'
+    resultHtml='<div class="tender-ask-answer mh-assistant__message">'+esc(result.answer||"")+'</div>'
       +(result.uncertainty?'<div class="tender-ask-uncertainty"><b>What still needs verification</b><br>'+esc(result.uncertainty)+'</div>':"")
       +(citations.length?'<div class="tender-ask-citations">'+citations.map(citation=>{
         const meta=citation&&citation.meta&&typeof citation.meta==="object"?citation.meta:{};
@@ -4583,10 +4584,10 @@ function tenderAskHtml(matchId,tenderId,evidenceStatus){
       }).join("")+'</div>':"")
       +'<div class="tender-ask-meta"><span>'+(result.cached?"Cached answer · no new AI request":"New grounded answer")+'</span><span>'+citations.length+' cited source'+(citations.length===1?"":"s")+'</span></div>';
   }
-  return '<section class="tender-ask" id="tenderAsk-'+matchId+'" aria-labelledby="tenderAskTitle-'+matchId+'">'
-    +'<div class="tender-ask-head"><div><div class="tender-ask-label">Evidence-grounded tender Q&amp;A</div><h3 id="tenderAskTitle-'+matchId+'">Ask MedicHall about this tender</h3><p>Answers are limited to this company, this tender and the cited stored evidence. MedicHall will state uncertainty instead of inventing missing facts.</p></div><span class="lot-badge '+(evidenceStatus==="available"?"strong":"unknown")+'">'+(evidenceStatus==="available"?"Document evidence available":"Evidence may be incomplete")+'</span></div>'
-    +'<div class="tender-ask-chips">'+questions.map((question,index)=>'<button class="tender-ask-chip" type="button" onclick="tenderAskPreset('+matchId+','+index+')">'+esc(question)+'</button>').join("")+'</div>'
-    +'<div class="tender-ask-form"><textarea id="tenderAskInput-'+matchId+'" maxlength="600" aria-label="Question about this tender" placeholder="Ask a specific question about products, lots, quantities, certifications, deadlines or evidence gaps…">'+esc(state.question||"")+'</textarea><button class="btn btn-grad" id="tenderAskButton-'+matchId+'" onclick="askTender('+matchId+','+Number(tenderId)+')" '+(state.busy?'disabled':'')+'>'+(state.busy?'Checking evidence…':'Get cited answer')+'</button></div>'
+  return '<section class="tender-ask mh-assistant-surface" id="tenderAsk-'+matchId+'" aria-labelledby="tenderAskTitle-'+matchId+'">'
+    +'<div class="tender-ask-head"><div class="mh-assistant__brand"><span class="mh-assistant__mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.2 0-2.4-.25-3.4-.7L3 21l1.7-5.1A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg></span><div><div class="mh-assistant__eyebrow">Evidence-grounded tender Q&amp;A</div><h3 id="tenderAskTitle-'+matchId+'">Ask MedicHall about this tender</h3><p>Answers are limited to this company, this tender and the cited stored evidence. MedicHall will state uncertainty instead of inventing missing facts.</p></div></div><div class="mh-assistant__controls"><span class="lot-badge '+(evidenceStatus==="available"?"strong":"unknown")+'">'+(evidenceStatus==="available"?"Document evidence available":"Evidence may be incomplete")+'</span><button class="mh-assistant__icon-button" type="button" aria-label="Start a new conversation" onclick="resetTenderAsk('+matchId+','+Number(tenderId)+',\''+esc(evidenceStatus)+'\')">↻</button><button class="mh-assistant__icon-button" type="button" aria-label="Close Ask MedicHall" onclick="closeTenderAsk('+matchId+')">×</button></div></div>'
+    +'<div class="tender-ask-chips mh-assistant__chips">'+questions.map((question,index)=>'<button class="tender-ask-chip mh-assistant__chip" type="button" onclick="tenderAskPreset('+matchId+','+index+')">'+esc(question)+'</button>').join("")+'</div>'
+    +'<div class="tender-ask-form mh-assistant__form"><textarea id="tenderAskInput-'+matchId+'" maxlength="600" aria-label="Message Ask MedicHall about this tender" placeholder="Ask a specific question about products, lots, quantities, certifications, deadlines or evidence gaps…">'+esc(state.question||"")+'</textarea><button class="btn btn-grad mh-assistant__send" id="tenderAskButton-'+matchId+'" onclick="askTender('+matchId+','+Number(tenderId)+')" '+(state.busy?'disabled':'')+'>'+(state.busy?'Checking evidence…':'Get cited answer')+'</button></div>'
     +'<div class="tender-ask-result" aria-live="polite">'+resultHtml+'</div>'
     +'</section>';
 }
@@ -4604,6 +4605,18 @@ function tenderAskPreset(matchId,index){
 function refreshTenderAsk(matchId,tenderId,evidenceStatus){
   const host=document.getElementById("tenderAsk-"+matchId);
   if(host) host.outerHTML=tenderAskHtml(matchId,tenderId,evidenceStatus);
+}
+
+function resetTenderAsk(matchId,tenderId,evidenceStatus){
+  TENDER_ASK_STATE[matchId]={};
+  refreshTenderAsk(matchId,tenderId,evidenceStatus);
+  document.getElementById("tenderAskInput-"+matchId)?.focus();
+}
+
+function closeTenderAsk(matchId){
+  const panel=document.getElementById("deep-"+matchId);
+  if(panel){panel.classList.remove("open");panel.replaceChildren();}
+  document.querySelector("#opp-"+matchId+" button")?.focus();
 }
 
 async function askTender(matchId,tenderId){

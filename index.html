@@ -312,34 +312,6 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
 .banner-tag{position:absolute;top:8px;right:10px;background:rgba(0,62,82,.65);color:#fff;font-family:var(--font-mono,"IBM Plex Mono",monospace);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;border-radius:100px;padding:3px 10px;backdrop-filter:blur(4px)}
 
 
-/* MedicHall assistant */
-.mha-typing{color:var(--ink-soft);font-style:italic;font-size:.85rem}
-@keyframes mhaDot{0%,60%,100%{opacity:.3}30%{opacity:1}}
-.mha-fab{position:fixed;bottom:22px;right:22px;z-index:200;width:56px;height:56px;border-radius:50%;border:none;color:#fff;display:grid;place-items:center;background:var(--teal-deep);color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,62,82,.35);display:grid;place-items:center;transition:transform .15s}
-.mha-fab:hover{transform:scale(1.08)}
-.mha-panel{position:fixed;bottom:92px;right:22px;z-index:200;width:min(360px,calc(100vw - 32px));height:min(520px,calc(100vh - 120px));background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,62,82,.35);display:none;flex-direction:column;overflow:hidden;border:1.5px solid var(--line)}
-.mha-panel.open{display:flex}
-.mha-head{background:linear-gradient(100deg,#6CCCB9,#4298CC);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
-.mha-head b{font-size:.95rem}
-.mha-head span{display:block;font-size:.72rem;opacity:.9}
-.mha-head button{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer}
-.mha-body{flex:1;overflow-y:auto;padding:14px;background:var(--mist);display:flex;flex-direction:column;gap:10px}
-.mha-msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:.86rem;line-height:1.5}
-.mha-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
-.mha-msg.user{align-self:flex-end;background:var(--teal);color:#fff;border-bottom-right-radius:4px}
-.mha-msg a{color:var(--teal);font-weight:600;text-decoration:none}
-.mha-msg.user a{color:#fff;text-decoration:underline}
-.mha-chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
-.mha-chip{background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:6px 13px;font-size:.78rem;font-weight:600;color:var(--teal-deep);cursor:pointer;font-family:inherit}
-.mha-chip:hover{border-color:var(--teal);color:var(--teal)}
-.mha-card{display:flex;gap:10px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;text-decoration:none;align-self:flex-start;max-width:95%;transition:border-color .15s}
-.mha-card:hover{border-color:var(--teal)}
-.mha-card .t{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.3}
-.mha-card .s{font-size:.68rem;color:var(--ink-soft);font-family:var(--font-mono,monospace)}
-.mha-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:#fff}
-.mha-foot input{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:.86rem}
-.mha-foot input:focus{outline:none;border-color:var(--teal)}
-.mha-foot button{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;font-family:inherit}
 
 /* ---------- tender intelligence promo ---------- */
 .ti{background:linear-gradient(115deg,#E9F6F2 0%,#E2F2FA 55%,#FAF6E4 100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;overflow:hidden}
@@ -457,6 +429,7 @@ footer .mh-brand{color:#fff;margin-bottom:14px}
 }
 </style>
 <link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<link rel="stylesheet" href="medichall-assistant.css?v=20260810beta1">
 <script src="medichall-session.js?v=20260809s22rc1"></script>
 <script src="medichall-ui.js?v=20260809s22rc1"></script>
 <script src="medichall-navigation.js?v=20260809s22rc1"></script>
@@ -1426,177 +1399,6 @@ async function loadPartnersFromDB(){
 }
 loadPartnersFromDB();
 
-/* ---- MedicHall Assistant (catalog-powered, no external AI) ---- */
-let mhaStarted = false;
-function mhaToggle(){
-  const p = document.getElementById("mhaPanel");
-  p.classList.toggle("open");
-  if(p.classList.contains("open") && !mhaStarted){ mhaStarted = true; mhaGreet(); }
-  if(p.classList.contains("open")) setTimeout(()=>document.getElementById("mhaInput").focus(), 100);
-}
-function mhaMsg(html, who){
-  const b = document.getElementById("mhaBody");
-  const d = document.createElement("div");
-  d.className = "mha-msg " + (who||"bot");
-  d.innerHTML = html;
-  b.appendChild(d);
-  b.scrollTop = b.scrollHeight;
-}
-function mhaChips(items){
-  const b = document.getElementById("mhaBody");
-  const w = document.createElement("div");
-  w.className = "mha-chips";
-  w.innerHTML = items.map(i=>`<button class="mha-chip" onclick="mhaQuick('${i.q.replace(/'/g,"\\'")}')">${i.t}</button>`).join("");
-  b.appendChild(w);
-  b.scrollTop = b.scrollHeight;
-}
-function mhaCard(href, title, sub){
-  const b = document.getElementById("mhaBody");
-  const a = document.createElement("a");
-  a.className = "mha-card"; a.href = href;
-  a.innerHTML = `<span><span class="t">${title}</span><br><span class="s">${sub}</span></span>`;
-  b.appendChild(a);
-  b.scrollTop = b.scrollHeight;
-}
-function mhaGreet(){
-  mhaMsg("Hi! 👋 I can help you explore MedicHall — European tenders, business matchmaking, products and companies. What would you like to know?");
-  mhaChips([
-    {t:"European tenders", q:"tenders"},
-    {t:"Business matchmaking", q:"matchmaking"},
-    {t:"Find a product", q:"find product"},
-    {t:"How it works", q:"how it works"}
-  ]);
-}
-function mhaQuick(q){ document.getElementById("mhaInput").value = q; mhaSend(); }
-async function mhaSend(){
-  const inp = document.getElementById("mhaInput");
-  const q = inp.value.trim();
-  if(!q) return;
-  inp.value = "";
-  mhaMsg(q.replace(/</g,"&lt;"), "user");
-  const t = q.toLowerCase();
-
-  // Tender intelligence
-  if(/tender|ihale|procurement|ted|bid|contract notice/.test(t)){
-    mhaMsg("MedicHall pulls new <b>European medical tenders</b> from official sources (TED) every morning and scores them against your products, target countries and certifications. Open any tender and our AI reads the documents for you — extracting lots, quantities and requirements with the source quote for each.");
-    mhaChips([{t:"Open the portal", q:"register"},{t:"How scoring works", q:"how it works"}]);
-    return;
-  }
-  // Matchmaking
-  if(/matchmak|match ?making|partner|distributor match|find.*(partner|buyer|distributor)|connect/.test(t)){
-    mhaMsg('Our <b>two-sided matchmaking</b> connects manufacturers, distributors and buyers by product, market and commercial fit. Set up a profile once and MedicHall suggests the right partners. <a href="matchmaking.html">Explore matchmaking →</a>');
-    mhaChips([{t:"European tenders", q:"tenders"},{t:"Create account", q:"register"}]);
-    return;
-  }
-  // How it works
-  if(/how it works|how does.*work|what is medichall|explain|nedir|nasıl/.test(t)){
-    mhaMsg("MedicHall does the work a sales team does every morning: <b>finds</b> European tenders that fit you, <b>reads</b> the documents with AI, and <b>connects</b> you with the right manufacturers, distributors and buyers — all in one place.");
-    mhaChips([{t:"European tenders", q:"tenders"},{t:"Matchmaking", q:"matchmaking"},{t:"Create account", q:"register"}]);
-    return;
-  }
-
-  // FAQ intents
-  if(/rfq|quote|quotation|teklif|how.*(work|buy)|inquiry/.test(t)){
-    mhaMsg("Requesting a quote is easy: open any product and click <b>Request quotation</b>. The selected company replies directly — if you create a free account, the conversation happens on MedicHall with chat and notifications. 📬");
-    mhaChips([{t:"Browse products", q:"find product"},{t:"Create account", q:"register"}]);
-    return;
-  }
-  if(/register|sign ?up|join|account|kayıt|üye/.test(t)){
-    mhaMsg('You can join for free — as a <b>manufacturer</b> (list products, get matched to European tenders, appear in matchmaking) or as a <b>buyer</b> (save favorites, send RFQs, find partners). <a href="portal.html">Create your account here →</a>');
-    return;
-  }
-  if(/premium|advertis|banner|feature|reklam/.test(t)){
-    mhaMsg('Manufacturers can stand out with <b>★ Featured products</b> on the homepage, <b>Premium Partner</b> placement, and <b>banner campaigns</b> across the marketplace. <a href="portal.html">Join as a manufacturer</a> or contact us to discuss options.');
-    return;
-  }
-  if(/certif|ce |ce-|iso|mdr|quality/.test(t)){
-    mhaMsg('Companies on MedicHall can list certifications (CE MDR, ISO 13485…) on their profiles — review the supplied documents and complete your own verification before making contact. <a href="companies.html">Browse companies →</a>');
-    return;
-  }
-  if(/contact|support|help|iletişim|destek/.test(t)){
-    mhaMsg('You can reach the MedicHall team at <a href="mailto:info@medichall.com">info@medichall.com</a> — or message a company directly from its profile page.');
-    return;
-  }
-  if(/manufacturer|supplier|compan|firma|üretici/.test(t) && t.length < 30){
-    mhaMsg('Here is our directory of approved companies: <a href="companies.html">View all companies →</a> You can filter by role, country, product category and certification.');
-    return;
-  }
-  if(/find product|products?$|catalog/.test(t)){
-    mhaMsg('Tell me what you need — e.g. <i>"surgical packs"</i>, <i>"sterilization indicators"</i>, <i>"drapes"</i> — and I\'ll search the catalog. Or <a href="products.html">browse everything →</a>');
-    return;
-  }
-
-  // Catalog search
-  const enc = encodeURIComponent("*" + q.replace(/[%,()]/g," ").trim() + "*");
-  let found = false;
-  try{
-    const pr = await fetch(MH_URL + "/rest/v1/products?select=ref,name,category&or=(name.ilike." + enc + ",category.ilike." + enc + ")&is_active=eq.true&limit=4",
-      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
-    if(pr.ok){
-      const prods = await pr.json();
-      if(prods.length){
-        found = true;
-        mhaMsg("Here's what I found in the catalog:");
-        prods.forEach(p=>mhaCard("products.html?p=" + encodeURIComponent(p.ref), p.name, p.category));
-        mhaCard("products.html?q=" + encodeURIComponent(q), "See all results for \"" + q.replace(/</g,"&lt;") + "\" →", "Full catalog search");
-      }
-    }
-    const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,slug,type&name=ilike." + enc + "&limit=3",
-      {headers:{apikey:MH_KEY, Authorization:"Bearer "+MH_KEY}});
-    if(cr.ok){
-      const cos = await cr.json();
-      if(cos.length){
-        found = true;
-        mhaMsg("Matching companies:");
-        cos.forEach(c=>mhaCard(c.slug ? "/m/" + c.slug : "companies.html", c.name, c.type || "Company"));
-      }
-    }
-  }catch(e){}
-  if(!found){
-    // Serbest soru: kurallara ve katalog aramasına uymadı → Claude'a sor
-    await mhaAskAI(q);
-  }
-}
-
-// ---- Claude fallback (only for free-form questions) ----
-const MHA_HISTORY = [];
-let mhaThinking = false;
-async function mhaAskAI(question){
-  if(mhaThinking) return;
-  mhaThinking = true;
-  const b = document.getElementById("mhaBody");
-  const think = document.createElement("div");
-  think.className = "mha-msg bot";
-  think.innerHTML = '<span class="mha-typing">MedicHall AI is thinking…</span>';
-  b.appendChild(think); b.scrollTop = b.scrollHeight;
-  try{
-    const res = await fetch(MH_URL + "/functions/v1/public-assistant", {
-      method:"POST",
-      headers:{ apikey: MH_KEY, "Content-Type":"application/json" },
-      body: JSON.stringify({ message: question, history: MHA_HISTORY.slice(-6) })
-    });
-    const data = await res.json().catch(()=>({}));
-    const reply = (data && data.reply) ? String(data.reply) : "Sorry, I couldn't answer that right now. You can email info@medichall.com.";
-    think.remove();
-    // basit güvenli render: linkleri koru, HTML enjeksiyonunu engelle
-    const safe = reply.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-                      .replace(/\n/g,"<br>")
-                      .replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
-                      .replace(/\b(portal\.html|matchmaking\.html|products\.html|companies\.html)\b/g,'<a href="$1">$1</a>');
-    mhaMsg(safe);
-    MHA_HISTORY.push({role:"user", content:question});
-    MHA_HISTORY.push({role:"assistant", content:reply});
-    if(data && data.limited){
-      mhaChips([{t:"Create free account", q:"register"}]);
-    }
-  }catch(e){
-    think.remove();
-    mhaMsg("I'm having trouble reaching the assistant. Please try again, or email <a href=\"mailto:info@medichall.com\">info@medichall.com</a>.");
-  }finally{
-    mhaThinking = false;
-  }
-}
-
 
 /* ---- hero chips: live categories from the full catalog ---- */
 async function loadHeroChips(){
@@ -1616,19 +1418,7 @@ async function loadHeroChips(){
 loadHeroChips();
 </script>
 
-<!-- MedicHall Assistant -->
-<button class="mha-fab" id="mhaFab" aria-label="Open MedicHall assistant" onclick="mhaToggle()"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.2 0-2.4-.25-3.4-.7L3 21l1.7-5.1A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg></button>
-<div class="mha-panel" id="mhaPanel" role="dialog" aria-label="MedicHall assistant">
-  <div class="mha-head">
-    <div><b>MedicHall Assistant</b><span>Tenders · matchmaking · products</span></div>
-    <button aria-label="Close assistant" onclick="mhaToggle()">✕</button>
-  </div>
-  <div class="mha-body" id="mhaBody"></div>
-  <div class="mha-foot">
-    <input id="mhaInput" placeholder="e.g. surgical drapes, sterilization…" onkeydown="if(event.key==='Enter')mhaSend()">
-    <button onclick="mhaSend()">➤</button>
-  </div>
-</div>
+<script src="medichall-assistant.js?v=20260810beta1"></script>
 
 </body>
 </html>

@@ -33,7 +33,10 @@
   async function request(path, options = {}) {
     const { authenticated = false, ...requestOptions } = options;
     const response = authenticated && session
-      ? await session.request(path, requestOptions)
+      ? await session.request(path, {
+        ...requestOptions,
+        headers: { "Content-Type": "application/json", ...(requestOptions.headers || {}) },
+      })
       : await fetch(`${API_URL}${path}`, {
         ...requestOptions,
         headers: headers(requestOptions.headers || {}),
@@ -147,12 +150,17 @@
       q: "Search", category: "Category", company: "Company", country: "Country",
       certification: "Certification", sterility: "Sterility", useType: "Use type", material: "Material", readiness: "Profile detail"
     };
-    return Object.entries(names).filter(([key]) => state.filters[key]).map(([key, name]) => [key, name, state.filters[key]]);
+    return Object.entries(names).filter(([key]) => state.filters[key]).map(([key, name]) => {
+      const value = key === "company"
+        ? D.companyFilterLabel(state.products, state.filters[key])
+        : label(state.filters[key]);
+      return [key, name, value];
+    });
   }
 
   function renderActiveFilters() {
     document.getElementById("activePill").innerHTML = activeFilterEntries().map(([key, name, value]) =>
-      `<span class="marketplace-filter-chip">${escapeHtml(name)}: ${escapeHtml(label(value))}<button type="button" data-clear-filter="${key}" aria-label="Remove ${escapeHtml(name)} filter">×</button></span>`
+      `<span class="marketplace-filter-chip">${escapeHtml(name)}: ${escapeHtml(value)}<button type="button" data-clear-filter="${key}" aria-label="Remove ${escapeHtml(name)} filter">×</button></span>`
     ).join("");
   }
 
@@ -334,6 +342,12 @@
 
   function renderDetail(product, updateUrl = true) {
     state.selectedProduct = product;
+    global.MedicHallAssistant?.setContext({
+      kind: "product",
+      name: product.name,
+      label: `${product.name} · ${product.company_name || "Public product"}`,
+      product,
+    });
     state.filters.detail = product.ref;
     if (updateUrl) syncUrl({ detail: product.ref });
     const drawer = document.getElementById("drawer");
@@ -375,6 +389,7 @@
     document.getElementById("drawerBackdrop").classList.remove("open");
     document.body.style.overflow = "";
     state.selectedProduct = null;
+    global.MedicHallAssistant?.setContext({ kind: "catalog", label: "Public product catalog" });
     state.filters.detail = "";
     syncUrl({ detail: "" });
   }

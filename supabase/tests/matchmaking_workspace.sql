@@ -275,8 +275,9 @@ begin
   if jsonb_array_length(workspace -> 'matches') <> 2 then
     raise exception 'Workspace did not return only the source tenant matches';
   end if;
-  if (workspace #>> '{matches,0,explanation,version}')::integer <> 1 then
-    raise exception 'Transparent match explanation was not generated';
+  if (workspace #>> '{matches,0,explanation,version}')::integer <> 2
+     or (workspace #>> '{matches,0,explanation,method,unknown_is_not_positive_evidence}')::boolean is not true then
+    raise exception 'Current transparent match explanation was not generated';
   end if;
 end
 $workspace_read$;

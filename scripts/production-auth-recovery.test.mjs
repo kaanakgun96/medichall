@@ -143,7 +143,7 @@ test("root pages load one canonical session helper before shared navigation", ()
       releaseVersions.add(match[1]);
     }
   }
-  assert.deepEqual([...releaseVersions], ["20260809s22rc1"]);
+  assert.deepEqual([...releaseVersions].sort(), ["20260809s22rc1", "20260810beta1"].sort());
 });
 
 test("Messages, admin authorization, analytics, mobile auth, and notification contracts are present", () => {
@@ -176,6 +176,8 @@ test("Messages, admin authorization, analytics, mobile auth, and notification co
   assert.match(companies, /session\.request/);
   assert.match(products, /session\.getUser\(\)/);
   assert.match(products, /session\.request/);
+  assert.match(products, /headers: \{ "Content-Type": "application\/json"/);
+  assert.match(companies, /headers: \{ "Content-Type": "application\/json"/);
   assert.doesNotMatch(companies, /localStorage\.getItem\("mh_p_token"\)/);
   assert.doesNotMatch(products, /localStorage\.getItem\("mh_p_token"\)/);
   assert.match(matchmaking, /AUTH_SESSION\.getUser\(\)/);
