@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Medical taxonomy responsive fixture</title>
+  <link rel="stylesheet" href="../../medichall-design-system.css">
+  <link rel="stylesheet" href="../../medichall-taxonomy.css?v=responsive2">
+  <style>
+    body{margin:0;background:#eff6f9;color:#003e52;font-family:Poppins,Arial,sans-serif}
+    main{width:min(1040px,calc(100% - 24px));margin:24px auto;padding:clamp(14px,3vw,30px);background:#fff;border:1px solid #d6e4eb;border-radius:16px}
+    h1{font-size:clamp(1.3rem,4vw,2rem);margin:0 0 4px}.fixture-note{margin:0 0 20px;color:#40748e}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>What products are you interested in?</h1>
+    <p class="fixture-note">Responsive, keyboard and fallback validation fixture. No network or provider request is made.</p>
+    <div id="taxonomyFixture"></div>
+  </main>
+  <script src="../../medichall-taxonomy.js"></script>
+  <script>
+    const nodes=[
+      {id:1,parent_id:null,hierarchy_level:1,node_type:"family",canonical_name:"Equipment Covers",slug:"equipment-covers",description:"Protective covers and drapes for medical equipment.",aliases:[]},
+      {id:2,parent_id:1,hierarchy_level:2,node_type:"category",canonical_name:"Ultrasound Probe Covers",slug:"ultrasound-probe-covers",description:"Protective covers and sheaths for ultrasound probes.",aliases:["Ultrasound Transducer Sheath","Probe Sheath"]},
+      {id:3,parent_id:1,hierarchy_level:2,node_type:"category",canonical_name:"Camera Covers",slug:"camera-covers",description:"Protective covers and sleeves for surgical cameras.",aliases:["Camera Sleeve"]},
+      {id:4,parent_id:1,hierarchy_level:2,node_type:"category",canonical_name:"C-Arm Covers",slug:"c-arm-covers",description:"Protective drapes for C-arm equipment.",aliases:["C Arm Drape"]}
+    ];
+    MedicHallTaxonomy.createSelector({
+      root:"#taxonomyFixture",label:"Products you are interested in",hint:"Select a family or specific category",
+      search:async()=>nodes,
+      resolve:async term=>term.toLowerCase().includes("ultrasound")?{
+        resolution:"high_confidence",recommended:{canonical_taxonomy_id:2,canonical_name:"Ultrasound Probe Covers",confidence:.98,reasoning:"Approved alias match."},alternatives:[]
+      }:{resolution:"unmapped",recommended:null,alternatives:[]},
+      initial:[{interest_kind:"interested",taxonomy_id:2,canonical_name:"Ultrasound Probe Covers",node_type:"category",slug:"ultrasound-probe-covers"}]
+    });
+  </script>
+</body>
+</html>

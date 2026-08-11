@@ -7,7 +7,11 @@ import vm from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pages = ["index.html", "products.html", "companies.html", "tenders.html", "matchmaking.html", "portal.html", "admin.html"];
 const defaultVersion = "20260809s22rc1";
-const expectedVersions = { "products.html": "20260810beta1", "companies.html": "20260810beta1" };
+const expectedVersions = {
+  "products.html": "20260811tax1",
+  "companies.html": "20260811tax1",
+  "matchmaking.html": "20260811tax1",
+};
 
 for (const page of pages) {
   const source = await readFile(resolve(root, page), "utf8");

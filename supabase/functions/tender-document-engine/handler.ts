@@ -1323,6 +1323,19 @@ async function refreshRequestingCompanyMatch(
     | Awaited<ReturnType<typeof refreshTenderLotMatches>>
     | null = null;
   let lotMatchingError: string | null = null;
+  let taxonomyMapping: Record<string, unknown> | null = null;
+  let taxonomyMappingError: string | null = null;
+  try {
+    const result = await adminClient.rpc("refresh_tender_taxonomy_mappings_v1", {
+      p_tender_id: Number(job.tender_id),
+    });
+    if (result.error) taxonomyMappingError = sanitizeMessage(result.error);
+    else taxonomyMapping = result.data && typeof result.data === "object"
+      ? result.data as Record<string, unknown>
+      : null;
+  } catch (error) {
+    taxonomyMappingError = sanitizeMessage(error);
+  }
   try {
     lotMatching = await refreshTenderLotMatches(adminClient, {
       companyId,
@@ -1335,6 +1348,7 @@ async function refreshRequestingCompanyMatch(
   const errors = [
     explanation.error,
     scoring.error,
+    taxonomyMappingError ? { message: taxonomyMappingError } : null,
     lotMatchingError ? { message: lotMatchingError } : null,
   ]
     .filter(Boolean)
@@ -1349,6 +1363,9 @@ async function refreshRequestingCompanyMatch(
         company_scope: "requesting_company_only",
         explanation_refreshed: !explanation.error,
         score_v2_refreshed: !scoring.error,
+        taxonomy_mappings_refreshed: !taxonomyMappingError,
+        taxonomy_mapped_terms: Number(taxonomyMapping?.mapped_terms ?? 0),
+        taxonomy_provider_calls: 0,
         lot_matches_refreshed: !lotMatchingError,
         lot_match_count: lotMatching?.normalized_lot_count ?? 0,
         lot_matches_changed: lotMatching?.changed_count ?? 0,
