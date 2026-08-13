@@ -24,7 +24,7 @@ for (const page of pages) {
   assert.ok(sharedAssets.length >= 4, `${page} must load the shared production assets`);
   for (const asset of sharedAssets) {
     const expectedAssetVersion = page === "companies.html" && asset.file === "marketplace-companies.js"
-      ? "20260813seo1"
+      ? "20260813seo2"
       : expectedVersion;
     assert.equal(asset.version, expectedAssetVersion, `${page} must use the audited cache version for ${asset.file}`);
   }

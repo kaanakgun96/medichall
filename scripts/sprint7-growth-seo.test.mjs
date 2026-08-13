@@ -97,9 +97,25 @@ test("the social card is a valid, bounded 1200 by 630 PNG used by every public S
 
 test("the showroom controller cache hotfix is bounded to its one script reference", () => {
   const source = read("companies.html");
-  assert.equal((source.match(/20260813seo1/g) ?? []).length, 1);
-  assert.match(source, /<script src="marketplace-companies\.js\?v=20260813seo1"><\/script>/);
+  assert.equal((source.match(/20260813seo2/g) ?? []).length, 1);
+  assert.match(source, /<script src="marketplace-companies\.js\?v=20260813seo2"><\/script>/);
+  assert.doesNotMatch(source, /marketplace-companies\.js\?v=20260813seo1/);
   assert.doesNotMatch(source, /marketplace-companies\.js\?v=20260811tax1/);
+});
+
+test("showroom metadata is applied as soon as the public company record resolves", () => {
+  const source = read("companies.html");
+  const companyResolved = source.indexOf("const c = rows[0]; CURRENT = c;");
+  const earlyMetadata = source.indexOf("applyProfileMetadata?.(c, []);", companyResolved);
+  const certificateLoad = source.indexOf("await loadCertDocs(c);", companyResolved);
+  const productLoad = source.indexOf('const prods = await db("products?', companyResolved);
+  assert.ok(companyResolved >= 0, "public company resolution must remain explicit");
+  assert.ok(earlyMetadata > companyResolved, "metadata must follow company resolution");
+  assert.ok(earlyMetadata < certificateLoad, "metadata must not wait for certificates");
+  assert.ok(earlyMetadata < productLoad, "metadata must not wait for products");
+  assert.match(source, /location\.pathname\.match\(\/\\\/m\\\/\(\[\^\\\/\]\+\)\/\)/, "showroom mode must use the pathname slug");
+  assert.match(source, /loadProfile\(decodeURIComponent\(mPath\[1\]\), true\)/, "pathname slug must drive the public-company lookup");
+  assert.doesNotMatch(source, /slug\s*===\s*["'](?:4a-medical|dispack-medical|grup-a-medical|medibant-medikal)/, "showroom routing must stay generic");
 });
 
 test("all indexed showrooms receive self-canonical public Organization metadata at runtime", async () => {
@@ -144,6 +160,7 @@ test("all indexed showrooms receive self-canonical public Organization metadata 
     };
     sandbox.globalThis = sandbox;
     vm.runInNewContext(controller, sandbox, { filename: "marketplace-companies.js" });
+    assert.equal(typeof sandbox.MedicHallEnterpriseCompanies.applyProfileMetadata, "function");
 
     const publicCompany = {
       id: slug,
@@ -159,11 +176,18 @@ test("all indexed showrooms receive self-canonical public Organization metadata 
       phone: "+00 private-test-value",
       private_note: "must-not-appear",
     };
+    sandbox.MedicHallEnterpriseCompanies.applyProfileMetadata(publicCompany, []);
+
+    const expectedCanonical = `https://medichall.com/m/${slug}`;
+    assert.equal(document.title, `${name} — MedicHall Company Showroom`);
+    assert.equal(canonical.getAttribute("href"), expectedCanonical);
+    assert.equal(ogUrl.getAttribute("content"), expectedCanonical);
+    assert.equal(JSON.parse(companyData.textContent).name, name);
+
     await sandbox.MedicHallEnterpriseCompanies.enhanceProfile(publicCompany, [
       { category: "Medical Devices", taxonomy_category: "Surgical Drapes" },
     ]);
 
-    const expectedCanonical = `https://medichall.com/m/${slug}`;
     assert.equal(document.title, `${name} — MedicHall Company Showroom`);
     assert.equal(canonical.getAttribute("href"), expectedCanonical);
     assert.equal(ogUrl.getAttribute("content"), expectedCanonical);
