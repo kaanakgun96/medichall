@@ -108,6 +108,31 @@ begin
   ) then
     raise exception 'Service role cannot claim provider rooms';
   end if;
+
+  foreach required_rpc in array array[
+    'public.claim_matchmaking_video_room(bigint)',
+    'public.complete_matchmaking_video_room(bigint,text,text,text,text,timestamptz)',
+    'public.fail_matchmaking_video_room(bigint,text)',
+    'public.mm_begin_idempotent_operation(uuid,text,uuid,jsonb)',
+    'public.request_business_connection_v2(uuid,text,uuid)',
+    'public.respond_business_connection_v2(bigint,text,integer,uuid)',
+    'public.respond_matchmaking_meeting(bigint,text,integer,uuid,bigint,jsonb,text,text)',
+    'public.revise_matchmaking_meeting_proposal(bigint,integer,text,text,text,text,jsonb,uuid)',
+    'public.submit_matchmaking_meeting_outcome(bigint,text,text,text,timestamptz,uuid)',
+    'public.update_matchmaking_meeting_draft(bigint,integer,text,text,text,text,jsonb,uuid)'
+  ]
+  loop
+    if pg_get_functiondef(to_regprocedure(required_rpc)) like
+       '%errcode = ''40001''%' then
+      raise exception 'Retryable 40001 remains in business-conflict routine: %',
+        required_rpc;
+    end if;
+    if pg_get_functiondef(to_regprocedure(required_rpc)) not like
+       '%errcode = ''PT409''%' then
+      raise exception 'Non-retryable PT409 contract is missing from %',
+        required_rpc;
+    end if;
+  end loop;
 end
 $structure$;
 
@@ -514,9 +539,20 @@ set local role authenticated;
 do $accept_concurrently_safe$
 declare
   selected_id bigint;
+  stale_proposal_id bigint;
   accepted jsonb;
   replayed jsonb;
+  conflict_key_count integer;
 begin
+  select proposal.id
+  into stale_proposal_id
+  from public.matchmaking_meeting_proposals proposal
+  where proposal.meeting_id =
+      current_setting('medichall.mm_meeting', true)::bigint
+    and proposal.proposal_round = 1
+  order by proposal.slot_number
+  limit 1;
+
   select proposal.id
   into selected_id
   from public.matchmaking_meeting_proposals proposal
@@ -526,6 +562,30 @@ begin
     and proposal.status = 'active'
   order by proposal.slot_number
   limit 1;
+
+  begin
+    perform public.respond_matchmaking_meeting(
+      current_setting('medichall.mm_meeting', true)::bigint,
+      'accept',
+      3,
+      '50000000-0000-4000-8000-000000000009'::uuid,
+      stale_proposal_id,
+      null,
+      null,
+      null
+    );
+    raise exception 'A stale proposal was accepted';
+  exception when sqlstate 'PT409' then null;
+  end;
+
+  select count(*)
+  into conflict_key_count
+  from public.matchmaking_idempotency_keys
+  where idempotency_key =
+    '50000000-0000-4000-8000-000000000009'::uuid;
+  if conflict_key_count <> 0 then
+    raise exception 'Stale proposal left a committed idempotency artifact';
+  end if;
 
   accepted := public.respond_matchmaking_meeting(
     current_setting('medichall.mm_meeting', true)::bigint,
@@ -568,8 +628,34 @@ begin
       null
     );
     raise exception 'A stale second acceptance succeeded';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
+
+  begin
+    perform public.respond_matchmaking_meeting(
+      current_setting('medichall.mm_meeting', true)::bigint,
+      'accept',
+      (accepted ->> 'state_version')::integer,
+      '50000000-0000-4000-8000-000000000003'::uuid,
+      selected_id,
+      null,
+      null,
+      null
+    );
+    raise exception 'An already-processed meeting was accepted again';
+  exception when sqlstate 'PT409' then null;
+  end;
+
+  select count(*)
+  into conflict_key_count
+  from public.matchmaking_idempotency_keys
+  where idempotency_key in (
+    '50000000-0000-4000-8000-000000000002'::uuid,
+    '50000000-0000-4000-8000-000000000003'::uuid
+  );
+  if conflict_key_count <> 0 then
+    raise exception 'Rejected meeting conflict left an idempotency artifact';
+  end if;
 end
 $accept_concurrently_safe$;
 
@@ -739,7 +825,7 @@ begin
       null
     );
     raise exception 'Completed meeting was cancelled';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 end
 $complete_and_follow_up$;
@@ -837,7 +923,7 @@ begin
       null
     );
     raise exception 'Cancelled meeting accepted a counter-proposal';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 end
 $cancel_and_block_join$;
