@@ -35,9 +35,9 @@ describe("medical product taxonomy production surfaces", () => {
 
   it("shares one accessible responsive selector across product and matchmaking forms", () => {
     expect(portal).toContain('medichall-taxonomy.js?v=20260811tax1');
-    expect(standalone).toContain('medichall-taxonomy.js?v=20260811tax1');
+    expect(standalone).toContain('medichall-taxonomy.js?v=20260813video1');
     expect(portal).toContain('medichall-taxonomy.css?v=20260811tax1');
-    expect(standalone).toContain('medichall-taxonomy.css?v=20260811tax1');
+    expect(standalone).toContain('medichall-taxonomy.css?v=20260813video1');
     expect(portal).toContain("MedicHallTaxonomy.createSelector");
     expect(workspace).toContain("MedicHallTaxonomy.createSelector");
     expect(taxonomyUi).toContain('role="combobox"');

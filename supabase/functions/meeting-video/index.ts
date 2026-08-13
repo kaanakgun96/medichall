@@ -9,6 +9,7 @@ import {
   VideoProviderError,
   type VideoRoomClaim,
 } from "../_shared/meeting-video-provider.ts";
+import { classifyMeetingVideoJoinDenial } from "../_shared/meeting-video-access.ts";
 
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",
@@ -71,7 +72,9 @@ function configurationStatus() {
   };
 }
 
-Deno.serve(async (req: Request) => {
+export async function handleMeetingVideoRequest(
+  req: Request,
+): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -139,10 +142,18 @@ Deno.serve(async (req: Request) => {
     const rateLimited = contextError.message.toLowerCase().includes(
       "too many video requests",
     );
+    const joinDenied = action === "join" && !rateLimited;
     return json(req, {
       error: rateLimited
         ? "Too many video requests. Try again in a few minutes."
+        : joinDenied
+        ? "You are not authorized to join this meeting."
         : "Meeting not found or access denied.",
+      code: rateLimited
+        ? "MEETING_RATE_LIMITED"
+        : joinDenied
+        ? "MEETING_UNAUTHORIZED"
+        : undefined,
     }, rateLimited ? 429 : 403);
   }
   const context = record(contextData);
@@ -271,12 +282,12 @@ Deno.serve(async (req: Request) => {
       }, 503);
     }
     if (context.can_join !== true) {
+      const denial = classifyMeetingVideoJoinDenial(context);
       return json(req, {
-        error: "The secure room is not available at this time.",
-        code: "join_window_closed",
-        meeting_start: context.start_at,
-        meeting_end: context.end_at,
-      }, 409);
+        error: denial?.error ?? "This meeting is no longer available to join.",
+        code: denial?.code ?? "MEETING_NO_LONGER_JOINABLE",
+        join_opens_at: denial?.join_opens_at,
+      }, denial?.status ?? 409);
     }
 
     try {
@@ -342,4 +353,6 @@ Deno.serve(async (req: Request) => {
     status: "cancelled",
     video_status: "revoked",
   });
-});
+}
+
+if (import.meta.main) Deno.serve(handleMeetingVideoRequest);

@@ -10,7 +10,7 @@ let TOKEN=AUTH_SESSION.accessToken();
 let USER=null,COMPANY=null,BUYER=null;
 let state={
   data:null,detail:null,view:"matches",filters:{q:"",role:"",country:"",min:"0"},
-  loading:false,loaded:false,workspaceTimer:null,detailTimer:null,handledHash:null,
+  loading:false,loaded:false,workspaceTimer:null,detailTimer:null,videoJoinTimer:null,handledHash:null,
   scheduler:{mode:"propose",connectionId:null,meetingId:null,slots:[],step:"pick"},
   notifications:{data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},filter:"all",loading:false,timer:null},
   modalFocus:[],taxonomyInterests:[],taxonomySelectors:[]
@@ -46,6 +46,8 @@ async function request(path,options={}){
   if(!response.ok){
     const error=UI.httpError(response,data);
     if(response.status===401)error.code="AUTH_SESSION_EXPIRED";
+    const videoCode=String(data&&data.code||"").toUpperCase();
+    if(/^MEETING_[A-Z_]+$/.test(videoCode))error.code=videoCode;
     throw error;
   }
   return data;
@@ -55,7 +57,10 @@ const db=(path,options={})=>request("/rest/v1/"+path,options);
 const rpc=(name,body={})=>db("rpc/"+name,{method:"POST",body:JSON.stringify(body)});
 const taxonomySearch=(query="")=>rpc("search_medical_product_taxonomy_v1",{p_query:query||null,p_limit:100});
 const taxonomyResolve=term=>rpc("resolve_medical_product_term_v1",{p_term:term,p_limit:5});
-const videoRequest=(action,meetingId)=>request("/functions/v1/meeting-video",{method:"POST",body:JSON.stringify({action,meeting_id:Number(meetingId)})});
+const videoRequest=(action,meetingId)=>{
+  const run=()=>request("/functions/v1/meeting-video",{method:"POST",body:JSON.stringify({action,meeting_id:Number(meetingId)})});
+  return action==="join"?UI.singleFlight("meeting-video:join:"+Number(meetingId),run):run();
+};
 
 function setBusy(button,busy,label){
   if(!button)return;
@@ -148,6 +153,7 @@ function showView(view){
 function renderWorkspace(){
   const root=document.getElementById("workspaceRoot"),data=state.data;
   if(!root||!data)return;
+  setTimeout(refreshVideoJoinControls,0);
   const profile=data.profile;
   if(!profile||state.view==="profile"){root.innerHTML=profileForm(profile);setTimeout(initTaxonomySelectors,0);return;}
   if(state.view==="requests"){root.innerHTML=requestsView();return;}
@@ -340,13 +346,13 @@ function meetingCard(meeting,detailed){
   if(canRespond)actions+='<button class="btn btn-ghost btn-sm" onclick="openScheduler('+meeting.connection_id+','+meeting.id+',\'counter\')">Propose different times</button><button class="btn btn-danger btn-sm" onclick="openMeetingReason('+meeting.id+',\'decline\')">Decline</button>';
   if(meeting.status==="accepted")actions+='<button class="btn btn-primary btn-sm" onclick="prepareVideo('+meeting.id+',this)">Finish confirmation</button>';
   if(meeting.status==="confirmed"){
-    if(meeting.video_status==="ready")actions+='<button class="btn btn-primary btn-sm" onclick="joinVideo('+meeting.id+',this)">Join secure video</button>';
+    if(meeting.video_status==="ready")actions+=videoJoinButton(meeting);
     actions+=calendarButtons(meeting);
     if(new Date(meeting.confirmed_start).getTime()<=Date.now())actions+='<button class="btn btn-solid btn-sm" onclick="runMeetingAction('+meeting.id+',\'complete\')">Mark completed</button><button class="btn btn-ghost btn-sm" onclick="openMeetingReason('+meeting.id+',\'no_show\')">No-show</button>';
   }
   if(["accepted","confirmed"].includes(meeting.status))actions+='<button class="btn btn-ghost btn-sm" onclick="openScheduler('+meeting.connection_id+','+meeting.id+',\'reschedule\')">Reschedule</button><button class="btn btn-danger btn-sm" onclick="openMeetingReason('+meeting.id+',\'cancel\')">Cancel</button>';
   if(!detailed)actions+='<button class="btn btn-ghost btn-sm" onclick="openMeetingDetails('+meeting.id+')">Meeting details</button>';
-  const video=meeting.status==="confirmed"?'<div class="video-state '+esc(meeting.video_status)+'">'+videoStateText(meeting)+'</div>':"";
+  const video=meeting.status==="confirmed"?'<div class="video-state '+esc(meeting.video_status)+'" data-video-state="'+Number(meeting.id)+'">'+videoStateText(meeting)+'</div>':"";
   return '<article class="meeting-card" id="meeting-card-'+meeting.id+'"><div class="card-top"><div><div class="kicker">'+(canRespond?"Meeting request from ":"Meeting with ")+esc(other.display_name||"partner")+'</div><div class="company-name">'+esc(meeting.title||"Matchmaking meeting")+'</div><div class="meta">'+(shownTime?esc(utils.dateTime(shownTime,timezone()))+" · "+esc(timezone())+" · "+Number(meeting.duration_minutes||30)+" min":"Choose from the three proposed times · "+Number(meeting.duration_minutes||30)+" min")+'</div></div><span class="status '+esc(meeting.status)+'">'+esc(status)+'</span></div>'+
     (meeting.agenda?'<p class="sub">'+esc(meeting.agenda)+'</p>':"")+proposalList(meeting,proposals,canRespond)+video+(meeting.cancellation_reason?'<div class="chips"><span class="chip risk">'+esc(meeting.cancellation_reason)+'</span></div>':"")+'<div class="actions">'+actions+'</div>'+(detailed?meetingDetailSections(meeting):"")+'</article>';
 }
@@ -357,11 +363,44 @@ function proposalList(meeting,proposals,canRespond){
 }
 
 function videoStateText(meeting){
-  if(meeting.video_status==="ready")return "Secure video is ready. Join access is issued only to authenticated participants.";
+  if(meeting.video_status==="ready"){
+    const join=utils.videoJoinState(meeting);
+    if(join.state==="scheduled")return "Secure video is scheduled. Join access opens at "+utils.videoJoinOpeningLabel(meeting)+". Only authenticated meeting participants can join.";
+    if(join.state==="ended")return "This meeting is no longer available to join.";
+    return "Secure video is ready. Join access is issued only to authenticated participants.";
+  }
   if(meeting.video_status==="unconfigured")return "Video meetings are not configured yet.";
   if(meeting.video_status==="failed")return "Video setup failed safely. Retry confirmation; no public room or permanent token was created.";
   if(meeting.video_status==="revoked")return "The secure video room has been revoked.";
   return "Secure video is being prepared.";
+}
+
+function videoJoinButton(meeting){
+  const join=utils.videoJoinState(meeting),disabled=join.joinable?"":" disabled aria-disabled=\"true\"";
+  return '<button class="btn btn-primary btn-sm" data-video-join="'+Number(meeting.id)+'" onclick="joinVideo('+Number(meeting.id)+',this)"'+disabled+'>Join secure video</button>';
+}
+
+function allVideoMeetings(){
+  const rows=[...utils.array(state.detail&&state.detail.meetings),...utils.array(state.data&&state.data.meetings)],seen=new Set();
+  return rows.filter(meeting=>{const id=Number(meeting&&meeting.id);if(!id||seen.has(id))return false;seen.add(id);return true;});
+}
+
+function scheduleVideoJoinRefresh(){
+  clearTimeout(state.videoJoinTimer);state.videoJoinTimer=null;
+  const delay=utils.nextVideoJoinDelay(allVideoMeetings());
+  if(delay==null)return;
+  state.videoJoinTimer=setTimeout(refreshVideoJoinControls,Math.min(delay+50,2147483647));
+}
+
+function refreshVideoJoinControls(){
+  allVideoMeetings().forEach(meeting=>{
+    const join=utils.videoJoinState(meeting);
+    document.querySelectorAll('[data-video-join="'+Number(meeting.id)+'"]').forEach(button=>{
+      button.disabled=!join.joinable;button.setAttribute("aria-disabled",String(!join.joinable));
+    });
+    document.querySelectorAll('[data-video-state="'+Number(meeting.id)+'"]').forEach(element=>{element.textContent=videoStateText(meeting);});
+  });
+  scheduleVideoJoinRefresh();
 }
 
 function calendarButtons(meeting){
@@ -423,12 +462,14 @@ async function prepareVideo(id,button,silent=false){
 }
 
 async function joinVideo(id,button){
+  const meeting=findMeeting(id),join=utils.videoJoinState(meeting);
+  if(!join.joinable){toast(join.state==="scheduled"?"The secure meeting room opens 15 minutes before the scheduled start time.":"This meeting is no longer available to join.");return;}
   setBusy(button,true,"Authorizing…");
   try{
     const result=await videoRequest("join",id),room=utils.safeHttpUrl(result.room_url),parsed=room?new URL(room):null;
     if(!parsed||!parsed.hostname.endsWith(".daily.co")||!result.token){const error=new Error("Invalid provider response");error.status=502;throw error;}
     parsed.searchParams.set("t",result.token);document.getElementById("videoFrame").src=parsed.toString();openModal("videoModal","#videoFrame");
-  }catch(error){toast(parseError(error));}
+  }catch(error){toast(utils.videoJoinErrorMessage(error)||parseError(error));}
   finally{setBusy(button,false);}
 }
 
@@ -583,7 +624,8 @@ function renderMeetingDetail(meetingId){
   if(!meeting){document.getElementById("detailBody").innerHTML='<div class="empty"><b>Meeting unavailable</b>This meeting is no longer in the workspace.</div>';return;}
   const other=state.detail.other_profile||{},participants=utils.array(meeting.participants),names=participants.length?participants.map(item=>item.display_name||item.profile?.display_name||item.role||"Participant"):[state.data.profile.display_name,other.display_name].filter(Boolean);
   document.getElementById("detailTitle").textContent="Meeting Details";
-  document.getElementById("detailBody").innerHTML='<div class="card-top"><div><div class="kicker">Meeting with '+esc(other.display_name||"partner")+'</div><div class="company-name">'+esc(meeting.title||"Matchmaking meeting")+'</div><div class="meta">'+esc(meeting.confirmed_start?utils.dateTime(meeting.confirmed_start,timezone()):"Not confirmed")+' · '+Number(meeting.duration_minutes||30)+' min</div></div><span class="status '+esc(meeting.status)+'">'+esc(utils.meetingStatusLabel(meeting,state.data.profile.id))+'</span></div><div class="detail-grid"><div><section class="section"><h4>Participants</h4><div class="chips">'+names.map(name=>'<span class="chip">'+esc(name)+'</span>').join("")+'</div><h4 style="margin-top:14px">Agenda</h4><p class="sub">'+esc(meeting.agenda||"No agenda provided.")+'</p></section>'+meetingCard(meeting,true)+'</div><aside><section class="section"><h4>Meeting controls</h4><p class="meta">'+esc(utils.meetingStatusLabel(meeting,state.data.profile.id))+'</p>'+(meeting.status==="confirmed"?'<div class="video-state '+esc(meeting.video_status)+'">'+videoStateText(meeting)+'</div><div class="actions">'+(meeting.video_status==="ready"?'<button class="btn btn-primary btn-sm" onclick="joinVideo('+meeting.id+',this)">Join secure video</button>':"")+calendarButtons(meeting)+'</div>':'<p class="meta">Calendar and secure join controls appear after confirmation.</p>')+'</section></aside></div>';
+  document.getElementById("detailBody").innerHTML='<div class="card-top"><div><div class="kicker">Meeting with '+esc(other.display_name||"partner")+'</div><div class="company-name">'+esc(meeting.title||"Matchmaking meeting")+'</div><div class="meta">'+esc(meeting.confirmed_start?utils.dateTime(meeting.confirmed_start,timezone()):"Not confirmed")+' · '+Number(meeting.duration_minutes||30)+' min</div></div><span class="status '+esc(meeting.status)+'">'+esc(utils.meetingStatusLabel(meeting,state.data.profile.id))+'</span></div><div class="detail-grid"><div><section class="section"><h4>Participants</h4><div class="chips">'+names.map(name=>'<span class="chip">'+esc(name)+'</span>').join("")+'</div><h4 style="margin-top:14px">Agenda</h4><p class="sub">'+esc(meeting.agenda||"No agenda provided.")+'</p></section>'+meetingCard(meeting,true)+'</div><aside><section class="section"><h4>Meeting controls</h4><p class="meta">'+esc(utils.meetingStatusLabel(meeting,state.data.profile.id))+'</p>'+(meeting.status==="confirmed"?'<div class="video-state '+esc(meeting.video_status)+'" data-video-state="'+Number(meeting.id)+'">'+videoStateText(meeting)+'</div><div class="actions">'+(meeting.video_status==="ready"?videoJoinButton(meeting):"")+calendarButtons(meeting)+'</div>':'<p class="meta">Calendar and secure join controls appear after confirmation.</p>')+'</section></aside></div>';
+  setTimeout(refreshVideoJoinControls,0);
 }
 
 function renderRelationshipDetail(){
@@ -593,6 +635,7 @@ function renderRelationshipDetail(){
   document.getElementById("detailBody").innerHTML='<div class="card-top"><div class="company-ident">'+logo(other)+'<div><div class="kicker">'+esc(other.role||"partner")+'</div><div class="company-name">'+esc(other.display_name||"Company")+'</div><div class="meta">'+esc(other.country||"")+'</div></div></div><span class="status '+esc(connection.status)+'">'+esc(utils.statusLabel(connection.status))+'</span></div>'+
     '<div class="detail-grid"><div><section class="section"><h4>Relationship conversation</h4><div class="message-list">'+(messages.length?messages.map(message=>'<div class="message '+(message.message_type==="system"?"system":message.sender_profile_id===state.data.profile.id?"mine":"")+'">'+esc(message.body)+'<time>'+esc(message.sender_name||"MedicHall")+' · '+esc(utils.dateTime(message.created_at,timezone()))+'</time></div>').join(""):'<p class="meta">No messages yet.</p>')+'</div>'+(connection.status==="accepted"?'<div class="compose"><input id="relationshipMessage" maxlength="4000" placeholder="Write a relationship message…" onkeydown="if(event.key===\'Enter\')sendRelationshipMessage('+connection.id+')"><button class="btn btn-primary btn-sm" onclick="sendRelationshipMessage('+connection.id+')">Send</button></div>':"")+'</section><div class="panel-head"><h2>Meeting lifecycle</h2>'+(connection.status==="accepted"?'<button class="btn btn-primary btn-sm" onclick="openScheduler('+connection.id+')">Propose meeting</button>':"")+'</div><div class="stack">'+(meetings.length?meetings.map(meeting=>meetingCard(meeting,true)).join(""):'<div class="empty"><b>No meetings yet</b>Propose exactly three options when both companies are ready.</div>')+'</div></div>'+
     '<aside><section class="section"><h4>Private relationship note</h4><p class="meta">Visible only to your profile.</p><textarea id="relationshipNote" rows="6" maxlength="8000">'+esc(note?.note||"")+'</textarea><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="savePrivateNote('+connection.id+',null,\'relationshipNote\')">Save private note</button></section><section class="section"><h4>Partner profile</h4><p class="sub">'+esc(other.description||"No company summary provided.")+'</p><div class="chips">'+utils.array(other.offered_products).slice(0,8).map(item=>'<span class="chip">'+esc(item)+'</span>').join("")+'</div></section></aside></div>';
+  setTimeout(refreshVideoJoinControls,0);
 }
 
 async function sendRelationshipMessage(connectionId){
@@ -698,7 +741,7 @@ function toggleProfileMenu(force){
   menu.classList.toggle("open",open);trigger.setAttribute("aria-expanded",String(open));
 }
 
-function logout(){AUTH_SESSION.clear();document.querySelector("medichall-header")?.setAuthState(false);location.href="portal.html";}
+function logout(){clearTimeout(state.videoJoinTimer);AUTH_SESSION.clear();document.querySelector("medichall-header")?.setAuthState(false);location.href="portal.html";}
 
 async function loadWorkspace(silent=false){
   if(state.loading||!TOKEN||!USER)return;

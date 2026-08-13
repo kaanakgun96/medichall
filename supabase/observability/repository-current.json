@@ -72,7 +72,7 @@
       "name": "meeting-video",
       "entrypoint": "supabase/functions/meeting-video/index.ts",
       "verify_jwt": false,
-      "sha256": "6821a11aaa5d6ab9b1b270d9a024d4426928cdf6a26e32b592d728c6d53b3f7b"
+      "sha256": "b7f8b742fd83c1f93274bcbc8c64f0f348facfcda13ad9f0c02f8fe0b9142b46"
     },
     {
       "name": "company-admin-notification",
@@ -94,6 +94,11 @@
     }
   ],
   "source_files": [
+    {
+      "path": "supabase/functions/_shared/meeting-video-access.ts",
+      "sha256": "8b4b9803ebf68338fa3682d835d6a570b96feaf478efa486bf38790dd33874e4",
+      "recorded_in_migration": false
+    },
     {
       "path": "supabase/functions/tender-import/handler.ts",
       "sha256": "dacc0438859fb3ebf92684cf499b7fce72352311588e3579366dbba8c8398112",

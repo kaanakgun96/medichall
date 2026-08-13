@@ -676,12 +676,12 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
   .toast{max-width:calc(100vw - 24px);width:max-content;text-align:center;border-radius:14px;padding:10px 16px}
 }
 </style>
-<link rel="stylesheet" href="medichall-design-system.css?v=20260809s22rc1">
+<link rel="stylesheet" href="medichall-design-system.css?v=20260813video1">
 <link rel="stylesheet" href="medichall-assistant.css?v=20260810beta1">
 <link rel="stylesheet" href="medichall-taxonomy.css?v=20260811tax1">
-<script src="medichall-session.js?v=20260809s22rc1"></script>
-<script src="medichall-ui.js?v=20260809s22rc1"></script>
-<script src="medichall-navigation.js?v=20260809s22rc1"></script>
+<script src="medichall-session.js?v=20260813video1"></script>
+<script src="medichall-ui.js?v=20260813video1"></script>
+<script src="medichall-navigation.js?v=20260813video1"></script>
 <script src="medichall-traffic.js?v=20260813traffic1" defer></script>
 </head>
 <body>
@@ -1406,7 +1406,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="matchmaking-domain.js?v=20260809s22rc1"></script>
+<script src="matchmaking-domain.js?v=20260813video1"></script>
 <script src="medichall-taxonomy.js?v=20260811tax1"></script>
 <script>
 /* ---------------- config ---------------- */
@@ -1449,7 +1449,11 @@ async function api(path, options={}){
   let payload = null;
   try{ payload = text ? JSON.parse(text) : null; }catch(_){ payload = null; }
   if(res.status===401){ const error=UI.httpError(res,payload);error.code="AUTH_SESSION_EXPIRED";logout();throw error; }
-  if(!res.ok) throw UI.httpError(res,payload);
+  if(!res.ok){
+    const error=UI.httpError(res,payload),videoCode=String(payload&&payload.code||"").toUpperCase();
+    if(/^MEETING_[A-Z_]+$/.test(videoCode))error.code=videoCode;
+    throw error;
+  }
   return payload;
 }
 const db = (p,o) => api("/rest/v1/" + p, o);
@@ -1602,7 +1606,8 @@ function logout(){
   }
   if(typeof MM!=="undefined"){
     clearInterval(MM.workspaceTimer); clearInterval(MM.detailTimer);
-    MM.workspaceTimer=null; MM.detailTimer=null; MM.data=null; MM.loaded=false;
+    clearTimeout(MM.videoJoinTimer);
+    MM.workspaceTimer=null; MM.detailTimer=null; MM.videoJoinTimer=null; MM.data=null; MM.loaded=false;
   }
   if(typeof PN!=="undefined"){
     clearInterval(PN.timer);PN.timer=null;
@@ -5253,7 +5258,7 @@ globalThis.MatchmakingUtils = globalThis.MedicHallMatchmakingDomain;
 let MM = {
   data:null,detail:null,view:"matches",loading:false,loaded:false,
   filters:{q:"",role:"",country:"",min:"0"},meetingMode:null,
-  connectionId:null,meetingId:null,detailMeetingId:null,detailTimer:null,workspaceTimer:null,handledHash:null,
+  connectionId:null,meetingId:null,detailMeetingId:null,detailTimer:null,workspaceTimer:null,videoJoinTimer:null,handledHash:null,
   modalFocus:[],activationViewPromise:null,taxonomyInterests:[],taxonomySelectors:[]
 };
 let PN = {
@@ -5324,9 +5329,10 @@ function mmSetBusy(button,busy,label){
   else{button.disabled=false;button.textContent=button.dataset.label||button.textContent;}
 }
 async function mmVideoRequest(action,meetingId){
-  const result=await api("/functions/v1/meeting-video",{
+  const run=()=>api("/functions/v1/meeting-video",{
     method:"POST",body:JSON.stringify({action,meeting_id:Number(meetingId)})
   });
+  const result=await (action==="join"?UI.singleFlight("meeting-video:join:"+Number(meetingId),run):run());
   return result||{};
 }
 function updateMmBadge(){
@@ -5526,6 +5532,7 @@ function mmMetric(label,value){
 function renderMatchmakingWorkspace(){
   const root=mmRoot();
   if(!root||!MM.data)return;
+  setTimeout(refreshMmVideoJoinControls,0);
   const profile=MM.data.profile;
   if(!profile){ root.innerHTML=mmProfileForm(null); setTimeout(initMmTaxonomySelectors,0); return; }
   if(MM.view==="profile"){ root.innerHTML=mmProfileForm(profile); setTimeout(initMmTaxonomySelectors,0); return; }
@@ -5764,13 +5771,13 @@ function mmMeetingCard(meeting,detailed){
   }
   if(meeting.status==="accepted") actions+='<button class="btn btn-grad btn-sm" onclick="prepareMmVideo('+meeting.id+',this)">Finish confirmation</button>';
   if(meeting.status==="confirmed"){
-    if(meeting.video_status==="ready")actions+='<button class="btn btn-grad btn-sm" onclick="joinMmVideo('+meeting.id+',this)">Join secure video</button>';
+    if(meeting.video_status==="ready")actions+=mmVideoJoinButton(meeting);
     actions+=mmCalendarButtons(meeting);
     if(new Date(meeting.confirmed_start).getTime()<=Date.now())actions+='<button class="btn btn-solid btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'complete\')">Mark completed</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'no_show\')">No-show</button>';
   }
   if(["accepted","confirmed"].includes(meeting.status)) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingForm('+meeting.connection_id+','+meeting.id+',\'reschedule\')">Reschedule</button><button class="btn btn-ghost btn-sm" onclick="openMmMeetingReason('+meeting.id+',\'cancel\')">Cancel meeting</button>';
   if(!detailed) actions+='<button class="btn btn-ghost btn-sm" onclick="openMmMeetingDetails('+meeting.id+')">Meeting details</button>';
-  const videoState=meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'">'+mmVideoStateText(meeting)+'</div>':"";
+  const videoState=meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'" data-mm-video-state="'+Number(meeting.id)+'">'+mmVideoStateText(meeting)+'</div>':"";
   const detailSections=detailed?mmMeetingDetailSections(meeting):"";
   return '<article class="mm-meeting-card" id="mm-meeting-card-'+meeting.id+'"><div class="mm-card-top"><div><div class="mm-kicker">'+(canRespond?"Meeting request from ":"Meeting with ")+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+(shownTime?mmEsc(mmUtils.dateTime(shownTime,mmTimezone()))+" · "+mmEsc(mmTimezone())+" · "+Number(meeting.duration_minutes||30)+" min":"Choose from the three proposed times · "+Number(meeting.duration_minutes||30)+" min")+'</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(status)+'</span></div>'+(meeting.agenda?'<p class="mm-summary">'+mmEsc(meeting.agenda)+'</p>':"")+mmProposalList(meeting,proposals,canRespond)+videoState+(meeting.cancellation_reason?'<div class="mm-risk-list"><span class="mm-risk">'+mmEsc(meeting.cancellation_reason)+'</span></div>':"")+'<div class="mm-actions">'+actions+'</div>'+detailSections+'</article>';
 }
@@ -5779,11 +5786,40 @@ function mmProposalList(meeting,proposals,canRespond){
   return '<div class="mm-proposals">'+proposals.map(proposal=>'<div class="mm-proposal '+mmEsc(proposal.status)+'"><div><time>'+mmEsc(mmUtils.dateTime(proposal.start_at,mmTimezone()))+'</time><small>'+mmEsc(mmUtils.statusLabel(proposal.status))+' · '+Math.round((new Date(proposal.end_at)-new Date(proposal.start_at))/60000)+' min · proposed in '+mmEsc(proposal.source_timezone)+'</small></div>'+(canRespond&&proposal.status==="active"?'<button class="btn btn-solid btn-sm" onclick="runMmMeetingAction('+meeting.id+',\'accept\','+proposal.id+')">Accept</button>':"")+'</div>').join("")+'</div>';
 }
 function mmVideoStateText(meeting){
-  if(meeting.video_status==="ready")return "Secure video is ready. Join tokens are issued only to authenticated participants during the join window.";
+  if(meeting.video_status==="ready"){
+    const join=mmUtils.videoJoinState(meeting);
+    if(join.state==="scheduled")return "Secure video is scheduled. Join access opens at "+mmUtils.videoJoinOpeningLabel(meeting)+". Only authenticated meeting participants can join.";
+    if(join.state==="ended")return "This meeting is no longer available to join.";
+    return "Secure video is ready. Join tokens are issued only to authenticated participants during the join window.";
+  }
   if(meeting.video_status==="unconfigured")return "Video meetings are not configured yet.";
   if(meeting.video_status==="failed")return "Video setup failed safely. Retry confirmation; no public room or permanent token was created.";
   if(meeting.video_status==="revoked")return "The video room is access-blocked and revoked.";
   return "Secure video is being prepared.";
+}
+function mmVideoJoinButton(meeting){
+  const join=mmUtils.videoJoinState(meeting),disabled=join.joinable?"":" disabled aria-disabled=\"true\"";
+  return '<button class="btn btn-grad btn-sm" data-mm-video-join="'+Number(meeting.id)+'" onclick="joinMmVideo('+Number(meeting.id)+',this)"'+disabled+'>Join secure video</button>';
+}
+function allMmVideoMeetings(){
+  const rows=[...mmUtils.array(MM.detail&&MM.detail.meetings),...mmUtils.array(MM.data&&MM.data.meetings)],seen=new Set();
+  return rows.filter(meeting=>{const id=Number(meeting&&meeting.id);if(!id||seen.has(id))return false;seen.add(id);return true;});
+}
+function scheduleMmVideoJoinRefresh(){
+  clearTimeout(MM.videoJoinTimer);MM.videoJoinTimer=null;
+  const delay=mmUtils.nextVideoJoinDelay(allMmVideoMeetings());
+  if(delay==null)return;
+  MM.videoJoinTimer=setTimeout(refreshMmVideoJoinControls,Math.min(delay+50,2147483647));
+}
+function refreshMmVideoJoinControls(){
+  allMmVideoMeetings().forEach(meeting=>{
+    const join=mmUtils.videoJoinState(meeting);
+    document.querySelectorAll('[data-mm-video-join="'+Number(meeting.id)+'"]').forEach(button=>{
+      button.disabled=!join.joinable;button.setAttribute("aria-disabled",String(!join.joinable));
+    });
+    document.querySelectorAll('[data-mm-video-state="'+Number(meeting.id)+'"]').forEach(element=>{element.textContent=mmVideoStateText(meeting);});
+  });
+  scheduleMmVideoJoinRefresh();
 }
 function mmCalendarButtons(meeting){
   return '<button class="btn btn-ghost btn-sm" onclick="downloadMmIcs('+meeting.id+')">Download ICS</button><button class="btn btn-ghost btn-sm" onclick="openMmCalendar('+meeting.id+',\'google\')">Google Calendar</button><button class="btn btn-ghost btn-sm" onclick="openMmCalendar('+meeting.id+',\'outlook\')">Outlook</button>';
@@ -5849,6 +5885,8 @@ async function prepareMmVideo(id,button,silent=false){
   finally{mmSetBusy(button,false);}
 }
 async function joinMmVideo(id,button){
+  const meeting=mmFindMeeting(id),join=mmUtils.videoJoinState(meeting);
+  if(!join.joinable){toast(join.state==="scheduled"?"The secure meeting room opens 15 minutes before the scheduled start time.":"This meeting is no longer available to join.");return;}
   mmSetBusy(button,true,"Authorizing…");
   try{
     const result=await mmVideoRequest("join",id);
@@ -5858,7 +5896,7 @@ async function joinMmVideo(id,button){
     parsed.searchParams.set("t",result.token);
     document.getElementById("mmVideoFrame").src=parsed.toString();
     mmOpenModal("mmVideoModal","#mmVideoFrame");
-  }catch(error){toast(mmParseError(error));}
+  }catch(error){toast(mmUtils.videoJoinErrorMessage(error)||mmParseError(error));}
   finally{mmSetBusy(button,false);}
 }
 function closeMmVideo(){
@@ -6015,7 +6053,8 @@ function renderMmMeetingDetail(){
   document.getElementById("mmDetailTitle").textContent="Meeting Details";
   document.getElementById("mmDetailBody").innerHTML='<div class="mm-card-top"><div><div class="mm-kicker">Meeting with '+mmEsc(other.display_name||"partner")+'</div><div class="mm-company-name">'+mmEsc(meeting.title||"Matchmaking meeting")+'</div><div class="mm-meta">'+mmEsc(confirmed)+' · '+mmEsc(mmTimezone())+' · '+Number(meeting.duration_minutes||30)+' min</div></div><span class="mm-status '+mmEsc(meeting.status)+'">'+mmEsc(mmUtils.meetingStatusLabel(meeting,MM.data.profile.id))+'</span></div>'+
     '<div class="mm-detail-grid"><div><section class="mm-section"><h4>Participants</h4><div class="mm-participants">'+participantNames.map(name=>'<span class="mm-participant">'+mmEsc(name)+'</span>').join("")+'</div><h4>Agenda</h4><p class="mm-summary">'+mmEsc(meeting.agenda||"No agenda provided.")+'</p><h4>Confirmed slot</h4><p class="mm-meta">'+mmEsc(confirmed)+' · '+mmEsc(meeting.timezone||"UTC")+' source timezone</p></section>'+
-    mmMeetingCard(meeting,true)+'</div><aside><section class="mm-section"><h4>Meeting status</h4><p class="mm-meta">'+mmEsc(mmUtils.meetingStatusLabel(meeting,MM.data.profile.id))+'</p>'+(meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'">'+mmVideoStateText(meeting)+'</div><div class="mm-actions">'+(meeting.video_status==="ready"?'<button class="btn btn-grad btn-sm" onclick="joinMmVideo('+meeting.id+',this)">Join secure video</button>':"")+mmCalendarButtons(meeting)+'</div>':'<p class="mm-meta">Join and calendar controls become available once the meeting is confirmed.</p>')+'</section></aside></div>';
+    mmMeetingCard(meeting,true)+'</div><aside><section class="mm-section"><h4>Meeting status</h4><p class="mm-meta">'+mmEsc(mmUtils.meetingStatusLabel(meeting,MM.data.profile.id))+'</p>'+(meeting.status==="confirmed"?'<div class="mm-video-state '+mmEsc(meeting.video_status)+'" data-mm-video-state="'+Number(meeting.id)+'">'+mmVideoStateText(meeting)+'</div><div class="mm-actions">'+(meeting.video_status==="ready"?mmVideoJoinButton(meeting):"")+mmCalendarButtons(meeting)+'</div>':'<p class="mm-meta">Join and calendar controls become available once the meeting is confirmed.</p>')+'</section></aside></div>';
+  setTimeout(refreshMmVideoJoinControls,0);
 }
 function renderMmRelationshipDetail(){
   if(!MM.detail)return;
@@ -6027,6 +6066,7 @@ function renderMmRelationshipDetail(){
     '<div class="panel-head"><h2>Meeting lifecycle</h2>'+(connection.status==="accepted"?'<button class="btn btn-grad btn-sm" onclick="openMmMeetingForm('+connection.id+')">Propose meeting</button>':"")+'</div><div class="mm-list">'+(meetings.length?meetings.map(meeting=>mmMeetingCard(meeting,true)).join(""):'<div class="mm-empty"><b>No meetings yet</b>Propose exactly three times when both companies are ready.</div>')+'</div></div>'+
     '<aside><section class="mm-section mm-note"><h4>Private relationship note</h4><p class="mm-meta">Visible only to your matchmaking profile.</p><textarea id="mmRelationNote" rows="6" maxlength="8000" placeholder="Internal qualification notes…">'+mmEsc(relationNote&&relationNote.note||"")+'</textarea><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="saveMmPrivateNote('+connection.id+',null,\'mmRelationNote\')">Save private note</button></section>'+
     '<section class="mm-section"><h4>Partner profile</h4><p class="mm-meta">'+mmEsc(other.description||"No company summary provided.")+'</p>'+(mmUtils.array(other.offered_products).length?'<div class="mm-risk-list">'+mmUtils.array(other.offered_products).slice(0,8).map(item=>'<span class="mm-participant">'+mmEsc(item)+'</span>').join("")+'</div>':"")+'</section></aside></div>';
+  setTimeout(refreshMmVideoJoinControls,0);
 }
 async function sendMmRelationshipMessage(connectionId){
   const input=document.getElementById("mmRelationshipMessage"),body=input&&input.value.trim();

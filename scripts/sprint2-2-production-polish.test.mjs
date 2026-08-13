@@ -10,7 +10,8 @@ const defaultVersion = "20260809s22rc1";
 const expectedVersions = {
   "products.html": "20260813traffic1",
   "companies.html": "20260811tax1",
-  "matchmaking.html": "20260811tax1",
+  "matchmaking.html": "20260813video1",
+  "portal.html": "20260813video1",
 };
 
 for (const page of pages) {

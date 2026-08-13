@@ -99,6 +99,55 @@
     }catch(_){ return date.toLocaleString(); }
   }
 
+  const VIDEO_JOIN_EARLY_MINUTES=15;
+  const VIDEO_JOIN_GRACE_MINUTES=60;
+
+  function validTimeZone(value){
+    const candidate=text(value)||"UTC";
+    try{new Intl.DateTimeFormat("en",{timeZone:candidate}).format(new Date());return candidate;}
+    catch(_){return "UTC";}
+  }
+
+  function videoJoinState(meeting,nowValue=Date.now()){
+    const now=Number(nowValue),status=text(meeting&&meeting.status).toLowerCase();
+    const videoStatus=text(meeting&&meeting.video_status).toLowerCase();
+    const start=Date.parse(meeting&&meeting.confirmed_start||"");
+    const end=Date.parse(meeting&&meeting.confirmed_end||"");
+    const opensAt=Number.isFinite(start)?start-VIDEO_JOIN_EARLY_MINUTES*60000:NaN;
+    const closesAt=Number.isFinite(end)?end+VIDEO_JOIN_GRACE_MINUTES*60000:NaN;
+    const timeZone=validTimeZone(meeting&&meeting.timezone);
+    if(status==="cancelled")return {state:"cancelled",joinable:false,opensAt,timeZone};
+    if(status!=="confirmed"||videoStatus!=="ready"||!Number.isFinite(opensAt))return {state:"unavailable",joinable:false,opensAt,timeZone};
+    if(Number.isFinite(now)&&now<opensAt)return {state:"scheduled",joinable:false,opensAt,timeZone,remainingMinutes:Math.ceil((opensAt-now)/60000)};
+    if(Number.isFinite(closesAt)&&Number.isFinite(now)&&now>closesAt)return {state:"ended",joinable:false,opensAt,timeZone};
+    return {state:"ready",joinable:true,opensAt,timeZone};
+  }
+
+  function videoJoinOpeningLabel(meeting,nowValue=Date.now()){
+    const state=videoJoinState(meeting,nowValue);
+    if(!Number.isFinite(state.opensAt))return "Time unavailable";
+    return dateTime(new Date(state.opensAt).toISOString(),state.timeZone)+" ("+state.timeZone+")";
+  }
+
+  function nextVideoJoinDelay(meetings,nowValue=Date.now()){
+    const now=Number(nowValue);
+    const delays=array(meetings).map(meeting=>videoJoinState(meeting,now))
+      .filter(state=>state.state==="scheduled"&&Number.isFinite(state.opensAt))
+      .map(state=>state.opensAt-now);
+    return delays.length?Math.max(0,Math.min(...delays)):null;
+  }
+
+  function videoJoinErrorMessage(error){
+    const code=text(error&&error.code).toUpperCase();
+    if(code==="MEETING_NOT_OPEN_YET")return "The secure meeting room opens 15 minutes before the scheduled start time.";
+    if(code==="MEETING_UNAUTHORIZED"||Number(error&&error.status)===403)return "You are not authorized to join this meeting.";
+    if(code==="MEETING_CANCELLED")return "This meeting has been cancelled.";
+    if(code==="MEETING_NO_LONGER_JOINABLE"||Number(error&&error.status)===410)return "This meeting is no longer available to join.";
+    if(code==="PT409"||code==="HTTP_409")return "This record was updated elsewhere. Refresh and try again.";
+    if(Number(error&&error.status)>=500)return "We couldn't open the secure meeting room. Please try again.";
+    return null;
+  }
+
   function relativeTime(value,nowValue=Date.now()){
     const timestamp=Date.parse(value),now=Number(nowValue);
     if(!Number.isFinite(timestamp)||!Number.isFinite(now))return "Time unavailable";
@@ -223,6 +272,7 @@
   global.MedicHallMatchmakingDomain={
     array,csv,statusLabel,meetingRole,meetingStatusLabel,meetingPermissions,
     categorizeMeetings,badgeLabel,safeHttpUrl,dateTime,relativeTime,groupNotifications,calendarEvent,
-    wallTimeToIso,proposalSlots
+    wallTimeToIso,proposalSlots,videoJoinState,videoJoinOpeningLabel,nextVideoJoinDelay,videoJoinErrorMessage,
+    VIDEO_JOIN_EARLY_MINUTES
   };
 })(globalThis);
