@@ -48,7 +48,8 @@
     "202608090005",
     "202608110001",
     "202608130001",
-    "202608130002"
+    "202608130002",
+    "202608130003"
   ],
   "verified_definition_drift": [
     "202607090001",
@@ -56,7 +57,9 @@
   ],
   "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
   "notification_migration": "202608010001_company_admin_notification_outbox.sql",
-  "planned_forward_migrations": [],
+  "planned_forward_migrations": [
+    "202608130004_email_security_hardening.sql"
+  ],
   "archived_unapplied": [
     {
       "version": "202607290001",
@@ -81,5 +84,7 @@
     "202607090001",
     "202607100009"
   ],
-  "expected_target_only_dry_run": []
+  "expected_target_only_dry_run": [
+    "202608130004_email_security_hardening.sql"
+  ]
 }

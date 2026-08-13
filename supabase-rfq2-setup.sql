@@ -1,4 +1,7 @@
 -- ============================================================
+-- SECURITY PREREQUISITE: run only after
+-- 202608130004_email_security_hardening.sql. Canonical production definitions
+-- live in the ordered migration chain.
 -- MedicHall — Step 20: Smart RFQ v2
 --  · structured request fields (quantity, Incoterm, destination…)
 --  · multi-send groups (one request -> many manufacturers)
@@ -88,15 +91,18 @@ begin
 
   perform public.notify_email(
     v_to,
-    'You received an offer — ' || coalesce(v_product, 'your inquiry'),
+    public.email_safe_subject(
+      'You received an offer — ' || coalesce(v_product, 'your inquiry'),
+      'You received an offer'
+    ),
     '<div style="font-family:sans-serif;line-height:1.6">'
     || '<h2 style="color:#003E52">New offer received</h2>'
-    || '<p><b>' || coalesce(v_company,'A manufacturer') || '</b> sent an offer for <b>'
-    || coalesce(v_product, 'your inquiry') || '</b>.</p>'
+    || '<p><b>' || public.email_escape_html(coalesce(v_company,'A manufacturer')) || '</b> sent an offer for <b>'
+    || public.email_escape_html(coalesce(v_product, 'your inquiry')) || '</b>.</p>'
     || '<p style="background:#EFF6F9;padding:12px;border-radius:8px">'
-    || coalesce(new.unit_price::text || ' ' || new.currency || ' / unit', 'See details')
-    || coalesce(' · MOQ: ' || new.moq, '')
-    || coalesce(' · Lead time: ' || new.lead_time, '') || '</p>'
+    || public.email_escape_html(coalesce(new.unit_price::text || ' ' || new.currency || ' / unit', 'See details'))
+    || coalesce(' · MOQ: ' || public.email_escape_html(new.moq), '')
+    || coalesce(' · Lead time: ' || public.email_escape_html(new.lead_time), '') || '</p>'
     || '<p><a href="' || public.mh_site_url() || '/portal#inbox" '
     || 'style="background:#4298CC;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none">Compare offers on MedicHall</a></p>'
     || '</div>'

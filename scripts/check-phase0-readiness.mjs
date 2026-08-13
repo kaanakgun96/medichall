@@ -419,7 +419,7 @@ for (const runtimeInput of [
 const currentFunctionPolicies = new Map([
   ["medichall-ai", true],
   ["public-assistant", true],
-  ["tender-digest", true],
+  ["tender-digest", false],
   ["ted-sync", false],
   ["ted-notice-resolver", true],
   ["tender-attachment-discovery", true],

@@ -89,11 +89,16 @@
     {
       "name": "tender-digest",
       "entrypoint": "supabase/functions/tender-digest/index.ts",
-      "verify_jwt": true,
-      "sha256": "0bdc20a6fcf90446aada2bb3bd4c06625e4d85b888bbaf11656545d0a770d948"
+      "verify_jwt": false,
+      "sha256": "6990648c20d90a4ecda9aa80da4c362a014f8fe980c7f2d96933e9cad3a87897"
     }
   ],
   "source_files": [
+    {
+      "path": "supabase/functions/_shared/saved-search-digest.ts",
+      "sha256": "52c325875eab143a810745d133ae42848a9a5aa99b33aebd641573a5861a2bd0",
+      "recorded_in_migration": false
+    },
     {
       "path": "supabase/functions/_shared/meeting-video-access.ts",
       "sha256": "8b4b9803ebf68338fa3682d835d6a570b96feaf478efa486bf38790dd33874e4",

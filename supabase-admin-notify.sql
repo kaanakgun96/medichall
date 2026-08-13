@@ -1,4 +1,7 @@
 -- ============================================================
+-- SECURITY PREREQUISITE: run only after
+-- 202608130004_email_security_hardening.sql. The shared helpers fail closed
+-- if this retired one-off setup script is used without the canonical chain.
 -- MedicHall — Step 17: e-mail the ADMIN for unassigned RFQs
 -- (requests for manufacturer products already e-mail the manufacturer;
 --  this adds: requests for MedicHall-managed products e-mail YOU)
@@ -30,12 +33,16 @@ begin
 
   perform public.notify_email(
     v_to,
-    'New quotation request — ' || coalesce(new.product_name, 'general inquiry'),
+    public.email_safe_subject(
+      'New quotation request — ' || coalesce(new.product_name, 'general inquiry'),
+      'New quotation request'
+    ),
     '<div style="font-family:sans-serif;line-height:1.6">'
     || '<h2 style="color:#003E52">New quotation request</h2>'
-    || '<p><b>Product:</b> ' || coalesce(new.product_name, 'General inquiry') || '</p>'
-    || '<p><b>From:</b> ' || new.email || coalesce(' · ' || new.company, '') || '</p>'
-    || coalesce('<p style="background:#EFF6F9;padding:12px;border-radius:8px">' || new.message || '</p>', '')
+    || '<p><b>Product:</b> ' || public.email_escape_html(coalesce(new.product_name, 'General inquiry')) || '</p>'
+    || '<p><b>From:</b> ' || public.email_escape_html(new.email)
+    || coalesce(' · ' || public.email_escape_html(new.company), '') || '</p>'
+    || coalesce('<p style="background:#EFF6F9;padding:12px;border-radius:8px">' || public.email_escape_html(new.message) || '</p>', '')
     || '<p><a href="' || public.mh_site_url() || '/portal.html" '
     || 'style="background:#4298CC;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none">Open MedicHall</a></p>'
     || '</div>'
