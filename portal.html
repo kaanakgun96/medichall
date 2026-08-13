@@ -682,6 +682,7 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 <script src="medichall-session.js?v=20260809s22rc1"></script>
 <script src="medichall-ui.js?v=20260809s22rc1"></script>
 <script src="medichall-navigation.js?v=20260809s22rc1"></script>
+<script src="medichall-traffic.js?v=20260813traffic1" defer></script>
 </head>
 <body>
 
@@ -6077,6 +6078,7 @@ function mmApplyDeepLink(){
 function showPanel(name){
   document.querySelectorAll(".tab[data-panel]").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
+  globalThis.MedicHallTraffic?.trackPortalPanel(name);
   if(name==="opps") loadTenderImports();
   if(name==="matchmaking"||name==="b-matchmaking") loadMatchmakingWorkspace();
 }

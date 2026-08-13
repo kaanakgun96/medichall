@@ -357,6 +357,7 @@
   }
 
   function renderDetail(product, updateUrl = true) {
+    globalThis.MedicHallTraffic?.track("product_detail", { force: true });
     const drawer = document.getElementById("drawer");
     const activeElement = document.activeElement;
     if (!drawer.contains(activeElement) && activeElement instanceof HTMLElement && activeElement !== document.body) {
@@ -418,6 +419,7 @@
     global.MedicHallAssistant?.setContext({ kind: "catalog", label: "Public product catalog" });
     state.filters.detail = "";
     syncUrl({ detail: "" });
+    globalThis.MedicHallTraffic?.track("products");
     if (restoreFocus && returnFocus?.isConnected) requestAnimationFrame(() => returnFocus.focus({ preventScroll: true }));
   }
 

@@ -65,3 +65,9 @@ verify_jwt = false
 # provider calls, cached answers, and usage metadata remain server-side.
 [functions.tender-ask]
 verify_jwt = false
+
+# Anonymous first-party traffic collection is validated in-function. The
+# browser can submit only constrained, normalized page-view fields; raw tables
+# and aggregate reporting remain inaccessible outside service/admin boundaries.
+[functions.traffic-analytics]
+verify_jwt = false

@@ -127,8 +127,34 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .growth-company span{color:var(--ink-soft);font-size:.65rem}
 .growth-segment{display:inline-block;margin:1px 2px 1px 0;padding:2px 6px;border-radius:100px;background:#FFF4D6;color:#8B5A00;font-size:.6rem;font-weight:600}
 .growth-segment.high{background:#FDECEA;color:#9F2D24}
+.growth-workspace-tabs{display:flex;gap:7px;margin-bottom:16px;padding:5px;background:var(--mist);border:1px solid var(--line);border-radius:12px;width:max-content;max-width:100%}
+.growth-workspace-tab{border:0;border-radius:8px;background:transparent;color:var(--ink-soft);font-size:.78rem;font-weight:650;padding:8px 14px}
+.growth-workspace-tab.active{background:#fff;color:var(--teal-deep);box-shadow:0 2px 8px rgba(0,62,82,.08)}
+.traffic-dashboard{min-height:420px}
+.traffic-live{display:grid;grid-template-columns:180px 180px minmax(0,1fr);gap:12px;margin-bottom:14px}
+.traffic-live-card{background:linear-gradient(145deg,#E8F8F4,#fff);border:1.5px solid var(--mint);border-radius:14px;padding:17px}
+.traffic-live-card span{display:block;font:500 .61rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.traffic-live-card strong{display:block;font-size:2rem;line-height:1.1;margin:6px 0;color:var(--teal-deep)}
+.traffic-live-card small{display:block;font-size:.66rem;color:var(--ink-soft)}
+.traffic-recent{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.traffic-recent h3{font-size:.86rem;margin-bottom:2px}
+.traffic-recent-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.traffic-recent-item{border:1px solid var(--line);background:var(--mist);border-radius:9px;padding:6px 9px;font-size:.65rem}
+.traffic-recent-item b{color:var(--teal-deep)}
+.traffic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0}
+.traffic-table{width:100%;border-collapse:collapse;font-size:.7rem}
+.traffic-table th,.traffic-table td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+.traffic-table th{font:600 .59rem var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
+.traffic-table tr:last-child td{border-bottom:0}
+.traffic-table td:last-child,.traffic-table th:last-child{text-align:right}
+.traffic-trend{display:flex;align-items:flex-end;gap:5px;height:150px;padding-top:12px;overflow-x:auto}
+.traffic-trend-item{display:flex;flex:1 0 24px;min-width:24px;height:100%;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px}
+.traffic-trend-bar{width:100%;min-height:2px;background:linear-gradient(180deg,var(--teal),var(--mint));border-radius:5px 5px 2px 2px}
+.traffic-trend-item span{font:500 .48rem var(--mono);color:var(--ink-soft);white-space:nowrap}
+.traffic-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--ink-soft);font-size:.65rem;margin-top:8px}
 @media(max-width:820px){.growth-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.growth-grid{grid-template-columns:1fr}}
-@media(max-width:430px){.growth-metrics{grid-template-columns:1fr}.growth-health{grid-template-columns:1fr}.growth-funnel-row{grid-template-columns:minmax(118px,1fr) 1fr 34px}.growth-section{padding:14px}}
+@media(max-width:900px){.traffic-live{grid-template-columns:1fr 1fr}.traffic-recent{grid-column:1/-1}.traffic-grid{grid-template-columns:1fr}}
+@media(max-width:430px){.growth-metrics{grid-template-columns:1fr}.growth-health{grid-template-columns:1fr}.growth-funnel-row{grid-template-columns:minmax(118px,1fr) 1fr 34px}.growth-section{padding:14px}.traffic-live{grid-template-columns:1fr}.traffic-recent{grid-column:auto}.growth-workspace-tabs{width:100%}.growth-workspace-tab{flex:1;padding:8px 9px}.traffic-trend{height:125px}}
 
 /* mini catalog manager */
 .cat-mini{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
@@ -198,16 +224,35 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
     </div>
 
     <div class="panel active" id="panel-overview">
-      <div class="panel-head">
-        <div><h2>Platform growth and activation</h2><span class="hint">Operational signals from canonical production records. No automated outreach.</span></div>
-        <div class="growth-range" id="growthRange" aria-label="Analytics time range">
-          <button type="button" data-days="7" onclick="setGrowthRange(7)">7 days</button>
-          <button type="button" data-days="30" class="active" onclick="setGrowthRange(30)">30 days</button>
-          <button type="button" data-days="90" onclick="setGrowthRange(90)">90 days</button>
-          <button type="button" data-days="0" onclick="setGrowthRange(0)">All time</button>
-        </div>
+      <div class="growth-workspace-tabs" role="tablist" aria-label="Growth analytics view">
+        <button class="growth-workspace-tab active" id="growthBusinessTab" type="button" role="tab" aria-selected="true" aria-controls="growthBusinessView" onclick="showGrowthView('business')">Business metrics</button>
+        <button class="growth-workspace-tab" id="growthTrafficTab" type="button" role="tab" aria-selected="false" aria-controls="growthTrafficView" onclick="showGrowthView('traffic')">Traffic analytics</button>
       </div>
-      <div id="growthDashboard"><div class="loading">Loading growth dashboard…</div></div>
+      <div id="growthBusinessView" role="tabpanel" aria-labelledby="growthBusinessTab">
+        <div class="panel-head">
+          <div><h2>Platform growth and activation</h2><span class="hint">Operational signals from canonical production records. No automated outreach.</span></div>
+          <div class="growth-range" id="growthRange" aria-label="Business analytics time range">
+            <button type="button" data-days="7" onclick="setGrowthRange(7)">7 days</button>
+            <button type="button" data-days="30" class="active" onclick="setGrowthRange(30)">30 days</button>
+            <button type="button" data-days="90" onclick="setGrowthRange(90)">90 days</button>
+            <button type="button" data-days="0" onclick="setGrowthRange(0)">All time</button>
+          </div>
+        </div>
+        <div id="growthDashboard"><div class="loading">Loading growth dashboard…</div></div>
+      </div>
+      <div id="growthTrafficView" role="tabpanel" aria-labelledby="growthTrafficTab" hidden>
+        <div class="panel-head">
+          <div><h2>Website traffic analytics</h2><span class="hint">First-party, privacy-minimized page activity. Live means a page view in the stated window.</span></div>
+          <div class="growth-range" id="trafficRange" aria-label="Traffic analytics time range">
+            <button type="button" data-range="today" onclick="setTrafficRange('today')">Today</button>
+            <button type="button" data-range="7d" onclick="setTrafficRange('7d')">7 days</button>
+            <button type="button" data-range="30d" class="active" onclick="setTrafficRange('30d')">30 days</button>
+            <button type="button" data-range="90d" onclick="setTrafficRange('90d')">90 days</button>
+            <button type="button" data-range="all" onclick="setTrafficRange('all')">All time</button>
+          </div>
+        </div>
+        <div id="trafficDashboard" class="traffic-dashboard"><div class="loading">Loading traffic analytics…</div></div>
+      </div>
     </div>
 
     <div class="panel" id="panel-products">
@@ -500,6 +545,7 @@ document.getElementById("password").addEventListener("keydown", e=>{ if(e.key===
 /* ---------------- state ---------------- */
 let PRODUCTS = [], PARTNERS = [], RFQS = [], COMPANIES = [], BANNERS = [];
 let ADMIN_GROWTH = null, ADMIN_GROWTH_DAYS = 30, ADMIN_GROWTH_LOADING = false;
+let ADMIN_GROWTH_VIEW = "business", ADMIN_TRAFFIC = null, ADMIN_TRAFFIC_RANGE = "30d", ADMIN_TRAFFIC_LOADING = false, ADMIN_TRAFFIC_TIMER = null;
 const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 function friendlyError(e){
   if(e?.code === "ADMIN_PERMISSION")
@@ -517,6 +563,22 @@ function showPanel(name){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active", b.dataset.panel===name));
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
   if(name==="taxonomy") loadMedicalTaxonomyAdmin();
+  if(name==="overview" && ADMIN_GROWTH_VIEW==="traffic") startTrafficPolling();
+  else stopTrafficPolling();
+}
+
+function showGrowthView(view){
+  if(!["business","traffic"].includes(view))return;
+  ADMIN_GROWTH_VIEW=view;
+  const business=view==="business";
+  document.getElementById("growthBusinessView").hidden=!business;
+  document.getElementById("growthTrafficView").hidden=business;
+  document.getElementById("growthBusinessTab").classList.toggle("active",business);
+  document.getElementById("growthTrafficTab").classList.toggle("active",!business);
+  document.getElementById("growthBusinessTab").setAttribute("aria-selected",String(business));
+  document.getElementById("growthTrafficTab").setAttribute("aria-selected",String(!business));
+  if(business)stopTrafficPolling();
+  else{loadAdminTrafficAnalytics();startTrafficPolling();}
 }
 
 function growthNumber(value){return Number(value||0).toLocaleString("en-GB");}
@@ -574,6 +636,95 @@ function renderAdminGrowthDashboard(){
   const tableHtml='<section class="growth-section"><h3>Company engagement</h3><p class="growth-section-sub">Latest '+growthNumber(ADMIN_GROWTH.company_limit||200)+' companies. Last active is an authenticated portal heartbeat and may be unrecorded before this release.</p><div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>Company</th><th>Registered</th><th>Last active</th><th>Profile</th><th>Products</th><th>Tender matches</th><th>Company matches</th><th>Connections</th><th>RFQs</th><th>Messages</th><th>Meetings</th><th>Imports</th><th>Attention</th></tr></thead><tbody>'+(companies.length?companies.map(company=>'<tr><td class="growth-company"><b>'+esc(company.name)+'</b><span>'+esc(company.company_type||"Company")+(company.country?' · '+esc(company.country):'')+'</span></td><td>'+growthDate(company.registration_date)+'</td><td>'+growthDate(company.last_active_at)+'</td><td>'+growthNumber(company.profile_completion)+'%</td><td>'+growthNumber(company.products)+'</td><td>'+growthNumber(company.tender_matches)+'</td><td>'+growthNumber(company.company_matches)+'</td><td>'+growthNumber(company.connections)+'</td><td>'+growthNumber(company.rfqs)+'</td><td>'+growthNumber(company.messages)+'</td><td>'+growthNumber(company.meetings)+'</td><td>'+growthNumber(company.tender_imports)+'</td><td>'+(Array.isArray(company.attention)&&company.attention.length?company.attention.map(item=>'<span class="growth-segment '+(item.priority==="high"?'high':'')+'">'+esc(item.label)+'</span>').join(""):'—')+'</td></tr>').join(""):'<tr><td colspan="13"><div class="empty"><b>No companies yet</b></div></td></tr>')+'</tbody></table></div></section>';
   target.innerHTML=metricHtml+'<div class="growth-grid">'+funnelHtml+healthHtml+'</div><div class="growth-full">'+attentionHtml+'</div>'+tableHtml;
 }
+
+const TRAFFIC_PAGE_LABELS={
+  homepage:"Homepage",products:"Products",product_detail:"Product Details",companies:"Companies",
+  company_showroom:"Company Showrooms",tenders:"Tenders",tender_detail:"Tender Details",
+  matchmaking:"Matchmaking",login:"Login",signup:"Signup",portal:"Portal",
+  portal_dashboard:"Portal · Dashboard",portal_products:"Portal · Products",
+  portal_opportunities:"Portal · Opportunities",portal_messages:"Portal · Messages",
+  portal_matchmaking:"Portal · Matchmaking",portal_profile:"Portal · Profile",portal_ai:"Portal · AI",
+  react_dashboard:"React · Dashboard",react_all_tenders:"React · All Tenders",
+  react_opportunities:"React · Opportunities",react_company_profile:"React · Company Profile"
+};
+const TRAFFIC_SOURCE_LABELS={direct:"Direct",google:"Google / Search",linkedin:"LinkedIn",bing:"Bing",other_search:"Other Search",other_referral:"Other Referral",internal:"Internal MedicHall"};
+const TRAFFIC_DEVICE_LABELS={desktop:"Desktop",mobile:"Mobile",tablet:"Tablet",other:"Other"};
+const TRAFFIC_BROWSER_LABELS={chrome:"Chrome",safari:"Safari",edge:"Edge",firefox:"Firefox",other:"Other"};
+function trafficPageLabel(value){return TRAFFIC_PAGE_LABELS[value]||String(value||"Unknown").replace(/_/g," ");}
+function trafficCountryLabel(code){
+  if(!code)return "Unknown";
+  try{return new Intl.DisplayNames(["en"],{type:"region"}).of(code)||code;}catch(_error){return code;}
+}
+function trafficDateTime(value){
+  const date=new Date(value);return Number.isFinite(date.getTime())?date.toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}):"Not recorded";
+}
+function trafficTrendLabel(value,range){
+  const date=new Date(value);if(!Number.isFinite(date.getTime()))return "—";
+  if(range==="today")return date.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  if(range==="all")return date.toLocaleDateString("en-GB",{month:"short",year:"2-digit"});
+  return date.toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
+}
+function trafficTable(headers,rows,emptyMessage){
+  return '<table class="traffic-table"><thead><tr>'+headers.map(item=>'<th>'+esc(item)+'</th>').join("")+'</tr></thead><tbody>'+(rows.length?rows.join(""):'<tr><td colspan="'+headers.length+'">'+esc(emptyMessage)+'</td></tr>')+'</tbody></table>';
+}
+async function setTrafficRange(range){
+  if(!["today","7d","30d","90d","all"].includes(range))return;
+  ADMIN_TRAFFIC_RANGE=range;
+  document.querySelectorAll("#trafficRange button").forEach(button=>button.classList.toggle("active",button.dataset.range===range));
+  await loadAdminTrafficAnalytics();
+}
+async function loadAdminTrafficAnalytics(){
+  if(ADMIN_TRAFFIC_LOADING||ADMIN_GROWTH_VIEW!=="traffic")return;
+  ADMIN_TRAFFIC_LOADING=true;
+  const target=document.getElementById("trafficDashboard");
+  if(!ADMIN_TRAFFIC)target.innerHTML='<div class="loading">Loading traffic analytics…</div>';
+  try{
+    ADMIN_TRAFFIC=await db("rpc/get_admin_traffic_analytics_v1",{method:"POST",body:JSON.stringify({p_range:ADMIN_TRAFFIC_RANGE})});
+    renderAdminTrafficAnalytics();
+  }catch(_error){
+    target.innerHTML='<div class="empty"><b>Traffic analytics could not be loaded.</b><p>Existing business metrics remain available. Try again shortly.</p></div>';
+  }finally{ADMIN_TRAFFIC_LOADING=false;}
+}
+function startTrafficPolling(){
+  stopTrafficPolling();
+  ADMIN_TRAFFIC_TIMER=setInterval(()=>{
+    if(!document.hidden&&ADMIN_GROWTH_VIEW==="traffic"&&document.getElementById("panel-overview").classList.contains("active"))loadAdminTrafficAnalytics();
+  },45*1000);
+}
+function stopTrafficPolling(){if(ADMIN_TRAFFIC_TIMER){clearInterval(ADMIN_TRAFFIC_TIMER);ADMIN_TRAFFIC_TIMER=null;}}
+function renderAdminTrafficAnalytics(){
+  const target=document.getElementById("trafficDashboard");
+  if(!target||!ADMIN_TRAFFIC)return;
+  const live=ADMIN_TRAFFIC.live||{},summary=ADMIN_TRAFFIC.summary||{};
+  const recent=Array.isArray(live.pages)?live.pages:[],trend=Array.isArray(ADMIN_TRAFFIC.trend)?ADMIN_TRAFFIC.trend:[];
+  const pages=Array.isArray(ADMIN_TRAFFIC.top_pages)?ADMIN_TRAFFIC.top_pages:[],countries=Array.isArray(ADMIN_TRAFFIC.countries)?ADMIN_TRAFFIC.countries:[];
+  const sources=Array.isArray(ADMIN_TRAFFIC.sources)?ADMIN_TRAFFIC.sources:[],referrers=Array.isArray(ADMIN_TRAFFIC.referrers)?ADMIN_TRAFFIC.referrers:[];
+  const campaigns=Array.isArray(ADMIN_TRAFFIC.campaigns)?ADMIN_TRAFFIC.campaigns:[],devices=Array.isArray(ADMIN_TRAFFIC.devices)?ADMIN_TRAFFIC.devices:[];
+  const browsers=Array.isArray(ADMIN_TRAFFIC.browsers)?ADMIN_TRAFFIC.browsers:[];
+  const totalViews=Number(summary.page_views||0),maxTrend=Math.max(1,...trend.map(item=>Number(item.page_views||0)));
+  const liveHtml='<div class="traffic-live"><div class="traffic-live-card"><span>Active now</span><strong>'+growthNumber(live.active_5m)+'</strong><small>Unique visitors with a page view in the last 5 minutes</small></div><div class="traffic-live-card"><span>Active recently</span><strong>'+growthNumber(live.active_30m)+'</strong><small>Unique visitors with a page view in the last 30 minutes</small></div><section class="traffic-recent"><h3>Current / recent pages</h3><p class="growth-section-sub">Windowed activity, not a realtime connection count.</p><div class="traffic-recent-list">'+(recent.length?recent.map(item=>'<span class="traffic-recent-item">'+esc(trafficPageLabel(item.route_id))+' · <b>'+growthNumber(item.active_visitors)+' active</b> · '+growthNumber(item.recent_views)+' views</span>').join(""):'<span class="traffic-recent-item">No recent activity</span>')+'</div></section></div>';
+  const metrics=[
+    ["Page views",summary.page_views,"Recorded normalized page views"],["Unique visitors",summary.unique_visitors,"Pseudonymous first-party visitor IDs"],
+    ["Sessions",summary.sessions,"30-minute inactivity sessions"],["New visitors",summary.new_visitors,"First observed in this period"],
+    ["Returning visitors",summary.returning_visitors,"First observed before this period"],["Authenticated views",summary.authenticated_views,"Session verified server-side"],
+    ["Anonymous views",summary.anonymous_views,"No verified MedicHall session"]
+  ];
+  const metricHtml='<div class="growth-metrics">'+metrics.map(item=>'<div class="growth-metric"><span>'+esc(item[0])+'</span><strong>'+growthNumber(item[1])+'</strong><small>'+esc(item[2])+'</small></div>').join("")+'</div>';
+  const trendHtml='<section class="growth-section"><h3>Traffic trend · '+esc(ADMIN_TRAFFIC.range?.label||"")+'</h3><p class="growth-section-sub">Page views by '+(ADMIN_TRAFFIC_RANGE==="today"?'hour':ADMIN_TRAFFIC_RANGE==="all"?'month':'day')+'.</p>'+(trend.length?'<div class="traffic-trend" aria-label="Traffic trend">'+trend.map(item=>'<div class="traffic-trend-item" title="'+growthNumber(item.page_views)+' page views · '+growthNumber(item.unique_visitors)+' visitors"><div class="traffic-trend-bar" style="height:'+Math.max(2,Math.round(100*Number(item.page_views||0)/maxTrend))+'%"></div><span>'+esc(trafficTrendLabel(item.bucket,ADMIN_TRAFFIC_RANGE))+'</span></div>').join("")+'</div>':'<div class="empty"><b>No traffic recorded for this period yet.</b></div>')+'</section>';
+  const pagesHtml='<section class="growth-section"><h3>Top pages</h3><p class="growth-section-sub">Normalized routes only; no URLs, searches or private parameters.</p>'+trafficTable(["Page","Views","Visitors"],pages.map(item=>'<tr><td>'+esc(trafficPageLabel(item.route_id))+'</td><td>'+growthNumber(item.page_views)+'</td><td>'+growthNumber(item.unique_visitors)+'</td></tr>'),"No page activity in this period.")+'</section>';
+  const countriesHtml='<section class="growth-section"><h3>Countries</h3><p class="growth-section-sub">Optional server-derived country code; unknown traffic is not guessed.</p>'+trafficTable(["Country","Visitors","Views","Traffic"],countries.map(item=>'<tr><td>'+esc(trafficCountryLabel(item.country_code))+'</td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.page_views)+'</td><td>'+growthNumber(item.traffic_percent)+'%</td></tr>'),"No reliable country metadata in this period.")+'</section>';
+  const sourcesHtml='<section class="growth-section"><h3>Top sources</h3><p class="growth-section-sub">First-touch attribution per session.</p>'+trafficTable(["Source","Visitors","Sessions","Views"],sources.map(item=>'<tr><td>'+esc(TRAFFIC_SOURCE_LABELS[item.acquisition_source]||item.acquisition_source)+'</td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.sessions)+'</td><td>'+growthNumber(item.page_views)+'</td></tr>'),"No source activity in this period.")+'</section>';
+  const referrersHtml='<section class="growth-section"><h3>External referrers</h3><p class="growth-section-sub">Normalized domains only; paths and query parameters are discarded.</p>'+trafficTable(["Domain","Visitors","Sessions","Views"],referrers.map(item=>'<tr><td>'+esc(item.referrer_domain)+'</td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.sessions)+'</td><td>'+growthNumber(item.page_views)+'</td></tr>'),"No external referrers in this period.")+'</section>';
+  const campaignsHtml='<section class="growth-section"><h3>Campaigns</h3><p class="growth-section-sub">Bounded UTM source, medium and campaign values.</p>'+trafficTable(["Source / campaign","Visitors","Sessions","Views"],campaigns.map(item=>'<tr><td><b>'+esc(item.utm_source||"—")+'</b><br><small>'+esc([item.utm_medium,item.utm_campaign].filter(Boolean).join(" · ")||"No campaign label")+'</small></td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.sessions)+'</td><td>'+growthNumber(item.page_views)+'</td></tr>'),"No UTM campaigns in this period.")+'</section>';
+  const deviceHtml='<section class="growth-section"><h3>Devices and browsers</h3><p class="growth-section-sub">Coarse user-agent categories; no fingerprinting.</p><div class="traffic-grid" style="margin:0">'+trafficTable(["Device","Visitors","Views"],devices.map(item=>'<tr><td>'+esc(TRAFFIC_DEVICE_LABELS[item.device_category]||item.device_category)+'</td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.page_views)+'</td></tr>'),"No device data.")+trafficTable(["Browser","Visitors","Views"],browsers.map(item=>'<tr><td>'+esc(TRAFFIC_BROWSER_LABELS[item.browser_family]||item.browser_family)+'</td><td>'+growthNumber(item.unique_visitors)+'</td><td>'+growthNumber(item.page_views)+'</td></tr>'),"No browser data.")+'</div></section>';
+  const empty=totalViews===0?'<div class="empty"><b>No traffic recorded for this period yet.</b><p>Reliable traffic begins only after the tracker is manually uploaded to cPanel.</p></div>':'';
+  const meta='<div class="traffic-meta"><span>Reliable from: '+(ADMIN_TRAFFIC.range?.reliable_from?esc(trafficDateTime(ADMIN_TRAFFIC.range.reliable_from)):"Tracking not started")+'</span><span>Raw retention: '+growthNumber(ADMIN_TRAFFIC.range?.raw_retention_days||400)+' days · Times shown in '+esc(ADMIN_TRAFFIC.range?.timezone||"Europe/Istanbul")+'</span></div>';
+  target.innerHTML=liveHtml+metricHtml+empty+trendHtml+'<div class="traffic-grid">'+pagesHtml+countriesHtml+sourcesHtml+referrersHtml+campaignsHtml+deviceHtml+'</div>'+meta;
+}
+
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&ADMIN_GROWTH_VIEW==="traffic")loadAdminTrafficAnalytics();
+});
 
 /* ---------------- load ---------------- */
 async function loadAll(){
