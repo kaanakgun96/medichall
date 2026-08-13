@@ -11,7 +11,7 @@ const portal = read("portal.html");
 test("public Ask MedicHall entry points use one cache-busted canonical component", () => {
   for (const page of publicPages) {
     const source = read(page);
-    const version = page === "index.html" ? "20260810beta1" : page === "products.html" ? "20260811scroll1" : "20260811tax1";
+    const version = page === "index.html" ? "20260810beta1" : page === "products.html" ? "20260813traffic1" : "20260811tax1";
     assert.equal((source.match(new RegExp(`medichall-assistant\\.js\\?v=${version}`, "g")) || []).length, 1, `${page} must load canonical assistant JS once`);
     assert.equal((source.match(new RegExp(`medichall-assistant\\.css\\?v=${version}`, "g")) || []).length, 1, `${page} must load canonical assistant CSS once`);
     assert.doesNotMatch(source, /mha-|mhaToggle|mhaSend|mhaPanel|catalog-powered, no external AI/, `${page} retains legacy assistant code`);

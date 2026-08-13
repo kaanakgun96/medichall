@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pages = ["index.html", "products.html", "companies.html", "tenders.html", "matchmaking.html", "portal.html", "admin.html"];
 const defaultVersion = "20260809s22rc1";
 const expectedVersions = {
-  "products.html": "20260811scroll1",
+  "products.html": "20260813traffic1",
   "companies.html": "20260811tax1",
   "matchmaking.html": "20260811tax1",
 };

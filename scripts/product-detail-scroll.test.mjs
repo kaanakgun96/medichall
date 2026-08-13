@@ -35,7 +35,7 @@ test("dialog keyboard and focus contracts remain explicit", () => {
   assert.match(page, /role="dialog" aria-modal="true" aria-labelledby="dTitle"/);
 });
 
-test("hotfix has an isolated cache identifier", () => {
-  assert.match(page, /marketplace-enterprise\.css\?v=20260811scroll1/);
-  assert.match(page, /marketplace-products\.js\?v=20260811scroll1/);
+test("latest products bundle has an isolated cache identifier", () => {
+  assert.match(page, /marketplace-enterprise\.css\?v=20260813traffic1/);
+  assert.match(page, /marketplace-products\.js\?v=20260813traffic1/);
 });

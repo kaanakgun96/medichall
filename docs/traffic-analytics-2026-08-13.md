@@ -165,6 +165,35 @@ start timestamp is correctly reported as **not started**.
 
 ## Deployment state
 
-The migration and only the `traffic-analytics` Edge Function are intended for
-production deployment. The root frontend and Admin UI remain a manual cPanel
-patch. Provider requests, AI spend, notification fan-out, and emails are zero.
+Migration `202608130002_traffic_analytics.sql` and only the
+`traffic-analytics` Edge Function were deployed to production on 2026-08-13.
+The function is active with its repository-defined application boundary. A
+post-deployment dry run reported the remote database up to date. The root
+frontend and Admin UI remain a manual cPanel patch; no production HTML or
+shared frontend asset was uploaded by this task.
+
+The normal restricted public/storage schema backup was preserved at
+`supabase/.temp/medichall-traffic-predeployment-20260813.sql` (mode `0600`,
+729,089 bytes, SHA-256
+`544cdf69c37a3c84aa49381fea2678627372ceeaf3a0ba4835331d421f4526ac`).
+It contains no table data or credential marker.
+
+The bounded production acceptance used fixed, redacted `86000000-…` synthetic
+identifiers. Two visitors created two sessions and three page views across
+Homepage, Products, and Tenders. Direct and LinkedIn/Open Beta attribution,
+desktop Chrome and mobile Safari classification, and all Admin aggregate
+sections were verified. One identical resubmission returned the deduplicated
+result and did not increment a counter. Cleanup removed three views, two
+sessions, and two visitors in dependency order. After cleanup all three table
+counts and both orphan checks were zero. No customer row was changed.
+
+The exact SQL regression passed again in a rollback-only production
+transaction. Production database lint returned zero errors. CPU was sampled
+over comparable approximately 72-second windows: the pre-change sample was
+1.603% non-idle (98.397% idle), and the post-QA sample was 1.724% non-idle
+(98.276% idle). This small 0.121 percentage-point observation is within the
+noise of a low-load shared application sample and shows no retry or query
+storm. The Admin's foreground-only 45-second poll remains the only periodic
+analytics request.
+
+Provider requests, AI spend, notification fan-out, and emails were zero.

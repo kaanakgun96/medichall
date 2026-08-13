@@ -81,7 +81,7 @@ test("root pages use only the audited release cache versions", () => {
     const source = read(page);
     for (const match of source.matchAll(/(?:src|href)="[^"]+\?v=([^"']+)/g)) versions.add(match[1]);
   }
-  assert.deepEqual([...versions].sort(), ["20260809s22rc1", "20260810beta1", "20260811scroll1", "20260811tax1", "20260813traffic1"].sort());
+  assert.deepEqual([...versions].sort(), ["20260809s22rc1", "20260810beta1", "20260811tax1", "20260813traffic1"].sort());
 });
 
 test("Universal Tender Import is reissued once after the current production head", () => {
