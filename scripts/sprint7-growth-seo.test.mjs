@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const landingPages = [
@@ -11,6 +12,12 @@ const landingPages = [
   "ai-medical-device-matchmaking.html",
 ];
 const publicPages = ["index.html", "products.html", "companies.html", "tenders.html", ...landingPages];
+const showroomFixtures = [
+  ["4a-medical", "4A Medical"],
+  ["dispack-medical", "Dispack Medical"],
+  ["grup-a-medical", "Grup A Medical"],
+  ["medibant-medikal", "Medibant Medikal"],
+];
 
 function metadata(source, name) {
   const title = source.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim();
@@ -74,6 +81,117 @@ test("company showroom metadata uses only public profile fields", () => {
   for (const marker of ["mhCanonical", "mhCompanyStructuredData", "Organization", "knowsAbout", "mainEntityOfPage"]) assert.match(source, new RegExp(marker));
   assert.doesNotMatch(source, /owner_id|user_id|private_note|access_token|refresh_token/);
   assert.doesNotMatch(source, /aggregateRating|reviewCount|priceCurrency/);
+});
+
+test("the social card is a valid, bounded 1200 by 630 PNG used by every public SEO page", () => {
+  const image = readFileSync(new URL("../og-cover.png", import.meta.url));
+  assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(image.readUInt32BE(16), 1200, "OG image width");
+  assert.equal(image.readUInt32BE(20), 630, "OG image height");
+  assert.ok(image.byteLength > 20_000 && image.byteLength < 1_500_000, "OG image has a sensible compressed size");
+  for (const page of publicPages) {
+    const source = read(page);
+    assert.match(source, /(?:property|name)="(?:og|twitter):image"[^>]+content="https:\/\/medichall\.com\/og-cover\.png"/i, `${page}: social card reference`);
+  }
+});
+
+test("the showroom controller cache hotfix is bounded to its one script reference", () => {
+  const source = read("companies.html");
+  assert.equal((source.match(/20260813seo1/g) ?? []).length, 1);
+  assert.match(source, /<script src="marketplace-companies\.js\?v=20260813seo1"><\/script>/);
+  assert.doesNotMatch(source, /marketplace-companies\.js\?v=20260811tax1/);
+});
+
+test("all indexed showrooms receive self-canonical public Organization metadata at runtime", async () => {
+  const controller = read("marketplace-companies.js");
+
+  for (const [slug, name] of showroomFixtures) {
+    const elements = new Map();
+    const element = (id, type = "") => {
+      const attributes = new Map(type ? [["type", type]] : []);
+      const value = {
+        textContent: "",
+        setAttribute(key, content) { attributes.set(key, String(content)); },
+        getAttribute(key) { return attributes.get(key) ?? null; },
+      };
+      elements.set(id, value);
+      return value;
+    };
+    const descriptionMeta = element("description");
+    const canonical = element("mhCanonical");
+    const ogTitle = element("mhOgTitle");
+    const ogDescription = element("mhOgDescription");
+    const ogUrl = element("mhOgUrl");
+    const ogImage = element("mhOgImage");
+    const twitterTitle = element("mhTwitterTitle");
+    const twitterDescription = element("mhTwitterDescription");
+    const twitterImage = element("mhTwitterImage");
+    const directoryData = element("mhDirectoryStructuredData", "application/ld+json");
+    const companyData = element("mhCompanyStructuredData", "application/ld+json");
+
+    const document = {
+      title: "Company Directory — MedicHall Marketplace",
+      getElementById(id) { return elements.get(id) ?? null; },
+      querySelector(selector) { return selector === 'meta[name="description"]' ? descriptionMeta : null; },
+    };
+    const sandbox = {
+      document,
+      MedicHallMarketplaceDomain: {
+        asArray(value) { return Array.isArray(value) ? value : []; },
+        safeHttpUrl(value) { return /^https:\/\//i.test(String(value || "")) ? String(value) : null; },
+      },
+      MedicHallUI: { httpError() { return new Error("HTTP error"); } },
+    };
+    sandbox.globalThis = sandbox;
+    vm.runInNewContext(controller, sandbox, { filename: "marketplace-companies.js" });
+
+    const publicCompany = {
+      id: slug,
+      slug,
+      name,
+      type: "Medical-industry company",
+      description: `${name} public company showroom on MedicHall.`,
+      city: "Istanbul",
+      country: "Türkiye",
+      website: `https://example.com/${slug}`,
+      logo_url: slug === "4a-medical" ? `https://example.com/${slug}.png` : null,
+      is_verified: true,
+      phone: "+00 private-test-value",
+      private_note: "must-not-appear",
+    };
+    await sandbox.MedicHallEnterpriseCompanies.enhanceProfile(publicCompany, [
+      { category: "Medical Devices", taxonomy_category: "Surgical Drapes" },
+    ]);
+
+    const expectedCanonical = `https://medichall.com/m/${slug}`;
+    assert.equal(document.title, `${name} — MedicHall Company Showroom`);
+    assert.equal(canonical.getAttribute("href"), expectedCanonical);
+    assert.equal(ogUrl.getAttribute("content"), expectedCanonical);
+    assert.equal(ogTitle.getAttribute("content"), `${name} — MedicHall Company Showroom`);
+    assert.equal(descriptionMeta.getAttribute("content"), `${name} public company showroom on MedicHall.`);
+    assert.equal(ogDescription.getAttribute("content"), `${name} public company showroom on MedicHall.`);
+    assert.equal(ogImage.getAttribute("content"), slug === "4a-medical" ? `https://example.com/${slug}.png` : "https://medichall.com/og-cover.png");
+    assert.equal(twitterTitle.getAttribute("content"), `${name} — MedicHall Company Showroom`);
+    assert.equal(twitterDescription.getAttribute("content"), `${name} public company showroom on MedicHall.`);
+    assert.equal(twitterImage.getAttribute("content"), ogImage.getAttribute("content"));
+    assert.equal(directoryData.getAttribute("type"), "application/json");
+    assert.equal(companyData.getAttribute("type"), "application/ld+json");
+    const organization = JSON.parse(companyData.textContent);
+    assert.equal(organization["@type"], "Organization");
+    assert.equal(organization.name, name);
+    assert.equal(organization.url, expectedCanonical);
+    assert.equal(organization.mainEntityOfPage, expectedCanonical);
+    assert.deepEqual(Array.from(organization.knowsAbout), ["Surgical Drapes"]);
+    assert.doesNotMatch(companyData.textContent, /private-test-value|must-not-appear|private_note|phone/);
+  }
+});
+
+test("the generic companies route remains the mixed Company Directory", () => {
+  const source = read("companies.html");
+  assert.match(source, /<title>Company Directory — MedicHall Marketplace<\/title>/);
+  assert.match(source, /<link rel="canonical" id="mhCanonical" href="https:\/\/medichall\.com\/companies">/);
+  assert.match(source, /manufacturers, distributors, suppliers, buyers and other companies/i);
+  assert.match(source, /"@type":"CollectionPage"/);
 });
 
 test("static local links resolve to repository artifacts or established production routes", () => {

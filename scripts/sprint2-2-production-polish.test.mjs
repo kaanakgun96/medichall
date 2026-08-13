@@ -19,10 +19,15 @@ for (const page of pages) {
   const expectedVersion = expectedVersions[page] || defaultVersion;
   assert.equal((source.match(/medichall-ui\.js/g) || []).length, 1, `${page} must load the shared UI safety helper once`);
   assert.match(source, new RegExp(`medichall-ui\\.js\\?v=${expectedVersion}`), `${page} must cache-bust the shared UI helper`);
-  const sharedVersions = [...source.matchAll(/(?:medichall-(?:design-system|session|ui|navigation)|marketplace-(?:enterprise|domain|products|companies)|matchmaking-(?:domain|workspace)|tenders)\.(?:css|js)\?v=([a-zA-Z0-9]+)/g)]
-    .map((match) => match[1]);
-  assert.ok(sharedVersions.length >= 4, `${page} must load the shared production assets`);
-  assert.deepEqual([...new Set(sharedVersions)], [expectedVersion], `${page} assets must use one coherent cache version`);
+  const sharedAssets = [...source.matchAll(/((?:medichall-(?:design-system|session|ui|navigation)|marketplace-(?:enterprise|domain|products|companies)|matchmaking-(?:domain|workspace)|tenders)\.(?:css|js))\?v=([a-zA-Z0-9]+)/g)]
+    .map((match) => ({ file: match[1], version: match[2] }));
+  assert.ok(sharedAssets.length >= 4, `${page} must load the shared production assets`);
+  for (const asset of sharedAssets) {
+    const expectedAssetVersion = page === "companies.html" && asset.file === "marketplace-companies.js"
+      ? "20260813seo1"
+      : expectedVersion;
+    assert.equal(asset.version, expectedAssetVersion, `${page} must use the audited cache version for ${asset.file}`);
+  }
   assert.doesNotMatch(source, /fakeAuth\s*\(/, `${page} must not retain preview-only authentication actions`);
   assert.doesNotMatch(source, /^\s*initAuthChip\(\);/m, `${page} must not start the duplicate legacy session poller`);
   assert.doesNotMatch(source, /throw new Error\(await (?:res|response)\.text\(\)\)/, `${page} must not surface raw HTTP response bodies`);
