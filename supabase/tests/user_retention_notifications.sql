@@ -163,7 +163,7 @@ update retention_fixture fixture
 set opportunity_id = inserted.id
 from inserted where inserted.company_id = fixture.company_id;
 
-do $disabled_tender_alert$
+do $tender_matches_are_in_app_only$
 begin
   if not exists (
     select 1 from public.matchmaking_notifications notification
@@ -175,22 +175,15 @@ begin
   end if;
   if exists (
     select 1 from public.user_notification_email_outbox queue
-    where queue.recipient_user_id =
-      '60000000-0000-4000-8000-000000000001'
-      and queue.event_type = 'HIGH_TENDER_MATCH'
-  ) then
-    raise exception 'Disabled tender preference still queued email';
-  end if;
-  if not exists (
-    select 1 from public.user_notification_email_outbox queue
-    where queue.recipient_user_id =
+    where queue.recipient_user_id in (
+      '60000000-0000-4000-8000-000000000001',
       '60000000-0000-4000-8000-000000000002'
-      and queue.event_type = 'HIGH_TENDER_MATCH'
+    ) and queue.event_type in ('NEW_TENDER_MATCH', 'HIGH_TENDER_MATCH')
   ) then
-    raise exception 'Enabled tender preference did not queue email';
+    raise exception 'Tender match projected an individual provider email';
   end if;
 end
-$disabled_tender_alert$;
+$tender_matches_are_in_app_only$;
 
 update public.user_notification_preferences
 set tender_alerts_enabled = true, next_digest_at = now() - interval '1 minute'
@@ -339,6 +332,62 @@ begin
   end if;
 end
 $retry_idempotency$;
+
+select public.retry_user_notification_email(
+  (select outbox_id from second_retry_claim limit 1),
+  'resend_http_429', 'resend_http_429', null
+);
+
+do $quota_backoff$
+begin
+  if not exists (
+    select 1 from public.user_notification_email_outbox
+    where id = (select outbox_id from second_retry_claim limit 1)
+      and status = 'retry'
+      and error_code = 'resend_http_429'
+      and next_attempt_at >= now() + interval '5 hours 59 minutes'
+  ) then
+    raise exception 'Resend 429 did not receive bounded six-hour backoff';
+  end if;
+end
+$quota_backoff$;
+
+select public.portal_add_notification(
+  '60000000-0000-4000-8000-000000000001', null,
+  'rfq', 9003, 'rfq_message', 'Permanent failure fixture',
+  'Fail terminally without provider delivery.', null,
+  'retention-regression:permanent', '#rfq-chat=9003', false, '{}'::jsonb
+);
+
+update public.user_notification_email_outbox
+set next_attempt_at = '-infinity'::timestamptz
+where notification_id = (
+  select id from public.matchmaking_notifications
+  where dedupe_key = 'retention-regression:permanent'
+);
+
+create temporary table permanent_failure_claim as
+select * from public.claim_user_notification_emails(100, 120)
+where event_type = 'NEW_MESSAGE';
+
+select public.retry_user_notification_email(
+  (select outbox_id from permanent_failure_claim limit 1),
+  'resend_http_422', 'resend_http_422', null
+);
+
+do $permanent_failure$
+begin
+  if not exists (
+    select 1 from public.user_notification_email_outbox
+    where id = (select outbox_id from permanent_failure_claim limit 1)
+      and status = 'failed'
+      and attempt_count = 1
+      and error_code = 'resend_http_422'
+  ) then
+    raise exception 'Permanent Resend failure was scheduled for retry';
+  end if;
+end
+$permanent_failure$;
 
 update public.user_notification_preferences
 set immediate_rfq_message_enabled = false
