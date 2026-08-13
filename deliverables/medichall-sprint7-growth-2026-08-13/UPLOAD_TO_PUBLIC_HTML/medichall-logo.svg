@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="330" height="80" viewBox="0 0 330 80" role="img" aria-labelledby="title desc">
+  <title id="title">MedicHall</title>
+  <desc id="desc">MedicHall brand mark and wordmark</desc>
+  <defs><linearGradient id="brand" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f2e5b3"/><stop offset=".5" stop-color="#6cccb9"/><stop offset="1" stop-color="#4298cc"/></linearGradient></defs>
+  <g fill="url(#brand)"><path d="M0 16 15 8v72H0zM24 8 39 2v34l-15 6zM24 50l15-6v36H24zM48 2l15 8v70H48z"/></g>
+  <text x="83" y="53" font-family="Poppins,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="1" fill="#003e52">MEDIC<tspan fill="#4298cc">HALL</tspan></text>
+</svg>

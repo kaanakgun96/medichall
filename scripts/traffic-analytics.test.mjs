@@ -7,6 +7,7 @@ import vm from "node:vm";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const tracker = read("medichall-traffic.js");
 const migration = read("supabase/migrations/202608130002_traffic_analytics.sql");
+const acquisitionMigration = read("supabase/migrations/202608130005_sprint7_acquisition_analytics.sql");
 const admin = read("admin.html");
 
 function trackerRuntime({ path = "/index.html", search = "", hash = "", stored = {}, reject = false } = {}) {
@@ -105,6 +106,19 @@ test("analytics failure is non-blocking and never retried", async () => {
   assert.equal(runtime.requests.length, 1);
 });
 
+test("conversion tracking is allowlisted, minimal and chained after its page view", async () => {
+  const runtime = trackerRuntime({ path: "/medical-device-tenders" });
+  await settle();
+  assert.equal(JSON.parse(runtime.requests[0].options.body).route_id, "tenders");
+  assert.equal(runtime.context.MedicHallTraffic.trackConversion("signup_started", { once: true }), true);
+  assert.equal(runtime.context.MedicHallTraffic.trackConversion("signup_started", { once: true }), false);
+  assert.equal(runtime.context.MedicHallTraffic.trackConversion("arbitrary_event"), false);
+  await settle();
+  const conversion = JSON.parse(runtime.requests[1].options.body);
+  assert.deepEqual(Object.keys(conversion).sort(), ["event_id", "event_type", "session_id", "visitor_id"]);
+  assert.equal(conversion.event_type, "signup_started");
+});
+
 test("migration keeps raw traffic private, bounded and admin aggregates explicit", () => {
   for (const marker of [
     "traffic_analytics_visitors", "traffic_analytics_sessions", "traffic_analytics_page_views",
@@ -115,6 +129,20 @@ test("migration keeps raw traffic private, bounded and admin aggregates explicit
   assert.match(migration, /revoke all on table public\.traffic_analytics_page_views\s+from public, anon, authenticated/i);
   assert.doesNotMatch(migration, /\bip_address\b|raw_url|access_token|refresh_token|event_payload\s+jsonb/i);
   assert.match(migration, /revoke all on function public\.record_traffic_page_view_v1\([\s\S]*?\) from public, anon, authenticated;\s*grant execute on function public\.record_traffic_page_view_v1\([\s\S]*?\) to service_role;/i);
+});
+
+test("Sprint 7 conversion storage is constrained, service-only and aggregate-only", () => {
+  for (const marker of [
+    "traffic_analytics_conversions", "record_traffic_conversion_v1",
+    "get_admin_acquisition_funnel_v1", "signup_completed",
+    "connection_requested", "meeting_scheduled",
+  ]) assert.match(acquisitionMigration, new RegExp(marker, "i"));
+  assert.match(acquisitionMigration, /force row level security/i);
+  assert.match(acquisitionMigration, /revoke all on table public\.traffic_analytics_conversions\s+from public, anon, authenticated/i);
+  assert.match(acquisitionMigration, /revoke all on function public\.record_traffic_conversion_v1\([\s\S]*?\) from public, anon, authenticated/i);
+  const tableDefinition = acquisitionMigration.match(/create table public\.traffic_analytics_conversions \(([\s\S]*?)\n\);/i)?.[1] ?? "";
+  assert.ok(tableDefinition);
+  assert.doesNotMatch(tableDefinition, /\buser_id\b|\bcompany_id\b|\bemail\b|raw_url|search_text|event_payload|ip_address/i);
 });
 
 test("traffic UI is inside Growth, has all ranges and polls no faster than 45 seconds", () => {
@@ -134,7 +162,10 @@ test("traffic UI is inside Growth, has all ranges and polls no faster than 45 se
 test("all canonical customer surfaces load one tracker and Admin is excluded", () => {
   for (const page of ["index.html", "products.html", "companies.html", "tenders.html", "matchmaking.html", "portal.html"]) {
     const source = read(page);
-    assert.equal((source.match(/medichall-traffic\.js\?v=20260813traffic1/g) ?? []).length, 1, page);
+    assert.equal((source.match(/medichall-traffic\.js\?v=20260813growth1/g) ?? []).length, 1, page);
+  }
+  for (const page of ["medical-device-tenders.html", "ai-tender-intelligence.html", "find-medical-device-distributors.html", "medical-device-b2b-marketplace.html", "ai-medical-device-matchmaking.html"]) {
+    assert.equal((read(page).match(/medichall-traffic\.js\?v=20260813growth1/g) ?? []).length, 1, page);
   }
   assert.doesNotMatch(admin, /medichall-traffic\.js/);
   assert.match(read("apps/portal-react/src/main.tsx"), /medichall-traffic\.js/);

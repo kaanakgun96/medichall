@@ -23,6 +23,19 @@ export const TRAFFIC_ROUTES = new Set([
   "react_company_profile",
 ]);
 
+export const TRAFFIC_CONVERSIONS = new Set([
+  "signup_started",
+  "signup_completed",
+  "company_profile_created",
+  "profile_completed",
+  "product_added",
+  "matchmaking_profile_created",
+  "match_viewed",
+  "connection_requested",
+  "rfq_created",
+  "meeting_scheduled",
+]);
+
 const PAYLOAD_KEYS = new Set([
   "event_id",
   "visitor_id",
@@ -34,6 +47,13 @@ const PAYLOAD_KEYS = new Set([
   "utm_campaign",
 ]);
 
+const CONVERSION_PAYLOAD_KEYS = new Set([
+  "event_id",
+  "visitor_id",
+  "session_id",
+  "event_type",
+]);
+
 export type TrafficPayload = {
   event_id: string;
   visitor_id: string;
@@ -43,6 +63,13 @@ export type TrafficPayload = {
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
+};
+
+export type TrafficConversionPayload = {
+  event_id: string;
+  visitor_id: string;
+  session_id: string;
+  event_type: string;
 };
 
 export type DeviceCategory = "desktop" | "mobile" | "tablet" | "other";
@@ -126,6 +153,34 @@ export function parseTrafficPayload(value: unknown): TrafficPayload {
     utm_source: normalizeCampaignValue(payload.utm_source, 64),
     utm_medium: normalizeCampaignValue(payload.utm_medium, 64),
     utm_campaign: normalizeCampaignValue(payload.utm_campaign, 100),
+  };
+}
+
+export function parseTrafficConversionPayload(
+  value: unknown,
+): TrafficConversionPayload {
+  const payload = record(value);
+  const unknownKeys = Object.keys(payload).filter((key) =>
+    !CONVERSION_PAYLOAD_KEYS.has(key)
+  );
+  if (unknownKeys.length) throw new Error("Unsupported analytics field.");
+  if (
+    !validUuid(payload.event_id) || !validUuid(payload.visitor_id) ||
+    !validUuid(payload.session_id)
+  ) {
+    throw new Error("Invalid analytics identifier.");
+  }
+  if (
+    typeof payload.event_type !== "string" ||
+    !TRAFFIC_CONVERSIONS.has(payload.event_type)
+  ) {
+    throw new Error("Invalid conversion event.");
+  }
+  return {
+    event_id: payload.event_id,
+    visitor_id: payload.visitor_id,
+    session_id: payload.session_id,
+    event_type: payload.event_type,
   };
 }
 

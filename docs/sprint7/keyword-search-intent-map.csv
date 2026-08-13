@@ -1,0 +1,29 @@
+keyword,priority,intent,target_page,notes
+medical device tenders,Primary,Commercial,https://medichall.com/medical-device-tenders,Discovery page leading to live public tenders
+medical equipment tenders,Secondary,Commercial,https://medichall.com/medical-device-tenders,Same procurement intent; avoid separate thin page
+medical tenders Europe,Secondary,Commercial,https://medichall.com/medical-device-tenders,European public procurement angle
+healthcare tenders,Secondary,Commercial,https://medichall.com/medical-device-tenders,Broader than device scope; copy must stay accurate
+medical procurement tenders,Secondary,Commercial,https://medichall.com/medical-device-tenders,Procurement-team vocabulary
+European medical tenders,Secondary,High intent,https://medichall.com/tenders,Live public catalog
+medical device tender platform,Secondary,High intent,https://medichall.com/medical-device-tenders,Product-aware search
+AI tender intelligence,Primary,High intent,https://medichall.com/ai-tender-intelligence,Distinct analysis intent
+medical tender intelligence,Secondary,High intent,https://medichall.com/ai-tender-intelligence,Medical specialization
+tender document analysis AI,Secondary,Commercial,https://medichall.com/ai-tender-intelligence,Explain evidence and human review
+medical device distributors,Primary,Commercial,https://medichall.com/find-medical-device-distributors,Partner discovery
+medical device distributors Europe,Secondary,High intent,https://medichall.com/find-medical-device-distributors,Initial European acquisition focus
+find medical device distributors,Secondary,High intent,https://medichall.com/find-medical-device-distributors,Manufacturer problem statement
+medical device suppliers,Secondary,Commercial,https://medichall.com/companies,Mixed directory with explicit roles
+medical device manufacturers,Secondary,Commercial,https://medichall.com/companies,Do not relabel distributor/buyer profiles
+medical equipment suppliers,Secondary,Commercial,https://medichall.com/companies,Directory discovery
+medical device buyers,Secondary,Commercial,https://medichall.com/ai-medical-device-matchmaking,Two-sided partner intent
+medical B2B marketplace,Primary,High intent,https://medichall.com/medical-device-b2b-marketplace,Products + companies + RFQ
+medical device marketplace,Secondary,High intent,https://medichall.com/medical-device-b2b-marketplace,Product discovery
+medical device sourcing,Secondary,Commercial,https://medichall.com/medical-device-b2b-marketplace,Do not create duplicative sourcing page yet
+medical device procurement platform,Secondary,Commercial,https://medichall.com/medical-device-b2b-marketplace,Marketplace and tender workflows
+medical device RFQ,Secondary,High intent,https://medichall.com/medical-device-b2b-marketplace,Structured quotation request
+AI medical device matchmaking,Primary,High intent,https://medichall.com/ai-medical-device-matchmaking,Distinct partner-fit product
+medical device matchmaking,Secondary,Commercial,https://medichall.com/ai-medical-device-matchmaking,Connection and meeting workflow
+how to find medical device distributors in Europe,Primary,Informational,Planned article,Supports distributor landing page
+CPV codes for medical devices,Primary,Informational,Planned article,Supports tender cluster
+how to monitor European medical tenders,Primary,Informational,Planned article,Supports tender cluster
+MedicHall,Primary,Navigational,https://medichall.com/,Organization/brand result

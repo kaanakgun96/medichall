@@ -6,6 +6,7 @@ import {
   acquisitionSource,
   classifyUserAgent,
   isObviousBot,
+  parseTrafficConversionPayload,
   parseTrafficPayload,
   trustedCountryCode,
 } from "../_shared/traffic-analytics.ts";
@@ -90,12 +91,17 @@ export async function handleTrafficAnalyticsRequest(
   }
 
   let payload;
+  let conversion = false;
   try {
     const raw = await request.text();
     if (new TextEncoder().encode(raw).length > 2048) {
       throw new Error("Analytics payload is too large.");
     }
-    payload = parseTrafficPayload(JSON.parse(raw));
+    const decoded = JSON.parse(raw) as Record<string, unknown>;
+    conversion = Object.hasOwn(decoded, "event_type");
+    payload = conversion
+      ? parseTrafficConversionPayload(decoded)
+      : parseTrafficPayload(decoded);
   } catch (error) {
     return json(request, {
       error: error instanceof Error
@@ -110,26 +116,39 @@ export async function handleTrafficAnalyticsRequest(
     anonKey,
     authorization,
   );
-  const classification = classifyUserAgent(userAgent);
-  const source = acquisitionSource(payload.referrer_domain, payload.utm_source);
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await adminClient.rpc("record_traffic_page_view_v1", {
-    p_event_id: payload.event_id,
-    p_visitor_id: payload.visitor_id,
-    p_session_id: payload.session_id,
-    p_route_id: payload.route_id,
-    p_country_code: trustedCountryCode(request.headers),
-    p_acquisition_source: source,
-    p_referrer_domain: payload.referrer_domain,
-    p_utm_source: payload.utm_source,
-    p_utm_medium: payload.utm_medium,
-    p_utm_campaign: payload.utm_campaign,
-    p_device_category: classification.device,
-    p_browser_family: classification.browser,
-    p_is_authenticated: isAuthenticated,
-  });
+  const { data, error } = "event_type" in payload
+    ? await adminClient.rpc("record_traffic_conversion_v1", {
+      p_event_id: payload.event_id,
+      p_visitor_id: payload.visitor_id,
+      p_session_id: payload.session_id,
+      p_event_type: payload.event_type,
+      p_is_authenticated: isAuthenticated,
+    })
+    : await (() => {
+      const classification = classifyUserAgent(userAgent);
+      const source = acquisitionSource(
+        payload.referrer_domain,
+        payload.utm_source,
+      );
+      return adminClient.rpc("record_traffic_page_view_v1", {
+        p_event_id: payload.event_id,
+        p_visitor_id: payload.visitor_id,
+        p_session_id: payload.session_id,
+        p_route_id: payload.route_id,
+        p_country_code: trustedCountryCode(request.headers),
+        p_acquisition_source: source,
+        p_referrer_domain: payload.referrer_domain,
+        p_utm_source: payload.utm_source,
+        p_utm_medium: payload.utm_medium,
+        p_utm_campaign: payload.utm_campaign,
+        p_device_category: classification.device,
+        p_browser_family: classification.browser,
+        p_is_authenticated: isAuthenticated,
+      });
+    })();
   if (error) {
     const invalid = error.code === "22023";
     console.error("traffic-analytics write failed", {
@@ -147,6 +166,7 @@ export async function handleTrafficAnalyticsRequest(
     : {};
   return json(request, {
     accepted: true,
+    kind: conversion ? "conversion" : "page_view",
     recorded: result.recorded === true,
     deduplicated: result.deduplicated === true,
   }, result.recorded === true ? 201 : 200);

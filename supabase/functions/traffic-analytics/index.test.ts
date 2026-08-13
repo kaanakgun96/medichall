@@ -40,19 +40,21 @@ Deno.test("anonymous page view reaches the service-only RPC exactly once", async
   Deno.env.set("SUPABASE_URL", "https://analytics-test.supabase.co");
   Deno.env.set("SUPABASE_ANON_KEY", "test-anon-key");
   Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
-  globalThis.fetch = async (input, init) => {
+  globalThis.fetch = (input, init) => {
     const url = String(input);
     if (url.includes("/rest/v1/rpc/record_traffic_page_view_v1")) {
       rpcCalls += 1;
       const sent = JSON.parse(String(init?.body || "{}"));
       assertEquals(sent.p_is_authenticated, false);
       assertEquals(sent.p_country_code, "TR");
-      return new Response(
-        JSON.stringify({ recorded: true, deduplicated: false }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ recorded: true, deduplicated: false }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }
     throw new Error(`Unexpected request: ${url}`);
@@ -74,6 +76,71 @@ Deno.test("anonymous page view reaches the service-only RPC exactly once", async
     assertEquals(rpcCalls, 1);
     assertEquals(await response.json(), {
       accepted: true,
+      kind: "page_view",
+      recorded: true,
+      deduplicated: false,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl == null) Deno.env.delete("SUPABASE_URL");
+    else Deno.env.set("SUPABASE_URL", originalUrl);
+    if (originalAnon == null) Deno.env.delete("SUPABASE_ANON_KEY");
+    else Deno.env.set("SUPABASE_ANON_KEY", originalAnon);
+    if (originalService == null) Deno.env.delete("SUPABASE_SERVICE_ROLE_KEY");
+    else Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", originalService);
+  }
+});
+
+Deno.test("allowlisted conversion reaches only the conversion RPC", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = Deno.env.get("SUPABASE_URL");
+  const originalAnon = Deno.env.get("SUPABASE_ANON_KEY");
+  const originalService = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  let conversionCalls = 0;
+  Deno.env.set("SUPABASE_URL", "https://analytics-test.supabase.co");
+  Deno.env.set("SUPABASE_ANON_KEY", "test-anon-key");
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
+  globalThis.fetch = (input, init) => {
+    const url = String(input);
+    if (url.includes("/rest/v1/rpc/record_traffic_conversion_v1")) {
+      conversionCalls += 1;
+      const sent = JSON.parse(String(init?.body || "{}"));
+      assertEquals(sent.p_event_type, "rfq_created");
+      assertEquals(Object.hasOwn(sent, "p_route_id"), false);
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ recorded: true, deduplicated: false }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  try {
+    const response = await handleTrafficAnalyticsRequest(
+      new Request("https://edge.test", {
+        method: "POST",
+        headers: {
+          origin: "https://medichall.com",
+          "content-type": "application/json",
+          "user-agent": "Mozilla/5.0 Firefox/128.0",
+        },
+        body: JSON.stringify({
+          event_id: "82000000-0000-4000-8000-000000000021",
+          visitor_id: "82000000-0000-4000-8000-000000000022",
+          session_id: "82000000-0000-4000-8000-000000000023",
+          event_type: "rfq_created",
+        }),
+      }),
+    );
+    assertEquals(response.status, 201);
+    assertEquals(conversionCalls, 1);
+    assertEquals(await response.json(), {
+      accepted: true,
+      kind: "conversion",
       recorded: true,
       deduplicated: false,
     });

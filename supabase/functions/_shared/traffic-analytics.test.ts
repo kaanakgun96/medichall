@@ -3,6 +3,7 @@ import {
   classifyUserAgent,
   isObviousBot,
   normalizeReferrerDomain,
+  parseTrafficConversionPayload,
   parseTrafficPayload,
   trustedCountryCode,
 } from "./traffic-analytics.ts";
@@ -83,6 +84,28 @@ Deno.test("referrer and UTM normalization never retains a URL path or query", ()
   assertEquals(acquisitionSource(null, "google"), "google");
   assertEquals(acquisitionSource("medichall.com", null), "internal");
   assertEquals(acquisitionSource(null, null), "direct");
+});
+
+Deno.test("conversion payload accepts only fixed event names and identifiers", () => {
+  const conversion = {
+    event_id: "82000000-0000-4000-8000-000000000011",
+    visitor_id: "82000000-0000-4000-8000-000000000012",
+    session_id: "82000000-0000-4000-8000-000000000013",
+    event_type: "connection_requested",
+  };
+  assertEquals(parseTrafficConversionPayload(conversion), conversion);
+  assertThrows(
+    () =>
+      parseTrafficConversionPayload({
+        ...conversion,
+        event_type: "message_sent",
+      }),
+    "Invalid conversion event",
+  );
+  assertThrows(
+    () => parseTrafficConversionPayload({ ...conversion, company_id: 42 }),
+    "Unsupported analytics field",
+  );
 });
 
 Deno.test("country is optional and only the trusted proxy header is read", () => {

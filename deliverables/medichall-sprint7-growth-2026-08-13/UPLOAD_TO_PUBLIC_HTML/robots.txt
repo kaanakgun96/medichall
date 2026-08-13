@@ -1,0 +1,16 @@
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin
+Disallow: /portal
+Disallow: /apps/portal-react
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /portal
+Disallow: /apps/portal-react
+
+Sitemap: https://medichall.com/sitemap.xml
