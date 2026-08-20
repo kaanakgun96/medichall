@@ -1,0 +1,11 @@
+ff4c0b2ade6b6c73ff1d9499bdd4dfffaf160de392c60778b63c030b5929917a  ./README.md
+744e62d2ed4d29e17c53de6e370a5a24a382a8997a0635377118f44876e98ae2  ./docs/external-registry-coverage-europe-2026-08-20.md
+b5ec81b71bca0ee51da63aa66cd3af5af222efcc69df9c10bf85dcd993d46b1b  ./scripts/external-registry-source-qa.ts
+a82c9ab3da43532da40f4dec1865b28b50a1ed5c002490f16ef8a8fd27245140  ./supabase/functions/_shared/attachment-discovery.ts
+78cdc974b4060e83237a4756f72cbd9c716ace2b7906ab3fcb47627e962acf3c  ./supabase/functions/_shared/edge-runtime.d.ts
+beb8414f9d2dbc2ff3d205c2e0f04976402e1c07ac582a5b8308119b4e9ee466  ./supabase/functions/_shared/external-prospect-discovery.test.ts
+fc1e129f50541c23c3071e8d966d26804f0ed09653998f00f0dc9f919ab17203  ./supabase/functions/_shared/external-prospect-discovery.ts
+272742d36abbf6408c745bf3ce74757bacb26811b22fd8d0153b33b761e6c94e  ./supabase/functions/_shared/external-registry-adapters.ts
+5c99449de610cad1a4858e8795d94ce85fc9e29d9cdfab48404994ac7e5100bd  ./supabase/functions/_shared/safe-public-fetch.ts
+eec1708481a6c6ab7249d0eed1c6ced932f5d60abbd468a9bb671b35baeeb53f  ./supabase/functions/external-prospect-discovery/index.test.ts
+4d988e916942b23018436ed1939af03b2760f1bdd6f243b8e460b89035c9dd4d  ./supabase/functions/external-prospect-discovery/index.ts

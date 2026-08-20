@@ -1,0 +1,5 @@
+3b0b247033f2798df6547770bab62d1243b4a448475fb0b195e492edba2d3f16  ./README.md
+48b350aaebef3be34cab0891895344f9d6c50859d77f19863cf8b035b1da03e0  ./scripts/check-migration-sequencing.mjs
+41eea49d2c6938ddf04ba197664abc76013d9add01e8ac0028c2ad2663725c89  ./supabase/migrations/202608200004_external_registry_coverage.sql
+f79bb4a47fcb81a99ea70b29f88e23abc1c2d74825edf2fa1ba76bf6ed9f2f77  ./supabase/observability/production-migration-sequence.json
+b8c88b83e701b699193df5aaba41ed750a472fb1d699e31fb1093f7b79bec5ce  ./supabase/tests/external_registry_coverage.sql

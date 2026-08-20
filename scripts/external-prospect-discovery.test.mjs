@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/202608200003_external_prospect_discovery.sql");
 const sqlTest = read("supabase/tests/external_prospect_discovery.sql");
+const registryMigration = read("supabase/migrations/202608200004_external_registry_coverage.sql");
+const registrySqlTest = read("supabase/tests/external_registry_coverage.sql");
 const edge = read("supabase/functions/external-prospect-discovery/index.ts");
 const shared = read("supabase/functions/_shared/external-prospect-discovery.ts");
 const registries = read("supabase/functions/_shared/external-registry-adapters.ts");
@@ -56,6 +58,27 @@ assert.match(migration, /target_market boolean not null/);
 assert.match(migration, /'NOTE_ONLY'/);
 assert.doesNotMatch(migration, /grant usage, select on all sequences/i);
 
+assert.match(registryMigration, /add column mapping_confidence text not null/);
+assert.match(registryMigration, /create table public\.external_registry_request_cache/);
+assert.match(registryMigration, /force row level security/);
+assert.match(registryMigration, /grant all on table public\.external_registry_request_cache to service_role/);
+assert.doesNotMatch(
+  registryMigration,
+  /grant (?:select|insert|update|delete|all)[^;]+to (?:anon|authenticated)/is,
+);
+assert.match(registryMigration, /registry_activity_countries/);
+assert.match(registryMigration, /registry_adapter_usage/);
+assert.match(registryMigration, /registry_cache_hits/);
+assert.match(registrySqlTest, /Browser role has raw registry cache access/);
+assert.match(registrySqlTest, /Registry cache accepted a contact field/);
+assert.doesNotMatch(
+  registryMigration.slice(
+    registryMigration.indexOf("create table public.external_registry_request_cache"),
+    registryMigration.indexOf("create index external_registry_request_cache_expiry_idx"),
+  ),
+  /\b(?:contact_email|phone|contact_name|linkedin_url)\s+(?:text|jsonb)/i,
+);
+
 const externalSchema = migration.slice(
   migration.indexOf("create table public.external_companies"),
   migration.indexOf("create table public.external_prospect_discovery_runs"),
@@ -75,15 +98,29 @@ assert.match(shared, /recencyScore/);
 
 assert.match(registries, /FR_RECHERCHE_ENTREPRISES/);
 assert.match(registries, /NO_BRREG_ENHETSREGISTERET/);
+for (const provider of [
+  "DE_UNTERNEHMENSREGISTER", "IT_REGISTRO_IMPRESE",
+  "ES_REGISTRO_MERCANTIL_DIRCE", "NL_KVK_HVDS",
+  "BE_CBE_OPEN_DATA", "PL_KRS_OPEN_API",
+]) assert.match(registries, new RegExp(provider));
+assert.match(registries, /DISABLED_PENDING_LEGAL_REVIEW/);
+assert.match(registries, /UNAVAILABLE/);
+assert.match(registries, /maximumRequestsPerRun: 0/);
+assert.match(registries, /explicitKrsIdentifier/);
 assert.match(registries, /recherche-entreprises\.api\.gouv\.fr/);
 assert.match(registries, /data\.brreg\.no/);
+assert.match(registries, /api-krs\.ms\.gov\.pl/);
 assert.match(edge, /api\.ted\.europa\.eu\/v3\/notices\/search/);
 assert.match(edge, /safeFetchWithRedirects/);
 assert.match(edge, /isPathAllowedByRobots/);
 assert.match(edge, /maximumTedResultsPerQuery/);
 assert.match(edge, /provider_requests: 0/);
 assert.match(edge, /emails_sent: 0/);
+assert.match(edge, /external_registry_request_cache/);
+assert.match(edge, /registry_cache_hits/);
+assert.match(edge, /mapping_confidence: activity\.mappingConfidence/);
 assert.doesNotMatch(edge, /ANTHROPIC|OPENAI|RESEND_API_KEY|sendEmail|notification_outbox/i);
+assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|linkedin_url/i);
 assert.match(config, /\[functions\.external-prospect-discovery\]\nverify_jwt = false/);
 
 for (const page of [portal, standalone]) {
