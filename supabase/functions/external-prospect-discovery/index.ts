@@ -989,11 +989,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  await admin.from("external_prospect_discovery_runs").update({
+  const updateProgress = async (progress: JsonRecord) => {
+    const result = await admin.from("external_prospect_discovery_runs").update(
+      progress,
+    ).eq("id", runId);
+    if (result.error) throw new Error("DISCOVERY_PROGRESS_UPDATE_FAILED");
+  };
+  await updateProgress({
     status: "RUNNING",
     stage: "loading_profile",
     started_at: new Date().toISOString(),
-  }).eq("id", runId);
+  });
   try {
     const [profileResult, productsResult, matchProfileResult, companiesResult] =
       await Promise.all([
@@ -1074,9 +1080,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ],
     });
     const registryCoverage = registryCoverageForCountries(targetCountries);
-    await admin.from("external_prospect_discovery_runs").update({
-      stage: "checking_public_sources",
+    await updateProgress({
+      stage: "preparing_market_search",
       queries_generated: queries.length,
+      taxonomy_mapped: Math.min(100, mappings.length),
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
           country_code: item.countryCode,
@@ -1088,8 +1095,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
           cost: item.cost,
         })),
       },
-    }).eq("id", runId);
+    });
+    await updateProgress({
+      stage: "searching_procurement",
+      queries_generated: queries.length,
+    });
     const ted = await fetchTedAwards(queries, taxonomyIds, fallbackCpv);
+    await updateProgress({
+      stage: "checking_business_sources",
+      sources_checked: Math.min(60, ted.checked),
+      candidates_found: Math.min(100, ted.candidates.length),
+    });
     const registry = await fetchRegistryCandidates(
       admin,
       targetCountries,
@@ -1100,6 +1116,14 @@ async function handleDiscovery(request: Request): Promise<Response> {
         registryIdentifier: candidate.registryIdentifier,
       })),
     );
+    await updateProgress({
+      stage: "verifying_websites",
+      sources_checked: Math.min(60, ted.checked + registry.checked),
+      candidates_found: Math.min(
+        100,
+        ted.candidates.length + registry.candidates.length,
+      ),
+    });
     const merged = mergeSignals(
       ted.candidates,
       registry.candidates,
@@ -1107,6 +1131,14 @@ async function handleDiscovery(request: Request): Promise<Response> {
       partnerTypes,
     );
     const website = await verifyWebsites(merged, taxonomyNames);
+    await updateProgress({
+      stage: "removing_duplicates",
+      sources_checked: Math.min(
+        60,
+        ted.checked + registry.checked + website.checked,
+      ),
+      candidates_found: Math.min(100, merged.length),
+    });
     const deduped = deduplicateCandidates(
       merged,
       array(companiesResult.data).map((item) => {
@@ -1120,6 +1152,13 @@ async function handleDiscovery(request: Request): Promise<Response> {
         };
       }),
     );
+    await updateProgress({
+      stage: "ranking_prospects",
+      candidates_deduplicated: Math.min(
+        100,
+        deduped.registeredDuplicates + deduped.externalDuplicates,
+      ),
+    });
     let accepted = 0;
     let rejected = 0;
     for (const candidate of deduped.candidates) {
@@ -1127,6 +1166,11 @@ async function handleDiscovery(request: Request): Promise<Response> {
         accepted += 1;
       } else rejected += 1;
     }
+    await updateProgress({
+      stage: "preparing_results",
+      candidates_accepted: Math.min(30, accepted),
+      candidates_rejected: Math.min(100, rejected),
+    });
     const completionStatus = discoveryCompletionStatus({
       tedUnavailable: ted.unavailable,
       registryUnavailableProviders: registry.unavailableProviders.length,

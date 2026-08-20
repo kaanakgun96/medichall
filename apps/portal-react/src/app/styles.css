@@ -134,9 +134,21 @@
 .results__end { margin: 18px 0 0; color: var(--ink-faint); font-size: 11px; text-align: center; }
 
 /* Dashboard */
+.buyer-discovery-hero .hero__inner { min-height: 286px; grid-template-columns: minmax(0, 1fr); }
+.buyer-discovery-content { position: relative; z-index: 2; margin-top: -28px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbfc; box-shadow: var(--shadow); }
+
+/* Dashboard */
 .dashboard-hero .hero__inner { min-height: 286px; }
 .dashboard-hero h1 { max-width: 780px; font-size: clamp(34px, 4.4vw, 57px); line-height: 1.02; }
 .dashboard-content { position: relative; z-index: 2; margin-top: -28px; padding-bottom: 72px; }
+.hero__actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+.hero__actions .button--secondary { border-color: rgba(255,255,255,.42); color: #fff; background: rgba(255,255,255,.08); }
+.dashboard-growth-pillars { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 15px; }
+.dashboard-growth-pillars a { min-height: 170px; display: flex; flex-direction: column; padding: 18px; border: 1.5px solid var(--line); border-radius: 14px; color: var(--ink); background: linear-gradient(145deg,#fff,#f3fafc); box-shadow: var(--shadow-soft); text-decoration: none; transition: 150ms ease; }
+.dashboard-growth-pillars a:hover { border-color: #9ccee4; transform: translateY(-2px); }
+.dashboard-growth-pillars span { color: var(--teal-dark); font: 600 9px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+.dashboard-growth-pillars strong { margin-top: 10px; font-size: 15px; }.dashboard-growth-pillars p { margin: 6px 0 12px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }.dashboard-growth-pillars b { margin-top: auto; color: var(--teal-dark); font-size: 11px; }
+@media (max-width: 760px) { .dashboard-growth-pillars { grid-template-columns: 1fr; }.dashboard-growth-pillars a { min-height: 142px; } }
 .dashboard-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .dashboard-summary-card { position: relative; min-height: 154px; display: grid; align-content: start; overflow: hidden; padding: 18px; border: 1.5px solid var(--line); border-radius: 14px; color: var(--ink); background: #fff; box-shadow: var(--shadow-soft); text-decoration: none; transition: 150ms ease; }
 .dashboard-summary-card::after { content: ""; position: absolute; right: -26px; bottom: -42px; width: 100px; height: 100px; border: 1px solid rgba(66, 152, 204, 0.14); border-radius: 50%; }

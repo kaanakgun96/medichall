@@ -13,7 +13,7 @@ let state={
   loading:false,loaded:false,workspaceTimer:null,detailTimer:null,videoJoinTimer:null,handledHash:null,
   scheduler:{mode:"propose",connectionId:null,meetingId:null,slots:[],step:"pick"},
   notifications:{data:{notifications:[],unread_count:0,action_required_count:0,badge_count:0},filter:"all",loading:false,timer:null},
-  modalFocus:[],taxonomyInterests:[],taxonomySelectors:[]
+  modalFocus:[],taxonomyInterests:[],taxonomySelectors:[],activeProductCount:null
 };
 let externalProspectWorkspace=null;
 
@@ -139,8 +139,8 @@ function renderTabs(){
   const groups=utils.categorizeMeetings(data.meetings);
   const pendingConnections=utils.array(data.connections).filter(item=>item.status==="pending").length;
   document.getElementById("workspaceTabs").innerHTML=
-    tab("matches","Discover Matches",utils.array(data.matches).length)+
-    tab("external_prospects","External Prospects",null)+
+    tab("buyer_discovery","European Buyer Discovery",null)+
+    tab("matches","Member Matches",utils.array(data.matches).length)+
     tab("requests","Requests",groups.requests.length+pendingConnections)+
     tab("connections","Connections",utils.array(data.connections).length)+
     tab("upcoming","Upcoming Meetings",groups.upcoming.length)+
@@ -159,7 +159,7 @@ function renderWorkspace(){
   setTimeout(refreshVideoJoinControls,0);
   const profile=data.profile;
   if(!profile||state.view==="profile"){root.innerHTML=profileForm(profile);setTimeout(initTaxonomySelectors,0);return;}
-  if(state.view==="external_prospects"){root.innerHTML='<div class="card loading">Loading external prospects…</div>';setTimeout(mountExternalProspects,0);return;}
+  if(state.view==="buyer_discovery"){root.innerHTML='<div class="card loading">Loading European Buyer Discovery…</div>';setTimeout(mountBuyerDiscovery,0);return;}
   if(state.view==="requests"){root.innerHTML=requestsView();return;}
   if(state.view==="connections"){root.innerHTML=connectionsView();return;}
   if(state.view==="upcoming"){root.innerHTML=meetingsView("upcoming");return;}
@@ -167,16 +167,24 @@ function renderWorkspace(){
   root.innerHTML=matchesView();
 }
 
-function mountExternalProspects(){
+async function mountBuyerDiscovery(){
   const root=document.getElementById("workspaceRoot"),profile=state.data?.profile;
   if(!root)return;
   if(!COMPANY||profile?.role!=="manufacturer"){
-    root.innerHTML='<div class="empty"><b>External Prospects is for manufacturer accounts.</b>Complete an active manufacturer company and matchmaking profile to use public-source buyer discovery.</div>';
+    root.innerHTML='<div class="empty"><b>European Buyer Discovery is for manufacturer accounts.</b>Complete an active manufacturer company and matchmaking profile to search public business sources.</div>';
     return;
   }
-  if(!globalThis.MedicHallExternalProspects){root.innerHTML='<div class="empty"><b>External Prospect workspace is unavailable.</b>Please refresh this page.</div>';return;}
+  if(!globalThis.MedicHallExternalProspects){root.innerHTML='<div class="empty"><b>European Buyer Discovery is unavailable.</b>Please refresh this page.</div>';return;}
+  if(state.activeProductCount===null){
+    try{
+      const products=await db("products?select=id&company_id=eq."+Number(COMPANY.id)+"&is_active=eq.true&limit=100");
+      state.activeProductCount=Array.isArray(products)?products.length:0;
+    }catch(_){state.activeProductCount=0;}
+  }
   if(!externalProspectWorkspace)externalProspectWorkspace=globalThis.MedicHallExternalProspects.createWorkspace({
-    root,companyId:COMPANY.id,rpc,edge:edgeRequest,toast,
+    root,companyId:COMPANY.id,rpc,edge:edgeRequest,toast,profile,
+    activeProductCount:state.activeProductCount,
+    targetCountries:Array.isArray(profile.target_countries)?profile.target_countries:[],
     track:event=>globalThis.MedicHallTraffic?.trackConversion?.(event)
   });
   externalProspectWorkspace.load();
@@ -783,7 +791,8 @@ async function loadWorkspace(silent=false){
 function applyDeepLink(){
   const hash=location.hash;if(state.handledHash===hash)return;
   const meeting=hash.match(/^#matchmaking-meeting=(\d+)$/),relationship=hash.match(/^#matchmaking-relationship=(\d+)$/);
-  if(hash==="#profile"){state.handledHash=hash;showView("profile");}
+  if(hash==="#buyer-discovery"){state.handledHash=hash;showView("buyer_discovery");}
+  else if(hash==="#profile"){state.handledHash=hash;showView("profile");}
   else if(meeting&&findMeeting(meeting[1])){state.handledHash=hash;openMeetingDetails(Number(meeting[1]));}
   else if(relationship){state.handledHash=hash;openRelationship(Number(relationship[1]));}
 }

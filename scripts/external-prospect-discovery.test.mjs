@@ -124,16 +124,17 @@ assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|l
 assert.match(config, /\[functions\.external-prospect-discovery\]\nverify_jwt = false/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.css\?v=20260820external1/);
-  assert.match(page, /external-prospects\.js\?v=20260820external1/);
+  assert.match(page, /external-prospects\.css\?v=20260820buyer1/);
+  assert.match(page, /external-prospects\.js\?v=20260820buyer1/);
 }
-assert.match(portal, /External Prospects/);
-assert.match(workspace, /external_prospects/);
-assert.match(externalUi, /Discover prospects/);
-assert.match(externalUi, /Not yet on MedicHall/);
-assert.match(externalUi, /INDIRECT COMMERCIAL EVIDENCE/);
+assert.match(portal, /European Buyer Discovery/);
+assert.match(portal, /#buyer-discovery/);
+assert.match(workspace, /buyer_discovery/);
+assert.match(externalUi, /Search Europe for buyers/);
+assert.match(externalUi, /Not yet a MedicHall member/);
+assert.match(externalUi, /Indirect commercial evidence/);
 assert.match(externalUi, /Target markets/);
-assert.match(externalUi, /Procurement signal/);
+assert.match(externalUi, /Procurement/);
 assert.match(externalUi, /feedback\(id,"NOTE_ONLY",note\)/);
 assert.doesNotMatch(externalUi, /Send email|Start outreach|Email prospect|contact_email|contact_name|phone|linkedin_url/i);
 

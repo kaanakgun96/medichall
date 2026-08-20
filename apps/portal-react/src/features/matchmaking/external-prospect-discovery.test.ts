@@ -8,19 +8,20 @@ import discoveryFunction from "../../../../../supabase/functions/external-prospe
 import registryAdapters from "../../../../../supabase/functions/_shared/external-registry-adapters.ts?raw";
 
 describe("External Prospect Discovery production contract", () => {
-  it("uses one shared workspace in both current Matchmaking surfaces", () => {
+  it("uses one shared workspace across first-class Buyer Discovery surfaces", () => {
     for (const page of [portal, standalone]) {
-      expect(page).toContain("external-prospects.js?v=20260820external1");
-      expect(page).toContain("external-prospects.css?v=20260820external1");
+      expect(page).toContain("external-prospects.js?v=20260820buyer1");
+      expect(page).toContain("external-prospects.css?v=20260820buyer1");
     }
-    expect(portal).toContain("External Prospects");
-    expect(workspace).toContain('tab("external_prospects","External Prospects"');
-    expect(portal).toContain('mmViewButton("external_prospects","External Prospects"');
+    expect(portal).toContain("European Buyer Discovery");
+    expect(portal).toContain('id="panel-buyer-discovery"');
+    expect(workspace).toContain('tab("buyer_discovery","European Buyer Discovery"');
+    expect(portal).not.toContain('mmViewButton("external_prospects"');
     expect(externalWorkspace).toContain("MedicHallExternalProspects");
   });
 
   it("keeps discovery manual, bounded, cached, and zero-paid-provider", () => {
-    expect(externalWorkspace).toContain("Discover prospects");
+    expect(externalWorkspace).toContain("Search Europe for buyers");
     expect(externalWorkspace).toContain("data-action=\"discover\"");
     expect(externalWorkspace).not.toMatch(/DOMContentLoaded[^;]+discover/i);
     expect(migration).toContain("interval '24 hours'");
@@ -48,8 +49,8 @@ describe("External Prospect Discovery production contract", () => {
   });
 
   it("labels registry activity as indirect commercial evidence", () => {
-    expect(externalWorkspace).toContain("INDIRECT COMMERCIAL EVIDENCE");
-    expect(externalWorkspace).toContain("never proves exact product availability");
+    expect(externalWorkspace).toContain("Indirect commercial evidence");
+    expect(externalWorkspace).toContain("never presented as proof of exact product availability");
     expect(migration).toContain("is_direct_product_evidence boolean not null default false check (not is_direct_product_evidence)");
     expect(registryAdapters).toContain("FR_RECHERCHE_ENTREPRISES");
     expect(registryAdapters).toContain("NO_BRREG_ENHETSREGISTERET");

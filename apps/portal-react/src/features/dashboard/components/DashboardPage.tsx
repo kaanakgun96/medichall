@@ -37,6 +37,11 @@ function ReadyDashboard({ company, legacyPortalUrl }: ReadyDashboardProps) {
 
   return (
     <div className="page-width dashboard-content">
+      <section className="dashboard-growth-pillars" aria-label="Growth tools">
+        <a href="#/buyer-discovery"><span>Beyond the member network</span><strong>European Buyer Discovery</strong><p>Find evidence-backed distributors, importers, wholesalers and institutional buyers.</p><b>Search Europe →</b></a>
+        <a href="#/my-opportunities"><span>Evidence-backed procurement</span><strong>Tender Intelligence</strong><p>Find relevant tenders and understand requirements, lots and supporting evidence.</p><b>Open tender workspace →</b></a>
+        <a href={`${legacyPortalUrl}#matchmaking`}><span>MedicHall member network</span><strong>MedicHall Matches</strong><p>Connect, propose meeting times and manage relationships with members.</p><b>View member matches →</b></a>
+      </section>
       <DashboardSummaryCards metrics={viewModel.metrics} />
       <div className="dashboard-main-grid">
         <RecentOpportunities

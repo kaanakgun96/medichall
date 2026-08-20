@@ -1,4 +1,4 @@
-import { Building2, RefreshCw } from "lucide-react";
+import { Building2, Search, ScanSearch } from "lucide-react";
 
 type DashboardHeaderProps = {
   companyName?: string | null;
@@ -13,26 +13,30 @@ export function DashboardHeader({ companyName }: DashboardHeaderProps) {
             <Building2 size={14} aria-hidden="true" /> Manufacturer portal
           </span>
           <h1 id="dashboard-title">
-            {companyName ? `Welcome back, ${companyName}.` : "Your opportunity dashboard."}
+            {companyName ? `${companyName}, grow your business across Europe.` : "Grow your business across Europe."}
           </h1>
           <p>
-            Tenders and distributors matched to your company — refreshed every morning from
-            official EU sources.
+            Discover credible buyers beyond the network, understand European tenders, and
+            build relationships with MedicHall members.
           </p>
+          <div className="hero__actions">
+            <a className="button button--primary button--medium" href="#/buyer-discovery">Discover European buyers</a>
+            <a className="button button--secondary button--medium" href="#/my-opportunities">Explore tender intelligence</a>
+          </div>
         </div>
         <div className="hero__facts" aria-label="Dashboard data details">
           <div>
-            <RefreshCw size={19} aria-hidden="true" />
+            <Search size={19} aria-hidden="true" />
             <span>
-              <strong>Existing production data</strong>
-              Metrics reuse the current Partner Portal queries and business rules
+              <strong>European Buyer Discovery</strong>
+              Public procurement, websites and supported official registry signals
             </span>
           </div>
           <div>
-            <Building2 size={19} aria-hidden="true" />
+            <ScanSearch size={19} aria-hidden="true" />
             <span>
-              <strong>Company-specific</strong>
-              Your authenticated company and RLS policies remain the access boundary
+              <strong>Tender Intelligence</strong>
+              Evidence-backed procurement discovery and document understanding
             </span>
           </div>
         </div>

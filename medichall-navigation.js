@@ -57,6 +57,7 @@
     ],
     react: [
       ["dashboard", "Dashboard", "#/dashboard"],
+      ["buyer-discovery", "Buyer Discovery", "#/buyer-discovery"],
       ["all-tenders", "All Tenders", "#/all-tenders"],
       ["my-opportunities", "My Opportunities", "#/my-opportunities"],
       ["company-profile", "Company Profile", "#/company-profile"]

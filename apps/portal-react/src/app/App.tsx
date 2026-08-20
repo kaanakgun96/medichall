@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CompanyProfilePage } from "../features/company-profile/components/CompanyProfilePage";
 import { DashboardPage } from "../features/dashboard/components/DashboardPage";
+import { BuyerDiscoveryPage } from "../features/buyer-discovery/components/BuyerDiscoveryPage";
 import { OpportunitiesPage } from "../features/opportunities/components/OpportunitiesPage";
 import { AllTendersPage } from "../features/tenders/components/AllTendersPage";
 import { PortalHeader } from "../shared/components/PortalHeader";
@@ -23,6 +24,8 @@ export function App() {
       <main>
         {route === "dashboard" ? (
           <DashboardPage legacyPortalUrl={legacyPortalUrl} />
+        ) : route === "buyer-discovery" ? (
+          <BuyerDiscoveryPage legacyPortalUrl={legacyPortalUrl} />
         ) : route === "company-profile" ? (
           <CompanyProfilePage legacyPortalUrl={legacyPortalUrl} />
         ) : route === "my-opportunities" ? (
