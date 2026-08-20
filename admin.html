@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="medichall-release" content="20260820admincontact1">
 <title>Admin — MedicHall</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -86,6 +87,11 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)}
 .rfq-top time{font-family:var(--mono);font-size:.7rem;color:var(--ink-soft)}
 .rfq-meta{font-size:.85rem;color:var(--ink-soft);margin-bottom:8px}
 .rfq-meta a{color:var(--teal);font-weight:600;text-decoration:none}
+.company-private-contacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#f8fbfc}
+.company-private-contact{min-width:0}
+.company-private-contact span{display:block;font:500 .62rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.company-private-contact b{display:block;margin-top:2px;font-size:.84rem;overflow-wrap:anywhere}
+@media(max-width:520px){.company-private-contacts{grid-template-columns:1fr}}
 .rfq-msg{background:var(--mist);border-radius:10px;padding:12px 14px;font-size:.88rem;white-space:pre-wrap}
 .empty{text-align:center;padding:56px 20px;color:var(--ink-soft)}
 .empty b{display:block;font-size:1.05rem;color:var(--ink);margin-bottom:4px}
@@ -1030,10 +1036,13 @@ function renderCompanies(){
       </div>
       <div class="rfq-meta">
         ${esc(c.type||"")}${c.city?` · ${esc(c.city)}`:""}${c.certifications?` · ${esc(c.certifications)}`:""}
-        ${c.contact_email?` · <a href="mailto:${esc(c.contact_email)}">${esc(c.contact_email)}</a>`:""}
         ${c.website?` · <a href="${esc(c.website)}" target="_blank" rel="noopener">website ↗</a>`:""}
         ${c.catalog_url?` · <a href="${esc(c.catalog_url)}" target="_blank" rel="noopener">PDF catalog ↗</a>`:""}
         ${c.video_url?` · <a href="${esc(c.video_url)}" target="_blank" rel="noopener">video ↗</a>`:""}
+      </div>
+      <div class="company-private-contacts" aria-label="Private company contacts">
+        <div class="company-private-contact"><span>Phone</span><b>${esc(c.phone||"—")}</b></div>
+        <div class="company-private-contact"><span>Email</span><b>${esc(c.contact_email||"—")}</b></div>
       </div>
       ${c.description?`<div class="rfq-msg">${esc(c.description)}</div>`:""}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">

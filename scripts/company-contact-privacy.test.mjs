@@ -127,6 +127,27 @@ assert.match(
   /rpc\/get_admin_companies_private_v1/,
   "admin company operations must use the existing admin boundary",
 );
+const adminCompanyRenderer = admin.slice(
+  admin.indexOf("function renderCompanies()"),
+  admin.indexOf("async function toggleApprove"),
+);
+for (const marker of [
+  'aria-label="Private company contacts"',
+  "<span>Phone</span>",
+  'esc(c.phone||"—")',
+  "<span>Email</span>",
+  'esc(c.contact_email||"—")',
+]) {
+  assert.ok(
+    adminCompanyRenderer.includes(marker),
+    `Admin private contact renderer is missing: ${marker}`,
+  );
+}
+assert.doesNotMatch(
+  adminCompanyRenderer,
+  /c\.owner_id|owner_id/,
+  "Admin company cards must not render ownership metadata",
+);
 assert.match(
   adminHotfix,
   /owner manage own products[\s\S]*company_owner_authorized_v1\(company_id\)/,
