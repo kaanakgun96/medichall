@@ -216,6 +216,15 @@ Deno.test("J: France and Norway official registry payloads parse without contact
     !JSON.stringify([france, norway]).includes("@"),
     "registry DTOs must not contain email fields",
   );
+  assert(
+    france[0].registryIdentifier === "123456789" &&
+      norway[0].registryIdentifier === "987654321",
+    "numeric legal-entity identifiers must not be mistaken for phone numbers",
+  );
+  assert(
+    france[0].activity.effectiveFrom === "2020-01-02",
+    "official activity dates must remain available for recency scoring",
+  );
 });
 
 Deno.test("K/L/T: unavailable sources are not invented and request generation is bounded", () => {

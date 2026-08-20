@@ -125,6 +125,30 @@ function texts(value: unknown): string[] {
   return Object.values(valueRecord).flatMap(texts);
 }
 
+// Typed public-record fields such as CPV codes, legal identifiers and ISO
+// dates can resemble phone numbers. Preserve their scalar value here and use
+// the contact-redacting `texts` helper only for human-readable free text.
+function structuredTexts(value: unknown, maximum = 1000): string[] {
+  if (value == null) return [];
+  if (typeof value === "string" || typeof value === "number") {
+    const normalized = String(value).normalize("NFC").replace(/\s+/g, " ")
+      .trim().slice(0, maximum);
+    return normalized ? [normalized] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => structuredTexts(item, maximum));
+  }
+  const valueRecord = record(value);
+  if (valueRecord.eng) return structuredTexts(valueRecord.eng, maximum);
+  return Object.values(valueRecord).flatMap((item) =>
+    structuredTexts(item, maximum)
+  );
+}
+
+function structuredFirst(value: unknown, maximum = 1000): string {
+  return structuredTexts(value, maximum)[0] || "";
+}
+
 function first(value: unknown): string {
   return texts(value)[0] || "";
 }
@@ -263,10 +287,13 @@ async function fetchTedAwards(
         const notice = record(noticeValue);
         const names = texts(notice["winner-name"]).slice(0, 10);
         if (!names.length) continue;
-        const websites = texts(notice["winner-internet-address"]);
-        const identifiers = texts(notice["winner-identifier"]);
-        const countries = texts(notice["winner-country"]);
-        const cpvCodes = texts(notice["classification-cpv"])
+        const websites = structuredTexts(
+          notice["winner-internet-address"],
+          1000,
+        );
+        const identifiers = structuredTexts(notice["winner-identifier"], 240);
+        const countries = structuredTexts(notice["winner-country"], 20);
+        const cpvCodes = structuredTexts(notice["classification-cpv"], 40)
           .map(normalizeCpv).filter(Boolean) as string[];
         const exactCpv = cpvCodes.some((code) => targetCpvCodes.includes(code));
         const relatedCpv = exactCpv ||
@@ -276,12 +303,16 @@ async function fetchTedAwards(
             )
           );
         if (!relatedCpv) continue;
-        const publicationNumber = first(notice["publication-number"]);
+        const publicationNumber = structuredFirst(
+          notice["publication-number"],
+          100,
+        );
         if (!publicationNumber) continue;
         const title = first(notice["notice-title"]) || "TED contract award";
         const lot = first(notice["description-lot"]);
-        const evidenceDate = first(
+        const evidenceDate = structuredFirst(
           notice["contract-conclusion-date"] || notice["publication-date"],
+          20,
         ).match(/^\d{4}-\d{2}-\d{2}/)?.[0] || null;
         for (let index = 0; index < names.length; index += 1) {
           const name = sanitizeEvidenceText(names[index], 240);
@@ -939,6 +970,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       website_unavailable_count: website.unavailable,
       registered_duplicates: deduped.registeredDuplicates,
       external_duplicates: deduped.externalDuplicates,
+      ted_candidates_found: ted.candidates.length,
+      registry_candidates_found: registry.candidates.length,
+      merged_candidates_found: merged.length,
+      deduplicated_candidates_remaining: deduped.candidates.length,
       direct_contact_fields_stored: 0,
     };
     const completion = await admin.from("external_prospect_discovery_runs")
@@ -1004,6 +1039,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
   }
 }
 
-export { handleDiscovery as handleExternalProspectDiscoveryRequest };
+export {
+  handleDiscovery as handleExternalProspectDiscoveryRequest,
+  structuredTexts,
+};
 
 if (import.meta.main) Deno.serve(handleDiscovery);

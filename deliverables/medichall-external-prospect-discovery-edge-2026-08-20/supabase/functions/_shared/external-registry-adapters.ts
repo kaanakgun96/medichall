@@ -43,6 +43,15 @@ function string(value: unknown, maximum = 500): string {
   return sanitizeEvidenceText(value, maximum);
 }
 
+// These values come from typed official-registry fields, not free text. A
+// nine-digit legal-entity identifier or ISO date can resemble a phone number,
+// so contact redaction must not be applied to these fields. Free-text activity
+// descriptions continue through sanitizeEvidenceText below.
+function registryField(value: unknown, maximum = 500): string {
+  return String(value ?? "").normalize("NFC").replace(/\s+/g, " ").trim()
+    .slice(0, maximum);
+}
+
 export const francePublicRegistryAdapter: RegistryAdapter = {
   providerCode: "FR_RECHERCHE_ENTREPRISES",
   countryCode: "FR",
@@ -61,9 +70,12 @@ export const francePublicRegistryAdapter: RegistryAdapter = {
     return array(record(payload).results).slice(0, 10).flatMap((value) => {
       const item = record(value);
       const headquarters = record(item.siege);
-      const name = string(item.nom_raison_sociale || item.nom_complet, 240);
-      const identifier = string(item.siren, 40);
-      const code = string(
+      const name = registryField(
+        item.nom_raison_sociale || item.nom_complet,
+        240,
+      );
+      const identifier = registryField(item.siren, 40);
+      const code = registryField(
         item.activite_principale || headquarters.activite_principale,
         40,
       );
@@ -83,7 +95,8 @@ export const francePublicRegistryAdapter: RegistryAdapter = {
         naceRevision: code === "46.46Z" || code === "46.69B"
           ? "NACE_REV_2"
           : "NATIONAL_ONLY",
-        effectiveFrom: string(headquarters.date_debut_activite, 20) || null,
+        effectiveFrom: registryField(headquarters.date_debut_activite, 20) ||
+          null,
       });
       const recordUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${
         encodeURIComponent(identifier)
@@ -92,8 +105,10 @@ export const francePublicRegistryAdapter: RegistryAdapter = {
         name,
         countryCode: "FR",
         countryName: "France",
-        cityRegion:
-          string(headquarters.libelle_commune || headquarters.commune, 160) ||
+        cityRegion: registryField(
+          headquarters.libelle_commune || headquarters.commune,
+          160,
+        ) ||
           null,
         registryIdentifier: identifier,
         sourceUrl: recordUrl,
@@ -122,9 +137,9 @@ export const norwayPublicRegistryAdapter: RegistryAdapter = {
       const item = record(value);
       const activityRecord = record(item.naeringskode1);
       const address = record(item.forretningsadresse);
-      const name = string(item.navn, 240);
-      const identifier = string(item.organisasjonsnummer, 40);
-      const code = string(activityRecord.kode, 40);
+      const name = registryField(item.navn, 240);
+      const identifier = registryField(item.organisasjonsnummer, 40);
+      const code = registryField(activityRecord.kode, 40);
       if (!name || !identifier || !code) return [];
       const activity = normalizeActivitySignal({
         providerCode: this.providerCode,
@@ -143,7 +158,8 @@ export const norwayPublicRegistryAdapter: RegistryAdapter = {
         name,
         countryCode: "NO",
         countryName: "Norway",
-        cityRegion: string(address.poststed || address.kommune, 160) || null,
+        cityRegion: registryField(address.poststed || address.kommune, 160) ||
+          null,
         registryIdentifier: identifier,
         sourceUrl: recordUrl,
         sourceTitle: "Norwegian official business registry activity",

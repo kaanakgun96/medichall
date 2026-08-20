@@ -1,10 +1,21 @@
-import { handleExternalProspectDiscoveryRequest } from "./index.ts";
+import {
+  handleExternalProspectDiscoveryRequest,
+  structuredTexts,
+} from "./index.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const left = JSON.stringify(actual);
   const right = JSON.stringify(expected);
   if (left !== right) throw new Error(`Expected ${right}, received ${left}`);
 }
+
+Deno.test("structured procurement identifiers are not mistaken for contact coordinates", () => {
+  assertEquals(structuredTexts(["33124100", "2026-08-20"]), [
+    "33124100",
+    "2026-08-20",
+  ]);
+  assertEquals(structuredTexts({ ron: ["RO 16320869"] }), ["RO 16320869"]);
+});
 
 Deno.test("external prospect discovery OPTIONS is 204 and origin constrained", async () => {
   const response = await handleExternalProspectDiscoveryRequest(
