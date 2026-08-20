@@ -131,7 +131,7 @@ with fixture_user as (
     status
   ) values (
     'TED',
-    '499462-2026',
+    '9999499462-2026',
     'TED canonical 32-lot fixture',
     'https://ted.europa.eu/en/notice/-/detail/499462-2026',
     'open'
@@ -165,7 +165,7 @@ with payload as (
       'currency', null,
       'status', 'active',
       'source_type', 'TED_STRUCTURED',
-      'publication_number', '499462-2026',
+      'publication_number', '9999499462-2026',
       'source_url',
         'https://ted.europa.eu/en/notice/-/detail/499462-2026',
       'source_payload', jsonb_build_object(
@@ -178,7 +178,7 @@ with payload as (
 )
 select public.replace_ted_canonical_lots_v1(
   (select tender_id from ted_canonical_test),
-  '499462-2026',
+  '9999499462-2026',
   'https://ted.europa.eu/en/notice/-/detail/499462-2026',
   repeat('a', 64),
   payload.lots
@@ -232,7 +232,7 @@ with payload as (
 )
 select public.replace_ted_canonical_lots_v1(
   (select tender_id from ted_canonical_test),
-  '499462-2026',
+  '9999499462-2026',
   'https://ted.europa.eu/en/notice/-/detail/499462-2026',
   repeat('a', 64),
   payload.lots
@@ -274,7 +274,7 @@ with payload as (
 )
 select public.replace_ted_canonical_lots_v1(
   (select tender_id from ted_canonical_test),
-  '499462-2026',
+  '9999499462-2026',
   'https://ted.europa.eu/en/notice/-/detail/499462-2026',
   repeat('b', 64),
   payload.lots
