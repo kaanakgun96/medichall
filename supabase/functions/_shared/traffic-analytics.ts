@@ -34,6 +34,12 @@ export const TRAFFIC_CONVERSIONS = new Set([
   "connection_requested",
   "rfq_created",
   "meeting_scheduled",
+  "external_prospect_discovery_started",
+  "external_prospect_discovery_completed",
+  "external_prospect_viewed",
+  "external_prospect_saved",
+  "external_prospect_dismissed",
+  "external_prospect_website_clicked",
 ]);
 
 const PAYLOAD_KEYS = new Set([

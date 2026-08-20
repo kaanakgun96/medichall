@@ -106,6 +106,13 @@ Deno.test("conversion payload accepts only fixed event names and identifiers", (
     () => parseTrafficConversionPayload({ ...conversion, company_id: 42 }),
     "Unsupported analytics field",
   );
+  assertEquals(
+    parseTrafficConversionPayload({
+      ...conversion,
+      event_type: "external_prospect_discovery_started",
+    }).event_type,
+    "external_prospect_discovery_started",
+  );
 });
 
 Deno.test("country is optional and only the trusted proxy header is read", () => {

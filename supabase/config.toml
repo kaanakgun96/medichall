@@ -71,3 +71,9 @@ verify_jwt = false
 # and aggregate reporting remain inaccessible outside service/admin boundaries.
 [functions.traffic-analytics]
 verify_jwt = false
+
+# JWT verification happens in-function with auth.getUser. Discovery is then
+# authorized by the tenant-scoped database gate; fixed public-source adapters
+# and service writes never expose the service role to the browser.
+[functions.external-prospect-discovery]
+verify_jwt = false
