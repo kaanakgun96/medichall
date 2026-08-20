@@ -8,6 +8,9 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 const migration = read(
   "supabase/migrations/202608170002_company_contact_privacy.sql",
 );
+const adminHotfix = read(
+  "supabase/migrations/202608200001_company_contact_privacy_admin_access_hotfix.sql",
+);
 const companiesHtml = read("companies.html");
 const companiesController = read("marketplace-companies.js");
 const productsController = read("marketplace-products.js");
@@ -123,6 +126,21 @@ assert.match(
   admin,
   /rpc\/get_admin_companies_private_v1/,
   "admin company operations must use the existing admin boundary",
+);
+assert.match(
+  adminHotfix,
+  /owner manage own products[\s\S]*company_owner_authorized_v1\(company_id\)/,
+  "product ownership policy must use the privileged owner/admin helper",
+);
+assert.match(
+  adminHotfix,
+  /owner read own rfq[\s\S]*company_owner_authorized_v1\(company_id\)/,
+  "RFQ ownership policy must use the privileged owner/admin helper",
+);
+assert.doesNotMatch(
+  adminHotfix,
+  /grant select[\s\S]*public\.companies/i,
+  "Admin recovery must not restore broad company SELECT grants",
 );
 
 for (const path of [

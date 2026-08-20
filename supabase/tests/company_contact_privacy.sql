@@ -63,6 +63,25 @@ begin
   ) then
     raise exception 'Company privacy RPC grants are incorrect';
   end if;
+
+  if not exists (
+    select 1
+    from pg_policies policy
+    where policy.schemaname = 'public'
+      and policy.tablename = 'products'
+      and policy.policyname = 'owner manage own products'
+      and policy.qual like '%company_owner_authorized_v1%'
+      and policy.with_check like '%company_owner_authorized_v1%'
+  ) or not exists (
+    select 1
+    from pg_policies policy
+    where policy.schemaname = 'public'
+      and policy.tablename = 'rfq_requests'
+      and policy.policyname = 'owner read own rfq'
+      and policy.qual like '%company_owner_authorized_v1%'
+  ) then
+    raise exception 'Admin-safe product/RFQ ownership policies are missing';
+  end if;
 end
 $structure$;
 
@@ -283,6 +302,12 @@ begin
   ) then
     raise exception 'Admin private company access was broken';
   end if;
+
+  -- These are the exact relation reads performed concurrently by admin.html.
+  -- Before the forward-only hotfix both failed with SQLSTATE 42501 because an
+  -- owner policy queried public.companies under the authenticated caller.
+  perform count(*) from public.products;
+  perform count(*) from public.rfq_requests;
 end
 $admin_access$;
 
