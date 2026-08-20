@@ -431,6 +431,7 @@ export function normalizeTenderLots(
   extraction: Record<string, unknown>,
 ): NormalizedTenderLot[] {
   const groups = new Map<string, MutableLot>();
+  const canonicalOnly = extraction.canonical_only_lots === true;
   const explicitLots = array(extraction.lots);
   for (let index = 0; index < explicitLots.length; index++) {
     const source = record(explicitLots[index]);
@@ -454,6 +455,9 @@ export function normalizeTenderLots(
     const product = productFrom(source);
     if (!product) continue;
     const key = lotKey(product.lot_number);
+    // When an official canonical lot index is available, notice-level or
+    // rejected AI product references must not create an extra phantom lot.
+    if (canonicalOnly && !groups.has(key)) continue;
     const lot = groups.get(key) ||
       emptyLot(key, product.lot_number, null);
     const productKey = [

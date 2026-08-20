@@ -3510,6 +3510,19 @@ async function retryTenderImport(importId){
 function tenderImportFact(label,value){
   return '<div class="ti-fact"><b>' + esc(String(value == null || value === "" ? "Not found" : value)) + '</b><span>' + esc(label) + '</span></div>';
 }
+function tenderDisplayLots(tender){
+  const canonical=Array.isArray(tender&&tender.canonical_lots)?tender.canonical_lots:[];
+  const expected=Number(tender&&tender.canonical_lot_count||0);
+  if(tender&&tender.lot_structure_status==="CANONICAL_LOTS_READY"&&canonical.length&&canonical.length===expected)return canonical;
+  return Array.isArray(tender&&tender.ai_lots)?tender.ai_lots:[];
+}
+function tenderLotStructureNotice(tender){
+  if(!tender||String(tender.source||"").toUpperCase()!=="TED")return "";
+  if(tender.lot_structure_status==="CANONICAL_LOTS_READY"){
+    return '<div class="lot-match-notice"><b>Official TED lot index</b> · '+esc(String(tender.canonical_lot_count||0))+' canonical lots. Document evidence is mapped separately and may cover fewer lots.</div>';
+  }
+  return '<div class="lot-match-notice"><b>Official TED lot structure pending.</b> Document extraction may continue, but inferred chunk lots are not treated as authoritative.</div>';
+}
 async function openTenderImportDetail(importId){
   const row = TENDER_IMPORT_ROWS.find(item=>item.id === importId);
   const host = document.getElementById("tiDetail-" + importId);
@@ -3519,7 +3532,7 @@ async function openTenderImportDetail(importId){
   host.innerHTML = '<div class="loading">Loading evidence-backed extraction…</div>';
   try{
     const [tenders,evidence] = await Promise.all([
-      db("tenders?select=title,buyer_name,country_name,deadline_at,cpv_codes,estimated_value,currency,document_confidence_score,data_completeness_score,analyzed_document_count,document_evidence_count,document_extraction_v3,extracted_products,ai_lots,missing_information&id=eq." + row.tender_id),
+      db("tenders?select=source,title,buyer_name,country_name,deadline_at,cpv_codes,estimated_value,currency,document_confidence_score,data_completeness_score,analyzed_document_count,document_evidence_count,document_extraction_v3,extracted_products,ai_lots,canonical_lots,canonical_lot_count,lot_structure_status,lot_structure_source,missing_information&id=eq." + row.tender_id),
       db("tender_document_evidence?select=document_id,page_number,sheet_name,cell_range,field_name,extracted_value,source_quote,confidence_score&tender_id=eq." + row.tender_id + "&order=confidence_score.desc&limit=100")
     ]);
     const tender = tenders && tenders[0];
@@ -3527,7 +3540,7 @@ async function openTenderImportDetail(importId){
     const extraction = tender.document_extraction_v3 || {};
     const facts = extraction.tender || {};
     const products = Array.isArray(tender.extracted_products) ? tender.extracted_products : [];
-    const lots = Array.isArray(tender.ai_lots) ? tender.ai_lots : [];
+    const lots = tenderDisplayLots(tender);
     let html = '<div class="ti-facts">'
       + tenderImportFact("Procurement authority",facts.authority_original || tender.buyer_name)
       + tenderImportFact("Country",facts.country_name_original || tender.country_name)
@@ -3541,7 +3554,7 @@ async function openTenderImportDetail(importId){
       + tenderImportFact("Products",products.length)
       + tenderImportFact("Lots",lots.length)
       + tenderImportFact("Evidence records",tender.document_evidence_count)
-      + '</div>';
+      + '</div>' + tenderLotStructureNotice(tender);
     if(products.length){
       html += '<div class="dtl-h">Extracted products and quantities</div><table class="dp-table"><thead><tr><th>Product</th><th>Lot</th><th>Quantity</th><th>Certificates</th><th>Confidence</th></tr></thead><tbody>'
         + products.slice(0,20).map(product=>'<tr><td><b>' + esc(String(product.product_name || "Unnamed product")) + '</b></td><td>' + esc(String(product.lot_number || "—")) + '</td><td>' + esc(product.quantity_value == null ? "Not found" : String(product.quantity_value) + " " + String(product.quantity_unit || "")) + '</td><td>' + esc(String((product.required_certifications || []).join(", ") || "Not found")) + '</td><td>' + esc(String(product.confidence_score == null ? "—" : product.confidence_score + "%")) + '</td></tr>').join("")
@@ -3549,7 +3562,7 @@ async function openTenderImportDetail(importId){
     }
     if(lots.length){
       html += '<div class="dtl-h">Lots</div><div class="lot-grid">'
-        + lots.slice(0,20).map(lot=>'<div class="lot-card" style="cursor:default"><div class="lot-no">' + esc(String(lot.lot_number || "Lot")) + '</div><div class="lot-title">' + esc(String(lot.lot_title || "Untitled lot")) + '</div><div class="lot-meta">' + esc(lot.estimated_quantity == null ? "Quantity not found" : String(lot.estimated_quantity) + " " + String(lot.quantity_unit || "")) + '</div></div>').join("")
+        + lots.map(lot=>'<div class="lot-card" style="cursor:default"><div class="lot-no">' + esc(String(lot.official_lot_identifier || lot.lot_number || "Lot")) + '</div><div class="lot-title">' + esc(String(lot.lot_title || "Untitled lot")) + '</div><div class="lot-meta">' + esc(lot.estimated_quantity == null ? "Quantity not found" : String(lot.estimated_quantity) + " " + String(lot.quantity_unit || "")) + '</div></div>').join("")
         + '</div>';
     }
     const evidenceRows = Array.isArray(evidence) ? evidence : [];
@@ -4889,7 +4902,7 @@ const DEEP_CACHE = {};
 
 async function renderDeepResult(matchId, tenderId){
   const [rows, mrows, intelligence, taxonomyCompatibility] = await Promise.all([
-    db("tenders?select=document_analysis_status,document_confidence_score,data_completeness_score,analyzed_document_count,extracted_products,missing_information,procurement_documents_url,document_analysis_notes,ai_lots&id=eq." + tenderId),
+    db("tenders?select=source,document_analysis_status,document_confidence_score,data_completeness_score,analyzed_document_count,extracted_products,missing_information,procurement_documents_url,document_analysis_notes,ai_lots,canonical_lots,canonical_lot_count,lot_structure_status,lot_structure_source&id=eq." + tenderId),
     db("opportunity_matches?select=fit_narrative,keyword_score,geography_score,category_score&id=eq." + matchId),
     db("rpc/get_tender_opportunity_intelligence_v1", {
       method:"POST",
@@ -4901,6 +4914,7 @@ async function renderDeepResult(matchId, tenderId){
   ]);
   const t = rows && rows[0];
   if(!t) return;
+  t.ai_lots = tenderDisplayLots(t);
   t._match = (mrows && mrows[0]) || {};
   t._intelligence = intelligence && typeof intelligence === "object" ? intelligence : null;
   t._taxonomy = taxonomyCompatibility && typeof taxonomyCompatibility === "object" ? taxonomyCompatibility : null;
@@ -5110,6 +5124,7 @@ function paintDeepResult(matchId){
   if(t.document_analysis_notes){
     html += '<div class="dtl-summary"><b>🤖 AI Executive Summary</b>' + esc(t.document_analysis_notes) + '</div>';
   }
+  html += tenderLotStructureNotice(c.base);
 
   if(lots.length){
     html += '<div class="dtl-h">Lots (' + lots.length + ')</div><div class="lot-grid">';

@@ -59,7 +59,9 @@
   ],
   "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
   "notification_migration": "202608010001_company_admin_notification_outbox.sql",
-  "planned_forward_migrations": [],
+  "planned_forward_migrations": [
+    "202608170001_ted_canonical_lots.sql"
+  ],
   "archived_unapplied": [
     {
       "version": "202607290001",
@@ -84,5 +86,7 @@
     "202607090001",
     "202607100009"
   ],
-  "expected_target_only_dry_run": []
+  "expected_target_only_dry_run": [
+    "202608170001_ted_canonical_lots.sql"
+  ]
 }

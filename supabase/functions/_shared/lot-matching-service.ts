@@ -8,6 +8,10 @@ import {
   normalizeMatchText,
   normalizeTenderLots,
 } from "./lot-matching-v1.ts";
+import {
+  reconcileAnalysisToCanonicalLots,
+  type TedCanonicalLot,
+} from "./ted-canonical-lots.ts";
 import { stableVersionHash } from "./matching-observability.ts";
 import {
   normalizeDimensions,
@@ -283,7 +287,7 @@ function buildExtractionInput(
     ];
   }
 
-  return {
+  const extraction = {
     ...extractionV3,
     products,
     lots,
@@ -294,6 +298,13 @@ function buildExtractionInput(
       numberValue(extractionV3.document_confidence_score) ??
       0,
   };
+  const canonicalLots = values(tender.canonical_lots)
+    .map((value) => record(value) as unknown as TedCanonicalLot)
+    .filter((lot) => Boolean(lot.official_lot_identifier));
+  return canonicalLots.length &&
+      tender.lot_structure_status === "CANONICAL_LOTS_READY"
+    ? reconcileAnalysisToCanonicalLots(extraction, canonicalLots)
+    : extraction;
 }
 
 function errorMessage(value: unknown): string {
@@ -314,7 +325,7 @@ export async function refreshTenderLotMatches(
     evidenceQuery,
   ] = await Promise.all([
     table(adminClient, "tenders").select(
-      "id,extracted_products,ai_lots,document_extraction_v3,missing_information,document_confidence_score",
+      "id,extracted_products,ai_lots,canonical_lots,canonical_lot_count,lot_structure_status,document_extraction_v3,missing_information,document_confidence_score",
     ).eq("id", input.tenderId).maybeSingle(),
     table(adminClient, "companies").select("*").eq("id", input.companyId)
       .maybeSingle(),

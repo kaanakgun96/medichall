@@ -60,6 +60,16 @@ import {
 } from "../_shared/matching-observability.ts";
 import { refreshTenderLotMatches } from "../_shared/lot-matching-service.ts";
 import {
+  canonicalLotCoverageSummary,
+  fetchTedCanonicalNotice,
+  markTedLotStructurePending,
+  persistTedCanonicalNotice,
+  reconcileAnalysisToCanonicalLots,
+  reconcileChunkToCanonicalLots,
+  resolveCanonicalLotReference,
+  type TedCanonicalLot,
+} from "../_shared/ted-canonical-lots.ts";
+import {
   readBoundedResponseBody,
   safeFetchWithRedirects,
 } from "../_shared/safe-public-fetch.ts";
@@ -1245,6 +1255,7 @@ async function persistEvidence(
   adminClient: AdminClient,
   job: any,
   analysis: NormalizedDocumentAnalysis,
+  canonicalLots: readonly TedCanonicalLot[] = [],
 ): Promise<number> {
   const { error: deleteError } = await adminClient
     .from("tender_document_evidence")
@@ -1253,6 +1264,13 @@ async function persistEvidence(
   if (deleteError) throw new Error(deleteError.message);
   const rows: Record<string, unknown>[] = [];
   for (const product of analysis.products) {
+    const lotResolution = canonicalLots.length
+      ? resolveCanonicalLotReference(
+        product.lot_number,
+        null,
+        canonicalLots,
+      )
+      : null;
     for (const evidence of product.evidence) {
       if (Number(evidence.document_id) <= 0) continue;
       rows.push({
@@ -1274,6 +1292,16 @@ async function persistEvidence(
           ? product.quantity_unit
           : null,
         lot_number: product.lot_number,
+        lot_scope: !canonicalLots.length || !product.lot_number
+          ? "NOTICE_LEVEL"
+          : lotResolution?.canonical_lot_identifiers.length === 1
+          ? "LOT_LEVEL"
+          : lotResolution?.canonical_lot_identifiers.length
+          ? "MULTI_LOT"
+          : "UNMAPPED",
+        canonical_lot_identifiers:
+          lotResolution?.canonical_lot_identifiers || [],
+        lot_mapping_method: lotResolution?.mapping_methods.join(",") || null,
         page_number: evidence.page_number,
         sheet_name: evidence.sheet_name,
         cell_range: evidence.cell_range,
@@ -1289,6 +1317,84 @@ async function persistEvidence(
     if (error) throw new Error(error.message);
   }
   return rows.length;
+}
+
+function canonicalLotsFromProjection(value: unknown): TedCanonicalLot[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw, index) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const item = raw as Record<string, unknown>;
+    const identifier = String(
+      item.official_lot_identifier || item.lot_number || "",
+    ).trim().toUpperCase();
+    if (!identifier) return [];
+    return [{
+      position: Number(item.position || index + 1),
+      official_lot_identifier: identifier,
+      internal_lot_identifier:
+        String(item.internal_lot_identifier || "").trim() || null,
+      lot_number: identifier,
+      lot_title: String(item.lot_title || item.official_title || "Untitled lot"),
+      description: String(item.description || "").trim() || null,
+      cpv_codes: Array.isArray(item.cpv_codes)
+        ? item.cpv_codes.map(String)
+        : [],
+      deadline_at: String(item.deadline_at || "").trim() || null,
+      estimated_value: item.estimated_value == null
+        ? null
+        : Number(item.estimated_value),
+      currency: String(item.currency || "").trim() || null,
+      status: "active" as const,
+      source_type: "TED_STRUCTURED" as const,
+      publication_number: String(item.publication_number || ""),
+      source_url: String(item.source_url || ""),
+      source_payload: {},
+    }];
+  });
+}
+
+async function persistChunkLotMappings(
+  adminClient: AdminClient,
+  jobId: number,
+  tenderId: number,
+  chunks: readonly any[],
+  canonicalLots: readonly TedCanonicalLot[],
+): Promise<{
+  mappedChunkCount: number;
+  unmappedChunkCount: number;
+  mappings: ReturnType<typeof reconcileChunkToCanonicalLots>[];
+}> {
+  if (!canonicalLots.length) {
+    return { mappedChunkCount: 0, unmappedChunkCount: 0, mappings: [] };
+  }
+  const mappings = chunks.map((chunk) =>
+    reconcileChunkToCanonicalLots(chunk.normalized_result, canonicalLots)
+  );
+  const rows = chunks.map((chunk, index) => ({
+    chunk_id: Number(chunk.id),
+    job_id: jobId,
+    tender_id: tenderId,
+    mapping_category: mappings[index].category,
+    canonical_lot_identifiers:
+      mappings[index].canonical_lot_identifiers,
+    rejected_references: mappings[index].rejected_references,
+    mapping_methods: mappings[index].mapping_methods,
+    mapping_version: "ted-canonical-lot-map-v1",
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await adminClient
+    .from("tender_document_chunk_lot_mappings")
+    .upsert(rows, { onConflict: "chunk_id,mapping_version" });
+  if (error) throw new Error(error.message);
+  return {
+    mappedChunkCount: mappings.filter((mapping) =>
+      mapping.canonical_lot_identifiers.length > 0
+    ).length,
+    unmappedChunkCount: mappings.filter((mapping) =>
+      mapping.category === "UNMAPPED"
+    ).length,
+    mappings,
+  };
 }
 
 async function refreshRequestingCompanyMatch(
@@ -1466,10 +1572,51 @@ async function processJob(
   const { data: existingTender } = await adminClient
     .from("tenders")
     .select(
-      "source,title,buyer_name,country_code,country_name,publication_date,deadline_at,estimated_value,currency,cpv_codes,document_analysis_status,document_confidence_score,last_document_analysis_at,ai_extraction_version",
+      "source,source_notice_id,source_url,title,buyer_name,country_code,country_name,publication_date,deadline_at,estimated_value,currency,cpv_codes,canonical_lots,canonical_lot_count,lot_structure_status,lot_structure_source,document_analysis_status,document_confidence_score,last_document_analysis_at,ai_extraction_version",
     )
     .eq("id", job.tender_id)
     .single();
+  if (!existingTender) throw new Error("Tender not found");
+
+  let canonicalLots = existingTender.lot_structure_status ===
+      "CANONICAL_LOTS_READY"
+    ? canonicalLotsFromProjection(existingTender.canonical_lots)
+    : [];
+  let canonicalLotSourceStatus = existingTender.lot_structure_status ||
+    "LOT_STRUCTURE_PENDING";
+  if (
+    String(existingTender.source || "").toUpperCase() === "TED" &&
+    /^\d{1,10}-\d{4}$/.test(String(existingTender.source_notice_id || ""))
+  ) {
+    try {
+      const officialNotice = await fetchTedCanonicalNotice(
+        String(existingTender.source_notice_id),
+      );
+      const persisted = await persistTedCanonicalNotice(
+        adminClient,
+        Number(job.tender_id),
+        officialNotice,
+      );
+      canonicalLots = canonicalLotsFromProjection(
+        persisted.canonical_lots || officialNotice.lots,
+      );
+      canonicalLotSourceStatus = "CANONICAL_LOTS_READY";
+    } catch (error) {
+      if (!canonicalLots.length) {
+        canonicalLotSourceStatus = "LOT_STRUCTURE_PENDING";
+        try {
+          await markTedLotStructurePending(
+            adminClient,
+            Number(job.tender_id),
+            sanitizeMessage(error),
+          );
+        } catch {
+          // Official lot availability is observable, but document ingestion may
+          // continue in a pending state without promoting inferred identities.
+        }
+      }
+    }
+  }
   const model = Deno.env.get("DOC_ENGINE_MODEL") ||
     Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
   await adminClient.from("tender_document_analysis_jobs").update({
@@ -2369,12 +2516,27 @@ async function processJob(
     source: "document-intelligence-v3",
   });
   const mergeStartedAt = performance.now();
-  const merged = mergeChunkAnalyses(completed.map((chunk: any) => ({
+  const mergedChunkInput = completed.map((chunk: any) => ({
     chunkId: chunk.id,
     startPage: Number(chunk.page_start || 1),
     endPage: Number(chunk.page_end || chunk.page_start || 1),
     analysis: chunk.normalized_result as NormalizedDocumentAnalysis,
-  })));
+  }));
+  const merged = mergeChunkAnalyses(mergedChunkInput);
+  const lotReconciliation = await persistChunkLotMappings(
+    adminClient,
+    jobId,
+    Number(job.tender_id),
+    completed,
+    canonicalLots,
+  );
+  const canonicalAnalysis = canonicalLots.length
+    ? reconcileAnalysisToCanonicalLots(merged, canonicalLots) as typeof merged
+    : merged;
+  const coverageSummary = canonicalLotCoverageSummary(
+    lotReconciliation.mappings,
+    canonicalLots.length,
+  );
   timings.mergeMs += Math.max(
     0,
     Math.round(performance.now() - mergeStartedAt),
@@ -2391,18 +2553,23 @@ async function processJob(
     documentsFailed > 0 ||
     Boolean(terminationReason && terminationReason !== "EARLY_COMPLETION");
   const analysis = {
-    ...merged,
-    analysis_status: incomplete ? "partial" : merged.analysis_status,
+    ...canonicalAnalysis,
+    analysis_status: incomplete
+      ? "partial"
+      : canonicalAnalysis.analysis_status,
+    summary: [canonicalAnalysis.summary, coverageSummary]
+      .filter(Boolean)
+      .join(" "),
     missing_information: incomplete
       ? [
         ...new Set([
-          ...merged.missing_information,
+          ...canonicalAnalysis.missing_information,
           terminationReason
             ? `Analysis stopped safely: ${terminationReason}`
             : "One or more document chunks are pending or failed",
         ]),
       ]
-      : merged.missing_information,
+      : canonicalAnalysis.missing_information,
   } as typeof merged;
   await finishPipelineStage(adminClient, mergeStage, "completed", {
     metadata: {
@@ -2598,6 +2765,18 @@ async function processJob(
         estimated_cost_usd: estimatedCost,
       },
       quality,
+      lot_structure: {
+        status: canonicalLotSourceStatus,
+        source: canonicalLots.length ? "TED_STRUCTURED" : null,
+        official_lot_count: canonicalLots.length,
+        canonical_lot_count: canonicalLots.length,
+        mapped_chunk_count: lotReconciliation.mappedChunkCount,
+        unmapped_chunk_count: lotReconciliation.unmappedChunkCount,
+        rejected_phantom_lot_count: lotReconciliation.mappings.reduce(
+          (count, mapping) => count + mapping.rejected_references.length,
+          0,
+        ),
+      },
     },
     v3_plan_hash: planHash,
     duration_ms: totalDurationMs,
@@ -2611,7 +2790,12 @@ async function processJob(
 
   let evidenceCount = 0;
   if (applyResult) {
-    evidenceCount = await persistEvidence(adminClient, job, analysis);
+    evidenceCount = await persistEvidence(
+      adminClient,
+      job,
+      analysis,
+      canonicalLots,
+    );
     const { error } = await adminClient.from("tenders").update({
       ...(existingTender?.source === "PORTAL_IMPORT"
         ? {
@@ -2641,7 +2825,7 @@ async function processJob(
       extracted_products: analysis.products,
       missing_information: analysis.missing_information,
       document_analysis_notes: analysis.summary,
-      ai_lots: analysis.lots.slice(0, 30),
+      ai_lots: analysis.lots.slice(0, 1000),
       document_extraction_v2: { ...analysis, fit_narrative: null },
       document_extraction_v3: { ...analysis, fit_narrative: null },
       document_evidence_count: evidenceCount,
@@ -2681,6 +2865,10 @@ async function processJob(
         total_pages: totalPages,
         selected_pages: selectedPages,
         ai_pages_processed: aiPagesProcessed,
+        official_lot_count: canonicalLots.length,
+        canonical_lot_count: canonicalLots.length,
+        mapped_chunk_count: lotReconciliation.mappedChunkCount,
+        unmapped_chunk_count: lotReconciliation.unmappedChunkCount,
         chunks_completed: chunksCompleted,
         chunks_failed: chunksFailed,
         chunks_reused: Math.max(chunksReused, currentReused),

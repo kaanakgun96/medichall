@@ -31,6 +31,7 @@
 //                    TED_LOOKBACK_DAYS      (default 2)
 //                    TED_MAX_PAGES          (default 2, 250 notices per page)
 
+// deno-lint-ignore no-import-prefix -- Edge bundle pins the production client.
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   PIPELINE_VERSIONS,
@@ -42,6 +43,13 @@ import {
   startPipelineRun,
   startPipelineStage,
 } from "../_shared/matching-observability.ts";
+import {
+  fetchTedCanonicalNotice,
+  markTedLotStructurePending,
+  parseTedCanonicalNotice,
+  persistTedCanonicalNotice,
+  TED_CANONICAL_LOT_FIELDS,
+} from "../_shared/ted-canonical-lots.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 // Exact CPV codes (TED matches codes exactly; wildcards are unreliable).
@@ -149,8 +157,116 @@ async function handle(req: Request): Promise<Response> {
   });
 
   // Elle tetiklemede gövdeden geçici ayar alınabilir: {"lookback_days":30,"max_pages":5}
-  let bodyOverride: { lookback_days?: number; max_pages?: number } = {};
+  let bodyOverride: {
+    action?: string;
+    publication_number?: string;
+    lookback_days?: number;
+    max_pages?: number;
+  } = {};
   try { bodyOverride = await req.json(); } catch (_) { /* gövde boş olabilir (cron) */ }
+
+  // Bounded, zero-AI reconciliation for a known production notice. This path
+  // fetches only the official TED structured record and never enters the
+  // translation, matchmaking, notification, or provider-backed pipeline.
+  if (bodyOverride.action === "canonical_lot_reconcile") {
+    const publication = String(bodyOverride.publication_number || "").trim();
+    if (!/^\d{1,10}-\d{4}$/.test(publication)) {
+      await finishPipelineRun(admin, pipelineRun, "failed", {
+        error: "Invalid TED publication number",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid TED publication number" }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    const stage = await startPipelineStage(admin, {
+      traceId: pipelineRun.traceId,
+      stageName: "canonical_lot_reconciliation",
+      pipelineVersion: PIPELINE_VERSIONS.tenderIngestion,
+      source: "TED Search API v3",
+      metadata: { publication_number: publication, provider_calls: 0 },
+    });
+    const { data: tender, error: tenderError } = await admin
+      .from("tenders")
+      .select("id")
+      .eq("source", "TED")
+      .eq("source_notice_id", publication)
+      .maybeSingle();
+    if (tenderError || !tender) {
+      await finishPipelineStage(admin, stage, "failed", {
+        error: "TED tender not found",
+      });
+      await finishPipelineRun(admin, pipelineRun, "failed", {
+        error: "TED tender not found",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "TED tender not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    try {
+      const official = await fetchTedCanonicalNotice(publication);
+      const result = await persistTedCanonicalNotice(
+        admin,
+        Number(tender.id),
+        official,
+      );
+      await finishPipelineStage(admin, stage, "completed", {
+        metadata: {
+          official_lot_count: official.official_lot_count,
+          canonical_lot_count: Number(result.canonical_lot_count || 0),
+          provider_calls: 0,
+          emails: 0,
+          notifications: 0,
+        },
+      });
+      await finishPipelineRun(admin, pipelineRun, "completed", {
+        metadata: {
+          publication_number: publication,
+          canonical_lot_count: Number(result.canonical_lot_count || 0),
+          provider_calls: 0,
+        },
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          publication_number: publication,
+          official_lot_count: official.official_lot_count,
+          canonical_lot_count: Number(result.canonical_lot_count || 0),
+          status: result.status,
+          provider_calls: 0,
+          emails: 0,
+          notifications: 0,
+          trace_id: pipelineRun.traceId,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    } catch (error) {
+      try {
+        await markTedLotStructurePending(
+          admin,
+          Number(tender.id),
+          sanitizeMessage(error),
+        );
+      } catch {
+        // Preserve the primary structured-source failure.
+      }
+      await finishPipelineStage(admin, stage, "failed", {
+        error: sanitizeMessage(error),
+      });
+      await finishPipelineRun(admin, pipelineRun, "failed", {
+        error: sanitizeMessage(error),
+      });
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "TED canonical lot reconciliation failed",
+          status: "LOT_STRUCTURE_PENDING",
+        }),
+        { status: 502, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
 
   const lookbackDays = Math.min(60, Math.max(1,
     Number(bodyOverride.lookback_days ?? Deno.env.get("TED_LOOKBACK_DAYS") ?? 2)));
@@ -204,6 +320,16 @@ async function handle(req: Request): Promise<Response> {
     "deadline-receipt-tender-date-lot",
     "estimated-value-proc",
     "estimated-value-cur-proc",
+    ...TED_CANONICAL_LOT_FIELDS.filter((field) => ![
+      "publication-number",
+      "publication-date",
+      "notice-title",
+      "classification-cpv",
+      "notice-type",
+      "buyer-name",
+      "links",
+    ].includes(field)),
+    "links",
   ];
 
   const notices: TedNotice[] = [];
@@ -218,7 +344,7 @@ async function handle(req: Request): Promise<Response> {
   });
 
   for (const query of attempts) {
-    let attemptNotices: TedNotice[] = [];
+    const attemptNotices: TedNotice[] = [];
     let failed = "";
     for (let page = 1; page <= maxPages; page++) {
       try {
@@ -353,8 +479,63 @@ async function handle(req: Request): Promise<Response> {
     }
     upserted = count ?? rows.length;
   }
+
+  // Official TED structured lot data is authoritative. It is persisted before
+  // any document/AI enrichment and never inferred from a partial PDF chunk.
+  let canonicalNoticesReady = 0;
+  let canonicalLotsPersisted = 0;
+  let canonicalLotErrors = 0;
+  if (rows.length) {
+    const publicationNumbers = rows.map((row) => row.source_notice_id);
+    const { data: tenderRows, error: tenderLookupError } = await admin
+      .from("tenders")
+      .select("id,source_notice_id")
+      .eq("source", "TED")
+      .in("source_notice_id", publicationNumbers);
+    if (tenderLookupError) {
+      canonicalLotErrors += rows.length;
+    } else {
+      const tenderIdByPublication = new Map(
+        (tenderRows || []).map((row) => [
+          String(row.source_notice_id),
+          Number(row.id),
+        ]),
+      );
+      for (const notice of notices) {
+        const publication = firstText(notice["publication-number"]);
+        const tenderId = tenderIdByPublication.get(publication);
+        if (!tenderId) {
+          canonicalLotErrors++;
+          continue;
+        }
+        try {
+          const canonical = parseTedCanonicalNotice(notice);
+          await persistTedCanonicalNotice(admin, tenderId, canonical);
+          canonicalNoticesReady++;
+          canonicalLotsPersisted += canonical.official_lot_count;
+        } catch (error) {
+          canonicalLotErrors++;
+          try {
+            await markTedLotStructurePending(
+              admin,
+              tenderId,
+              sanitizeMessage(error),
+            );
+          } catch {
+            // Lot diagnostics must not make the existing TED feed unavailable.
+          }
+        }
+      }
+    }
+  }
   await finishPipelineStage(admin, ingestionStage, "completed", {
-    metadata: { upserted_count: upserted, skipped_count: skipped.length },
+    metadata: {
+      upserted_count: upserted,
+      skipped_count: skipped.length,
+      canonical_notices_ready: canonicalNoticesReady,
+      canonical_lots_persisted: canonicalLotsPersisted,
+      canonical_lot_error_count: canonicalLotErrors,
+    },
   });
 
   // 4) Close tenders whose deadline has passed.
@@ -579,6 +760,9 @@ async function handle(req: Request): Promise<Response> {
       fetched_count: notices.length,
       upserted_count: upserted,
       skipped_count: skipped.length,
+      canonical_notices_ready: canonicalNoticesReady,
+      canonical_lots_persisted: canonicalLotsPersisted,
+      canonical_lot_error_count: canonicalLotErrors,
       companies_refreshed: refreshed,
       refresh_error_count: refreshErrors.length,
     },
@@ -599,6 +783,9 @@ async function handle(req: Request): Promise<Response> {
       companies_refreshed: refreshed,
       refresh_errors: refreshErrors,
       skipped_rows: skipped.length,
+      canonical_notices_ready: canonicalNoticesReady,
+      canonical_lots_persisted: canonicalLotsPersisted,
+      canonical_lot_errors: canonicalLotErrors,
       ted_error: tedError,
       trace_id: pipelineRun.traceId,
       pipeline_version: PIPELINE_VERSIONS.tenderIngestion,

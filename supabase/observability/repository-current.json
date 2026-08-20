@@ -24,7 +24,7 @@
       "name": "ted-sync",
       "entrypoint": "supabase/functions/ted-sync/index.ts",
       "verify_jwt": false,
-      "sha256": "ea38bac44627fc17938a51c126260a1ff6386d33004d39029d1073ad86ae60f6"
+      "sha256": "9f84f004d1cbd1812927b9c4d582426c183b57bf30379b74e3ffe5c9030f2e93"
     },
     {
       "name": "ted-notice-resolver",
@@ -111,7 +111,22 @@
     },
     {
       "path": "supabase/functions/tender-document-engine/handler.ts",
-      "sha256": "36084ee82cfb7c5af9c09b82cb65553d78fcc0f7ebe63e63c073c7cdc687cafd",
+      "sha256": "1256c83b092909472b7007acfec6f1c1c8ba5bf4ef3eca4e2f6cee85ef196284",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/_shared/ted-canonical-lots.ts",
+      "sha256": "cb8fe159eba8186d361b15534b2f7594ed897896e155627bc33e2531b07e1441",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/_shared/lot-matching-service.ts",
+      "sha256": "d10aecc9e16404dbb515db782a444624c4d9f500e35f6c205a32a1a49dd29361",
+      "recorded_in_migration": false
+    },
+    {
+      "path": "supabase/functions/_shared/lot-matching-v1.ts",
+      "sha256": "3abc83cc859ac937d98d83e7e23563fa6abb6518611fc72e3a88ec51fd40efa9",
       "recorded_in_migration": false
     },
     {
