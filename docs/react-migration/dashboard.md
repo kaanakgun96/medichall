@@ -53,15 +53,15 @@ instead of only appearing as a toast or leaving stale placeholders.
 
 ## Backend endpoints and queries
 
-The dashboard invokes no RPC and requires no new backend endpoint.
+The dashboard uses the owner-only private company RPC introduced by contact
+privacy hardening; opportunity and RFQ endpoints remain unchanged.
 
 Authentication and company eligibility reuse the existing session bridge:
 
 1. `GET /auth/v1/user`
-2. `GET /rest/v1/companies`
-   - `select=id,name,description,certifications`
-   - `owner_id=eq.<authenticated-user-id>`
-   - `limit=1`
+2. `POST /rest/v1/rpc/get_my_company_private_v1`
+   - returns only the authenticated user's company;
+   - avoids exposing raw `owner_id` or another company's private contacts.
 
 After a company is resolved, `useDashboard` requests these existing resources
 in parallel:
@@ -88,7 +88,7 @@ All calls use the browser-safe publishable/anon key plus the current
 
 | Contract | Fields used by Dashboard |
 | --- | --- |
-| `companies` | `id`, `owner_id`, `name`, `description`, `certifications` |
+| `get_my_company_private_v1` | owner-scoped `id`, `name`, `description`, `certifications` |
 | `products` | returned row count for the product-readiness check |
 | `rfq_requests` | returned row count for the RFQ metric |
 | `company_match_profiles` | `product_keywords`, `target_countries` |

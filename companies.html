@@ -200,7 +200,7 @@ footer{background:#02293A;color:#9CC2CF;padding:44px 0 30px;font-size:.9rem}
 <script src="medichall-navigation.js?v=20260811tax1"></script>
 <script src="medichall-traffic.js?v=20260813growth1" defer></script>
 <script src="marketplace-domain.js?v=20260811tax1"></script>
-<script src="marketplace-companies.js?v=20260813seo2"></script>
+<script src="marketplace-companies.js?v=20260817privacy1"></script>
 </head>
 <body>
 
@@ -390,6 +390,19 @@ async function db(path){
   if(!res.ok) throw new Error("API " + res.status);
   return res.json();
 }
+async function publicCompanies({companyId=null,slug=null,limit=250}={}){
+  const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_public_companies_v1", {
+    method:"POST",
+    headers:{
+      "apikey":SUPABASE_ANON_KEY,
+      "Authorization":"Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify({p_company_id:companyId,p_slug:slug,p_limit:limit})
+  });
+  if(!res.ok) throw new Error("API " + res.status);
+  return res.json();
+}
 const esc = t => (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const initials = n => (n||"?").split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 
@@ -406,7 +419,7 @@ let PRODCTX = null; // product context for the contact form
 /* ---------------- directory ---------------- */
 async function loadDirectory(){
   try{
-    let companies = await db("companies?select=id,name,type,description,website,phone,country,city,certifications,logo_url,is_approved,is_active,created_at,catalog_url,video_url,plan,plan_expires_at,slug,is_verified&order=name");
+    let companies = await publicCompanies();
     companies.sort((a,b)=>(isPremium(b)?1:0)-(isPremium(a)?1:0)); // premium partners rank first
     const grid = document.getElementById("dirGrid");
     if(!companies.length){
@@ -442,7 +455,7 @@ async function loadProfile(key, bySlug){
   document.getElementById("directoryView").style.display = "none";
   document.getElementById("profileView").style.display = "block";
   try{
-    const rows = await db("companies?select=id,name,type,description,website,phone,country,city,certifications,logo_url,is_approved,is_active,created_at,catalog_url,video_url,plan,plan_expires_at,slug,is_verified&" + (bySlug ? "slug" : "id") + "=eq." + encodeURIComponent(key));
+    const rows = await publicCompanies(bySlug ? {slug:key,limit:1} : {companyId:Number(key),limit:1});
     if(!rows.length){ location.href = "companies.html"; return; }
     const c = rows[0]; CURRENT = c;
     document.title = c.name + " — MedicHall";
@@ -484,7 +497,6 @@ async function loadProfile(key, bySlug){
     }catch(e){ globalThis.MedicHallUI.report("companies.showroom_products",e); }
     const cl = [];
     cl.push(`<div class="row"><span class="k">Message</span><a href="#" onclick="openContact();return false" style="color:var(--teal);font-weight:600">Send a message via MedicHall →</a></div>`);
-    if(c.phone) cl.push(`<div class="row"><span class="k">Phone</span><span>${esc(c.phone)}</span></div>`);
     cl.push(`<div class="row"><span class="k">Location</span><span>${esc([c.city,c.country].filter(Boolean).join(", ")||"Türkiye")}</span></div>`);
     document.getElementById("contactList").innerHTML = cl.join("");
     document.getElementById("contactSub").textContent = "Your message goes directly to " + c.name + ".";
@@ -610,7 +622,9 @@ async function ensureBuyerInfo(){
   try{
     let r = await fetch(SUPABASE_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + BUYERID, {headers: buyerHeaders()});
     if(r.ok){ const rows = await r.json(); if(rows.length){ BUYERINFO = {company: rows[0].company_name}; return BUYERINFO; } }
-    r = await fetch(SUPABASE_URL + "/rest/v1/companies?select=name&owner_id=eq." + BUYERID, {headers: buyerHeaders()});
+    r = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_my_company_private_v1", {
+      method:"POST", headers:{...buyerHeaders(),"Content-Type":"application/json"}, body:"{}"
+    });
     if(r.ok){ const rows = await r.json(); if(rows.length){ BUYERINFO = {company: rows[0].name}; return BUYERINFO; } }
   }catch(e){}
   BUYERINFO = {company:null};
@@ -767,8 +781,11 @@ async function initAuthChip(){
     const user = await ur.json();
     let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
     try{
-      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
-        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      const cr = await fetch(MH_URL + "/rest/v1/rpc/get_my_company_private_v1", {
+        method:"POST",
+        headers:{apikey:MH_KEY, Authorization:"Bearer "+tok,"Content-Type":"application/json"},
+        body:"{}"
+      });
       if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
     }catch(e){}
     if(approved === null){

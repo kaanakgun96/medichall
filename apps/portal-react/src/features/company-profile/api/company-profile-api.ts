@@ -20,17 +20,12 @@ export async function fetchProfileUser(signal?: AbortSignal): Promise<AuthUser> 
 }
 
 export async function fetchOwnedCompanyProfile(
-  userId: string,
+  _userId: string,
   signal?: AbortSignal,
 ): Promise<CompanyProfileRecord | null> {
-  const parameters = new URLSearchParams({
-    select: "*",
-    owner_id: `eq.${userId}`,
-    limit: "1",
-  });
   const rows = await supabaseRequest<unknown[]>(
-    `/rest/v1/companies?${parameters}`,
-    { signal },
+    "/rest/v1/rpc/get_my_company_private_v1",
+    { method: "POST", body: "{}", signal },
   );
   return mapCompanyProfileRow(rows[0]);
 }
@@ -80,13 +75,13 @@ export async function fetchCompanyProfileData(
 async function fetchCompanyById(
   companyId: number,
 ): Promise<CompanyProfileRecord> {
-  const parameters = new URLSearchParams({
-    select: "*",
-    id: `eq.${companyId}`,
-    limit: "1",
-  });
-  const rows = await supabaseRequest<unknown[]>(`/rest/v1/companies?${parameters}`);
-  const company = mapCompanyProfileRow(rows[0]);
+  const rows = await supabaseRequest<unknown[]>(
+    "/rest/v1/rpc/get_my_company_private_v1",
+    { method: "POST", body: "{}" },
+  );
+  const company = mapCompanyProfileRow(
+    rows.find((row) => Number((row as Record<string, unknown>)?.id) === companyId),
+  );
   if (!company) throw new Error("The saved company profile could not be reloaded.");
   return company;
 }

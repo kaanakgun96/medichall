@@ -266,8 +266,8 @@
   async function loadPersonalization() {
     if (!session?.hasStoredSession()) return;
     try {
-      const user = await session.getUser();
-      const companies = await authenticatedRequest(`/rest/v1/companies?select=id,name&owner_id=eq.${encodeURIComponent(user.id)}&limit=1`);
+      await session.getUser();
+      const companies = await authenticatedRequest("/rest/v1/rpc/get_my_company_private_v1", { method: "POST", body: "{}" });
       const company = Array.isArray(companies) ? companies[0] : null;
       state.authenticated = true;
       if (!company) {

@@ -1198,8 +1198,11 @@ async function initAuthChip(){
     const user = await ur.json();
     let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
     try{
-      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
-        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      const cr = await fetch(MH_URL + "/rest/v1/rpc/get_my_company_private_v1", {
+        method:"POST",
+        headers:{apikey:MH_KEY, Authorization:"Bearer "+tok,"Content-Type":"application/json"},
+        body:"{}"
+      });
       if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
     }catch(e){}
     if(approved === null){

@@ -776,7 +776,7 @@ async function init(){
     USER=await AUTH_SESSION.getUser();TOKEN=AUTH_SESSION.accessToken();
     const safe=path=>db(path).catch(()=>[]);
     const [companies,buyers]=await Promise.all([
-      safe("companies?select=id,name,country,website,description,certifications&owner_id=eq."+USER.id+"&limit=1"),
+      rpc("get_my_company_private_v1").catch(()=>[]),
       safe("buyer_profiles?select=*&user_id=eq."+USER.id+"&limit=1")
     ]);
     COMPANY=companies?.[0]||null;BUYER=buyers?.[0]||null;

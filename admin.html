@@ -741,7 +741,7 @@ async function loadAll(){
       db("products?select=*&order=ref"),
       db("partners?select=*&order=name"),
       db("rfq_requests?select=*&order=created_at.desc"),
-      db("companies?select=*&order=created_at.desc"),
+      db("rpc/get_admin_companies_private_v1",{method:"POST",body:"{}"}),
       db("banners?select=*&order=created_at.desc")
     ]);
     renderProducts(); renderPartners(); renderRfq(); renderCompanies(); renderBanners();

@@ -83,20 +83,21 @@ page.
 
 ## Exact backend contract
 
-No database object is added or changed.
+Company contact privacy hardening adds an owner-only private company RPC while
+preserving the existing company row and update policies.
 
 ### Authentication and ownership
 
 1. `GET /auth/v1/user`
-2. `GET /rest/v1/companies`
-   - `select=*`
-   - `owner_id=eq.<authenticated-user-id>`
-   - `limit=1`
+2. `POST /rest/v1/rpc/get_my_company_private_v1`
+   - returns only the company owned by the authenticated user;
+   - retains private `contact_email` and `phone` for profile management;
+   - prevents browser clients from filtering or selecting raw `owner_id`.
 
-The query matches `enterApp()` in `portal.html`. Only the company owned by the
-current user is accepted. Existing `companies` RLS remains authoritative:
-owners can select and update their row, and administrators retain their
-existing policy.
+The RPC matches `enterApp()` in `portal.html`. Only the company owned by the
+current user is returned. Existing `companies` RLS remains authoritative for
+mutations; owners can update their row and administrators retain their existing
+authorization boundary.
 
 The React client reuses `mh_p_token` and `mh_p_refresh`. A 401 uses the
 existing refresh-token flow once. An invalid or expired session is cleared and

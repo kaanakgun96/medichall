@@ -82,15 +82,27 @@
       "packaging_description", "units_per_package", "product_certifications", "regulatory_class",
       "sterilization_method", "production_capacity", "capacity_unit", "capacity_period",
       "technical_specifications", "matching_profile_sources",
-      "companies(id,name,slug,logo_url,is_verified,country,type,certifications)"
+      "companies(id,name,slug,logo_url,is_verified,country,type)"
     ].join(",");
-    const legacySelect = "id,ref,name,category,description,image_url,brochure_url,is_featured,company_id,companies(id,name,slug,logo_url,is_verified,country,type,certifications)";
+    const legacySelect = "id,ref,name,category,description,image_url,brochure_url,is_featured,company_id,companies(id,name,slug,logo_url,is_verified,country,type)";
     let rows;
     try {
       rows = await request(`/rest/v1/products?select=${fullSelect}&is_active=eq.true&order=is_featured.desc,name&limit=250`);
     } catch (_) {
       rows = await request(`/rest/v1/products?select=${legacySelect}&is_active=eq.true&order=is_featured.desc,name&limit=250`);
     }
+    let publicCompanies = [];
+    try {
+      publicCompanies = await request("/rest/v1/rpc/get_public_companies_v1", {
+        method: "POST",
+        body: JSON.stringify({ p_company_id: null, p_slug: null, p_limit: 250 }),
+      });
+    } catch (_) { /* Safe embedded company identity still keeps the catalog usable. */ }
+    const companyById = new Map((publicCompanies || []).map((company) => [Number(company.id), company]));
+    rows = rows.map((row) => ({
+      ...row,
+      companies: { ...(Array.isArray(row.companies) ? row.companies[0] : row.companies), ...(companyById.get(Number(row.company_id)) || {}) },
+    }));
     const productIds = rows.map((row) => Number(row.id)).filter(Number.isFinite);
     let mappings = [];
     if (productIds.length) {

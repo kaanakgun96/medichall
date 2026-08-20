@@ -51,15 +51,13 @@ export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser> 
 }
 
 export async function fetchOwnedCompany(
-  userId: string,
+  _userId: string,
   signal?: AbortSignal,
 ): Promise<PartnerCompany | null> {
-  const parameters = new URLSearchParams({
-    select: "id,name,description,certifications",
-    owner_id: `eq.${userId}`,
-    limit: "1",
-  });
-  const rows = await supabaseRequest<CompanyRow[]>(`/rest/v1/companies?${parameters}`, { signal });
+  const rows = await supabaseRequest<CompanyRow[]>(
+    "/rest/v1/rpc/get_my_company_private_v1",
+    { method: "POST", body: "{}", signal },
+  );
   const company = rows[0];
   return company
     ? {

@@ -30,7 +30,7 @@
       "name": "ted-notice-resolver",
       "entrypoint": "supabase/functions/ted-notice-resolver/index.ts",
       "verify_jwt": true,
-      "sha256": "0583e60867380f04c7426a3638842f9ad420b69b9e8901d515f33c36dceb9f98"
+      "sha256": "983ed40d800a32f7de03755ad4ec04d76e64405df389769b6616c653de2a7e8b"
     },
     {
       "name": "tender-attachment-discovery",
@@ -66,7 +66,7 @@
       "name": "product-profile",
       "entrypoint": "supabase/functions/product-profile/index.ts",
       "verify_jwt": false,
-      "sha256": "8a39ef616c7d41b8bbeafd93c0b71e28fb8c14436b00f00994f37b542c4bfedc"
+      "sha256": "38dd565969fdb358cfc98997b718fb36bc4292d9d4d207a32cfab635a3419219"
     },
     {
       "name": "meeting-video",

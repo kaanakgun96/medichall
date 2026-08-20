@@ -743,8 +743,11 @@ async function initAuthChip(){
     const user = await ur.json();
     let name = (user.email||"Account").split("@")[0], logo = null, approved = null;
     try{
-      const cr = await fetch(MH_URL + "/rest/v1/companies?select=name,logo_url,is_approved&owner_id=eq." + user.id,
-        {headers:{apikey:MH_KEY, Authorization:"Bearer "+tok}});
+      const cr = await fetch(MH_URL + "/rest/v1/rpc/get_my_company_private_v1", {
+        method:"POST",
+        headers:{apikey:MH_KEY, Authorization:"Bearer "+tok,"Content-Type":"application/json"},
+        body:"{}"
+      });
       if(cr.ok){ const rows = await cr.json(); if(rows.length){ name = rows[0].name; logo = rows[0].logo_url; approved = rows[0].is_approved; } }
     }catch(e){}
     if(approved === null){
@@ -881,7 +884,9 @@ async function ensureBuyerInfo(){
   try{
     let r = await fetch(SUPABASE_URL + "/rest/v1/buyer_profiles?select=full_name,company_name&user_id=eq." + PUSERID, {headers: await pAuthHeaders()});
     if(r.ok){ const rows = await r.json(); if(rows.length){ PBUYERINFO = {name: rows[0].full_name, company: rows[0].company_name}; return PBUYERINFO; } }
-    r = await fetch(SUPABASE_URL + "/rest/v1/companies?select=name&owner_id=eq." + PUSERID, {headers: await pAuthHeaders()});
+    r = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_my_company_private_v1", {
+      method:"POST", headers:await pAuthHeaders(), body:"{}"
+    });
     if(r.ok){ const rows = await r.json(); if(rows.length){ PBUYERINFO = {name: null, company: rows[0].name}; return PBUYERINFO; } }
   }catch(e){}
   PBUYERINFO = {name:null, company:null};
@@ -954,7 +959,7 @@ async function toggleFav(pid){
 
 
 <script src="medichall-assistant.js?v=20260813traffic1"></script>
-<script src="marketplace-products.js?v=20260813traffic1"></script>
+<script src="marketplace-products.js?v=20260817privacy1"></script>
 
 </body>
 </html>

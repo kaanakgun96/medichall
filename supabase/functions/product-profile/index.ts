@@ -126,14 +126,13 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const [{ data: ownedCompany }, { data: isAdmin }] = await Promise.all([
-    userClient.from("companies").select("id").eq("id", companyId).eq(
-      "owner_id",
-      user.id,
-    ).maybeSingle(),
+  const [{ data: ownsCompany }, { data: isAdmin }] = await Promise.all([
+    userClient.rpc("company_owner_authorized_v1", {
+      p_company_id: companyId,
+    }),
     userClient.rpc("is_admin"),
   ]);
-  if (!ownedCompany && isAdmin !== true) {
+  if (ownsCompany !== true && isAdmin !== true) {
     return json(req, { error: "Access denied." }, 403);
   }
 

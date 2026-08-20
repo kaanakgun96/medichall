@@ -185,7 +185,10 @@
   async function initDirectory() {
     try {
       const [companies, products] = await Promise.all([
-        request("companies?select=id,name,type,description,website,phone,country,city,certifications,logo_url,is_approved,is_active,created_at,catalog_url,video_url,plan,plan_expires_at,slug,is_verified&order=name&limit=250"),
+        request("rpc/get_public_companies_v1", {
+          method: "POST",
+          body: JSON.stringify({ p_company_id: null, p_slug: null, p_limit: 250 }),
+        }),
         request("products?select=id,company_id,category&company_id=not.is.null&order=name&limit=1000"),
         loadSession(),
       ]);

@@ -68,8 +68,9 @@ No database object was added or modified.
 
 1. `GET /auth/v1/user` reads the authenticated user from the legacy access
    token.
-2. `GET /rest/v1/companies?select=id,name&owner_id=eq.<user-id>&limit=1`
-   resolves the partner company, matching `portal.html`.
+2. `POST /rest/v1/rpc/get_my_company_private_v1` resolves only the signed-in
+   partner's company, matching `portal.html`, without exposing raw ownership or
+   another company's private contact fields.
 3. Existing company and opportunity RLS remains authoritative.
 
 The React application does not use an admin or service-role client.

@@ -1879,8 +1879,8 @@ const COMPANY_FIELDS = [
   ["type","Company type","e.g. Medical device manufacturer"],
   ["city","City","e.g. İzmir"],
   ["website","Website","https://…"],
-  ["contact_email","Contact email (shown to buyers)","sales@yourcompany.com"],
-  ["phone","Phone","+90 …"],
+  ["contact_email","Private contact email (account and admin only)","sales@yourcompany.com"],
+  ["phone","Private phone (account and admin only)","+90 …"],
   ["certifications","Certifications","e.g. CE MDR, ISO 13485"],
   ["video_url","Company video (YouTube link)","https://youtube.com/watch?v=…"]
 ];
@@ -1934,7 +1934,7 @@ async function enterApp(){
   try{
     if(!USER) await getUser();
     const [cRows, bRows] = await Promise.all([
-      db("companies?select=*&owner_id=eq." + USER.id),
+      db("rpc/get_my_company_private_v1",{method:"POST",body:"{}"}),
       db("buyer_profiles?select=*&user_id=eq." + USER.id)
     ]);
     COMPANY = cRows && cRows.length ? cRows[0] : null;
@@ -2042,7 +2042,7 @@ async function saveCompany(){
   try{
     await db("companies?id=eq." + COMPANY.id, {method:"PATCH", body:JSON.stringify(body)});
     toast("Profile saved ✓");
-    const rows = await db("companies?select=*&id=eq." + COMPANY.id);
+    const rows = await db("rpc/get_my_company_private_v1",{method:"POST",body:"{}"});
     COMPANY = rows[0]; renderStatus();
     scheduleActivationRefresh();
   }catch(e){ toast(friendlyError(e)); }
