@@ -176,6 +176,32 @@ Deno.test("Europe-wide TED plan attempts every supported market in bounded balan
   );
 });
 
+Deno.test("product-specific TED retrieval is not swamped by a broad CPV fallback", () => {
+  const plan = boundedTedSearchPlan({
+    queries: [
+      "(classification-cpv IN (33140000))",
+      '(notice-title ~ "Sterile Surgical Gowns" OR description-lot ~ "Sterile Surgical Gowns")',
+      '(notice-title ~ "procedure pack" OR description-lot ~ "procedure pack")',
+    ],
+    targetCountries: [],
+  });
+  assert(
+    plan.length === DISCOVERY_LIMITS.maximumTedRequests,
+    "bounded plan must retain six balanced requests",
+  );
+  assert(
+    plan.every((item) => !item.query.includes("classification-cpv")),
+    "broad CPV must be a fallback when product terms exist",
+  );
+  assert(
+    plan.every((item) =>
+      item.query.includes("Sterile Surgical Gowns") &&
+      item.query.includes("procedure pack")
+    ),
+    "canonical and adjacent family terms must drive retrieval",
+  );
+});
+
 Deno.test("relevance ranks first and diversity changes only near-equal ties", () => {
   const ranked = diversityRerank([
     { name: "A", score: 90, countryCode: "PL" },

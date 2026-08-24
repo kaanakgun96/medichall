@@ -423,6 +423,16 @@ export function boundedTedSearchPlan(input: {
     DISCOVERY_LIMITS.maximumQueries,
   );
   if (!productQueries.length) return [];
+  // A broad medical CPV is a useful fallback and a scoring signal, but it must
+  // not swamp a product-specific search with generic suppliers. When a
+  // canonical or reviewed family-term query exists, retrieve with those terms
+  // and retain CPV values on the returned evidence for downstream scoring.
+  const descriptiveQueries = productQueries.filter((query) =>
+    query.includes("notice-title") || query.includes("description-lot")
+  );
+  const retrievalQueries = descriptiveQueries.length
+    ? descriptiveQueries
+    : productQueries;
   const selected = input.targetCountries.length
     ? [...new Set(input.targetCountries.map((item) => item.toUpperCase()))]
       .filter((item) => ISO3_BY_ISO2[item])
@@ -435,9 +445,9 @@ export function boundedTedSearchPlan(input: {
   selected.forEach((country, index) =>
     batches[index % batchCount].push(country)
   );
-  const productClause = productQueries.length === 1
-    ? productQueries[0]
-    : productQueries.map((query) => `(${query})`).join(" OR ");
+  const productClause = retrievalQueries.length === 1
+    ? retrievalQueries[0]
+    : retrievalQueries.map((query) => `(${query})`).join(" OR ");
   return batches.filter((batch) => batch.length).map((batch) => ({
     query: `(${productClause}) AND (winner-country IN (${
       batch.map((country) => ISO3_BY_ISO2[country]).join(" ")

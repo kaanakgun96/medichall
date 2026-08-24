@@ -135,6 +135,14 @@ assert.doesNotMatch(edge, /ANTHROPIC|OPENAI|RESEND_API_KEY|sendEmail|notificatio
 assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|linkedin_url/i);
 assert.match(config, /\[functions\.external-prospect-discovery\]\nverify_jwt = false/);
 
+const evidenceUpsert = edge.match(
+  /admin\.from\("external_company_evidence"\)\.upsert\(\{([\s\S]*?)\}, \{ onConflict: "external_company_id,source_hash" \}/,
+)?.[1] || "";
+assert.doesNotMatch(evidenceUpsert, /relevance_class|matched_terms|commercial_reason/);
+assert.match(edge, /evidence_snapshot:[\s\S]*?relevance_class:/);
+assert.match(edge, /evidence_snapshot:[\s\S]*?matched_terms:/);
+assert.match(edge, /evidence_snapshot:[\s\S]*?commercial_reason:/);
+
 for (const page of [portal, standalone]) {
   assert.match(page, /external-prospects\.css\?v=20260824relevance2/);
   assert.match(page, /external-prospects\.js\?v=20260824relevance2/);

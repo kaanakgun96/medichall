@@ -1173,9 +1173,6 @@ async function persistCandidate(
       lot_context: sanitizeEvidenceText(evidence.lotContext, 1000) || null,
       evidence_date: evidence.evidenceDate,
       confidence: Math.max(0, Math.min(1, evidence.confidence)),
-      relevance_class: evidence.relevanceClass || "GENERIC",
-      matched_terms: (evidence.matchedTerms || []).slice(0, 8),
-      commercial_reason: sanitizeEvidenceText(evidence.commercialReason, 300),
       verification_status: "ACTIVE",
       source_hash: sourceHash,
       last_seen_at: new Date().toISOString(),
@@ -1247,6 +1244,9 @@ async function persistCandidate(
       notice_id: evidence.noticeId || null,
       evidence_date: evidence.evidenceDate,
       confidence: Math.max(0, Math.min(1, evidence.confidence)),
+      relevance_class: evidence.relevanceClass || "GENERIC",
+      matched_terms: (evidence.matchedTerms || []).slice(0, 8),
+      commercial_reason: sanitizeEvidenceText(evidence.commercialReason, 300),
       verification_status: "ACTIVE",
     })),
     activity_snapshot: candidate.activities.slice(0, 12).map((activity) => ({
@@ -1575,7 +1575,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const queries = boundedDiscoveryQueries({
       cpvCodes: fallbackCpv,
       targetCountries,
-      taxonomyNames,
+      taxonomyNames: [
+        ...taxonomyNames,
+        ...productFamily.adjacentTerms.slice(0, 2),
+      ],
     });
     const tedSearchPlan = boundedTedSearchPlan({
       queries,
@@ -1753,6 +1756,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
         label: productFamily.label,
       },
       ted_requests_planned: tedSearchPlan.length,
+      ted_requests_actual: ted.checked,
+      registry_requests_checked: registry.checked,
+      website_checks: website.checked,
+      candidate_pool_size: deduped.candidates.length,
       direct_contact_fields_stored: 0,
     };
     const completion = await admin.from("external_prospect_discovery_runs")
