@@ -696,11 +696,11 @@ tr.prod-detail td{background:#F8FBFC;padding:14px 16px}
 <link rel="stylesheet" href="medichall-design-system.css?v=20260813video1">
 <link rel="stylesheet" href="medichall-assistant.css?v=20260810beta1">
 <link rel="stylesheet" href="medichall-taxonomy.css?v=20260811tax1">
-<link rel="stylesheet" href="external-prospects.css?v=20260820buyer1">
+<link rel="stylesheet" href="external-prospects.css?v=20260824intent1">
 <script src="medichall-session.js?v=20260813video1"></script>
 <script src="medichall-ui.js?v=20260813video1"></script>
 <script src="medichall-navigation.js?v=20260820buyer1"></script>
-<script src="external-prospects.js?v=20260820buyer1"></script>
+<script src="external-prospects.js?v=20260824intent1"></script>
 <script src="medichall-traffic.js?v=20260813growth1" defer></script>
 </head>
 <body>
@@ -2392,6 +2392,11 @@ function openProductForm(id,options={}){
   const context=productDraftContext();
   const savedDraft=!id?PRODUCT_DRAFT_GUARD.load(context):null;
   if(savedDraft)applyProductDraftFields(savedDraft.fields);
+  const suggested=!id&&!savedDraft&&options.prefill&&Number.isSafeInteger(Number(options.prefill.taxonomy_id))?options.prefill:null;
+  if(suggested){
+    document.getElementById("p-name").value=String(suggested.canonical_name||"").slice(0,160);
+    document.getElementById("p-cat").value="Medical Devices";
+  }
   showProductError("");
   renderProductReadiness(p.matching_readiness);
   syncSterilizationMethod();
@@ -2403,7 +2408,7 @@ function openProductForm(id,options={}){
     root:"#productTaxonomySelector",mode:"single",interestKind:"offered",
     label:"Canonical medical category",hint:"Commercial product name stays unchanged",
     placeholder:"Search product family or category…",search:taxonomySearch,resolve:taxonomyResolve,
-    initial:savedDraft&&savedDraft.taxonomy?[savedDraft.taxonomy]:(baselineTaxonomy?[baselineTaxonomy]:[]),
+    initial:savedDraft&&savedDraft.taxonomy?[savedDraft.taxonomy]:(suggested?[{id:Number(suggested.taxonomy_id),canonical_taxonomy_id:Number(suggested.taxonomy_id),canonical_name:String(suggested.canonical_name||""),slug:String(suggested.slug||"")}]:baselineTaxonomy?[baselineTaxonomy]:[]),
     onChange:value=>{
       const selection=value[0];
       document.getElementById("p-normalized-cat").value=selection&&selection.slug?selection.slug.replace(/-/g,"_"):"";
@@ -2421,6 +2426,7 @@ function openProductForm(id,options={}){
   });
   PRODUCT_FORM_INITIALIZING=false;
   syncProductDraftUi();
+  if(suggested)toast("Buyer Discovery suggestion opened as a protected draft. Review every field before publishing.");
   setTimeout(()=>document.getElementById("p-ref").focus(), 0);
 }
 async function saveProduct(){
@@ -2915,6 +2921,7 @@ function applyHash(){
   else if(h === "#settings" || h === "#profile") showPanel(COMPANY ? "profile" : "b-profile");
   else if(h === "#favorites" && !COMPANY && BUYER) showPanel("b-favorites");
   else if(h === "#buyer-discovery" && COMPANY) showPanel("buyer-discovery");
+  else if(h === "#products" && COMPANY) showPanel("products");
   else if(h === "#opportunities" && COMPANY) showPanel("opps");
   else if(h === "#dashboard" && COMPANY) showPanel("dashboard");
   else if(/^#tender-import=[0-9a-f-]{36}$/i.test(h) && COMPANY){
@@ -5939,6 +5946,21 @@ function mmViewContent(){
   if(MM.view==="past")return mmMeetingsView("past");
   return mmMatchesView();
 }
+function openBuyerDiscoveryProductDraft(suggestion){
+  showPanel("products");
+  history.replaceState(null,"",location.pathname+location.search+"#products");
+  openProductForm(null,{returnFocus:document.activeElement,prefill:suggestion});
+}
+function consumeBuyerDiscoveryProductDraft(){
+  let suggestion=null;
+  try{
+    suggestion=JSON.parse(sessionStorage.getItem("mh_buyer_discovery_product_draft_v1")||"null");
+    sessionStorage.removeItem("mh_buyer_discovery_product_draft_v1");
+  }catch(_){suggestion=null;}
+  if(suggestion&&Number.isSafeInteger(Number(suggestion.taxonomy_id))&&String(suggestion.canonical_name||"").length<=160){
+    setTimeout(()=>openBuyerDiscoveryProductDraft(suggestion),0);
+  }
+}
 function mountPortalBuyerDiscovery(){
   const root=document.getElementById("buyerDiscoveryRoot"),profile=MM.data&&MM.data.profile;
   if(!root)return;
@@ -5957,6 +5979,7 @@ function mountPortalBuyerDiscovery(){
       root,companyId:COMPANY.id,rpc:mmRpc,edge:edgeCall,toast,profile,
       activeProductCount:(Array.isArray(PRODUCTS)?PRODUCTS:[]).filter(product=>product.is_active!==false).length,
       targetCountries:Array.isArray(profile.target_countries)?profile.target_countries:[],
+      openProductDraft:openBuyerDiscoveryProductDraft,
       track:event=>globalThis.MedicHallTraffic?.trackConversion?.(event)
     });
   }
@@ -6521,6 +6544,7 @@ function showPanel(name){
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="panel-"+name));
   globalThis.MedicHallTraffic?.trackPortalPanel(name);
   if(name==="opps") loadTenderImports();
+  if(name==="products")consumeBuyerDiscoveryProductDraft();
   if(name==="buyer-discovery") loadBuyerDiscoveryWorkspace();
   if(name==="matchmaking"||name==="b-matchmaking") loadMatchmakingWorkspace();
 }

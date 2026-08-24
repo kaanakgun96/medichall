@@ -28,6 +28,16 @@ import {
   safeFetchWithRedirects,
 } from "../_shared/safe-public-fetch.ts";
 import { isPathAllowedByRobots } from "../_shared/attachment-discovery.ts";
+import {
+  extractWebsiteProductSignals,
+  normalizeWebsiteProductSignals,
+  prioritizedWebsiteUrls,
+  type ProductTaxonomyCandidate,
+  sitemapProductUrls,
+  validateProductSearchQuery,
+  WEBSITE_PRODUCT_SCAN_LIMITS,
+  type WebsiteProductSignal,
+} from "../_shared/website-product-discovery.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 const ALLOWED_ORIGINS = new Set([
@@ -80,6 +90,10 @@ const COUNTRY_NAMES: Record<string, string> = Object.fromEntries(
 );
 
 type JsonRecord = Record<string, unknown>;
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const WEBSITE_SCAN_USER_AGENT = "MedicHall-Website-Product-Discovery/1.0";
 
 function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get("origin") || "";
@@ -739,6 +753,283 @@ async function verifyWebsites(
   };
 }
 
+async function taxonomyCatalog(
+  // deno-lint-ignore no-explicit-any -- repository has no generated database types.
+  admin: any,
+): Promise<ProductTaxonomyCandidate[]> {
+  const [taxonomyResult, aliasResult] = await Promise.all([
+    admin.from("medical_product_taxonomy").select(
+      "id,canonical_name,slug,node_type",
+    ).eq("is_active", true).limit(500),
+    admin.from("medical_product_aliases").select("taxonomy_id,alias_text")
+      .eq("is_active", true).eq("verification_status", "approved").limit(2000),
+  ]);
+  if (taxonomyResult.error || aliasResult.error) {
+    throw new Error("WEBSITE_TAXONOMY_UNAVAILABLE");
+  }
+  const aliases = new Map<number, string[]>();
+  for (const value of array(aliasResult.data)) {
+    const row = record(value);
+    const taxonomyId = Number(row.taxonomy_id);
+    const alias = first(row.alias_text);
+    if (!Number.isSafeInteger(taxonomyId) || !alias) continue;
+    aliases.set(taxonomyId, [...(aliases.get(taxonomyId) || []), alias]);
+  }
+  return array(taxonomyResult.data).map((value) => {
+    const row = record(value);
+    const id = Number(row.id);
+    return {
+      id,
+      canonicalName: first(row.canonical_name),
+      slug: first(row.slug),
+      nodeType: first(row.node_type),
+      aliases: aliases.get(id) || [],
+    };
+  }).filter((item) => Number.isSafeInteger(item.id) && item.canonicalName);
+}
+
+async function fetchWebsiteText(
+  sourceUrl: string,
+  accept: string,
+  maximumBytes: number,
+  expectedDomain: string,
+  deadlineAt: number,
+): Promise<{ text: string; resolvedUrl: string; contentType: string }> {
+  const remainingMs = deadlineAt - Date.now();
+  if (remainingMs <= 0) throw new Error("WEBSITE_SCAN_TIMEOUT");
+  const result = await safeFetchWithRedirects(sourceUrl, {
+    headers: { "Accept": accept, "User-Agent": WEBSITE_SCAN_USER_AGENT },
+  }, {
+    maximumAttempts: 1,
+    maximumRedirects: WEBSITE_PRODUCT_SCAN_LIMITS.maximumRedirects,
+    requestTimeoutMs: Math.min(8_000, remainingMs),
+  });
+  if (normalizeDomain(result.resolvedUrl) !== expectedDomain) {
+    await result.response.body?.cancel();
+    throw new Error("WEBSITE_CROSS_DOMAIN_REDIRECT");
+  }
+  if (!result.response.ok) {
+    await result.response.body?.cancel();
+    throw new Error(`WEBSITE_HTTP_${result.response.status}`);
+  }
+  const contentType = result.response.headers.get("content-type") || "";
+  const body = await readBoundedResponseBody(result.response, maximumBytes);
+  return {
+    text: new TextDecoder().decode(body.bytes),
+    resolvedUrl: result.resolvedUrl,
+    contentType,
+  };
+}
+
+async function scanCompanyWebsiteProducts(
+  // deno-lint-ignore no-explicit-any -- repository has no generated database types.
+  admin: any,
+  companyId: number,
+  scanId: string,
+): Promise<JsonRecord> {
+  const companyResult = await admin.from("companies").select("website")
+    .eq("id", companyId).single();
+  const website = normalizeHttpsUrl(companyResult.data?.website);
+  if (companyResult.error || !website) {
+    throw new Error("COMPANY_WEBSITE_UNAVAILABLE");
+  }
+  const root = new URL(website);
+  const expectedDomain = normalizeDomain(root.href);
+  if (!expectedDomain) throw new Error("COMPANY_WEBSITE_UNAVAILABLE");
+  root.pathname = root.pathname || "/";
+  root.search = "";
+  root.hash = "";
+  const startedAt = Date.now();
+  const deadlineAt = startedAt + WEBSITE_PRODUCT_SCAN_LIMITS.totalRunTimeMs;
+  const updateScan = async (values: JsonRecord) => {
+    const update = await admin.from("company_website_product_scans").update(
+      values,
+    )
+      .eq("id", scanId).eq("company_id", companyId);
+    if (update.error) throw new Error("WEBSITE_SCAN_PROGRESS_FAILED");
+  };
+  await updateScan({
+    status: "RUNNING",
+    stage: "reading_website",
+    started_at: new Date().toISOString(),
+  });
+
+  let robots = "";
+  try {
+    const robotsResult = await fetchWebsiteText(
+      `${root.origin}/robots.txt`,
+      "text/plain",
+      128_000,
+      expectedDomain,
+      deadlineAt,
+    );
+    robots = robotsResult.text;
+  } catch (_) {
+    // An unavailable robots file is not a disallow instruction.
+  }
+  if (
+    robots &&
+    !isPathAllowedByRobots(
+      robots,
+      root.pathname,
+      WEBSITE_SCAN_USER_AGENT.toLowerCase(),
+    )
+  ) {
+    await updateScan({
+      status: "ROBOTS_DENIED",
+      stage: "failed",
+      error_code: "ROBOTS_DENIED",
+      completed_at: new Date().toISOString(),
+      cache_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    return {
+      status: "ROBOTS_DENIED",
+      stage: "failed",
+      pages_checked: 0,
+      suggestions: [],
+    };
+  }
+
+  await updateScan({ stage: "finding_product_pages" });
+  const queued: string[] = [root.href];
+  const queuedSet = new Set(queued);
+  let sitemap = "";
+  try {
+    const sitemapResult = await fetchWebsiteText(
+      `${root.origin}/sitemap.xml`,
+      "application/xml,text/xml,text/plain",
+      512_000,
+      expectedDomain,
+      deadlineAt,
+    );
+    sitemap = sitemapResult.text;
+    for (const url of sitemapProductUrls(sitemap, root.href)) {
+      if (!queuedSet.has(url)) {
+        queued.push(url);
+        queuedSet.add(url);
+      }
+    }
+  } catch (_) { /* a sitemap is optional */ }
+  for (
+    const path of [
+      "/products",
+      "/product",
+      "/categories",
+      "/catalogue",
+      "/solutions",
+    ]
+  ) {
+    const url = new URL(path, root.origin).href;
+    if (!queuedSet.has(url)) {
+      queued.push(url);
+      queuedSet.add(url);
+    }
+  }
+
+  const visited = new Set<string>();
+  const signals: WebsiteProductSignal[] = [];
+  let unavailable = 0;
+  while (
+    queued.length && visited.size < WEBSITE_PRODUCT_SCAN_LIMITS.maximumPages &&
+    Date.now() - startedAt < WEBSITE_PRODUCT_SCAN_LIMITS.totalRunTimeMs
+  ) {
+    const next = queued.shift()!;
+    if (visited.has(next)) continue;
+    const nextUrl = new URL(next);
+    if (
+      robots &&
+      !isPathAllowedByRobots(
+        robots,
+        nextUrl.pathname,
+        WEBSITE_SCAN_USER_AGENT.toLowerCase(),
+      )
+    ) continue;
+    visited.add(next);
+    try {
+      const page = await fetchWebsiteText(
+        next,
+        "text/html,application/xhtml+xml",
+        WEBSITE_PRODUCT_SCAN_LIMITS.maximumResponseBytes,
+        expectedDomain,
+        deadlineAt,
+      );
+      if (!page.contentType.toLowerCase().includes("html")) continue;
+      const pageReference = new URL(page.resolvedUrl);
+      pageReference.search = "";
+      pageReference.hash = "";
+      signals.push(
+        ...extractWebsiteProductSignals(page.text, pageReference.href),
+      );
+      if (visited.size === 1) {
+        for (
+          const discovered of prioritizedWebsiteUrls(
+            page.text,
+            page.resolvedUrl,
+            root.href,
+          )
+        ) {
+          if (!queuedSet.has(discovered)) {
+            queued.push(discovered);
+            queuedSet.add(discovered);
+          }
+        }
+      }
+    } catch (_) {
+      unavailable += 1;
+    }
+    await updateScan({ pages_checked: visited.size });
+  }
+
+  if (!visited.size || unavailable === visited.size) {
+    await updateScan({
+      status: "FAILED",
+      stage: "failed",
+      pages_checked: visited.size,
+      error_code: "WEBSITE_UNAVAILABLE",
+      completed_at: new Date().toISOString(),
+      cache_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    return {
+      status: "FAILED",
+      stage: "failed",
+      pages_checked: visited.size,
+      suggestions: [],
+      contact_fields_collected: 0,
+      raw_pages_stored: 0,
+    };
+  }
+
+  await updateScan({
+    stage: "identifying_products",
+    pages_checked: visited.size,
+  });
+  const catalog = await taxonomyCatalog(admin);
+  await updateScan({ stage: "matching_categories" });
+  const suggestions = normalizeWebsiteProductSignals(signals, catalog);
+  const status = suggestions.length ? "COMPLETED" : "NO_PRODUCTS";
+  const completedAt = new Date();
+  await updateScan({
+    status,
+    stage: "ready",
+    pages_checked: visited.size,
+    suggestions,
+    error_code: null,
+    completed_at: completedAt.toISOString(),
+    cache_expires_at: new Date(
+      completedAt.getTime() +
+        WEBSITE_PRODUCT_SCAN_LIMITS.cacheDays * 86_400_000,
+    ).toISOString(),
+  });
+  return {
+    status,
+    stage: "ready",
+    pages_checked: visited.size,
+    suggestions,
+    contact_fields_collected: 0,
+    raw_pages_stored: 0,
+  };
+}
+
 async function persistCandidate(
   // The repository does not generate database types; service writes target
   // new migration tables that the untyped Supabase client cannot infer.
@@ -746,6 +1037,8 @@ async function persistCandidate(
   admin: any,
   companyId: number,
   runId: string,
+  intentHash: string,
+  taxonomyContext: JsonRecord[],
   candidate: ProspectCandidate,
 ): Promise<boolean> {
   const score = scoreProspect(candidate);
@@ -884,6 +1177,7 @@ async function persistCandidate(
     company_id: companyId,
     external_company_id: externalCompanyId,
     discovery_run_id: runId,
+    intent_hash: intentHash,
     relevance_score: score.relevanceScore,
     product_taxonomy_score: score.productTaxonomyScore,
     geography_score: score.geographyScore,
@@ -894,8 +1188,41 @@ async function persistCandidate(
     target_market: candidate.targetCountry,
     reason_summary: score.reasonSummary,
     reasons: score.reasons,
+    evidence_snapshot: candidate.evidence.slice(0, 10).map((evidence) => ({
+      source_type: evidence.sourceType,
+      evidence_kind: evidence.evidenceKind,
+      source_url: evidence.sourceUrl,
+      source_domain: evidence.sourceDomain,
+      source_title: sanitizeEvidenceText(evidence.title, 300),
+      evidence_snippet: sanitizeEvidenceText(evidence.snippet, 1000),
+      notice_id: evidence.noticeId || null,
+      evidence_date: evidence.evidenceDate,
+      confidence: Math.max(0, Math.min(1, evidence.confidence)),
+      verification_status: "ACTIVE",
+    })),
+    activity_snapshot: candidate.activities.slice(0, 12).map((activity) => ({
+      provider_code: activity.providerCode,
+      jurisdiction_country_code: activity.countryCode,
+      national_activity_code: activity.nationalCode,
+      national_classification: activity.nationalClassification,
+      activity_description: sanitizeEvidenceText(activity.description, 500),
+      normalized_nace_code: activity.normalizedNaceCode,
+      nace_revision: activity.naceRevision,
+      normalized_activity_class: activity.normalizedClass,
+      signal_strength: activity.strength,
+      evidence_kind: "INDIRECT_COMMERCIAL_EVIDENCE",
+    })),
+    taxonomy_snapshot: taxonomyContext.filter((item) =>
+      candidate.taxonomyIds.includes(Number(item.taxonomy_id))
+    ).slice(0, 8).map((item) => ({
+      taxonomy_id: Number(item.taxonomy_id),
+      canonical_name: first(item.canonical_name),
+      slug: first(item.slug),
+      confidence: candidate.taxonomyRelation === "exact" ? .9 : .75,
+      mapping_source: "discovery_intent",
+    })),
     last_scored_at: new Date().toISOString(),
-  }, { onConflict: "company_id,external_company_id" });
+  }, { onConflict: "company_id,external_company_id,intent_hash" });
   if (match.error) throw match.error;
   return true;
 }
@@ -946,7 +1273,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
   let body: JsonRecord;
   try {
     const raw = await request.text();
-    if (new TextEncoder().encode(raw).length > 2048) {
+    if (new TextEncoder().encode(raw).length > 8192) {
       throw new Error("Request is too large.");
     }
     body = record(JSON.parse(raw));
@@ -959,16 +1286,132 @@ async function handleDiscovery(request: Request): Promise<Response> {
   const idempotencyKey = String(body.idempotency_key || "");
   if (
     !Number.isSafeInteger(companyId) || companyId <= 0 ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      .test(idempotencyKey)
+    !UUID_PATTERN.test(idempotencyKey)
   ) {
     return json(request, {
       error: "Valid company and idempotency identifiers are required.",
     }, 400);
   }
-  const start = await authClient.rpc("start_external_prospect_discovery_v1", {
+  const context = await authClient.rpc(
+    "get_buyer_discovery_product_context_v1",
+    {
+      p_company_id: companyId,
+    },
+  );
+  if (context.error) {
+    return json(
+      request,
+      { error: "Company access denied." },
+      context.error.code === "42501" ? 403 : 400,
+    );
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const operation = String(body.operation || "discover").toLowerCase();
+  if (operation === "resolve_product_intent") {
+    let productQuery: string;
+    try {
+      productQuery = validateProductSearchQuery(body.product_query);
+    } catch (error) {
+      return json(request, {
+        error: error instanceof Error
+          ? error.message
+          : "Invalid product query.",
+      }, 400);
+    }
+    const resolved = await admin.rpc("resolve_medical_product_term_v1", {
+      p_term: productQuery,
+      p_limit: 5,
+    });
+    if (resolved.error) {
+      return json(request, { error: "Product taxonomy is unavailable." }, 503);
+    }
+    const result = record(resolved.data);
+    const resolution = String(result.resolution || "unmapped");
+    return json(request, {
+      ok: true,
+      resolution,
+      recommended: result.recommended || null,
+      alternatives: array(result.alternatives).slice(0, 5),
+      confirmation_required: resolution !== "high_confidence",
+      semantic_provider_used: false,
+      provider_requests: 0,
+      estimated_cost_usd: 0,
+    });
+  }
+  if (operation === "scan_company_products") {
+    const scanStart = await authClient.rpc(
+      "start_company_website_product_scan_v1",
+      {
+        p_company_id: companyId,
+        p_idempotency_key: idempotencyKey,
+        p_force_rescan: body.force_rescan === true,
+      },
+    );
+    if (scanStart.error) {
+      return json(request, {
+        error: sanitizeEvidenceText(scanStart.error.message, 300),
+      }, scanStart.error.code === "42501" ? 403 : 429);
+    }
+    const scan = record(scanStart.data);
+    const scanId = String(scan.scan_id || "");
+    if (scan.reused === true) {
+      const saved = await admin.from("company_website_product_scans").select(
+        "id,status,stage,pages_checked,suggestions,cache_expires_at",
+      ).eq("id", scanId).eq("company_id", companyId).single();
+      return json(request, {
+        ok: true,
+        scan: saved.data || scan,
+        cached: true,
+        contact_fields_collected: 0,
+        provider_requests: 0,
+        estimated_cost_usd: 0,
+      });
+    }
+    try {
+      const scanned = await scanCompanyWebsiteProducts(
+        admin,
+        companyId,
+        scanId,
+      );
+      return json(request, {
+        ok: true,
+        scan: { scan_id: scanId, ...scanned },
+        cached: false,
+        contact_fields_collected: 0,
+        provider_requests: 0,
+        estimated_cost_usd: 0,
+      });
+    } catch (error) {
+      const errorCode =
+        String(error instanceof Error ? error.message : "WEBSITE_SCAN_FAILED")
+          .toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 80) ||
+        "WEBSITE_SCAN_FAILED";
+      await admin.from("company_website_product_scans").update({
+        status: "FAILED",
+        stage: "failed",
+        error_code: errorCode,
+        completed_at: new Date().toISOString(),
+        cache_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      }).eq("id", scanId).eq("company_id", companyId);
+      console.error("website product scan failed", {
+        scan_id: scanId,
+        error_code: errorCode,
+      });
+      return json(request, {
+        error: "The company website could not be scanned right now.",
+      }, 503);
+    }
+  }
+  if (operation !== "discover") {
+    return json(request, { error: "Unsupported operation." }, 400);
+  }
+  const intent = record(body.intent);
+  const start = await authClient.rpc("start_external_prospect_discovery_v2", {
     p_company_id: companyId,
     p_idempotency_key: idempotencyKey,
+    p_intent: intent,
   });
   if (start.error) {
     return json(request, {
@@ -986,9 +1429,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
   }
   const runId = String(run.run_id || "");
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const intentHash = String(run.intent_hash || "");
+  const intentContext = record(run.intent_context);
   const updateProgress = async (progress: JsonRecord) => {
     const result = await admin.from("external_prospect_discovery_runs").update(
       progress,
@@ -1001,60 +1443,44 @@ async function handleDiscovery(request: Request): Promise<Response> {
     started_at: new Date().toISOString(),
   });
   try {
-    const [profileResult, productsResult, matchProfileResult, companiesResult] =
-      await Promise.all([
+    const [profileResult, matchProfileResult, companiesResult] = await Promise
+      .all([
         admin.from("matchmaking_profiles").select(
           "id,role,target_countries,partner_types_sought",
         ).eq("company_id", companyId).eq("is_active", true).single(),
-        admin.from("products").select("id,name,category,description").eq(
-          "company_id",
-          companyId,
-        ).eq("is_active", true).limit(100),
         admin.from("company_match_profiles").select(
           "cpv_codes,target_countries,target_partner_types,product_keywords,certifications,oem_available,private_label_available,min_match_score",
         ).eq("company_id", companyId).maybeSingle(),
         admin.from("companies").select("id,name,website,country").limit(1000),
       ]);
     if (
-      profileResult.error || productsResult.error || matchProfileResult.error ||
-      companiesResult.error
+      profileResult.error || matchProfileResult.error || companiesResult.error
     ) {
       throw new Error("DISCOVERY_CONTEXT_UNAVAILABLE");
     }
-    const products = array(productsResult.data).map(record);
-    const productIds = products.map((item) => Number(item.id)).filter(
-      Number.isSafeInteger,
-    );
-    const mappingsResult = await admin.from("product_taxonomy_mappings")
-      .select("taxonomy_id,product_id").in("product_id", productIds).eq(
-        "status",
-        "approved",
-      );
-    if (mappingsResult.error) throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
-    const mappings = array(mappingsResult.data).map(record);
+    const taxonomyContextRows = array(intentContext.taxonomy).map(record);
     const taxonomyIds = [
       ...new Set(
-        mappings.map((item) => Number(item.taxonomy_id)).filter(
+        taxonomyContextRows.map((item) => Number(item.taxonomy_id)).filter(
           Number.isSafeInteger,
         ),
       ),
     ];
-    const taxonomyResult = taxonomyIds.length
-      ? await admin.from("medical_product_taxonomy").select("id,canonical_name")
-        .in("id", taxonomyIds).eq("is_active", true)
-      : { data: [], error: null };
-    if (taxonomyResult.error) throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
-    const taxonomyNames = array(taxonomyResult.data).map((item) =>
-      first(record(item).canonical_name)
+    if (
+      !UUID_PATTERN.test(runId) || !/^[a-f0-9]{64}$/.test(intentHash) ||
+      !taxonomyIds.length
+    ) {
+      throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
+    }
+    const taxonomyNames = taxonomyContextRows.map((item) =>
+      first(item.canonical_name)
     ).filter(Boolean);
     const profile = record(profileResult.data);
     const matchProfile = record(matchProfileResult.data);
     const targetCountries = [
       ...new Set(
-        [
-          ...texts(profile.target_countries),
-          ...texts(matchProfile.target_countries),
-        ].map((item) => countryCode(item)).filter(Boolean),
+        texts(intentContext.target_countries).map((item) => countryCode(item))
+          .filter(Boolean),
       ),
     ] as string[];
     const partnerTypes = [
@@ -1063,27 +1489,25 @@ async function handleDiscovery(request: Request): Promise<Response> {
         ...texts(matchProfile.target_partner_types),
       ]),
     ];
-    const cpvCodes = [
+    const cpvCodesFromIntent = [
       ...new Set(
-        texts(matchProfile.cpv_codes).map(normalizeCpv).filter(Boolean),
+        taxonomyContextRows.flatMap((item) => texts(item.cpv_codes))
+          .map(normalizeCpv).filter(Boolean),
       ),
     ] as string[];
-    const fallbackCpv = cpvCodes.length
-      ? cpvCodes
+    const fallbackCpv = cpvCodesFromIntent.length
+      ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
     const queries = boundedDiscoveryQueries({
       cpvCodes: fallbackCpv,
       targetCountries,
-      taxonomyNames: taxonomyNames.length ? taxonomyNames : [
-        ...products.map((item) => first(item.name)),
-        ...texts(matchProfile.product_keywords),
-      ],
+      taxonomyNames,
     });
     const registryCoverage = registryCoverageForCountries(targetCountries);
     await updateProgress({
       stage: "preparing_market_search",
       queries_generated: queries.length,
-      taxonomy_mapped: Math.min(100, mappings.length),
+      taxonomy_mapped: Math.min(100, taxonomyIds.length),
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
           country_code: item.countryCode,
@@ -1162,7 +1586,16 @@ async function handleDiscovery(request: Request): Promise<Response> {
     let accepted = 0;
     let rejected = 0;
     for (const candidate of deduped.candidates) {
-      if (await persistCandidate(admin, companyId, runId, candidate)) {
+      if (
+        await persistCandidate(
+          admin,
+          companyId,
+          runId,
+          intentHash,
+          taxonomyContextRows,
+          candidate,
+        )
+      ) {
         accepted += 1;
       } else rejected += 1;
     }

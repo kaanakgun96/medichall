@@ -23,6 +23,8 @@ declare global {
       profile: BuyerDiscoveryProfile;
       activeProductCount: number;
       targetCountries: string[];
+      productProfileUrl?: string;
+      openProductDraft?(suggestion: Record<string, unknown>): void;
       toast(message: string): void;
       track(event: string): void;
     }): BuyerDiscoveryWorkspace;

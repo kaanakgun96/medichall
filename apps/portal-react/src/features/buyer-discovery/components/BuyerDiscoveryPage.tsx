@@ -16,7 +16,7 @@ type BuyerDiscoveryPageProps = {
   legacyPortalUrl: string;
 };
 
-function CanonicalBuyerWorkspace({ companyId }: { companyId: number }) {
+function CanonicalBuyerWorkspace({ companyId, legacyPortalUrl }: { companyId: number; legacyPortalUrl: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [context, setContext] = useState<{
     profile: MatchmakingProfile;
@@ -53,6 +53,7 @@ function CanonicalBuyerWorkspace({ companyId }: { companyId: number }) {
       profile: context.profile,
       activeProductCount: context.activeProductCount,
       targetCountries: context.profile.target_countries ?? [],
+      productProfileUrl: `${legacyPortalUrl}#products`,
       rpc: (name, parameters) => postRpc(name, parameters),
       edge: (name, body) => supabaseRequest(`/functions/v1/${name}`, {
         method: "POST",
@@ -63,7 +64,7 @@ function CanonicalBuyerWorkspace({ companyId }: { companyId: number }) {
     });
     void workspace.load();
     return () => workspace.destroy();
-  }, [companyId, context]);
+  }, [companyId, context, legacyPortalUrl]);
 
   if (error) {
     return <StatePanel title="Buyer Discovery is not ready" description={error} />;
@@ -80,11 +81,11 @@ export function BuyerDiscoveryPage({ legacyPortalUrl }: BuyerDiscoveryPageProps)
   if (partner.eligibility === "signed-out") {
     content = <StatePanel title="Sign in to discover European buyers" description="Buyer Discovery uses your authenticated manufacturer profile and remains isolated to your company." action={<a className="button button--primary button--medium" href={`${legacyPortalUrl}#buyer-discovery`}>Sign in through the Partner Portal</a>} />;
   } else if (partner.eligibility === "no-company") {
-    content = <StatePanel title="Create a manufacturer company first" description="A structured company, active product and target market are required before a public-source search can start." action={<a className="button button--primary button--medium" href={`${legacyPortalUrl}#profile`}>Complete company setup</a>} />;
+    content = <StatePanel title="Create a manufacturer company first" description="A manufacturer company and match profile are required. Catalogue products are optional: you can type a product or scan your stored public website." action={<a className="button button--primary button--medium" href={`${legacyPortalUrl}#profile`}>Complete company setup</a>} />;
   } else if (partner.error) {
     content = <StatePanel kind="error" title="Buyer Discovery could not verify your account" description={partner.error.message} />;
   } else if (partner.eligibility === "eligible" && partner.company) {
-    content = <CanonicalBuyerWorkspace companyId={partner.company.id} />;
+    content = <CanonicalBuyerWorkspace companyId={partner.company.id} legacyPortalUrl={legacyPortalUrl} />;
   } else {
     content = <div className="inline-state" role="status">Loading your company…</div>;
   }

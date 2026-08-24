@@ -11,11 +11,11 @@ const ACTIVE_STATUSES=new Set(["QUEUED","RUNNING"]);
 const TERMINAL_STATUSES=new Set(["COMPLETED","PARTIAL","FAILED"]);
 const POLL_MAX_MS=10*60*1000;
 const STAGES=[
-  ["loading_profile","Understanding your company and products"],
+  ["loading_profile","Understanding your selected product intent"],
   ["preparing_market_search","Preparing your European market search"],
   ["searching_procurement","Searching European procurement evidence"],
   ["checking_business_sources","Checking official business sources"],
-  ["verifying_websites","Verifying public company websites"],
+  ["verifying_websites","Verifying websites and matching product categories"],
   ["removing_duplicates","Removing duplicates and MedicHall members"],
   ["ranking_prospects","Ranking evidence-backed buyer candidates"],
   ["preparing_results","Preparing your results"]
@@ -36,37 +36,60 @@ const COUNTRY_COVERAGE={
   BE:{name:"Belgium",tone:"neutral",title:"Registry enrichment unavailable",detail:"Official registry requests remain disabled pending legal review."},
   ES:{name:"Spain",tone:"neutral",title:"Registry enrichment unavailable",detail:"No supported official registry integration is currently available."}
 };
+const EUROPE_COUNTRIES=[
+  ["AT","Austria"],["BE","Belgium"],["BG","Bulgaria"],["HR","Croatia"],["CY","Cyprus"],["CZ","Czechia"],
+  ["DK","Denmark"],["EE","Estonia"],["FI","Finland"],["FR","France"],["DE","Germany"],["GR","Greece"],
+  ["HU","Hungary"],["IE","Ireland"],["IT","Italy"],["LV","Latvia"],["LT","Lithuania"],["LU","Luxembourg"],
+  ["MT","Malta"],["NL","Netherlands"],["NO","Norway"],["PL","Poland"],["PT","Portugal"],["RO","Romania"],
+  ["SK","Slovakia"],["SI","Slovenia"],["ES","Spain"],["SE","Sweden"],["CH","Switzerland"],["GB","United Kingdom"]
+];
+const INTENT_LABELS={PROFILE_PRODUCT:"My products",AD_HOC_PRODUCT:"Manual product search",WEBSITE_DETECTED_PRODUCT:"Detected from your website"};
 
 function createWorkspace(options){
   if(!options?.root||typeof options.rpc!=="function"||typeof options.edge!=="function")throw new Error("Buyer Discovery workspace configuration is incomplete.");
   const state={
-    data:{runs:[],prospects:[]},loading:false,discovering:false,openId:null,
+    data:{runs:[],prospects:[],website_scans:[],product_context:{}},loading:false,discovering:false,scanning:false,openId:null,
     notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,
+    initialized:false,mode:null,selectedRunId:null,profileSelected:new Set(),websiteSelected:new Set(),
+    countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,
     filters:{query:"",country:"",market:"",type:"",evidence:"",score:"",freshness:"",status:"",sort:"score"}
   };
   const toast=message=>options.toast?.(message);
   const track=event=>options.track?.(event);
 
-  function currentRun(){return list(state.data.runs)[0]||null;}
-  function isActive(run=currentRun()){return ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase());}
+  function activeRun(){return list(state.data.runs).find(run=>ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase()))||null;}
+  function currentRun(){return activeRun()||list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId))||list(state.data.runs)[0]||null;}
+  function isActive(run=activeRun()){return ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase());}
   function pollingExpired(run=currentRun()){
     if(!isActive(run))return false;
     const started=Date.parse(run.started_at||run.created_at||"");
     return Number.isFinite(started)&&Date.now()-started>POLL_MAX_MS;
   }
   function targetCountries(){
-    const profileCountries=list(options.profile?.target_countries);
-    return [...new Set(list(options.targetCountries).concat(profileCountries).map(value=>String(value||"").trim().toUpperCase()).filter(Boolean))];
+    return state.countryMode==="selected"?[...state.selectedCountries].sort():[];
   }
   function readiness(){
-    const productCount=Math.max(0,Number(options.activeProductCount||0));
-    const markets=targetCountries();
+    const products=list(state.data.product_context?.products),website=state.data.product_context?.website_available===true;
+    const selection=state.mode==="profile"?state.profileSelected.size:state.mode==="adhoc"?(state.adhocResolution?.confirmed?1:0):state.websiteSelected.size;
     return {
       role:String(options.profile?.role||"manufacturer").toLowerCase()==="manufacturer",
-      products:productCount,
-      markets,
-      ready:productCount>0&&markets.length>0&&String(options.profile?.role||"manufacturer").toLowerCase()==="manufacturer"
+      products,website,selection,
+      ready:selection>0&&(state.countryMode!=="selected"||state.selectedCountries.size>0)&&String(options.profile?.role||"manufacturer").toLowerCase()==="manufacturer"
     };
+  }
+
+  function hydrate(){
+    if(state.initialized)return;
+    const context=state.data.product_context||{},products=list(context.products).filter(item=>item.taxonomy_id);
+    products.slice(0,8).forEach(item=>state.profileSelected.add(Number(item.taxonomy_id)));
+    const saved=[...new Set(list(options.targetCountries).concat(list(options.profile?.target_countries)).map(value=>String(value||"").trim().toUpperCase()).filter(value=>/^[A-Z]{2}$/.test(value)))];
+    saved.forEach(value=>state.selectedCountries.add(value));
+    state.countryMode=saved.length?"selected":"europe";
+    const scan=list(state.data.website_scans).find(item=>["COMPLETED","NO_PRODUCTS"].includes(String(item.status)));
+    list(scan?.suggestions).filter(item=>item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
+    state.mode=products.length?"profile":context.website_available?"website":"adhoc";
+    state.selectedRunId=list(state.data.runs)[0]?.id||null;
+    state.initialized=true;
   }
 
   async function load(settings={}){
@@ -74,7 +97,8 @@ function createWorkspace(options){
     state.loading=true;
     if(!settings.silent&&!state.data.prospects.length)options.root.innerHTML='<div class="mhxp"><div class="mhxp-empty"><b>Loading European Buyer Discovery…</b></div></div>';
     try{
-      state.data=await options.rpc("get_external_prospect_workspace_v1",{p_company_id:Number(options.companyId),p_limit:200})||{runs:[],prospects:[]};
+      state.data=await options.rpc("get_external_prospect_workspace_v2",{p_company_id:Number(options.companyId),p_limit:200})||{runs:[],prospects:[],website_scans:[],product_context:{}};
+      hydrate();
       if(!state.destroyed){syncPolling();render();}
     }catch(error){
       if(!settings.silent&&!state.destroyed)options.root.innerHTML='<div class="mhxp"><div class="mhxp-error" role="alert"><b>Buyer Discovery is unavailable.</b><br>'+esc(friendlyError(error))+'</div></div>';
@@ -108,7 +132,8 @@ function createWorkspace(options){
 
   function filtered(){
     const query=state.filters.query.trim().toLowerCase();
-    const prospects=list(state.data.prospects).filter(item=>{
+    const intentHash=currentRun()?.intent_hash;
+    const prospects=list(state.data.prospects).filter(item=>!intentHash||item.intent_hash===intentHash).filter(item=>{
       const evidence=list(item.evidence);
       return (!query||[item.company_name,item.country_name,item.company_type,item.reason_summary,...list(item.taxonomy).map(row=>row.canonical_name)].join(" ").toLowerCase().includes(query))&&
         (!state.filters.country||item.country_code===state.filters.country)&&
@@ -134,8 +159,16 @@ function createWorkspace(options){
     if(stage==="failed")return"Search could not be completed";
     return STAGES.find(row=>row[0]===stage)?.[1]||label(stage||status);
   }
+  function runContext(run){
+    const context=run?.intent_context||{},countries=list(context.target_countries);
+    return {
+      product:context.normalized_product_label||"your selected products",
+      source:INTENT_LABELS[run?.intent_source||context.intent_source]||"Buyer Discovery",
+      markets:countries.length?countries.join(" · "):"Europe-wide"
+    };
+  }
   function coverageHtml(run){
-    const requested=targetCountries();
+    const requested=run?list(run.intent_context?.target_countries):targetCountries();
     if(!requested.length)return"";
     const diagnostic=list(run?.diagnostics?.registry_coverage);
     const diagnosticCodes=new Set(diagnostic.map(row=>String(row.country_code||"").toUpperCase()));
@@ -150,12 +183,12 @@ function createWorkspace(options){
     const status=String(run.status||"").toUpperCase();
     const current=stageIndex(run.stage);
     const steps=STAGES.map((row,index)=>'<li class="'+(index<current?"done":index===current&&isActive(run)?"active":"")+'"><span aria-hidden="true">'+(index<current?"✓":index===current&&isActive(run)?"●":"○")+'</span>'+esc(row[1])+'</li>').join("");
-    const sourceCount=Number(run.sources_checked||0),found=Number(run.candidates_found||0),accepted=Number(run.candidates_accepted||0),deduped=Number(run.candidates_deduplicated||0);
+    const sourceCount=Number(run.sources_checked||0),found=Number(run.candidates_found||0),accepted=Number(run.candidates_accepted||0),deduped=Number(run.candidates_deduplicated||0),context=runContext(run);
     let outcome="";
     if(status==="PARTIAL")outcome='<div class="mhxp-state partial"><b>Results are ready with limited source coverage.</b><p>Available evidence was ranked normally. One or more public sources could not be reached, so absence of a result is not proof that no buyer exists.</p></div>';
     if(status==="FAILED")outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="reload">Check status</button></div>';
     if(status==="COMPLETED")outcome='<div class="mhxp-state complete"><b>European buyer search complete.</b><p>'+accepted+' evidence-backed candidate'+(accepted===1?"":"s")+' met the current confidence threshold.</p></div>';
-    return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">Latest search</span><h4>'+esc(stageName(run.stage,status))+'</h4><p>Only completed backend work is shown. No estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
+    return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">'+esc(context.source)+'</span><h4>'+esc(stageName(run.stage,status))+'</h4><p><b>Discovering buyers for '+esc(context.product)+'</b> · '+esc(context.markets)+'. Only completed backend work is shown; no estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
       (isActive(run)?'<ol class="mhxp-stages">'+steps+'</ol>':"")+
       '<div class="mhxp-counters"><div><strong>'+sourceCount+'</strong><span>public sources checked</span></div><div><strong>'+found+'</strong><span>candidates found</span></div><div><strong>'+deduped+'</strong><span>duplicates removed</span></div><div><strong>'+accepted+'</strong><span>evidence-backed results</span></div></div>'+outcome+coverageHtml(run)+'</section>';
   }
@@ -194,14 +227,51 @@ function createWorkspace(options){
       '<div><label>Sort</label><select data-filter="sort"><option value="score" '+(state.filters.sort==="score"?'selected':'')+'>Best match</option><option value="recent" '+(state.filters.sort==="recent"?'selected':'')+'>Most recent</option><option value="procurement" '+(state.filters.sort==="procurement"?'selected':'')+'>Procurement signal</option><option value="country" '+(state.filters.sort==="country"?'selected':'')+'>Country</option><option value="name" '+(state.filters.sort==="name"?'selected':'')+'>Company A–Z</option></select></div>'
     ].join("")+'</div></details>';
   }
+  function profileTaxonomyIds(){return new Set(list(state.data.product_context?.products).map(item=>Number(item.taxonomy_id)).filter(Number.isSafeInteger));}
+  function countryHtml(){
+    const specific=state.countryMode==="selected";
+    return '<fieldset class="mhxp-country"><legend>Where should MedicHall search?</legend><div class="mhxp-country-modes"><label><input type="radio" name="mhxp-country-mode" data-country-mode="europe" '+(!specific?'checked':'')+'> Europe-wide</label><label><input type="radio" name="mhxp-country-mode" data-country-mode="selected" '+(specific?'checked':'')+'> Selected countries</label></div>'+(specific?'<label class="mhxp-country-select">Target countries <select multiple size="6" data-country-select aria-describedby="mhxp-country-help">'+EUROPE_COUNTRIES.map(row=>'<option value="'+row[0]+'" '+(state.selectedCountries.has(row[0])?'selected':'')+'>'+esc(row[1])+'</option>').join("")+'</select></label><p id="mhxp-country-help" class="mhxp-help">Your choice applies only to this search and does not change saved target markets.</p>':'<p class="mhxp-help">Search across Europe. Official registry enrichment varies by country; TED and public-web evidence remain available where supported.</p>')+'</fieldset>';
+  }
+  function productSuggestionActions(item,source){
+    const existing=profileTaxonomyIds().has(Number(item.taxonomy_id));
+    return existing?'<span class="mhxp-already">Already in your profile</span>':'<button type="button" data-action="add-profile" data-source="'+esc(source)+'" data-taxonomy="'+Number(item.taxonomy_id)+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug||"")+'">Add to my profile</button>';
+  }
+  function profileModeHtml(){
+    const products=list(state.data.product_context?.products);
+    if(!products.length)return '<div class="mhxp-mode-empty"><b>No catalogue products yet—and that is okay.</b><p>Use Search by product or Scan my website now. You can add products later for ongoing recommendations.</p></div>';
+    return '<div class="mhxp-choice-grid">'+products.map(item=>item.taxonomy_id?'<label class="mhxp-choice"><input type="checkbox" data-profile-taxonomy="'+Number(item.taxonomy_id)+'" '+(state.profileSelected.has(Number(item.taxonomy_id))?'checked':'')+'><span><b>'+esc(item.product_name)+'</b><small>'+esc(item.canonical_name)+'</small></span></label>':'<div class="mhxp-choice unavailable"><span><b>'+esc(item.product_name)+'</b><small>Choose a canonical category in My Products before using this item.</small></span></div>').join("")+'</div>';
+  }
+  function adhocModeHtml(){
+    const resolution=state.adhocResolution,recommended=resolution?.recommended;
+    let result="";
+    if(resolution?.resolution==="unmapped")result='<div class="mhxp-state neutral" role="status"><b>MedicHall could not confidently classify this product.</b><p>Try a more specific or broader medical product name. No category was invented.</p></div>';
+    else if(recommended){
+      const item={taxonomy_id:Number(recommended.canonical_taxonomy_id),canonical_name:recommended.canonical_name,slug:recommended.slug||""};
+      result='<div class="mhxp-normalized" role="status"><span class="mhxp-kicker">'+(resolution.resolution==="high_confidence"?'Exact or approved alias':'Suggested category — confirmation required')+'</span><b>'+esc(item.canonical_name)+'</b><p>'+esc(recommended.reasoning||"Deterministic taxonomy match.")+'</p><div><button type="button" class="primary" data-action="confirm-adhoc" data-taxonomy="'+item.taxonomy_id+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug)+'">'+(resolution.confirmed?'Category confirmed ✓':'Use this category')+'</button>'+productSuggestionActions(item,"AD_HOC_PRODUCT")+'</div></div>';
+    }
+    return '<form class="mhxp-product-search" data-product-search><label for="mhxpProductQuery">Medical product or category</label><div><input id="mhxpProductQuery" name="product_query" maxlength="160" value="'+esc(state.adhocQuery)+'" placeholder="Enter a medical product, e.g. Ultrasound Probe Cover" aria-describedby="mhxp-product-help"><button class="primary" type="submit">Match product</button></div><p id="mhxp-product-help" class="mhxp-help">Commercial names and approved aliases are normalized to MedicHall’s existing Medical Product Taxonomy. No paid AI is used.</p></form>'+result;
+  }
+  function websiteModeHtml(){
+    const context=state.data.product_context||{},scan=list(state.data.website_scans)[0];
+    if(!context.website_available)return '<div class="mhxp-mode-empty"><b>No validated HTTPS company website is available.</b><p>Update the website through the normal company profile flow, or enter a product manually.</p><button type="button" data-action="mode" data-mode="adhoc">Enter a product manually</button></div>';
+    if(state.scanning||["QUEUED","RUNNING"].includes(String(scan?.status||""))){
+      const stages={reading_website:"Reading your website",finding_product_pages:"Finding product pages",identifying_products:"Identifying medical products",matching_categories:"Matching product categories",ready:"Ready"};
+      return '<div class="mhxp-scan-progress" role="status" aria-live="polite"><span class="mhxp-kicker">'+esc(context.website_domain||"Company website")+'</span><b>'+esc(stages[scan?.stage]||"Reading your website")+'</b><p>Only bounded public pages are checked. No scripts, forms, contacts or private pages are used.</p></div>';
+    }
+    const suggestions=list(scan?.suggestions);
+    if(scan&&["FAILED","ROBOTS_DENIED"].includes(String(scan.status)))return '<div class="mhxp-state neutral"><b>We could not scan your website right now.</b><p>'+ (scan.status==="ROBOTS_DENIED"?'The site’s robots rules do not allow this scan.':'You can still enter a product manually.') +'</p><button type="button" data-action="mode" data-mode="adhoc">Enter a product manually</button></div>';
+    if(scan&&scan.status==="NO_PRODUCTS")return '<div class="mhxp-state neutral"><b>No clear product categories were found on your website.</b><p>MedicHall did not fabricate suggestions. Enter a product manually instead.</p><button type="button" data-action="mode" data-mode="adhoc">Enter a product manually</button></div>';
+    if(!suggestions.length)return '<div class="mhxp-scan-start"><span class="mhxp-kicker">Stored company domain</span><b>'+esc(context.website_domain)+'</b><p>MedicHall safely checks up to 12 relevant public pages, respects robots rules, maps product signals to the existing taxonomy, and stores no raw page content or contacts.</p><button class="primary" type="button" data-action="scan">Scan my website</button></div>';
+    const createdAt=Date.parse(scan.created_at||""),rescanAllowed=!Number.isFinite(createdAt)||Date.now()-createdAt>=86400000;
+    return '<div class="mhxp-detected"><div class="mhxp-detected-head"><div><span class="mhxp-kicker">Detected from '+esc(context.website_domain)+'</span><b>Confirm the categories you want to use</b><p>High and medium-confidence suggestions are preselected. Low-confidence suggestions always require your choice.</p></div><button type="button" data-action="scan" data-force="true" '+(rescanAllowed?'':'disabled aria-disabled="true" title="Website rescans are available after the 24-hour safety cooldown"')+'>'+(rescanAllowed?'Rescan website':'Rescan available later')+'</button></div><div class="mhxp-choice-grid">'+suggestions.map(item=>'<article class="mhxp-detected-card '+String(item.confidence).toLowerCase()+'"><label><input type="checkbox" data-website-taxonomy="'+Number(item.taxonomy_id)+'" '+(state.websiteSelected.has(Number(item.taxonomy_id))?'checked':'')+'><span><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.raw_website_label)+' · '+esc(item.confidence)+' confidence</small></span></label><p>Found on '+list(item.source_pages).length+' public page'+(list(item.source_pages).length===1?'':'s')+'.</p>'+productSuggestionActions(item,"WEBSITE_DETECTED_PRODUCT")+'</article>').join("")+'</div></div>';
+  }
+  function recentHtml(){
+    const runs=list(state.data.runs).slice(0,8);if(!runs.length)return"";
+    return '<details class="mhxp-recent"><summary>Recent buyer searches</summary><div>'+runs.map(run=>{const context=runContext(run);return '<button type="button" data-action="open-run" data-run="'+esc(run.id)+'" class="'+(String(currentRun()?.id)===String(run.id)?'active':'')+'"><b>'+esc(context.product)+'</b><span>'+esc(context.markets)+' · '+esc(context.source)+'</span></button>';}).join("")+'</div></details>';
+  }
   function readinessHtml(){
-    const ready=readiness();
-    const checks=[
-      [ready.role,"Manufacturer company profile","Buyer Discovery is available to manufacturer accounts."],
-      [ready.products>0,"At least one active product",ready.products?ready.products+" active product"+(ready.products===1?"":"s")+" will guide category matching.":"Add a structured product so MedicHall knows what you sell."],
-      [ready.markets.length>0,"European target markets",ready.markets.length?ready.markets.join(", "):"Add at least one target country to your matchmaking profile."]
-    ];
-    return '<section class="mhxp-empty mhxp-ready"><div class="mhxp-empty-icon" aria-hidden="true">⌁</div><span class="mhxp-kicker">Evidence-backed growth</span><h4>Find credible European buyers beyond the MedicHall network.</h4><p>MedicHall combines relevant procurement history, public company websites, industry sources and supported official business-activity signals. It never collects private contact details or sends outreach.</p><div class="mhxp-readiness">'+checks.map(row=>'<div class="'+(row[0]?"ready":"needed")+'"><span aria-hidden="true">'+(row[0]?"✓":"○")+'</span><div><b>'+esc(row[1])+'</b><p>'+esc(row[2])+'</p></div></div>').join("")+'</div><button class="primary" type="button" data-action="discover" '+(!ready.ready?'disabled aria-disabled="true"':'')+'>Search Europe for buyers</button>'+(!ready.ready?'<p class="mhxp-help">Complete the missing items above before starting a search.</p>':'<p class="mhxp-help">Searches are bounded, cached and rate-limited. You stay in control.</p>')+coverageHtml(null)+'</section>';
+    const ready=readiness(),modeContent=state.mode==="profile"?profileModeHtml():state.mode==="website"?websiteModeHtml():adhocModeHtml();
+    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="discover" '+(!ready.ready?'disabled aria-disabled="true"':'')+'>Discover European buyers</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm at least one product category to continue.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
   }
   function friendlyRunError(code){
     const value=String(code||"").toUpperCase();
@@ -219,12 +289,12 @@ function createWorkspace(options){
   }
   function render(){
     if(state.destroyed)return;
-    const prospects=filtered(),all=list(state.data.prospects),run=currentRun(),active=isActive(run),ready=readiness();
-    const header='<div class="mhxp-head"><div><span class="mhxp-kicker">European market development</span><h3>European Buyer Discovery</h3><p>Find evidence-backed distributors, importers, wholesalers and institutional buyers beyond the current MedicHall member network.</p></div><div class="mhxp-actions"><button class="primary" type="button" data-action="discover" '+(active||state.discovering||!ready.ready?'disabled':'')+'>'+(active||state.discovering?'Search in progress…':all.length?'Search Europe again':'Search Europe for buyers')+'</button><button type="button" data-action="reload">Refresh results</button></div></div>';
+    const prospects=filtered(),run=currentRun(),intentHash=run?.intent_hash,all=list(state.data.prospects).filter(item=>!intentHash||item.intent_hash===intentHash);
+    const header='<div class="mhxp-head"><div><span class="mhxp-kicker">European market development</span><h3>European Buyer Discovery</h3><p>Find evidence-backed distributors, importers, wholesalers and institutional buyers beyond the current MedicHall member network.</p></div><div class="mhxp-actions"><button type="button" data-action="reload">Refresh results</button></div></div>';
     const privacy='<div class="mhxp-notice"><b>Public business evidence only.</b> No private contact details are collected, no outreach is sent, and broad activity codes are never presented as proof of exact product availability.</div>';
     const notice=state.notice?'<div class="mhxp-state '+esc(state.notice.tone||"neutral")+'" role="status"><b>'+esc(state.notice.title)+'</b><p>'+esc(state.notice.message)+'</p></div>':"";
-    const results=all.length?'<section class="mhxp-results"><div class="mhxp-results-head"><div><span class="mhxp-kicker">Ranked candidates</span><h4>'+all.length+' buyer candidate'+(all.length===1?"":"s")+'</h4><p>Each result passed the configured direct-or-multiple-independent-signal confidence gate.</p></div></div>'+filtersHtml()+(prospects.length?'<div class="mhxp-list">'+prospects.map(card).join("")+'</div>':'<div class="mhxp-empty"><b>No buyers match these filters.</b><p>Clear or change a filter to see more saved results.</p></div>')+'</section>':(!run||statusAllowsEmpty(run)?readinessHtml():'<div class="mhxp-empty"><b>No candidates met the evidence threshold.</b><p>The search completed normally. Try again later after updating products or target markets; weak single-source matches are intentionally excluded.</p></div>');
-    options.root.innerHTML='<div class="mhxp">'+header+privacy+notice+runHtml(run)+results+'</div>';
+    const results=all.length?'<section class="mhxp-results"><div class="mhxp-results-head"><div><span class="mhxp-kicker">Ranked candidates</span><h4>'+all.length+' buyer candidate'+(all.length===1?"":"s")+'</h4><p>Each result passed the configured direct-or-multiple-independent-signal confidence gate for this product intent.</p></div></div>'+filtersHtml()+(prospects.length?'<div class="mhxp-list">'+prospects.map(card).join("")+'</div>':'<div class="mhxp-empty"><b>No buyers match these filters.</b><p>Clear or change a filter to see more saved results.</p></div>')+'</section>':(run&&!statusAllowsEmpty(run)?'<div class="mhxp-empty"><b>No candidates met the evidence threshold for this product intent.</b><p>The search completed normally. Weak single-source matches are intentionally excluded.</p></div>':'');
+    options.root.innerHTML='<div class="mhxp">'+header+privacy+notice+readinessHtml()+runHtml(run)+results+'</div>';
   }
   function statusAllowsEmpty(run){return !run||ACTIVE_STATUSES.has(String(run.status||"").toUpperCase())||String(run.status||"").toUpperCase()==="FAILED";}
 
@@ -234,13 +304,16 @@ function createWorkspace(options){
       render();syncPolling();return;
     }
     const ready=readiness();
-    if(!ready.ready){state.notice={tone:"neutral",title:"Finish your discovery setup first.",message:"Add an active product and at least one European target market."};render();return;}
+    if(!ready.ready){state.notice={tone:"neutral",title:"Confirm a product category first.",message:"Choose a profile product, confirm a manual taxonomy match, or select a website-detected category."};render();return;}
+    const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
+    const intentSource=state.mode==="profile"?"PROFILE_PRODUCT":state.mode==="website"?"WEBSITE_DETECTED_PRODUCT":"AD_HOC_PRODUCT";
     state.discovering=true;state.notice=null;render();track("external_prospect_discovery_started");
-    const request=options.edge("external-prospect-discovery",{company_id:Number(options.companyId),idempotency_key:uuid()});
+    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:{intent_source:intentSource,taxonomy_ids:taxonomyIds.slice(0,8),target_countries:targetCountries()}});
     schedulePoll(700);
     try{
       const result=await request;
       await load({silent:true});
+      state.selectedRunId=result?.run?.run_id||list(state.data.runs)[0]?.id||state.selectedRunId;
       state.notice={tone:"complete",title:result?.cached?"Existing results restored.":"Buyer search finished.",message:result?.cached?"MedicHall reused the matching cached search safely.":"The latest evidence-backed results are ready to review."};
       toast(result?.cached?"Existing Buyer Discovery results loaded.":"European Buyer Discovery completed.");
     }catch(error){
@@ -248,6 +321,42 @@ function createWorkspace(options){
       state.notice={tone:"failed",title:"Search not started or interrupted.",message:friendlyError(error)};
       toast(friendlyError(error));
     }finally{state.discovering=false;render();syncPolling();}
+  }
+  function scheduleScanPoll(){
+    clearTimeout(state.scanPollTimer);
+    if(!state.scanning||state.destroyed)return;
+    state.scanPollTimer=setTimeout(async()=>{await load({silent:true});scheduleScanPoll();},1400);
+  }
+  async function resolveAdhoc(){
+    const query=state.adhocQuery.trim();
+    if(query.length<3){state.notice={tone:"neutral",title:"Enter a specific medical product.",message:"Use at least three characters and describe a product or medical category."};render();return;}
+    state.notice=null;state.adhocResolution=null;render();
+    try{
+      const result=await options.edge("external-prospect-discovery",{operation:"resolve_product_intent",company_id:Number(options.companyId),idempotency_key:uuid(),product_query:query});
+      state.adhocResolution={...result,confirmed:false};
+    }catch(error){state.notice={tone:"failed",title:"This product could not be matched.",message:friendlyError(error)};}
+    render();
+  }
+  async function scanWebsite(force=false){
+    if(state.scanning)return;
+    state.scanning=true;state.notice=null;render();scheduleScanPoll();
+    try{
+      const result=await options.edge("external-prospect-discovery",{operation:"scan_company_products",company_id:Number(options.companyId),idempotency_key:uuid(),force_rescan:force===true});
+      await load({silent:true});
+      state.websiteSelected.clear();
+      list(result?.scan?.suggestions).filter(item=>item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
+      if(result?.scan?.status==="NO_PRODUCTS")state.notice={tone:"neutral",title:"No clear product categories were found.",message:"MedicHall did not fabricate suggestions. Enter a product manually instead."};
+      else if(result?.scan?.status==="ROBOTS_DENIED")state.notice={tone:"neutral",title:"Website scan is not permitted by the site.",message:"You can enter a product manually and continue immediately."};
+      else state.notice={tone:"complete",title:result?.cached?"Saved website suggestions restored.":"Website product suggestions are ready.",message:"Review and confirm the categories before starting Buyer Discovery."};
+    }catch(error){state.notice={tone:"failed",title:"We could not scan your website right now.",message:"Enter a product manually to continue. "+friendlyError(error)};}
+    finally{state.scanning=false;clearTimeout(state.scanPollTimer);render();}
+  }
+  function addToProfile(target){
+    const suggestion={taxonomy_id:Number(target.dataset.taxonomy),canonical_name:String(target.dataset.name||""),slug:String(target.dataset.slug||""),source:String(target.dataset.source||"")};
+    if(!Number.isSafeInteger(suggestion.taxonomy_id)||!suggestion.canonical_name)return;
+    if(typeof options.openProductDraft==="function"){options.openProductDraft(suggestion);return;}
+    try{sessionStorage.setItem("mh_buyer_discovery_product_draft_v1",JSON.stringify(suggestion));}catch(_){}
+    global.location.href=options.productProfileUrl||"portal.html#products";
   }
   async function feedback(id,feedbackState,note){
     try{
@@ -262,19 +371,38 @@ function createWorkspace(options){
     const action=target.dataset.action,id=Number(target.dataset.id);
     if(action==="discover")discover();
     else if(action==="reload")load();
+    else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;render();}
+    else if(action==="confirm-adhoc"){
+      if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
+      render();
+    }
+    else if(action==="scan")scanWebsite(target.dataset.force==="true");
+    else if(action==="add-profile")addToProfile(target);
+    else if(action==="open-run"){state.selectedRunId=target.dataset.run;state.openId=null;render();}
     else if(action==="detail"){state.openId=state.openId===id?null:id;if(state.openId)track("external_prospect_viewed");render();}
     else if(action==="feedback")feedback(id,target.dataset.state,null);
     else if(action==="note"){const note=options.root.querySelector('[data-note="'+id+'"]')?.value||"";feedback(id,"NOTE_ONLY",note);}
     else if(action==="website")track("external_prospect_website_clicked");
   }
-  function onChange(event){const key=event.target.dataset.filter;if(!key)return;state.filters[key]=event.target.value;render();}
+  function onChange(event){
+    if(event.target.id==="mhxpProductQuery"){state.adhocResolution=null;render();return;}
+    const key=event.target.dataset.filter;if(key){state.filters[key]=event.target.value;render();return;}
+    if(event.target.dataset.profileTaxonomy){const id=Number(event.target.dataset.profileTaxonomy);event.target.checked?state.profileSelected.add(id):state.profileSelected.delete(id);render();return;}
+    if(event.target.dataset.websiteTaxonomy){const id=Number(event.target.dataset.websiteTaxonomy);event.target.checked?state.websiteSelected.add(id):state.websiteSelected.delete(id);render();return;}
+    if(event.target.dataset.countryMode){state.countryMode=event.target.dataset.countryMode;render();return;}
+    if(event.target.dataset.countrySelect!==undefined){state.selectedCountries=new Set([...event.target.selectedOptions].map(option=>option.value));render();}
+  }
+  function onInput(event){if(event.target.id==="mhxpProductQuery")state.adhocQuery=event.target.value;}
+  function onSubmit(event){if(event.target.matches("[data-product-search]")){event.preventDefault();resolveAdhoc();}}
   function onVisibility(){if(!document.hidden&&(isActive()||state.discovering))schedulePoll(100);}
   options.root.addEventListener("click",onClick);
   options.root.addEventListener("change",onChange);
+  options.root.addEventListener("input",onInput);
+  options.root.addEventListener("submit",onSubmit);
   document.addEventListener("visibilitychange",onVisibility);
   return Object.freeze({
     load,render,
-    destroy(){state.destroyed=true;clearTimeout(state.pollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);document.removeEventListener("visibilitychange",onVisibility);}
+    destroy(){state.destroyed=true;clearTimeout(state.pollTimer);clearTimeout(state.scanPollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);options.root.removeEventListener("input",onInput);options.root.removeEventListener("submit",onSubmit);document.removeEventListener("visibilitychange",onVisibility);}
   });
 }
 

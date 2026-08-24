@@ -124,13 +124,13 @@ assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|l
 assert.match(config, /\[functions\.external-prospect-discovery\]\nverify_jwt = false/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.css\?v=20260820buyer1/);
-  assert.match(page, /external-prospects\.js\?v=20260820buyer1/);
+  assert.match(page, /external-prospects\.css\?v=20260824intent1/);
+  assert.match(page, /external-prospects\.js\?v=20260824intent1/);
 }
 assert.match(portal, /European Buyer Discovery/);
 assert.match(portal, /#buyer-discovery/);
 assert.match(workspace, /buyer_discovery/);
-assert.match(externalUi, /Search Europe for buyers/);
+assert.match(externalUi, /Discover European buyers/);
 assert.match(externalUi, /Not yet a MedicHall member/);
 assert.match(externalUi, /Indirect commercial evidence/);
 assert.match(externalUi, /Target markets/);

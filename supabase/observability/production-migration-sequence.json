@@ -56,7 +56,8 @@
     "202608170002",
     "202608200001",
     "202608200002",
-    "202608200003"
+    "202608200003",
+    "202608200004"
   ],
   "verified_definition_drift": [
     "202607090001",
@@ -65,7 +66,7 @@
   "compatibility_migration": "202608010002_production_compatibility_and_metadata.sql",
   "notification_migration": "202608010001_company_admin_notification_outbox.sql",
   "planned_forward_migrations": [
-    "202608200004_external_registry_coverage.sql"
+    "202608240001_buyer_discovery_product_intents.sql"
   ],
   "archived_unapplied": [
     {
@@ -92,6 +93,6 @@
     "202607100009"
   ],
   "expected_target_only_dry_run": [
-    "202608200004_external_registry_coverage.sql"
+    "202608240001_buyer_discovery_product_intents.sql"
   ]
 }

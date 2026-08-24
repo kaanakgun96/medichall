@@ -31,8 +31,8 @@ assert.match(workspace, /tab\("buyer_discovery","European Buyer Discovery"/);
 assert.match(workspace, /hash==="#buyer-discovery"/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.js\?v=20260820buyer1/);
-  assert.match(page, /external-prospects\.css\?v=20260820buyer1/);
+  assert.match(page, /external-prospects\.js\?v=20260824intent1/);
+  assert.match(page, /external-prospects\.css\?v=20260824intent1/);
 }
 assert.equal((ui.match(/function createWorkspace/g) || []).length, 1);
 assert.match(reactPage, /MedicHallExternalProspects\.createWorkspace/);
@@ -70,7 +70,7 @@ assert.match(ui, /Registry coverage affects enrichment only/);
 
 for (const state of [
   "Search completed with limited source coverage", "This search could not be completed",
-  "Search Europe for buyers", "Search Europe again", "No candidates met the evidence threshold",
+  "Discover European buyers", "Search by product", "No candidates met the evidence threshold",
   "safety cooldown", "safe search limit", "Existing results restored",
 ]) assert.match(ui, new RegExp(state));
 
