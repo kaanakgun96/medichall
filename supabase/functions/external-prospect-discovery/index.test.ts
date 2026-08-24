@@ -4,8 +4,13 @@ import {
   legacyQueryProgressCount,
   mergeSignals,
   structuredTexts,
+  verifyWebsites,
 } from "./index.ts";
-import { normalizeActivitySignal } from "../_shared/external-prospect-discovery.ts";
+import {
+  normalizeActivitySignal,
+  type ProspectCandidate,
+} from "../_shared/external-prospect-discovery.ts";
+import { buildProductFamilyProfile } from "../_shared/buyer-discovery-relevance-v2.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const left = JSON.stringify(actual);
@@ -105,9 +110,145 @@ Deno.test("registry outage degrades the run to PARTIAL without failing discovery
       tedUnavailable: false,
       registryUnavailableProviders: 0,
       websiteUnavailable: 0,
+      publicWebUnavailable: true,
+    }),
+    "PARTIAL",
+  );
+  assertEquals(
+    discoveryCompletionStatus({
+      tedUnavailable: false,
+      registryUnavailableProviders: 0,
+      websiteUnavailable: 0,
     }),
     "COMPLETED",
   );
+});
+
+Deno.test("PUBLIC_WEB merges by official domain with TED without adding search evidence", () => {
+  const merged = mergeSignals(
+    [{
+      name: "QA Equipment Supplier SRL",
+      countryCode: "IT",
+      countryName: "Italy",
+      cityRegion: null,
+      companyType: "Distributor",
+      websiteUrl: "https://qa-equipment.it/",
+      registryIdentifier: null,
+      description: "Camera cover award",
+      evidence: [{
+        sourceType: "TED_AWARD",
+        sourceUrl: "https://ted.europa.eu/en/notice/-/detail/qa-web",
+        sourceDomain: "ted.europa.eu",
+        title: "Camera cover award",
+        snippet: "Sterile camera covers",
+        evidenceKind: "DIRECT_PRODUCT_EVIDENCE",
+        confidence: 0.9,
+        evidenceDate: "2026-08-01",
+        discoveryReason: "DIRECT_PRODUCT_TERM_TED",
+      }],
+      activities: [],
+      taxonomyIds: [336],
+      taxonomyRelation: "exact",
+      targetCountry: false,
+      preferredCompanyType: false,
+      relatedAwardCount: 1,
+      lastEvidenceAt: "2026-08-01",
+      discoverySources: ["PRODUCT_TED"],
+      websiteVerificationUrls: ["https://qa-equipment.it/"],
+    }],
+    [],
+    ["IT"],
+    ["distributor"],
+    [{
+      name: "QA Equipment S.R.L.",
+      countryCode: "IT",
+      countryName: null,
+      cityRegion: null,
+      companyType: "Unknown",
+      websiteUrl: "https://www.qa-equipment.it/products/camera-cover",
+      registryIdentifier: null,
+      description: null,
+      evidence: [],
+      activities: [],
+      taxonomyIds: [336],
+      taxonomyRelation: "none",
+      targetCountry: true,
+      preferredCompanyType: false,
+      relatedAwardCount: 0,
+      lastEvidenceAt: null,
+      discoverySources: ["PUBLIC_WEB"],
+      websiteVerificationUrls: [
+        "https://www.qa-equipment.it/products/camera-cover",
+      ],
+    }],
+  );
+  assertEquals(merged.length, 1);
+  assertEquals(merged[0].evidence.length, 1);
+  assertEquals(
+    merged[0].discoverySources?.sort(),
+    ["PRODUCT_TED", "PUBLIC_WEB"],
+  );
+  assertEquals(
+    merged[0].websiteVerificationUrls?.[0],
+    "https://www.qa-equipment.it/products/camera-cover",
+  );
+});
+
+Deno.test("PUBLIC_WEB exact returned page enters the canonical safe website verifier", async () => {
+  const visited: string[] = [];
+  const candidate: ProspectCandidate = {
+    name: "QA Medical SRL",
+    countryCode: "IT",
+    countryName: "Italy",
+    cityRegion: null,
+    companyType: "Unknown",
+    websiteUrl: "https://qa-medical.it/products/camera-covers",
+    registryIdentifier: null,
+    description: null,
+    evidence: [],
+    activities: [],
+    taxonomyIds: [336],
+    taxonomyRelation: "none",
+    targetCountry: true,
+    preferredCompanyType: false,
+    relatedAwardCount: 0,
+    lastEvidenceAt: null,
+    discoverySources: ["PUBLIC_WEB"],
+    websiteVerificationUrls: [
+      "https://qa-medical.it/products/camera-covers",
+    ],
+  };
+  const profile = buildProductFamilyProfile([{
+    taxonomyId: 336,
+    canonicalName: "Camera Covers",
+    slug: "camera-covers",
+    aliases: ["Camera Cover", "Camera Sleeve"],
+  }]);
+  const result = await verifyWebsites([candidate], profile, {
+    now: new Date("2026-08-24T00:00:00Z"),
+    resolver: () => Promise.resolve(["93.184.216.34"]),
+    fetcher: (request) => {
+      const url = String(request);
+      visited.push(url);
+      return Promise.resolve(
+        url.endsWith("/robots.txt")
+          ? new Response("User-agent: *\nAllow: /", { status: 200 })
+          : new Response(
+            "<html><title>Camera Covers</title><body>Official sterile Camera Cover and Camera Sleeve product portfolio. Medical device distributor.</body></html>",
+            { status: 200, headers: { "Content-Type": "text/html" } },
+          ),
+      );
+    },
+  });
+  assertEquals(
+    visited.includes("https://qa-medical.it/products/camera-covers"),
+    true,
+  );
+  assertEquals(result.publicWebChecked, 1);
+  assertEquals(result.publicWebVerified, 1);
+  assertEquals(candidate.evidence.length, 1);
+  assertEquals(candidate.evidence[0].sourceType, "COMPANY_WEBSITE");
+  assertEquals(candidate.evidence[0].relevanceClass, "DIRECT");
 });
 
 Deno.test("six-request V2.1 retrieval fits the legacy production progress constraint", () => {
@@ -171,8 +312,31 @@ Deno.test("registry identifier merges an alternate legal name into its TED candi
     }],
     ["PL"],
     ["distributor"],
+    [{
+      name: "QA Medical Trading",
+      countryCode: "PL",
+      countryName: "Poland",
+      cityRegion: null,
+      companyType: "Unknown",
+      websiteUrl: "https://qa-medical-trading.pl/camera-covers",
+      registryIdentifier: null,
+      description: null,
+      evidence: [],
+      activities: [],
+      taxonomyIds: [1],
+      taxonomyRelation: "none",
+      targetCountry: true,
+      preferredCompanyType: false,
+      relatedAwardCount: 0,
+      lastEvidenceAt: null,
+      discoverySources: ["PUBLIC_WEB"],
+      websiteVerificationUrls: [
+        "https://qa-medical-trading.pl/camera-covers",
+      ],
+    }],
   );
   assertEquals(merged.length, 1);
   assertEquals(merged[0].evidence.length, 2);
   assertEquals(merged[0].activities.length, 1);
+  assertEquals(merged[0].discoverySources?.includes("PUBLIC_WEB"), true);
 });

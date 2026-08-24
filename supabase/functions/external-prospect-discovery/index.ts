@@ -33,6 +33,8 @@ import {
   type RegistryRequest,
 } from "../_shared/external-registry-adapters.ts";
 import {
+  type PublicFetcher,
+  type PublicResolver,
   readBoundedResponseBody,
   safeFetchWithRedirects,
 } from "../_shared/safe-public-fetch.ts";
@@ -47,6 +49,15 @@ import {
   WEBSITE_PRODUCT_SCAN_LIMITS,
   type WebsiteProductSignal,
 } from "../_shared/website-product-discovery.ts";
+import {
+  createBraveSearchProvider,
+  normalizePublicWebResult,
+  PUBLIC_WEB_DISCOVERY_LIMITS,
+  type PublicWebCacheEntry,
+  publicWebCandidatesToProspects,
+  type PublicWebDiscoveryCache,
+  runPublicWebDiscovery,
+} from "../_shared/public-web-discovery.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 const ALLOWED_ORIGINS = new Set([
@@ -489,6 +500,12 @@ export function extractTedCandidatesFromNotice(input: {
       preferredCompanyType: false,
       relatedAwardCount: commerciallyRelevant ? 1 : 0,
       lastEvidenceAt: evidenceDate,
+      discoverySources: [
+        input.search.retrievalKind === "RELATED_CPV"
+          ? "CPV_TED"
+          : "PRODUCT_TED",
+      ],
+      websiteVerificationUrls: websiteUrl ? [websiteUrl] : [],
     });
   }
   return {
@@ -863,9 +880,11 @@ export function mergeSignals(
   registryCandidates: RegistryCandidate[],
   targetCountries: string[],
   partnerTypes: string[],
+  publicWebCandidates: ProspectCandidate[] = [],
 ): ProspectCandidate[] {
   const byName = new Map<string, ProspectCandidate>();
   const byRegistry = new Map<string, ProspectCandidate>();
+  const byDomain = new Map<string, ProspectCandidate>();
   for (const candidate of tedCandidates) {
     const key = `${normalizeCompanyName(candidate.name)}:${
       candidate.countryCode || ""
@@ -880,14 +899,30 @@ export function mergeSignals(
       previous.relatedAwardCount += candidate.relatedAwardCount;
       previous.websiteUrl ||= candidate.websiteUrl;
       previous.registryIdentifier ||= candidate.registryIdentifier;
+      previous.discoverySources = [
+        ...new Set([
+          ...(previous.discoverySources || []),
+          ...(candidate.discoverySources || []),
+        ]),
+      ];
+      previous.websiteVerificationUrls = [
+        ...new Set([
+          ...(candidate.websiteVerificationUrls || []),
+          ...(previous.websiteVerificationUrls || []),
+        ]),
+      ];
       previous.lastEvidenceAt =
         [previous.lastEvidenceAt, candidate.lastEvidenceAt]
           .filter(Boolean).sort().reverse()[0] || null;
       byName.set(key, previous);
       if (registryKey) byRegistry.set(registryKey, previous);
+      const domain = normalizeDomain(previous.websiteUrl);
+      if (domain) byDomain.set(domain, previous);
     } else {
       byName.set(key, candidate);
       if (registryKey) byRegistry.set(registryKey, candidate);
+      const domain = normalizeDomain(candidate.websiteUrl);
+      if (domain) byDomain.set(domain, candidate);
     }
   }
   for (const registry of registryCandidates) {
@@ -919,6 +954,12 @@ export function mergeSignals(
       previous.evidence.push(evidence);
       previous.registryIdentifier ||= registry.registryIdentifier;
       previous.cityRegion ||= registry.cityRegion;
+      previous.discoverySources = [
+        ...new Set([
+          ...(previous.discoverySources || []),
+          "REGISTRY" as const,
+        ]),
+      ];
       if (
         previous.companyType === "Unknown" &&
         registry.activity.strength === "STRONG_INDIRECT"
@@ -947,10 +988,41 @@ export function mergeSignals(
         preferredCompanyType: false,
         relatedAwardCount: 0,
         lastEvidenceAt: registry.activity.effectiveFrom,
+        discoverySources: ["REGISTRY"],
+        websiteVerificationUrls: [],
       };
       byName.set(key, created);
       byRegistry.set(registryKey, created);
     }
+  }
+  for (const candidate of publicWebCandidates) {
+    const domain = normalizeDomain(candidate.websiteUrl);
+    const key = `${normalizeCompanyName(candidate.name)}:${
+      candidate.countryCode || ""
+    }`;
+    const previous = (domain ? byDomain.get(domain) : null) || byName.get(key);
+    if (previous) {
+      previous.websiteUrl ||= candidate.websiteUrl;
+      previous.countryCode ||= candidate.countryCode;
+      previous.countryName ||= candidate.countryName;
+      previous.discoverySources = [
+        ...new Set([
+          ...(previous.discoverySources || []),
+          "PUBLIC_WEB" as const,
+        ]),
+      ];
+      previous.websiteVerificationUrls = [
+        ...new Set([
+          ...(candidate.websiteVerificationUrls || []),
+          ...(previous.websiteVerificationUrls || []),
+        ]),
+      ];
+      byName.set(key, previous);
+      if (domain) byDomain.set(domain, previous);
+      continue;
+    }
+    byName.set(key, candidate);
+    if (domain) byDomain.set(domain, candidate);
   }
   const wantedTypes = partnerTypes.map((item) => item.toLowerCase());
   return [...new Set(byName.values())].map((candidate) => ({
@@ -966,9 +1038,14 @@ export function mergeSignals(
   }));
 }
 
-async function verifyWebsites(
+export async function verifyWebsites(
   candidates: ProspectCandidate[],
   productFamily: ProductFamilyProfile,
+  dependencies: {
+    resolver?: PublicResolver;
+    fetcher?: PublicFetcher;
+    now?: Date;
+  } = {},
 ): Promise<{
   available: number;
   checked: number;
@@ -976,8 +1053,24 @@ async function verifyWebsites(
   relevant: number;
   generic: number;
   skipped: number;
+  publicWebChecked: number;
+  publicWebVerified: number;
 }> {
-  const withWebsites = candidates.filter((item) => item.websiteUrl);
+  const withWebsites = candidates.filter((item) => item.websiteUrl).sort(
+    (left, right) => {
+      const priority = (candidate: ProspectCandidate) =>
+        candidate.discoverySources?.includes("PUBLIC_WEB")
+          ? 0
+          : candidate.evidence.some((item) => item.relevanceClass === "DIRECT")
+          ? 1
+          : candidate.evidence.some((item) =>
+              item.relevanceClass === "ADJACENT"
+            )
+          ? 2
+          : 3;
+      return priority(left) - priority(right);
+    },
+  );
   const selected: ProspectCandidate[] = [];
   const countryCounts = new Map<string, number>();
   for (const candidate of withWebsites) {
@@ -993,7 +1086,9 @@ async function verifyWebsites(
     if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
   }
   const results = await Promise.all(selected.map(async (candidate) => {
-    const website = normalizeHttpsUrl(candidate.websiteUrl);
+    const website = normalizeHttpsUrl(
+      candidate.websiteVerificationUrls?.[0] || candidate.websiteUrl,
+    );
     if (!website) return "SKIPPED" as const;
     try {
       const siteUrl = new URL(website);
@@ -1004,7 +1099,12 @@ async function verifyWebsites(
           headers: {
             "User-Agent": "MedicHall-External-Prospect-Discovery/1.0",
           },
-        }, { maximumAttempts: 1, maximumRedirects: 2 });
+        }, {
+          maximumAttempts: 1,
+          maximumRedirects: 2,
+          resolver: dependencies.resolver,
+          fetcher: dependencies.fetcher,
+        });
         if (robots.response.ok) {
           const body = await readBoundedResponseBody(robots.response, 128_000);
           allowed = isPathAllowedByRobots(
@@ -1022,7 +1122,19 @@ async function verifyWebsites(
           "Accept": "text/html,application/xhtml+xml",
           "User-Agent": "MedicHall-External-Prospect-Discovery/1.0",
         },
-      }, { maximumAttempts: 1, maximumRedirects: 3 });
+      }, {
+        maximumAttempts: 1,
+        maximumRedirects: 3,
+        resolver: dependencies.resolver,
+        fetcher: dependencies.fetcher,
+      });
+      if (
+        candidate.discoverySources?.includes("PUBLIC_WEB") &&
+        normalizeDomain(result.resolvedUrl) !== normalizeDomain(website)
+      ) {
+        await result.response.body?.cancel();
+        return "SKIPPED" as const;
+      }
       if (!result.response.ok) {
         await result.response.body?.cancel();
         return "UNAVAILABLE" as const;
@@ -1049,7 +1161,10 @@ async function verifyWebsites(
         snippet: text,
         evidenceKind: "WEAK_CONTEXT",
         confidence: 0.85,
-        evidenceDate: new Date().toISOString().slice(0, 10),
+        evidenceDate: (dependencies.now || new Date()).toISOString().slice(
+          0,
+          10,
+        ),
         taxonomyIds: candidate.taxonomyIds,
       }, productFamily);
       candidate.evidence.push({
@@ -1069,6 +1184,9 @@ async function verifyWebsites(
           ? 0.78
           : 0.4,
       });
+      if (candidate.companyType === "Unknown") {
+        candidate.companyType = companyType(text);
+      }
       if (
         classified.relevanceClass === "DIRECT" &&
         candidate.taxonomyRelation === "none"
@@ -1079,6 +1197,10 @@ async function verifyWebsites(
         candidate.taxonomyRelation === "none"
       ) {
         candidate.taxonomyRelation = "family";
+      }
+      if (classified.relevanceClass !== "GENERIC") {
+        candidate.lastEvidenceAt = (dependencies.now || new Date())
+          .toISOString().slice(0, 10);
       }
       return classified.relevanceClass === "GENERIC"
         ? "GENERIC" as const
@@ -1094,6 +1216,14 @@ async function verifyWebsites(
     relevant: results.filter((value) => value === "RELEVANT").length,
     generic: results.filter((value) => value === "GENERIC").length,
     skipped: results.filter((value) => value === "SKIPPED").length,
+    publicWebChecked:
+      selected.filter((candidate) =>
+        candidate.discoverySources?.includes("PUBLIC_WEB")
+      ).length,
+    publicWebVerified: results.filter((value, index) =>
+      value === "RELEVANT" &&
+      selected[index].discoverySources?.includes("PUBLIC_WEB")
+    ).length,
   };
 }
 
@@ -1584,9 +1714,10 @@ export function discoveryCompletionStatus(input: {
   tedUnavailable: boolean;
   registryUnavailableProviders: number;
   websiteUnavailable: number;
+  publicWebUnavailable?: boolean;
 }): "COMPLETED" | "PARTIAL" {
   return input.tedUnavailable || input.registryUnavailableProviders > 0 ||
-      input.websiteUnavailable > 0
+      input.websiteUnavailable > 0 || input.publicWebUnavailable === true
     ? "PARTIAL"
     : "COMPLETED";
 }
@@ -1596,6 +1727,98 @@ export function legacyQueryProgressCount(actualRequests: number): number {
     0,
     Math.min(LEGACY_QUERY_PROGRESS_LIMIT, Math.trunc(actualRequests)),
   );
+}
+
+function enabledEnvironmentFlag(value: string | undefined): boolean {
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+function boundedEnvironmentNumber(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? Math.max(minimum, Math.min(maximum, parsed))
+    : fallback;
+}
+
+function publicWebDiscoveryCache(
+  // deno-lint-ignore no-explicit-any -- forward migration adds this service-only table.
+  admin: any,
+): PublicWebDiscoveryCache {
+  return {
+    async read(providerCode, requestKeyHash, now) {
+      const result = await admin.from("external_public_web_request_cache")
+        .select(
+          "provider_code,request_key_hash,product_family_key,country_code,search_language,query_variant,normalized_candidates,fetch_status,fetched_at,expires_at,last_error_code,hit_count",
+        ).eq("provider_code", providerCode)
+        .eq("request_key_hash", requestKeyHash)
+        .gt("expires_at", now.toISOString()).maybeSingle();
+      if (result.error || !result.data) return null;
+      const row = record(result.data);
+      const candidates = array(row.normalized_candidates).map(
+        normalizePublicWebResult,
+      ).filter((candidate): candidate is NonNullable<typeof candidate> =>
+        candidate !== null
+      ).slice(0, PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates);
+      const hit = await admin.from("external_public_web_request_cache").update({
+        hit_count: Math.max(0, Number(row.hit_count) || 0) + 1,
+        last_hit_at: now.toISOString(),
+      }).eq("provider_code", providerCode)
+        .eq("request_key_hash", requestKeyHash);
+      if (hit.error) throw new Error("PUBLIC_WEB_CACHE_HIT_UPDATE_FAILED");
+      const status = String(row.fetch_status);
+      if (!["ACTIVE", "ZERO_RESULTS", "UNAVAILABLE"].includes(status)) {
+        return null;
+      }
+      return {
+        providerCode,
+        requestKeyHash,
+        productFamilyKey: String(row.product_family_key || ""),
+        countryCode: String(row.country_code || ""),
+        searchLanguage: String(row.search_language || ""),
+        queryVariant: Number(row.query_variant) || 0,
+        status: status as PublicWebCacheEntry["status"],
+        candidates,
+        fetchedAt: String(row.fetched_at || ""),
+        expiresAt: String(row.expires_at || ""),
+        errorCode: row.last_error_code ? String(row.last_error_code) : null,
+      };
+    },
+    async write(entry) {
+      const normalizedCandidates = entry.candidates.slice(
+        0,
+        PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
+      ).map((candidate) => ({
+        name: sanitizeEvidenceText(candidate.name, 180),
+        pageUrl: normalizeHttpsUrl(candidate.pageUrl),
+        canonicalDomain: candidate.canonicalDomain,
+        countryCode: candidate.countryCode,
+      })).filter((candidate) => candidate.pageUrl);
+      const result = await admin.from("external_public_web_request_cache")
+        .upsert({
+          provider_code: entry.providerCode,
+          request_key_hash: entry.requestKeyHash,
+          product_family_key: sanitizeEvidenceText(
+            entry.productFamilyKey,
+            120,
+          ),
+          country_code: entry.countryCode,
+          search_language: entry.searchLanguage,
+          query_variant: entry.queryVariant,
+          normalized_candidates: normalizedCandidates,
+          fetch_status: entry.status,
+          fetched_at: entry.fetchedAt,
+          expires_at: entry.expiresAt,
+          failure_count: entry.status === "UNAVAILABLE" ? 1 : 0,
+          last_error_code: entry.errorCode,
+        }, { onConflict: "provider_code,request_key_hash" });
+      if (result.error) throw new Error("PUBLIC_WEB_CACHE_WRITE_FAILED");
+    },
+  };
 }
 
 async function handleDiscovery(request: Request): Promise<Response> {
@@ -1802,6 +2025,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
     stage: "loading_profile",
     started_at: new Date().toISOString(),
   });
+  let publicWebProviderRequests = 0;
+  let publicWebProviderCostUsd = 0;
   try {
     const [profileResult, matchProfileResult, companiesResult] = await Promise
       .all([
@@ -1884,6 +2109,29 @@ async function handleDiscovery(request: Request): Promise<Response> {
       targetCountries,
     });
     const registryCoverage = registryCoverageForCountries(discoveryCountries);
+    const publicWebEnabled = enabledEnvironmentFlag(
+      Deno.env.get("PUBLIC_WEB_DISCOVERY_ENABLED"),
+    );
+    const publicWebProviderName = String(
+      Deno.env.get("PUBLIC_WEB_PROVIDER") || "brave",
+    ).trim().toLowerCase();
+    const braveSearchApiKey = Deno.env.get("BRAVE_SEARCH_API_KEY") || "";
+    const publicWebProvider = publicWebEnabled &&
+        publicWebProviderName === "brave" && braveSearchApiKey.trim()
+      ? createBraveSearchProvider({ apiKey: braveSearchApiKey })
+      : null;
+    const publicWebMaximumQueries = Math.trunc(boundedEnvironmentNumber(
+      Deno.env.get("PUBLIC_WEB_MAX_QUERIES_PER_RUN"),
+      PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
+      1,
+      PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
+    ));
+    const publicWebMaximumCost = boundedEnvironmentNumber(
+      Deno.env.get("PUBLIC_WEB_MAX_COST_USD_PER_RUN"),
+      PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
+      0,
+      PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
+    );
     await updateProgress({
       stage: "preparing_market_search",
       // The existing production progress column is constrained to 0..4.
@@ -1905,6 +2153,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
           label: productFamily.label,
         },
         countries_attempted: discoveryCountries,
+        public_web_discovery_enabled: publicWebEnabled,
+        public_web_query_limit: publicWebMaximumQueries,
+        public_web_cost_limit_usd: publicWebMaximumCost,
         ted_requests_planned: tedSearchPlan.length,
         ted_query_partitions: tedSearchPlan.map((item) => ({
           retrieval_kind: item.retrievalKind,
@@ -1918,16 +2169,41 @@ async function handleDiscovery(request: Request): Promise<Response> {
       stage: "searching_procurement",
       queries_generated: legacyQueryProgressCount(tedSearchPlan.length),
     });
-    const ted = await fetchTedAwards(
-      tedSearchPlan,
+    const [ted, publicWeb] = await Promise.all([
+      fetchTedAwards(
+        tedSearchPlan,
+        taxonomyIds,
+        fallbackCpv,
+        productFamily,
+      ),
+      runPublicWebDiscovery({
+        enabled: publicWebEnabled,
+        provider: publicWebProvider,
+        cache: publicWebDiscoveryCache(admin),
+        productFamily,
+        targetCountries,
+        maximumQueries: publicWebMaximumQueries,
+        maximumCostUsd: publicWebMaximumCost,
+      }),
+    ]);
+    publicWebProviderRequests = publicWeb.providerRequests;
+    publicWebProviderCostUsd = publicWeb.providerCostEstimateUsd;
+    const publicWebProspects = publicWebCandidatesToProspects({
+      candidates: publicWeb.candidates,
       taxonomyIds,
-      fallbackCpv,
-      productFamily,
-    );
+      targetCountries,
+      partnerTypes,
+    });
     await updateProgress({
       stage: "checking_business_sources",
-      sources_checked: Math.min(60, ted.checked),
-      candidates_found: Math.min(100, ted.candidates.length),
+      sources_checked: Math.min(
+        60,
+        ted.checked + publicWeb.queriesUsed,
+      ),
+      candidates_found: Math.min(
+        100,
+        ted.candidates.length + publicWebProspects.length,
+      ),
     });
     const registry = await fetchRegistryCandidates(
       admin,
@@ -1946,10 +2222,14 @@ async function handleDiscovery(request: Request): Promise<Response> {
     );
     await updateProgress({
       stage: "verifying_websites",
-      sources_checked: Math.min(60, ted.checked + registry.checked),
+      sources_checked: Math.min(
+        60,
+        ted.checked + publicWeb.queriesUsed + registry.checked,
+      ),
       candidates_found: Math.min(
         100,
-        ted.candidates.length + registry.candidates.length,
+        ted.candidates.length + registry.candidates.length +
+          publicWebProspects.length,
       ),
     });
     const merged = mergeSignals(
@@ -1960,13 +2240,15 @@ async function handleDiscovery(request: Request): Promise<Response> {
       boundedRegistryCandidates,
       targetCountries,
       partnerTypes,
+      publicWebProspects,
     );
     const website = await verifyWebsites(merged, productFamily);
     await updateProgress({
       stage: "removing_duplicates",
       sources_checked: Math.min(
         60,
-        ted.checked + registry.checked + website.checked,
+        ted.checked + publicWeb.queriesUsed + registry.checked +
+          website.checked,
       ),
       candidates_found: Math.min(100, merged.length),
     });
@@ -2020,6 +2302,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       tedUnavailable: ted.unavailable,
       registryUnavailableProviders: registry.unavailableProviders.length,
       websiteUnavailable: website.unavailable,
+      publicWebUnavailable: publicWeb.unavailable,
     });
     const partial = completionStatus === "PARTIAL";
     const diagnostics = {
@@ -2042,15 +2325,37 @@ async function handleDiscovery(request: Request): Promise<Response> {
       registry_external_requests: registry.externalRequests,
       registry_cache_hits: registry.cacheHits,
       registry_cache_unavailable: registry.cacheUnavailable,
+      public_web_discovery_status: publicWeb.status,
+      public_web_queries_planned: publicWeb.queriesPlanned,
+      public_web_queries_used: publicWeb.queriesUsed,
+      public_web_results_received: publicWeb.resultsReceived,
+      public_web_candidates_created: publicWeb.candidatesCreated,
+      public_web_candidates_verified: website.publicWebVerified,
+      public_web_candidates_accepted: ranking.accepted.filter((item) =>
+        item.candidate.discoverySources?.includes("PUBLIC_WEB")
+      ).length,
+      public_web_cache_hits: publicWeb.cacheHits,
+      public_web_cache_misses: publicWeb.cacheMisses,
+      public_web_provider_requests: publicWeb.providerRequests,
+      public_web_provider_cost_estimate_usd: publicWebProviderCostUsd,
+      public_web_provider_latency_ms: publicWeb.providerLatencyMs,
+      public_web_provider_status_codes: publicWeb.providerStatusCodes,
+      public_web_provider_circuit_open: publicWeb.circuitOpen,
+      public_web_candidate_domains: publicWeb.candidates.map((candidate) =>
+        candidate.canonicalDomain
+      ),
+      public_web_rejection_reasons: publicWeb.rejectionReasons,
       website_unavailable_count: website.unavailable,
       registered_duplicates: deduped.registeredDuplicates,
       external_duplicates: deduped.externalDuplicates,
       ted_candidates_found: ted.candidates.length,
       registry_candidates_found: registry.candidates.length,
+      public_web_candidates_found: publicWebProspects.length,
       ted_product_term_candidates_selected:
         tedPartitions.productTermCandidates.length,
       ted_cpv_candidates_selected: tedPartitions.cpvCandidates.length,
       registry_candidates_selected: boundedRegistryCandidates.length,
+      public_web_candidates_selected: publicWebProspects.length,
       candidates_rejected_by_source_caps: tedPartitions.rejectedBySourceCaps +
         Math.max(
           0,
@@ -2063,7 +2368,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
       countries_attempted: discoveryCountries,
       countries_with_candidates: Object.keys(
         ranking.diagnostics.candidatesByCountry,
-      ).filter((country) => country !== "UNKNOWN"),
+      ).filter((country) =>
+        country !== "UNKNOWN"
+      ),
       countries_with_accepted_prospects: Object.keys(
         ranking.diagnostics.acceptedByCountry,
       ).filter((country) => country !== "UNKNOWN"),
@@ -2131,7 +2438,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       },
       quality_metrics: {
         retrieval_candidates: ted.candidates.length +
-          registry.candidates.length,
+          registry.candidates.length + publicWebProspects.length,
         verified_candidates: deduped.candidates.length,
         accepted_candidates: ranking.accepted.length,
         persisted_candidates: accepted,
@@ -2144,6 +2451,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
           product_term_ted: tedPartitions.productTermCandidates.length,
           related_cpv_ted: tedPartitions.cpvCandidates.length,
           official_registry: boundedRegistryCandidates.length,
+          public_web_candidate_generation: publicWebProspects.length,
           websites_with_official_domains: website.available,
         },
       },
@@ -2177,7 +2485,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
         stage: "completed",
         sources_checked: Math.min(
           60,
-          ted.checked + registry.checked + website.checked,
+          ted.checked + publicWeb.queriesUsed + registry.checked +
+            website.checked,
         ),
         candidates_found: Math.min(100, merged.length),
         candidates_deduplicated: Math.min(
@@ -2188,7 +2497,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
         candidates_rejected: Math.min(100, rejected),
         taxonomy_mapped: Math.min(100, accepted * taxonomyIds.length),
         ai_classifications: 0,
-        provider_requests: 0,
+        provider_requests: publicWebProviderRequests,
+        // Customer workspaces currently expose this legacy column. Keep it
+        // zero and retain the internal estimate only in service diagnostics.
         estimated_cost_usd: 0,
         diagnostics,
         completed_at: new Date().toISOString(),
@@ -2205,7 +2516,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       },
       candidates_accepted: accepted,
       candidates_rejected: rejected,
-      provider_requests: 0,
+      provider_requests: publicWebProviderRequests,
       ai_classifications: 0,
       estimated_cost_usd: 0,
       emails_sent: 0,
@@ -2226,7 +2537,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       stage: "failed",
       error_code: errorCode,
       ai_classifications: 0,
-      provider_requests: 0,
+      provider_requests: publicWebProviderRequests,
       estimated_cost_usd: 0,
       completed_at: new Date().toISOString(),
     }).eq("id", runId);

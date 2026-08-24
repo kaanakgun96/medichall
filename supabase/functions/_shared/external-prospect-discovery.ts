@@ -45,6 +45,12 @@ export type CandidateDiscoveryReason =
   | "RELATED_CPV_TED"
   | "OFFICIAL_REGISTRY_ACTIVITY";
 
+export type CandidateSourcePartition =
+  | "PRODUCT_TED"
+  | "CPV_TED"
+  | "REGISTRY"
+  | "PUBLIC_WEB";
+
 export type ActivitySignal = {
   providerCode: string;
   countryCode: string;
@@ -235,6 +241,11 @@ export type ProspectCandidate = {
   relatedAwardCount: number;
   lastEvidenceAt: string | null;
   buyerArchetypes?: BuyerArchetypeSignal[];
+  // Candidate-source provenance is transient retrieval metadata. PUBLIC_WEB
+  // never becomes scoring evidence; only the independently fetched official
+  // page may add COMPANY_WEBSITE evidence.
+  discoverySources?: CandidateSourcePartition[];
+  websiteVerificationUrls?: string[];
 };
 
 export type ProspectScore = {
