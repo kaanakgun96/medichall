@@ -1,6 +1,7 @@
 import {
   discoveryCompletionStatus,
   handleExternalProspectDiscoveryRequest,
+  legacyQueryProgressCount,
   mergeSignals,
   structuredTexts,
 } from "./index.ts";
@@ -107,6 +108,12 @@ Deno.test("registry outage degrades the run to PARTIAL without failing discovery
     }),
     "COMPLETED",
   );
+});
+
+Deno.test("six-request V2.1 retrieval fits the legacy production progress constraint", () => {
+  assertEquals(legacyQueryProgressCount(6), 4);
+  assertEquals(legacyQueryProgressCount(4), 4);
+  assertEquals(legacyQueryProgressCount(-1), 0);
 });
 
 Deno.test("registry identifier merges an alternate legal name into its TED candidate", () => {

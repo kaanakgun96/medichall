@@ -103,6 +103,7 @@ type JsonRecord = Record<string, unknown>;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WEBSITE_SCAN_USER_AGENT = "MedicHall-Website-Product-Discovery/1.0";
+const LEGACY_QUERY_PROGRESS_LIMIT = 4;
 
 function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get("origin") || "";
@@ -1590,6 +1591,13 @@ export function discoveryCompletionStatus(input: {
     : "COMPLETED";
 }
 
+export function legacyQueryProgressCount(actualRequests: number): number {
+  return Math.max(
+    0,
+    Math.min(LEGACY_QUERY_PROGRESS_LIMIT, Math.trunc(actualRequests)),
+  );
+}
+
 async function handleDiscovery(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(request) });
@@ -1878,7 +1886,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const registryCoverage = registryCoverageForCountries(discoveryCountries);
     await updateProgress({
       stage: "preparing_market_search",
-      queries_generated: tedSearchPlan.length,
+      // The existing production progress column is constrained to 0..4.
+      // V2.1's exact six-request count remains available in diagnostics.
+      queries_generated: legacyQueryProgressCount(tedSearchPlan.length),
       taxonomy_mapped: Math.min(100, taxonomyIds.length),
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
@@ -1906,7 +1916,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
     await updateProgress({
       stage: "searching_procurement",
-      queries_generated: tedSearchPlan.length,
+      queries_generated: legacyQueryProgressCount(tedSearchPlan.length),
     });
     const ted = await fetchTedAwards(
       tedSearchPlan,
