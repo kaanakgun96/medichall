@@ -46,6 +46,10 @@ async function request(path,options={}){
   try{data=text?JSON.parse(text):null;}catch(_){data=text;}
   if(!response.ok){
     const error=UI.httpError(response,data);
+    const backendMessage=String(data?.error||data?.message||data?.msg||"").replace(/\s+/g," ").trim().slice(0,180);
+    const backendCode=String(data?.code||data?.error_code||"").toUpperCase().replace(/[^A-Z0-9_]/g,"").slice(0,80);
+    if(backendMessage)error.backendMessage=backendMessage;
+    if(backendCode)error.backendCode=backendCode;
     if(response.status===401)error.code="AUTH_SESSION_EXPIRED";
     const videoCode=String(data&&data.code||"").toUpperCase();
     if(/^MEETING_[A-Z_]+$/.test(videoCode))error.code=videoCode;
@@ -782,7 +786,10 @@ async function loadWorkspace(silent=false){
   try{
     state.data=await rpc("get_matchmaking_workspace",{p_limit:100});
     state.taxonomyInterests=state.data?.profile?await rpc("get_matchmaking_taxonomy_interests_v1",{p_profile_id:state.data.profile.id}).catch(error=>{UI.report("matchmaking.taxonomy_load",error);return [];}):[];
-    state.loaded=true;updateHeader();renderTabs();renderWorkspace();applyDeepLink();
+    const preserveBuyerDiscovery=silent&&state.view==="buyer_discovery"&&externalProspectWorkspace;
+    state.loaded=true;updateHeader();renderTabs();
+    if(!preserveBuyerDiscovery)renderWorkspace();
+    applyDeepLink();
     if(!state.workspaceTimer)state.workspaceTimer=setInterval(()=>{if(!document.hidden)loadWorkspace(true);},30000);
   }catch(error){if(!silent)document.getElementById("workspaceRoot").innerHTML='<div class="empty"><b>Workspace unavailable</b>'+esc(parseError(error))+'<br><button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="loadWorkspace()">Try again</button></div>';}
   finally{state.loading=false;}

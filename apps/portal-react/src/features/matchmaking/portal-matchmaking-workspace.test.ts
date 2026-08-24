@@ -246,7 +246,7 @@ describe("production Matchmaking Workspace", () => {
     expect(standaloneMatchmaking).toContain("Review request");
     expect(standaloneMatchmaking).toContain("Meeting request sent");
     expect(standaloneMatchmaking).toContain(
-      '<script src="matchmaking-workspace.js?v=20260820buyer1"></script>',
+      '<script src="matchmaking-workspace.js?v=20260824stability1"></script>',
     );
     expect(standaloneMatchmaking).not.toContain("document.write");
     expect(standaloneMatchmaking).not.toContain("SUPABASE_ANON_KEY");

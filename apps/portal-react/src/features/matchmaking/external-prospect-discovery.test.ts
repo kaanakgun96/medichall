@@ -10,7 +10,7 @@ import registryAdapters from "../../../../../supabase/functions/_shared/external
 describe("External Prospect Discovery production contract", () => {
   it("uses one shared workspace across first-class Buyer Discovery surfaces", () => {
     for (const page of [portal, standalone]) {
-      expect(page).toContain("external-prospects.js?v=20260824relevance2");
+      expect(page).toContain("external-prospects.js?v=20260824stability1");
       expect(page).toContain("external-prospects.css?v=20260824relevance2");
     }
     expect(portal).toContain("European Buyer Discovery");
@@ -22,7 +22,8 @@ describe("External Prospect Discovery production contract", () => {
 
   it("keeps discovery manual, bounded, cached, and zero-paid-provider", () => {
     expect(externalWorkspace).toContain("Discover European buyers");
-    expect(externalWorkspace).toContain("data-action=\"discover\"");
+    expect(externalWorkspace).toContain('if(action==="discover")discover()');
+    expect(externalWorkspace).toContain('else if(action==="retry")discover(true)');
     expect(externalWorkspace).not.toMatch(/DOMContentLoaded[^;]+discover/i);
     expect(migration).toContain("interval '24 hours'");
     expect(migration).toContain("interval '30 minutes'");

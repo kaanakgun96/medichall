@@ -49,7 +49,7 @@ function createWorkspace(options){
   if(!options?.root||typeof options.rpc!=="function"||typeof options.edge!=="function")throw new Error("Buyer Discovery workspace configuration is incomplete.");
   const state={
     data:{runs:[],prospects:[],website_scans:[],product_context:{}},loading:false,discovering:false,scanning:false,openId:null,
-    notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,
+    notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,retryRequired:false,
     initialized:false,mode:null,selectedRunId:null,profileSelected:new Set(),websiteSelected:new Set(),
     countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,
     filters:{query:"",country:"",market:"",type:"",evidence:"",score:"",freshness:"",status:"",sort:"score"}
@@ -186,7 +186,7 @@ function createWorkspace(options){
     const sourceCount=Number(run.sources_checked||0),found=Number(run.candidates_found||0),accepted=Number(run.candidates_accepted||0),deduped=Number(run.candidates_deduplicated||0),context=runContext(run);
     let outcome="";
     if(status==="PARTIAL")outcome='<div class="mhxp-state partial"><b>Results are ready with limited source coverage.</b><p>Available evidence was ranked normally. One or more public sources could not be reached, so absence of a result is not proof that no buyer exists.</p></div>';
-    if(status==="FAILED")outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="reload">Check status</button></div>';
+    if(status==="FAILED")outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="retry">Retry search</button></div>';
     if(status==="COMPLETED")outcome='<div class="mhxp-state complete"><b>European buyer search complete.</b><p>'+accepted+' evidence-backed candidate'+(accepted===1?"":"s")+' met the current confidence threshold.</p></div>';
     return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">'+esc(context.source)+'</span><h4>'+esc(stageName(run.stage,status))+'</h4><p><b>Discovering buyers for '+esc(context.product)+'</b> · '+esc(context.markets)+'. Only completed backend work is shown; no estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
       (isActive(run)?'<ol class="mhxp-stages">'+steps+'</ol>':"")+
@@ -273,7 +273,8 @@ function createWorkspace(options){
   }
   function readinessHtml(){
     const ready=readiness(),modeContent=state.mode==="profile"?profileModeHtml():state.mode==="website"?websiteModeHtml():adhocModeHtml();
-    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="discover" '+(!ready.ready?'disabled aria-disabled="true"':'')+'>Discover European buyers</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm at least one product category to continue.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
+    const action=state.retryRequired?"retry":"discover",busy=state.discovering,label=busy?"Searching Europe…":state.retryRequired?"Retry search":"Discover European buyers";
+    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+action+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+label+'</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm at least one product category to continue.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
   }
   function friendlyRunError(code){
     const value=String(code||"").toUpperCase();
@@ -282,7 +283,7 @@ function createWorkspace(options){
     return"No saved results were removed. Refresh the status, then retry when ready.";
   }
   function friendlyError(error){
-    const value=String(error?.userMessage||error?.message||"Buyer Discovery could not be completed.");
+    const value=[error?.userMessage,error?.message,error?.backendMessage,error?.backendCode,error?.code,error?.edgeDetails?.backendMessage,error?.edgeDetails?.code].filter(Boolean).join(" ");
     if(/30 minutes|cooldown/i.test(value))return"A recent search is still within the safety cooldown. Your existing results remain available; try again after 30 minutes.";
     if(/daily/i.test(value))return"Today’s safe search limit has been reached. Existing results remain available; try again tomorrow.";
     if(/monthly/i.test(value))return"This month’s search limit has been reached. Existing results remain available.";
@@ -304,11 +305,12 @@ function createWorkspace(options){
   }
   function statusAllowsEmpty(run){return !run||ACTIVE_STATUSES.has(String(run.status||"").toUpperCase())||String(run.status||"").toUpperCase()==="FAILED";}
 
-  async function discover(){
+  async function discover(explicitRetry=false){
     if(state.discovering||isActive()){
       state.notice={tone:"neutral",title:"A search is already running.",message:"Progress will update here automatically. Starting the same search again would not create a second request."};
       render();syncPolling();return;
     }
+    if(state.retryRequired&&!explicitRetry)return;
     const ready=readiness();
     if(!ready.ready){state.notice={tone:"neutral",title:"Confirm a product category first.",message:"Choose a profile product, confirm a manual taxonomy match, or select a website-detected category."};render();return;}
     const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
@@ -320,10 +322,12 @@ function createWorkspace(options){
       const result=await request;
       await load({silent:true});
       state.selectedRunId=result?.run?.run_id||list(state.data.runs)[0]?.id||state.selectedRunId;
+      state.retryRequired=false;
       state.notice={tone:"complete",title:result?.cached?"Existing results restored.":"Buyer search finished.",message:result?.cached?"MedicHall reused the matching cached search safely.":"The latest evidence-backed results are ready to review."};
       toast(result?.cached?"Existing Buyer Discovery results loaded.":"European Buyer Discovery completed.");
     }catch(error){
       await load({silent:true});
+      state.retryRequired=true;
       state.notice={tone:"failed",title:"Search not started or interrupted.",message:friendlyError(error)};
       toast(friendlyError(error));
     }finally{state.discovering=false;render();syncPolling();}
@@ -376,9 +380,11 @@ function createWorkspace(options){
     const target=event.target.closest("[data-action]");if(!target||!options.root.contains(target))return;
     const action=target.dataset.action,id=Number(target.dataset.id);
     if(action==="discover")discover();
+    else if(action==="retry")discover(true);
     else if(action==="reload")load();
-    else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;render();}
+    else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;state.retryRequired=false;render();}
     else if(action==="confirm-adhoc"){
+      state.retryRequired=false;
       if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
       render();
     }
@@ -391,12 +397,12 @@ function createWorkspace(options){
     else if(action==="website")track("external_prospect_website_clicked");
   }
   function onChange(event){
-    if(event.target.id==="mhxpProductQuery"){state.adhocResolution=null;render();return;}
+    if(event.target.id==="mhxpProductQuery"){state.adhocResolution=null;state.retryRequired=false;render();return;}
     const key=event.target.dataset.filter;if(key){state.filters[key]=event.target.value;render();return;}
-    if(event.target.dataset.profileTaxonomy){const id=Number(event.target.dataset.profileTaxonomy);event.target.checked?state.profileSelected.add(id):state.profileSelected.delete(id);render();return;}
-    if(event.target.dataset.websiteTaxonomy){const id=Number(event.target.dataset.websiteTaxonomy);event.target.checked?state.websiteSelected.add(id):state.websiteSelected.delete(id);render();return;}
-    if(event.target.dataset.countryMode){state.countryMode=event.target.dataset.countryMode;render();return;}
-    if(event.target.dataset.countrySelect!==undefined){state.selectedCountries=new Set([...event.target.selectedOptions].map(option=>option.value));render();}
+    if(event.target.dataset.profileTaxonomy){const id=Number(event.target.dataset.profileTaxonomy);event.target.checked?state.profileSelected.add(id):state.profileSelected.delete(id);state.retryRequired=false;render();return;}
+    if(event.target.dataset.websiteTaxonomy){const id=Number(event.target.dataset.websiteTaxonomy);event.target.checked?state.websiteSelected.add(id):state.websiteSelected.delete(id);state.retryRequired=false;render();return;}
+    if(event.target.dataset.countryMode){state.countryMode=event.target.dataset.countryMode;state.retryRequired=false;render();return;}
+    if(event.target.dataset.countrySelect!==undefined){state.selectedCountries=new Set([...event.target.selectedOptions].map(option=>option.value));state.retryRequired=false;render();}
   }
   function onInput(event){if(event.target.id==="mhxpProductQuery")state.adhocQuery=event.target.value;}
   function onSubmit(event){if(event.target.matches("[data-product-search]")){event.preventDefault();resolveAdhoc();}}
