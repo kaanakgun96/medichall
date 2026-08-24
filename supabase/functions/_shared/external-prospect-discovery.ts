@@ -1,6 +1,18 @@
+import {
+  archetypeLabel,
+  type BuyerArchetypeSignal,
+  type CandidateCompatibility,
+  diversityRerank,
+  evaluateCandidateCompatibility,
+  type ProductEvidenceClass,
+  type ProductFamilyProfile,
+} from "./buyer-discovery-relevance-v2.ts";
+
 export const DISCOVERY_LIMITS = Object.freeze({
   maximumQueries: 4,
+  maximumTedRequests: 6,
   maximumTedResultsPerQuery: 25,
+  maximumCandidatePool: 180,
   maximumCandidates: 30,
   maximumWebsiteChecks: 6,
   maximumRegistryChecks: 10,
@@ -178,6 +190,9 @@ export type ProspectEvidence = {
   cpvCodes?: string[];
   taxonomyIds?: number[];
   registryProviderCode?: string;
+  relevanceClass?: ProductEvidenceClass;
+  matchedTerms?: string[];
+  commercialReason?: string;
 };
 
 export type ProspectCandidate = {
@@ -205,6 +220,7 @@ export type ProspectCandidate = {
   preferredCompanyType: boolean;
   relatedAwardCount: number;
   lastEvidenceAt: string | null;
+  buyerArchetypes?: BuyerArchetypeSignal[];
 };
 
 export type ProspectScore = {
@@ -217,9 +233,43 @@ export type ProspectScore = {
   evidenceQualityScore: number;
   recencyScore: number;
   directEvidenceCount: number;
+  adjacentEvidenceCount: number;
+  genericEvidenceCount: number;
   independentIndirectSourceCount: number;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  commercialFitClassification:
+    | "DIRECT_PRODUCT_FIT"
+    | "ADJACENT_COMMERCIAL_FIT"
+    | "GENERIC_ONLY"
+    | "PRODUCT_FAMILY_MISMATCH";
+  commercialReason: string;
+  buyerArchetypes: BuyerArchetypeSignal[];
+  genericOnlyCeilingApplied: boolean;
   reasonSummary: string;
-  reasons: Array<{ kind: EvidenceKind; text: string }>;
+  reasons: Array<{
+    kind: EvidenceKind;
+    text: string;
+    code?: string;
+    evidenceClass?: ProductEvidenceClass;
+    buyerArchetype?: string;
+    confidence?: "HIGH" | "MEDIUM" | "LOW";
+  }>;
+};
+
+export type RankedProspect = {
+  candidate: ProspectCandidate;
+  score: ProspectScore;
+};
+
+export type ProspectRankingDiagnostics = {
+  candidatesByCountry: Record<string, number>;
+  acceptedByCountry: Record<string, number>;
+  candidatesBySource: Record<string, number>;
+  evidenceByClass: Record<ProductEvidenceClass, number>;
+  buyerArchetypes: Record<string, number>;
+  genericOnlyRejected: number;
+  productFamilyMismatchRejected: number;
+  diversityTieBreaksApplied: number;
 };
 
 const EMAIL_PATTERN = /[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/g;
@@ -287,6 +337,113 @@ export function boundedDiscoveryQueries(input: {
     );
   }
   return queries.slice(0, DISCOVERY_LIMITS.maximumQueries);
+}
+
+export const EUROPE_DISCOVERY_COUNTRIES = [
+  "AT",
+  "BE",
+  "BG",
+  "CH",
+  "CY",
+  "CZ",
+  "DE",
+  "DK",
+  "EE",
+  "ES",
+  "FI",
+  "FR",
+  "GB",
+  "GR",
+  "HR",
+  "HU",
+  "IE",
+  "IS",
+  "IT",
+  "LT",
+  "LU",
+  "LV",
+  "MT",
+  "NL",
+  "NO",
+  "PL",
+  "PT",
+  "RO",
+  "SE",
+  "SI",
+  "SK",
+  "TR",
+] as const;
+
+const ISO3_BY_ISO2: Record<string, string> = {
+  AT: "AUT",
+  BE: "BEL",
+  BG: "BGR",
+  CH: "CHE",
+  CY: "CYP",
+  CZ: "CZE",
+  DE: "DEU",
+  DK: "DNK",
+  EE: "EST",
+  ES: "ESP",
+  FI: "FIN",
+  FR: "FRA",
+  GB: "GBR",
+  GR: "GRC",
+  HR: "HRV",
+  HU: "HUN",
+  IE: "IRL",
+  IS: "ISL",
+  IT: "ITA",
+  LT: "LTU",
+  LU: "LUX",
+  LV: "LVA",
+  MT: "MLT",
+  NL: "NLD",
+  NO: "NOR",
+  PL: "POL",
+  PT: "PRT",
+  RO: "ROU",
+  SE: "SWE",
+  SI: "SVN",
+  SK: "SVK",
+  TR: "TUR",
+};
+
+export type TedSearchPlanEntry = {
+  query: string;
+  countries: string[];
+};
+
+export function boundedTedSearchPlan(input: {
+  queries: string[];
+  targetCountries: string[];
+}): TedSearchPlanEntry[] {
+  const productQueries = input.queries.slice(
+    0,
+    DISCOVERY_LIMITS.maximumQueries,
+  );
+  if (!productQueries.length) return [];
+  const selected = input.targetCountries.length
+    ? [...new Set(input.targetCountries.map((item) => item.toUpperCase()))]
+      .filter((item) => ISO3_BY_ISO2[item])
+    : [...EUROPE_DISCOVERY_COUNTRIES];
+  const batchCount = Math.min(
+    DISCOVERY_LIMITS.maximumTedRequests,
+    Math.max(1, selected.length),
+  );
+  const batches = Array.from({ length: batchCount }, () => [] as string[]);
+  selected.forEach((country, index) =>
+    batches[index % batchCount].push(country)
+  );
+  const productClause = productQueries.length === 1
+    ? productQueries[0]
+    : productQueries.map((query) => `(${query})`).join(" OR ");
+  return batches.filter((batch) => batch.length).map((batch) => ({
+    query: `(${productClause}) AND (winner-country IN (${
+      batch.map((country) => ISO3_BY_ISO2[country]).join(" ")
+    }))`,
+    countries: batch,
+  }));
 }
 
 export function normalizeActivitySignal(input: {
@@ -379,72 +536,153 @@ function ageInDays(value: string | null, now: Date): number | null {
 export function scoreProspect(
   candidate: ProspectCandidate,
   now = new Date(),
+  productFamily?: ProductFamilyProfile,
 ): ProspectScore {
-  const direct = candidate.evidence.filter((item) =>
-    item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE" && item.confidence >= 0.7
+  const compatibility: CandidateCompatibility = productFamily
+    ? evaluateCandidateCompatibility(candidate, productFamily)
+    : {
+      candidate,
+      directEvidence: candidate.evidence.filter((item) =>
+        item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE" &&
+        item.confidence >= 0.7
+      ).map((item) => ({ ...item, relevanceClass: "DIRECT" })),
+      adjacentEvidence: candidate.evidence.filter((item) =>
+        item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
+        item.confidence >= 0.65 && item.sourceType !== "PUBLIC_REGISTRY"
+      ).map((item) => ({ ...item, relevanceClass: "ADJACENT" })),
+      genericEvidence: candidate.evidence.filter((item) =>
+        item.evidenceKind === "WEAK_CONTEXT" ||
+        item.sourceType === "PUBLIC_REGISTRY"
+      ).map((item) => ({ ...item, relevanceClass: "GENERIC" })),
+      directConceptCount:
+        candidate.evidence.filter((item) =>
+          item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE" &&
+          item.confidence >= 0.7
+        ).length,
+      adjacentConceptCount:
+        candidate.evidence.filter((item) =>
+          item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
+          item.confidence >= 0.65 && item.sourceType !== "PUBLIC_REGISTRY"
+        ).length,
+      independentDirectSourceCount: new Set(
+        candidate.evidence.filter((item) =>
+          item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+        ).map((item) => `${item.sourceType}:${item.sourceDomain}`),
+      ).size,
+      independentAdjacentSourceCount: new Set(
+        candidate.evidence.filter((item) =>
+          item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
+          item.sourceType !== "PUBLIC_REGISTRY"
+        ).map((item) => `${item.sourceType}:${item.sourceDomain}`),
+      ).size,
+      archetypes: candidate.buyerArchetypes || [],
+      commercialReason:
+        candidate.evidence.some((item) =>
+            item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+          )
+          ? "Direct product-family buyer"
+          : "Adjacent commercial fit",
+      classification:
+        candidate.evidence.some((item) =>
+            item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+          )
+          ? "DIRECT_PRODUCT_FIT"
+          : candidate.evidence.some((item) =>
+              item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
+              item.sourceType !== "PUBLIC_REGISTRY"
+            )
+          ? "ADJACENT_COMMERCIAL_FIT"
+          : "GENERIC_ONLY",
+      mismatch: false,
+    };
+  const scoredCandidate = compatibility.candidate;
+  const direct = compatibility.directEvidence.filter((item) =>
+    item.confidence >= 0.7
   );
-  const indirect = candidate.evidence.filter((item) =>
-    item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
+  const adjacent = compatibility.adjacentEvidence.filter((item) =>
     item.confidence >= 0.65
   );
   const strongActivities = candidate.activities.filter((item) =>
     item.strength === "STRONG_INDIRECT"
   );
-  const indirectSources = new Set([
-    ...indirect.map((item) => `${item.sourceType}:${item.sourceDomain}`),
-    ...strongActivities.map((item) => `PUBLIC_REGISTRY:${item.providerCode}`),
-  ]);
-  const eligible = direct.length >= 1 || indirectSources.size >= 2;
+  const indirectSources = new Set(
+    adjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
+  );
+  const strongAdjacentArchetype = compatibility.archetypes.some((item) =>
+    item.strength === "HIGH" && item.archetype !== "UNKNOWN"
+  );
+  const eligible = direct.length >= 1 ||
+    compatibility.independentAdjacentSourceCount >= 2 ||
+    (compatibility.adjacentConceptCount >= 2 && strongAdjacentArchetype) ||
+    (adjacent.some((item) => item.confidence >= 0.85) &&
+      strongAdjacentArchetype);
 
   let productTaxonomyScore = 0;
   if (direct.length) {
-    productTaxonomyScore = candidate.taxonomyRelation === "exact"
+    productTaxonomyScore = scoredCandidate.taxonomyRelation === "exact"
       ? 40
-      : candidate.taxonomyRelation === "parent_child"
-      ? 34
-      : candidate.taxonomyRelation === "sibling"
-      ? 28
-      : 22;
-  } else if (
-    indirectSources.size >= 3 && candidate.taxonomyRelation !== "none"
-  ) {
-    productTaxonomyScore = 30;
-  } else if (
-    indirectSources.size >= 2 && candidate.taxonomyRelation !== "none"
-  ) {
-    productTaxonomyScore = 24;
-  } else if (candidate.taxonomyRelation !== "none") productTaxonomyScore = 12;
+      : scoredCandidate.taxonomyRelation === "parent_child"
+      ? 36
+      : 34;
+  } else if (compatibility.adjacentConceptCount >= 3) {
+    productTaxonomyScore = 32;
+  } else if (compatibility.adjacentConceptCount >= 2) {
+    productTaxonomyScore = 28;
+  } else if (adjacent.length) productTaxonomyScore = 22;
 
-  const geographyScore = candidate.targetCountry
-    ? 15
-    : candidate.countryCode
-    ? 5
-    : 0;
-  const companyTypeScore = candidate.preferredCompanyType
-    ? 15
-    : candidate.companyType === "Unknown" && strongActivities.length
+  const geographyScore = scoredCandidate.targetCountry
     ? 10
-    : candidate.companyType === "Unknown"
+    : scoredCandidate.countryCode
+    ? 4
+    : 0;
+  const archetypeStrength = compatibility.archetypes.reduce(
+    (highest, item) =>
+      Math.max(
+        highest,
+        item.strength === "HIGH" ? 15 : item.strength === "MEDIUM" ? 11 : 2,
+      ),
+    0,
+  );
+  const companyTypeScore = eligible
+    ? Math.min(
+      15,
+      archetypeStrength || (scoredCandidate.preferredCompanyType ? 8 : 4),
+    )
+    : scoredCandidate.companyType === "Unknown"
     ? 0
-    : 6;
-  const procurementSignalScore = candidate.relatedAwardCount >= 2
+    : 2;
+  const relevantProcurementCount = new Set(
+    [
+      ...direct,
+      ...adjacent,
+    ].filter((item) => item.sourceType === "TED_AWARD").map((item) =>
+      item.noticeId || item.sourceUrl
+    ),
+  ).size;
+  const procurementSignalScore = relevantProcurementCount >= 2
     ? 15
-    : candidate.relatedAwardCount === 1
+    : relevantProcurementCount === 1
     ? 10
     : 0;
   const independentCount = new Set(
-    candidate.evidence.map((item) => `${item.sourceType}:${item.sourceDomain}`),
+    [...direct, ...adjacent].map((item) =>
+      `${item.sourceType}:${item.sourceDomain}`
+    ),
   ).size;
   const evidenceQualityScore = direct.length && independentCount >= 2
     ? 10
     : direct.length
     ? 8
-    : indirectSources.size >= 3
+    : compatibility.independentAdjacentSourceCount >= 2
     ? 9
-    : indirectSources.size >= 2
+    : compatibility.adjacentConceptCount >= 2
     ? 7
-    : 2;
-  const age = ageInDays(candidate.lastEvidenceAt, now);
+    : adjacent.length
+    ? 5
+    : strongActivities.length
+    ? 2
+    : 0;
+  const age = ageInDays(scoredCandidate.lastEvidenceAt, now);
   const recencyScore = age == null
     ? 0
     : age <= 90
@@ -454,49 +692,109 @@ export function scoreProspect(
     : age <= 730
     ? 1
     : 0;
-  const relevanceScore = productTaxonomyScore + geographyScore +
+  let relevanceScore = productTaxonomyScore + geographyScore +
     companyTypeScore + procurementSignalScore + evidenceQualityScore +
     recencyScore;
+  const genericOnlyCeilingApplied =
+    compatibility.classification === "GENERIC_ONLY" ||
+    compatibility.classification === "PRODUCT_FAMILY_MISMATCH";
+  if (genericOnlyCeilingApplied) relevanceScore = Math.min(42, relevanceScore);
 
   const reasons: ProspectScore["reasons"] = [];
   if (direct.length) {
     reasons.push({
       kind: "DIRECT_PRODUCT_EVIDENCE",
-      text: candidate.taxonomyRelation === "exact"
-        ? "Direct public evidence supports the selected product taxonomy."
-        : "Direct public evidence supports a related product category.",
+      code: "DIRECT_PRODUCT_FIT",
+      evidenceClass: "DIRECT",
+      text: "Direct public evidence supports the selected product family.",
     });
-  } else if (indirectSources.size >= 2) {
+  } else if (adjacent.length) {
     reasons.push({
       kind: "INDIRECT_COMMERCIAL_EVIDENCE",
+      code: "ADJACENT_COMMERCIAL_FIT",
+      evidenceClass: "ADJACENT",
       text:
-        "Multiple independent public signals show activity in related product categories; exact current product availability is not claimed.",
+        `${compatibility.commercialReason}. This is commercial-fit evidence; exact current product availability is not claimed.`,
     });
   }
-  if (strongActivities.length) {
+  const bestArchetype = compatibility.archetypes.find((item) =>
+    item.archetype !== "UNKNOWN"
+  );
+  if (bestArchetype) {
     reasons.push({
       kind: "INDIRECT_COMMERCIAL_EVIDENCE",
-      text:
-        "Official registry activity indicates relevant wholesale, distribution, or healthcare-supply operations.",
+      code: "BUYER_ARCHETYPE",
+      evidenceClass: direct.length ? "DIRECT" : "ADJACENT",
+      buyerArchetype: bestArchetype.archetype,
+      text: `${
+        archetypeLabel(bestArchetype.archetype)
+      }: ${bestArchetype.reason}.`,
     });
   }
-  if (candidate.relatedAwardCount) {
+  if (relevantProcurementCount) {
     reasons.push({
       kind: direct.some((item) => item.sourceType === "TED_AWARD")
         ? "DIRECT_PRODUCT_EVIDENCE"
         : "INDIRECT_COMMERCIAL_EVIDENCE",
+      code: "RELEVANT_PROCUREMENT",
+      evidenceClass: direct.some((item) => item.sourceType === "TED_AWARD")
+        ? "DIRECT"
+        : "ADJACENT",
       text:
-        `${candidate.relatedAwardCount} relevant public procurement award signal${
-          candidate.relatedAwardCount === 1 ? "" : "s"
+        `${relevantProcurementCount} product-relevant public procurement award signal${
+          relevantProcurementCount === 1 ? "" : "s"
         } support commercial capability.`,
     });
   }
-  if (candidate.targetCountry) {
+  if (strongActivities.length) {
     reasons.push({
       kind: "WEAK_CONTEXT",
+      code: "REGISTRY_SUPPORT",
+      evidenceClass: "GENERIC",
+      text:
+        "Official registry activity supports company type only; it is not product evidence.",
+    });
+  }
+  if (genericOnlyCeilingApplied) {
+    reasons.push({
+      kind: "WEAK_CONTEXT",
+      code: compatibility.classification,
+      evidenceClass: "GENERIC",
+      text: compatibility.mismatch
+        ? "Available evidence points to a different product family."
+        : "Generic healthcare relevance cannot establish product-family fit.",
+    });
+  }
+  if (scoredCandidate.targetCountry) {
+    reasons.push({
+      kind: "WEAK_CONTEXT",
+      code: "TARGET_GEOGRAPHY",
+      evidenceClass: "GENERIC",
       text: "Located in a selected target geography.",
     });
   }
+  const confidence: ProspectScore["confidence"] =
+    eligible && relevanceScore >= 75
+      ? "HIGH"
+      : eligible && relevanceScore >= 55
+      ? "MEDIUM"
+      : "LOW";
+  reasons.unshift({
+    kind: direct.length
+      ? "DIRECT_PRODUCT_EVIDENCE"
+      : adjacent.length
+      ? "INDIRECT_COMMERCIAL_EVIDENCE"
+      : "WEAK_CONTEXT",
+    code: "COMMERCIAL_FIT",
+    evidenceClass: direct.length
+      ? "DIRECT"
+      : adjacent.length
+      ? "ADJACENT"
+      : "GENERIC",
+    buyerArchetype: bestArchetype?.archetype,
+    confidence,
+    text: compatibility.commercialReason,
+  });
   return {
     eligible,
     relevanceScore,
@@ -507,7 +805,14 @@ export function scoreProspect(
     evidenceQualityScore,
     recencyScore,
     directEvidenceCount: direct.length,
+    adjacentEvidenceCount: adjacent.length,
+    genericEvidenceCount: compatibility.genericEvidence.length,
     independentIndirectSourceCount: indirectSources.size,
+    confidence,
+    commercialFitClassification: compatibility.classification,
+    commercialReason: compatibility.commercialReason,
+    buyerArchetypes: compatibility.archetypes,
+    genericOnlyCeilingApplied,
     reasonSummary: reasons.map((item) => item.text).join(" ").slice(0, 1200) ||
       "Evidence is insufficient for a supported prospect recommendation.",
     reasons,
@@ -565,7 +870,114 @@ export function deduplicateCandidates(
     seenNames.add(nameKey);
     if (registryKey) seenRegistries.add(registryKey);
     output.push(candidate);
-    if (output.length >= DISCOVERY_LIMITS.maximumCandidates) break;
+    if (output.length >= DISCOVERY_LIMITS.maximumCandidatePool) break;
   }
   return { candidates: output, registeredDuplicates, externalDuplicates };
+}
+
+function increment(bucket: Record<string, number>, key: string): void {
+  bucket[key] = (bucket[key] || 0) + 1;
+}
+
+export function rankProspects(
+  candidates: ProspectCandidate[],
+  productFamily: ProductFamilyProfile,
+  options: { europeWide?: boolean; now?: Date } = {},
+): {
+  accepted: RankedProspect[];
+  rejected: RankedProspect[];
+  diagnostics: ProspectRankingDiagnostics;
+} {
+  const diagnostics: ProspectRankingDiagnostics = {
+    candidatesByCountry: {},
+    acceptedByCountry: {},
+    candidatesBySource: {},
+    evidenceByClass: { DIRECT: 0, ADJACENT: 0, GENERIC: 0 },
+    buyerArchetypes: {},
+    genericOnlyRejected: 0,
+    productFamilyMismatchRejected: 0,
+    diversityTieBreaksApplied: 0,
+  };
+  const ranked = candidates.map((candidate) => {
+    const compatibility = evaluateCandidateCompatibility(
+      candidate,
+      productFamily,
+    );
+    const enriched = {
+      ...compatibility.candidate,
+      buyerArchetypes: compatibility.archetypes,
+      taxonomyIds: compatibility.directEvidence.length ||
+          compatibility.adjacentEvidence.length
+        ? candidate.taxonomyIds
+        : [],
+      taxonomyRelation: compatibility.directEvidence.length
+        ? candidate.taxonomyRelation === "none"
+          ? "exact" as const
+          : candidate.taxonomyRelation
+        : compatibility.adjacentEvidence.length
+        ? "family" as const
+        : "none" as const,
+    };
+    increment(
+      diagnostics.candidatesByCountry,
+      enriched.countryCode || "UNKNOWN",
+    );
+    for (
+      const source of new Set(enriched.evidence.map((item) => item.sourceType))
+    ) {
+      increment(diagnostics.candidatesBySource, source);
+    }
+    for (const evidence of enriched.evidence) {
+      diagnostics.evidenceByClass[evidence.relevanceClass || "GENERIC"] += 1;
+    }
+    for (const archetype of compatibility.archetypes) {
+      increment(diagnostics.buyerArchetypes, archetype.archetype);
+    }
+    const score = scoreProspect(
+      enriched,
+      options.now || new Date(),
+      productFamily,
+    );
+    if (score.commercialFitClassification === "GENERIC_ONLY") {
+      diagnostics.genericOnlyRejected += 1;
+    } else if (
+      score.commercialFitClassification === "PRODUCT_FAMILY_MISMATCH"
+    ) {
+      diagnostics.productFamilyMismatchRejected += 1;
+    }
+    return { candidate: enriched, score };
+  }).sort((left, right) =>
+    right.score.relevanceScore - left.score.relevanceScore ||
+    left.candidate.name.localeCompare(right.candidate.name)
+  );
+  const eligible = ranked.filter((item) =>
+    item.score.eligible && item.score.relevanceScore >= 55
+  );
+  const rejected = ranked.filter((item) =>
+    !item.score.eligible || item.score.relevanceScore < 55
+  );
+  const accepted = options.europeWide
+    ? diversityRerank(eligible.map((item) => ({
+      value: item,
+      score: item.score.relevanceScore,
+      countryCode: item.candidate.countryCode,
+    }))).map((item) => item.value)
+    : eligible;
+  if (options.europeWide) {
+    accepted.forEach((item, index) => {
+      const previousIndex = eligible.findIndex((candidate) =>
+        candidate.candidate.name === item.candidate.name &&
+        candidate.candidate.countryCode === item.candidate.countryCode
+      );
+      if (previousIndex !== index) diagnostics.diversityTieBreaksApplied += 1;
+    });
+  }
+  const limited = accepted.slice(0, DISCOVERY_LIMITS.maximumCandidates);
+  for (const item of limited) {
+    increment(
+      diagnostics.acceptedByCountry,
+      item.candidate.countryCode || "UNKNOWN",
+    );
+  }
+  return { accepted: limited, rejected, diagnostics };
 }

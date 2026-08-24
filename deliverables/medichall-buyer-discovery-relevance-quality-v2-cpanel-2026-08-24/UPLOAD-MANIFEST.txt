@@ -1,0 +1,37 @@
+MEDICHALL BUYER DISCOVERY RELEVANCE QUALITY V2
+CURRENT-BASELINE CPANEL PATCH — DO NOT UPLOAD BEFORE BACKEND APPROVAL/DEPLOYMENT
+
+Cache/release identifier: 20260824relevance2
+Destination root: public_html/
+
+Upload in this order:
+
+1. external-prospects.css
+   Destination: public_html/external-prospects.css
+   Size: 16984 bytes
+   SHA-256: 19e75d97c88bd2e2fd137decf735dc3d9f1349aa4ffa2a8aa5b37be9ed2c83c1
+   Required: yes
+
+2. external-prospects.js
+   Destination: public_html/external-prospects.js
+   Size: 46424 bytes
+   SHA-256: 8b7642256a77d86bf0fcddc2d185445eb8be60db97d5cb6393a25ded6d4660ca
+   Required: yes
+
+3. matchmaking.html
+   Destination: public_html/matchmaking.html
+   Size: 21747 bytes
+   SHA-256: 6d8bb933e9e355210387aa756aea9cf50166b28ccf0f55347ef7891c3c8d2481
+   Required: yes
+
+4. portal.html
+   Destination: public_html/portal.html
+   Size: 402392 bytes
+   SHA-256: 1567e1ffb551418962f21e14572324e1c7de90cb71352624db6f1f8996d34da2
+   Required: yes
+
+Before upload, copy the four existing production files to a timestamped backup
+directory outside public_html. After upload, verify the SHA-256 values, load
+portal.html#buyer-discovery and matchmaking.html#buyer-discovery in a private
+window, and confirm the browser requests both shared assets with
+v=20260824relevance2. Roll back by restoring all four backed-up files together.

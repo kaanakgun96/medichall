@@ -8,6 +8,7 @@ const registryMigration = read("supabase/migrations/202608200004_external_regist
 const registrySqlTest = read("supabase/tests/external_registry_coverage.sql");
 const edge = read("supabase/functions/external-prospect-discovery/index.ts");
 const shared = read("supabase/functions/_shared/external-prospect-discovery.ts");
+const relevance = read("supabase/functions/_shared/buyer-discovery-relevance-v2.ts");
 const registries = read("supabase/functions/_shared/external-registry-adapters.ts");
 const portal = read("portal.html");
 const admin = read("admin.html");
@@ -87,8 +88,19 @@ assert.doesNotMatch(externalSchema, /\b(?:contact_email|contact_name|phone|linke
 assert.match(migration, /evidence_snippet[^;]+!~\*/s);
 assert.match(shared, /DIRECT_PRODUCT_EVIDENCE/);
 assert.match(shared, /INDIRECT_COMMERCIAL_EVIDENCE/);
-assert.match(shared, /direct\.length >= 1 \|\| indirectSources\.size >= 2/);
+assert.match(shared, /direct\.length >= 1/);
+assert.match(shared, /independentAdjacentSourceCount >= 2/);
 assert.match(shared, /exact current product availability is not claimed/);
+assert.match(shared, /Math\.min\(42, relevanceScore\)/);
+assert.match(shared, /boundedTedSearchPlan/);
+assert.match(shared, /rankProspects/);
+assert.match(relevance, /DIRECT_PRODUCT_FIT/);
+assert.match(relevance, /ADJACENT_COMMERCIAL_FIT/);
+assert.match(relevance, /PRODUCT_FAMILY_MISMATCH/);
+assert.match(relevance, /PROCEDURE_PACK_MANUFACTURER/);
+assert.match(relevance, /KIT_ASSEMBLER/);
+assert.match(relevance, /OEM_PRIVATE_LABEL/);
+assert.doesNotMatch(relevance, /Polysistem|Mediberg|Betatex|Synektik|PRIM S\.A\./);
 assert.match(shared, /productTaxonomyScore/);
 assert.match(shared, /geographyScore/);
 assert.match(shared, /companyTypeScore/);
@@ -124,14 +136,17 @@ assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|l
 assert.match(config, /\[functions\.external-prospect-discovery\]\nverify_jwt = false/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.css\?v=20260824intent1/);
-  assert.match(page, /external-prospects\.js\?v=20260824intent1/);
+  assert.match(page, /external-prospects\.css\?v=20260824relevance2/);
+  assert.match(page, /external-prospects\.js\?v=20260824relevance2/);
 }
 assert.match(portal, /European Buyer Discovery/);
 assert.match(portal, /#buyer-discovery/);
 assert.match(workspace, /buyer_discovery/);
 assert.match(externalUi, /Discover European buyers/);
+assert.match(externalUi, /Evidence-backed/);
 assert.match(externalUi, /Not yet a MedicHall member/);
+assert.match(externalUi, /adjacent commercial signal/);
+assert.match(externalUi, /generic context signal/);
 assert.match(externalUi, /Indirect commercial evidence/);
 assert.match(externalUi, /Target markets/);
 assert.match(externalUi, /Procurement/);
