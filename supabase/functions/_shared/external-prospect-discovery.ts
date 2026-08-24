@@ -9,10 +9,16 @@ import {
 } from "./buyer-discovery-relevance-v2.ts";
 
 export const DISCOVERY_LIMITS = Object.freeze({
-  maximumQueries: 4,
   maximumTedRequests: 6,
+  maximumTedProductRequests: 4,
+  maximumTedCpvRequests: 2,
   maximumTedResultsPerQuery: 25,
+  maximumTedDirectTerms: 12,
+  maximumTedAdjacentTerms: 8,
   maximumCandidatePool: 180,
+  maximumProductTedCandidates: 100,
+  maximumCpvTedCandidates: 40,
+  maximumRegistryCandidates: 40,
   maximumCandidates: 30,
   maximumWebsiteChecks: 6,
   maximumRegistryChecks: 10,
@@ -32,6 +38,12 @@ export type EvidenceKind =
   | "DIRECT_PRODUCT_EVIDENCE"
   | "INDIRECT_COMMERCIAL_EVIDENCE"
   | "WEAK_CONTEXT";
+
+export type CandidateDiscoveryReason =
+  | "DIRECT_PRODUCT_TERM_TED"
+  | "ADJACENT_PRODUCT_TERM_TED"
+  | "RELATED_CPV_TED"
+  | "OFFICIAL_REGISTRY_ACTIVITY";
 
 export type ActivitySignal = {
   providerCode: string;
@@ -190,6 +202,8 @@ export type ProspectEvidence = {
   cpvCodes?: string[];
   taxonomyIds?: number[];
   registryProviderCode?: string;
+  discoveryReason?: CandidateDiscoveryReason;
+  procurementRole?: "WINNER" | "TENDERER_FALLBACK";
   relevanceClass?: ProductEvidenceClass;
   matchedTerms?: string[];
   commercialReason?: string;
@@ -312,33 +326,6 @@ export function normalizeCpv(value: unknown): string | null {
   return digits.length >= 8 ? digits.slice(0, 8) : null;
 }
 
-export function boundedDiscoveryQueries(input: {
-  cpvCodes: string[];
-  targetCountries: string[];
-  taxonomyNames: string[];
-}): string[] {
-  const cpv = [...new Set(input.cpvCodes.map(normalizeCpv).filter(Boolean))]
-    .slice(0, 3) as string[];
-  const terms = [
-    ...new Set(
-      input.taxonomyNames.map((item) => sanitizeEvidenceText(item, 80)).filter(
-        Boolean,
-      ),
-    ),
-  ].slice(0, 2);
-  // Country is deliberately scored after retrieval. Winner-country values are
-  // not uniformly populated and filtering here would hide valid awardees.
-  const queries = cpv.map((code) => `(classification-cpv IN (${code}))`);
-  for (const term of terms) {
-    if (queries.length >= DISCOVERY_LIMITS.maximumQueries) break;
-    const safeTerm = term.replace(/["\\]/g, " ").trim();
-    queries.push(
-      `(notice-title ~ "${safeTerm}" OR description-lot ~ "${safeTerm}")`,
-    );
-  }
-  return queries.slice(0, DISCOVERY_LIMITS.maximumQueries);
-}
-
 export const EUROPE_DISCOVERY_COUNTRIES = [
   "AT",
   "BE",
@@ -412,48 +399,110 @@ const ISO3_BY_ISO2: Record<string, string> = {
 export type TedSearchPlanEntry = {
   query: string;
   countries: string[];
+  retrievalKind: "PRODUCT_TERMS" | "RELATED_CPV";
+  terms: string[];
+  unfilteredCountryFallback: boolean;
 };
 
 export function boundedTedSearchPlan(input: {
-  queries: string[];
+  directTerms: string[];
+  adjacentTerms: string[];
+  cpvCodes: string[];
   targetCountries: string[];
 }): TedSearchPlanEntry[] {
-  const productQueries = input.queries.slice(
+  const normalizeTerm = (value: unknown) =>
+    sanitizeEvidenceText(value, 80).replace(/["\\]/g, " ").replace(
+      /\s+/g,
+      " ",
+    ).trim();
+  const directTerms = [
+    ...new Set(
+      input.directTerms.map(normalizeTerm).filter(
+        Boolean,
+      ),
+    ),
+  ].slice(0, DISCOVERY_LIMITS.maximumTedDirectTerms);
+  const adjacentTerms = [
+    ...new Set(
+      input.adjacentTerms.map(normalizeTerm)
+        .filter(Boolean),
+    ),
+  ].filter((term) => !directTerms.includes(term)).slice(
     0,
-    DISCOVERY_LIMITS.maximumQueries,
+    DISCOVERY_LIMITS.maximumTedAdjacentTerms,
   );
-  if (!productQueries.length) return [];
-  // A broad medical CPV is a useful fallback and a scoring signal, but it must
-  // not swamp a product-specific search with generic suppliers. When a
-  // canonical or reviewed family-term query exists, retrieve with those terms
-  // and retain CPV values on the returned evidence for downstream scoring.
-  const descriptiveQueries = productQueries.filter((query) =>
-    query.includes("notice-title") || query.includes("description-lot")
-  );
-  const retrievalQueries = descriptiveQueries.length
-    ? descriptiveQueries
-    : productQueries;
+  const productTerms = [...directTerms, ...adjacentTerms];
+  const cpvCodes = [
+    ...new Set(input.cpvCodes.map(normalizeCpv).filter(Boolean)),
+  ]
+    .slice(0, 3) as string[];
+  if (!productTerms.length && !cpvCodes.length) return [];
   const selected = input.targetCountries.length
     ? [...new Set(input.targetCountries.map((item) => item.toUpperCase()))]
       .filter((item) => ISO3_BY_ISO2[item])
     : [...EUROPE_DISCOVERY_COUNTRIES];
-  const batchCount = Math.min(
-    DISCOVERY_LIMITS.maximumTedRequests,
-    Math.max(1, selected.length),
-  );
-  const batches = Array.from({ length: batchCount }, () => [] as string[]);
-  selected.forEach((country, index) =>
-    batches[index % batchCount].push(country)
-  );
-  const productClause = retrievalQueries.length === 1
-    ? retrievalQueries[0]
-    : retrievalQueries.map((query) => `(${query})`).join(" OR ");
-  return batches.filter((batch) => batch.length).map((batch) => ({
-    query: `(${productClause}) AND (winner-country IN (${
-      batch.map((country) => ISO3_BY_ISO2[country]).join(" ")
-    }))`,
-    countries: batch,
-  }));
+  const batches = (count: number): string[][] => {
+    const output = Array.from({ length: count }, () => [] as string[]);
+    selected.forEach((country, index) => output[index % count].push(country));
+    return output.filter((batch) => batch.length);
+  };
+  const countryClause = (countries: string[]) =>
+    countries.length
+      ? ` AND (winner-country IN (${
+        countries.map((country) => ISO3_BY_ISO2[country]).join(" ")
+      }))`
+      : "";
+  const plan: TedSearchPlanEntry[] = [];
+  if (productTerms.length) {
+    const productClause = productTerms.map((term) =>
+      `(notice-title ~ "${term}" OR description-lot ~ "${term}")`
+    ).join(" OR ");
+    // Europe-wide discovery reserves one product request for award notices
+    // whose structured winner-country is absent. Country-targeted discovery
+    // never broadens beyond the requested markets.
+    const useUnfilteredFallback = input.targetCountries.length === 0 &&
+      selected.length > 1;
+    const countryRequestCount = Math.min(
+      useUnfilteredFallback
+        ? DISCOVERY_LIMITS.maximumTedProductRequests - 1
+        : DISCOVERY_LIMITS.maximumTedProductRequests,
+      Math.max(1, selected.length),
+    );
+    for (const batch of batches(countryRequestCount)) {
+      plan.push({
+        query: `(${productClause})${countryClause(batch)}`,
+        countries: batch,
+        retrievalKind: "PRODUCT_TERMS",
+        terms: productTerms,
+        unfilteredCountryFallback: false,
+      });
+    }
+    if (useUnfilteredFallback) {
+      plan.push({
+        query: `(${productClause})`,
+        countries: [],
+        retrievalKind: "PRODUCT_TERMS",
+        terms: productTerms,
+        unfilteredCountryFallback: true,
+      });
+    }
+  }
+  if (cpvCodes.length) {
+    const cpvClause = `(classification-cpv IN (${cpvCodes.join(" ")}))`;
+    const requestCount = productTerms.length
+      ? DISCOVERY_LIMITS.maximumTedCpvRequests
+      : DISCOVERY_LIMITS.maximumTedRequests;
+    for (const batch of batches(Math.min(requestCount, selected.length))) {
+      plan.push({
+        query: `${cpvClause}${countryClause(batch)}`,
+        countries: batch,
+        retrievalKind: "RELATED_CPV",
+        terms: cpvCodes,
+        unfilteredCountryFallback: false,
+      });
+    }
+  }
+  return plan.slice(0, DISCOVERY_LIMITS.maximumTedRequests);
 }
 
 export function normalizeActivitySignal(input: {
@@ -883,6 +932,72 @@ export function deduplicateCandidates(
     if (output.length >= DISCOVERY_LIMITS.maximumCandidatePool) break;
   }
   return { candidates: output, registeredDuplicates, externalDuplicates };
+}
+
+export function partitionTedCandidates(
+  candidates: ProspectCandidate[],
+): {
+  productTermCandidates: ProspectCandidate[];
+  cpvCandidates: ProspectCandidate[];
+  rejectedBySourceCaps: number;
+  duplicatesCollapsedBeforeCaps: number;
+} {
+  const productTermCandidates: ProspectCandidate[] = [];
+  const cpvCandidates: ProspectCandidate[] = [];
+  for (const candidate of candidates) {
+    const cpvDiscovered = candidate.evidence.some((item) =>
+      item.discoveryReason === "RELATED_CPV_TED"
+    );
+    const target = cpvDiscovered ? cpvCandidates : productTermCandidates;
+    target.push(candidate);
+  }
+  const collapse = (values: ProspectCandidate[]) => {
+    const byEntity = new Map<string, ProspectCandidate>();
+    for (const candidate of values) {
+      const registryKey = candidate.registryIdentifier && candidate.countryCode
+        ? `${candidate.countryCode}:${candidate.registryIdentifier}`
+        : "";
+      const domain = normalizeDomain(candidate.websiteUrl) || "";
+      const nameKey = `${normalizeCompanyName(candidate.name)}:${
+        candidate.countryCode || ""
+      }`;
+      const key = registryKey || domain || nameKey;
+      const previous = byEntity.get(key);
+      if (!previous) {
+        byEntity.set(key, candidate);
+        continue;
+      }
+      previous.evidence.push(...candidate.evidence);
+      previous.relatedAwardCount += candidate.relatedAwardCount;
+      previous.websiteUrl ||= candidate.websiteUrl;
+      previous.registryIdentifier ||= candidate.registryIdentifier;
+      previous.lastEvidenceAt = [
+        previous.lastEvidenceAt,
+        candidate.lastEvidenceAt,
+      ].filter(Boolean).sort().reverse()[0] || null;
+    }
+    return [...byEntity.values()];
+  };
+  const uniqueProduct = collapse(productTermCandidates);
+  const uniqueCpv = collapse(cpvCandidates);
+  const selectedProduct = uniqueProduct.slice(
+    0,
+    DISCOVERY_LIMITS.maximumProductTedCandidates,
+  );
+  const selectedCpv = uniqueCpv.slice(
+    0,
+    DISCOVERY_LIMITS.maximumCpvTedCandidates,
+  );
+  return {
+    productTermCandidates: selectedProduct,
+    cpvCandidates: selectedCpv,
+    rejectedBySourceCaps: Math.max(
+      0,
+      uniqueProduct.length - selectedProduct.length,
+    ) + Math.max(0, uniqueCpv.length - selectedCpv.length),
+    duplicatesCollapsedBeforeCaps: candidates.length - uniqueProduct.length -
+      uniqueCpv.length,
+  };
 }
 
 function increment(bucket: Record<string, number>, key: string): void {

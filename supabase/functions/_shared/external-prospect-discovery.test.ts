@@ -1,5 +1,5 @@
 import {
-  boundedDiscoveryQueries,
+  boundedTedSearchPlan,
   deduplicateCandidates,
   nationalActivityCodeMapping,
   normalizeActivitySignal,
@@ -247,12 +247,13 @@ Deno.test("J: France and Norway official registry payloads parse without contact
 });
 
 Deno.test("K/L/T: unavailable sources are not invented and request generation is bounded", () => {
-  const queries = boundedDiscoveryQueries({
+  const queries = boundedTedSearchPlan({
     cpvCodes: ["33100000", "33140000", "33190000", "33192000", "33199000"],
     targetCountries: ["FR", "DE", "NO", "ES"],
-    taxonomyNames: ["Ultrasound probe covers", "Surgical drapes", "Extra term"],
+    directTerms: ["Ultrasound probe cover", "Sterile probe cover"],
+    adjacentTerms: ["Ultrasound consumable", "Infection control ultrasound"],
   });
-  assert(queries.length <= 4, "query generation must be capped at four");
+  assert(queries.length <= 6, "TED request generation must remain capped");
   assert(
     scoreProspect(candidate({ websiteUrl: null })).eligible,
     "missing website must not block direct public evidence",

@@ -6,6 +6,7 @@ import {
   deduplicateCandidates,
   DISCOVERY_LIMITS,
   type EvidenceSourceType,
+  partitionTedCandidates,
   type ProspectCandidate,
   rankProspects,
   scoreProspect,
@@ -36,6 +37,21 @@ const profiles = {
 };
 
 type Fixture = typeof fixtures[number];
+
+Deno.test("production plural gown taxonomy activates the reviewed product family", () => {
+  const profile = buildProductFamilyProfile([{
+    taxonomyId: 1,
+    canonicalName: "Sterile Surgical Gowns",
+    slug: "sterile-surgical-gowns",
+    aliases: [],
+  }]);
+  assert(
+    profile.key === "surgical-gown-family" &&
+      profile.directTerms.includes("surgical gown") &&
+      profile.adjacentTerms.includes("procedure pack"),
+    "plural production taxonomy must retain gown retrieval and compatibility rules",
+  );
+});
 
 function fixtureCandidate(fixture: Fixture): ProspectCandidate {
   return {
@@ -142,7 +158,9 @@ Deno.test("synthetic Synektik-style surgical-technology supplier is not a gown m
 
 Deno.test("Europe-wide TED plan attempts every supported market in bounded balanced batches", () => {
   const plan = boundedTedSearchPlan({
-    queries: ["(classification-cpv IN (33140000))"],
+    directTerms: [],
+    adjacentTerms: [],
+    cpvCodes: ["33140000"],
     targetCountries: [],
   });
   assert(
@@ -178,11 +196,9 @@ Deno.test("Europe-wide TED plan attempts every supported market in bounded balan
 
 Deno.test("product-specific TED retrieval is not swamped by a broad CPV fallback", () => {
   const plan = boundedTedSearchPlan({
-    queries: [
-      "(classification-cpv IN (33140000))",
-      '(notice-title ~ "Sterile Surgical Gowns" OR description-lot ~ "Sterile Surgical Gowns")',
-      '(notice-title ~ "procedure pack" OR description-lot ~ "procedure pack")',
-    ],
+    directTerms: ["Sterile Surgical Gowns", "surgical gown"],
+    adjacentTerms: ["procedure pack", "surgical drape"],
+    cpvCodes: ["33140000"],
     targetCountries: [],
   });
   assert(
@@ -190,15 +206,88 @@ Deno.test("product-specific TED retrieval is not swamped by a broad CPV fallback
     "bounded plan must retain six balanced requests",
   );
   assert(
-    plan.every((item) => !item.query.includes("classification-cpv")),
-    "broad CPV must be a fallback when product terms exist",
+    plan.filter((item) => item.retrievalKind === "PRODUCT_TERMS").length ===
+      DISCOVERY_LIMITS.maximumTedProductRequests,
+    "four bounded product-term requests must be reserved",
   );
   assert(
-    plan.every((item) =>
+    plan.filter((item) => item.retrievalKind === "RELATED_CPV").length ===
+      DISCOVERY_LIMITS.maximumTedCpvRequests,
+    "two bounded CPV discovery requests must remain available",
+  );
+  assert(
+    plan.filter((item) => item.retrievalKind === "PRODUCT_TERMS").every((
+      item,
+    ) =>
+      !item.query.includes("classification-cpv") &&
       item.query.includes("Sterile Surgical Gowns") &&
       item.query.includes("procedure pack")
     ),
-    "canonical and adjacent family terms must drive retrieval",
+    "product and CPV retrieval partitions must remain separate",
+  );
+  for (const kind of ["PRODUCT_TERMS", "RELATED_CPV"] as const) {
+    const covered = new Set(
+      plan.filter((item) => item.retrievalKind === kind)
+        .flatMap((item) => item.countries),
+    );
+    assert(
+      covered.size === 32,
+      `${kind} must cover every supported European market`,
+    );
+  }
+  assert(
+    plan.some((item) => item.unfilteredCountryFallback),
+    "Europe-wide product retrieval must include one missing-country fallback",
+  );
+});
+
+Deno.test("TED source partitions prevent broad CPV candidates from consuming the pool", () => {
+  const product = Array.from(
+    { length: DISCOVERY_LIMITS.maximumProductTedCandidates + 5 },
+    (_, index) =>
+      fixtureCandidate({
+        ...fixtures[0],
+        company: `Product ${index}`,
+        evidence: fixtures[0].evidence.map((item) => ({ ...item })),
+      }),
+  ).map((candidate, index) => ({
+    ...candidate,
+    websiteUrl: `https://product-${index}.example/`,
+    evidence: candidate.evidence.map((item) => ({
+      ...item,
+      discoveryReason: "DIRECT_PRODUCT_TERM_TED" as const,
+    })),
+  }));
+  const cpv = Array.from(
+    { length: DISCOVERY_LIMITS.maximumCpvTedCandidates + 5 },
+    (_, index) =>
+      fixtureCandidate({
+        ...fixtures[0],
+        company: `CPV ${index}`,
+        evidence: fixtures[0].evidence.map((item) => ({ ...item })),
+      }),
+  ).map((candidate, index) => ({
+    ...candidate,
+    websiteUrl: `https://cpv-${index}.example/`,
+    evidence: candidate.evidence.map((item) => ({
+      ...item,
+      discoveryReason: "RELATED_CPV_TED" as const,
+    })),
+  }));
+  const partitioned = partitionTedCandidates([...cpv, ...product]);
+  assert(
+    partitioned.productTermCandidates.length ===
+      DISCOVERY_LIMITS.maximumProductTedCandidates,
+    "product-term partition must retain its independent budget",
+  );
+  assert(
+    partitioned.cpvCandidates.length ===
+      DISCOVERY_LIMITS.maximumCpvTedCandidates,
+    "CPV fallback must remain bounded",
+  );
+  assert(
+    partitioned.rejectedBySourceCaps === 10,
+    "source-cap diagnostics must report early exclusions",
   );
 });
 

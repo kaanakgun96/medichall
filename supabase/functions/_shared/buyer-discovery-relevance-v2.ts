@@ -243,7 +243,7 @@ function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
     ]).join(" "),
   );
   return {
-    gown: /\bgown\b|surgical gowns apparel/.test(text),
+    gown: /\bgowns?\b|surgical gowns apparel/.test(text),
     equipmentCover:
       /equipment cover|c arm|camera cover|microscope drape|microscope cover/
         .test(text),

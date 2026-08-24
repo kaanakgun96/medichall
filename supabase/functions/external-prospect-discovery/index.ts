@@ -3,7 +3,6 @@
 // deno-lint-ignore no-import-prefix -- Edge bundle pins the production client.
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
-  boundedDiscoveryQueries,
   boundedTedSearchPlan,
   deduplicateCandidates,
   DISCOVERY_LIMITS,
@@ -12,6 +11,7 @@ import {
   normalizeCpv,
   normalizeDomain,
   normalizeHttpsUrl,
+  partitionTedCandidates,
   type ProspectCandidate,
   type ProspectEvidence,
   type ProspectScore,
@@ -250,15 +250,294 @@ async function boundedJson(
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
+type TedQueryDiagnostics = {
+  retrievalKind: TedSearchPlanEntry["retrievalKind"];
+  countries: string[];
+  terms: string[];
+  unfilteredCountryFallback: boolean;
+  noticesReturned: number;
+  productRelevantNotices: number;
+  supplierEntitiesExtracted: number;
+  domainEntities: number;
+  candidatesProduced: number;
+  rejectionReasons: Record<string, number>;
+};
+
+type TedCountryDiagnostics = {
+  noticesRetrieved: number;
+  productRelevantNotices: number;
+  supplierEntitiesExtracted: number;
+  candidateEntitiesProduced: number;
+};
+
+function addCount(bucket: Record<string, number>, key: string): void {
+  bucket[key] = (bucket[key] || 0) + 1;
+}
+
+function addRejections(
+  target: Record<string, number>,
+  source: Record<string, number>,
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    target[key] = (target[key] || 0) + value;
+  }
+}
+
+export function extractTedCandidatesFromNotice(input: {
+  noticeValue: unknown;
+  search: TedSearchPlanEntry;
+  targetTaxonomyIds: number[];
+  targetCpvCodes: string[];
+  productFamily: ProductFamilyProfile;
+}): {
+  candidates: ProspectCandidate[];
+  productRelevant: boolean;
+  supplierEntitiesExtracted: number;
+  domainEntities: number;
+  countryCode: string | null;
+  supplierCountries: string[];
+  productRelevantCountries: string[];
+  rejectionReasons: Record<string, number>;
+} {
+  const notice = record(input.noticeValue);
+  const rejectionReasons: Record<string, number> = {};
+  const publicationNumber = structuredFirst(
+    notice["publication-number"],
+    100,
+  );
+  if (!publicationNumber) {
+    addCount(rejectionReasons, "MISSING_PUBLICATION_NUMBER");
+    return {
+      candidates: [],
+      productRelevant: false,
+      supplierEntitiesExtracted: 0,
+      domainEntities: 0,
+      countryCode: null,
+      supplierCountries: [],
+      productRelevantCountries: [],
+      rejectionReasons,
+    };
+  }
+
+  let procurementRole: "WINNER" | "TENDERER_FALLBACK" = "WINNER";
+  let names = texts(notice["winner-name"]).slice(0, 10);
+  let websites = [
+    ...structuredTexts(notice["winner-internet-address"], 1000),
+    ...structuredTexts(notice["winner-touchpoint-internet-address"], 1000),
+  ];
+  let identifiers = structuredTexts(notice["winner-identifier"], 240);
+  let countries = structuredTexts(notice["winner-country"], 20);
+  if (!names.length) {
+    const tendererNames = texts(notice["organisation-name-tenderer"]).slice(
+      0,
+      10,
+    );
+    const selection = structuredTexts(
+      notice["winner-selection-status"],
+      40,
+    ).map((value) => value.toLowerCase());
+    // The generic tenderer organisation list can include losing bidders. It
+    // is used only for the unambiguous single-operator selected-winner case.
+    if (tendererNames.length === 1 && selection.includes("selec-w")) {
+      procurementRole = "TENDERER_FALLBACK";
+      names = tendererNames;
+      websites = [
+        ...structuredTexts(
+          notice["organisation-internet-address-tenderer"],
+          1000,
+        ),
+        ...structuredTexts(
+          notice["touchpoint-internet-address-tenderer"],
+          1000,
+        ),
+      ];
+      identifiers = structuredTexts(
+        notice["organisation-identifier-tenderer"],
+        240,
+      );
+      countries = structuredTexts(
+        notice["organisation-country-tenderer"],
+        20,
+      );
+    }
+  }
+  if (!names.length) {
+    addCount(rejectionReasons, "NO_STRUCTURED_SUPPLIER_OPERATOR");
+    return {
+      candidates: [],
+      productRelevant: false,
+      supplierEntitiesExtracted: 0,
+      domainEntities: 0,
+      countryCode: null,
+      supplierCountries: [],
+      productRelevantCountries: [],
+      rejectionReasons,
+    };
+  }
+
+  const cpvCodes = structuredTexts(notice["classification-cpv"], 40)
+    .map(normalizeCpv).filter(Boolean) as string[];
+  const exactCpv = cpvCodes.some((code) => input.targetCpvCodes.includes(code));
+  const relatedCpv = exactCpv ||
+    cpvCodes.some((code) =>
+      input.targetCpvCodes.some((target) =>
+        code.slice(0, 5) === target.slice(0, 5)
+      )
+    );
+  const title = first(notice["notice-title"]) || "TED contract award";
+  const lot = first(notice["description-lot"]);
+  const evidenceDate = structuredFirst(
+    notice["contract-conclusion-date"] || notice["publication-date"],
+    20,
+  ).match(/^\d{4}-\d{2}-\d{2}/)?.[0] || null;
+  const buyerNames = new Set(
+    texts(notice["buyer-name"]).map(normalizeCompanyName).filter(Boolean),
+  );
+  const candidates: ProspectCandidate[] = [];
+  const supplierCountries: string[] = [];
+  const productRelevantCountries = new Set<string>();
+  let domainEntities = 0;
+  let productRelevant = false;
+  for (let index = 0; index < names.length; index += 1) {
+    const name = sanitizeEvidenceText(names[index], 240);
+    if (!name) {
+      addCount(rejectionReasons, "EMPTY_SUPPLIER_NAME");
+      continue;
+    }
+    if (buyerNames.has(normalizeCompanyName(name))) {
+      addCount(rejectionReasons, "PROCURING_AUTHORITY_EXCLUDED");
+      continue;
+    }
+    const winnerCountry = countryCode(countries[index] || countries[0]);
+    supplierCountries.push(winnerCountry || "UNKNOWN");
+    const websiteUrl = [websites[index], websites[0]].map(normalizeHttpsUrl)
+      .find(Boolean) || null;
+    const classified = classifyEvidenceForProduct({
+      sourceType: "TED_AWARD",
+      sourceUrl: `https://ted.europa.eu/en/notice/-/detail/${
+        encodeURIComponent(publicationNumber)
+      }`,
+      sourceDomain: "ted.europa.eu",
+      title: sanitizeEvidenceText(title, 300),
+      snippet: sanitizeEvidenceText(lot || title, 1600),
+      // Retrieval provenance and scoring evidence stay separate. A related
+      // CPV can introduce this operator, but only title/lot text can establish
+      // DIRECT or ADJACENT product-family evidence.
+      evidenceKind: "WEAK_CONTEXT",
+      confidence: 0.55,
+      evidenceDate,
+      noticeId: publicationNumber,
+      procurementBuyer:
+        sanitizeEvidenceText(first(notice["buyer-name"]), 300) || null,
+      procurementRole,
+      lotContext: sanitizeEvidenceText(lot, 1000) || null,
+      cpvCodes,
+      taxonomyIds: input.targetTaxonomyIds,
+    }, input.productFamily);
+    const commerciallyRelevant = classified.relevanceClass !== "GENERIC";
+    productRelevant ||= commerciallyRelevant;
+    if (commerciallyRelevant) {
+      productRelevantCountries.add(winnerCountry || "UNKNOWN");
+    }
+    if (
+      input.search.retrievalKind === "RELATED_CPV" && !relatedCpv &&
+      !commerciallyRelevant
+    ) {
+      addCount(rejectionReasons, "NO_REVIEWED_DISCOVERY_SIGNAL");
+      continue;
+    }
+    const evidence: ProspectEvidence = {
+      ...classified,
+      confidence: classified.relevanceClass === "DIRECT"
+        ? 0.9
+        : classified.relevanceClass === "ADJACENT"
+        ? 0.86
+        : exactCpv
+        ? 0.6
+        : 0.55,
+      discoveryReason: input.search.retrievalKind === "RELATED_CPV"
+        ? "RELATED_CPV_TED"
+        : classified.relevanceClass === "DIRECT"
+        ? "DIRECT_PRODUCT_TERM_TED"
+        : classified.relevanceClass === "ADJACENT"
+        ? "ADJACENT_PRODUCT_TERM_TED"
+        : "RELATED_CPV_TED",
+    };
+    if (websiteUrl) domainEntities += 1;
+    candidates.push({
+      name,
+      countryCode: winnerCountry,
+      countryName: winnerCountry ? COUNTRY_NAMES[winnerCountry] || null : null,
+      cityRegion: null,
+      companyType: companyType(`${title} ${lot}`),
+      websiteUrl,
+      registryIdentifier: structuredFirst(
+        identifiers[index] || identifiers[0],
+        240,
+      ) || null,
+      description: sanitizeEvidenceText(lot || title, 1600) || null,
+      evidence: [evidence],
+      activities: [],
+      taxonomyIds: commerciallyRelevant ? input.targetTaxonomyIds : [],
+      taxonomyRelation: evidence.relevanceClass === "DIRECT"
+        ? "exact"
+        : evidence.relevanceClass === "ADJACENT"
+        ? "family"
+        : "none",
+      targetCountry: false,
+      preferredCompanyType: false,
+      relatedAwardCount: commerciallyRelevant ? 1 : 0,
+      lastEvidenceAt: evidenceDate,
+    });
+  }
+  return {
+    candidates,
+    productRelevant,
+    supplierEntitiesExtracted: supplierCountries.length,
+    domainEntities,
+    countryCode: candidates[0]?.countryCode ||
+      (supplierCountries[0] === "UNKNOWN" ? null : supplierCountries[0]),
+    supplierCountries,
+    productRelevantCountries: [...productRelevantCountries],
+    rejectionReasons,
+  };
+}
+
 async function fetchTedAwards(
   searchPlan: TedSearchPlanEntry[],
   targetTaxonomyIds: number[],
   targetCpvCodes: string[],
   productFamily: ProductFamilyProfile,
-): Promise<
-  { candidates: ProspectCandidate[]; checked: number; unavailable: boolean }
-> {
+): Promise<{
+  candidates: ProspectCandidate[];
+  checked: number;
+  unavailable: boolean;
+  queries: TedQueryDiagnostics[];
+  countries: Record<string, TedCountryDiagnostics>;
+  noticesReturned: number;
+  productRelevantNotices: number;
+  supplierEntitiesExtracted: number;
+  domainEntities: number;
+  rejectionReasons: Record<string, number>;
+}> {
   const candidates: ProspectCandidate[] = [];
+  const queries: TedQueryDiagnostics[] = [];
+  const countries: Record<string, TedCountryDiagnostics> = {};
+  const rejectionReasons: Record<string, number> = {};
+  for (const country of new Set(searchPlan.flatMap((item) => item.countries))) {
+    countries[country] = {
+      noticesRetrieved: 0,
+      productRelevantNotices: 0,
+      supplierEntitiesExtracted: 0,
+      candidateEntitiesProduced: 0,
+    };
+  }
+  countries.UNKNOWN = {
+    noticesRetrieved: 0,
+    productRelevantNotices: 0,
+    supplierEntitiesExtracted: 0,
+    candidateEntitiesProduced: 0,
+  };
   let checked = 0;
   let unavailable = false;
   const fields = [
@@ -272,7 +551,13 @@ async function fetchTedAwards(
     "winner-country",
     "winner-identifier",
     "winner-internet-address",
+    "winner-touchpoint-internet-address",
     "winner-selection-status",
+    "organisation-name-tenderer",
+    "organisation-country-tenderer",
+    "organisation-identifier-tenderer",
+    "organisation-internet-address-tenderer",
+    "touchpoint-internet-address-tenderer",
     "contract-conclusion-date",
     "links",
   ];
@@ -280,6 +565,19 @@ async function fetchTedAwards(
     const search of searchPlan.slice(0, DISCOVERY_LIMITS.maximumTedRequests)
   ) {
     checked += 1;
+    const queryDiagnostics: TedQueryDiagnostics = {
+      retrievalKind: search.retrievalKind,
+      countries: search.countries,
+      terms: search.terms,
+      unfilteredCountryFallback: search.unfilteredCountryFallback,
+      noticesReturned: 0,
+      productRelevantNotices: 0,
+      supplierEntitiesExtracted: 0,
+      domainEntities: 0,
+      candidatesProduced: 0,
+      rejectionReasons: {},
+    };
+    queries.push(queryDiagnostics);
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -299,7 +597,9 @@ async function fetchTedAwards(
           fields,
           page: 1,
           limit: DISCOVERY_LIMITS.maximumTedResultsPerQuery,
-          scope: "ACTIVE",
+          // Buyer discovery needs historical award evidence. ACTIVE excludes
+          // most concluded result notices and collapsed V2 recall.
+          scope: "ALL",
           paginationMode: "PAGE_NUMBER",
           onlyLatestVersions: true,
           checkQuerySyntax: false,
@@ -313,93 +613,54 @@ async function fetchTedAwards(
       const payload = record(await boundedJson(response));
       const notices = array(payload.notices || payload.results)
         .slice(0, DISCOVERY_LIMITS.maximumTedResultsPerQuery);
+      queryDiagnostics.noticesReturned = notices.length;
       for (const noticeValue of notices) {
-        const notice = record(noticeValue);
-        const names = texts(notice["winner-name"]).slice(0, 10);
-        if (!names.length) continue;
-        const websites = structuredTexts(
-          notice["winner-internet-address"],
-          1000,
+        const extracted = extractTedCandidatesFromNotice({
+          noticeValue,
+          search,
+          targetTaxonomyIds,
+          targetCpvCodes,
+          productFamily,
+        });
+        candidates.push(...extracted.candidates);
+        queryDiagnostics.productRelevantNotices += extracted.productRelevant
+          ? 1
+          : 0;
+        queryDiagnostics.supplierEntitiesExtracted +=
+          extracted.supplierEntitiesExtracted;
+        queryDiagnostics.domainEntities += extracted.domainEntities;
+        queryDiagnostics.candidatesProduced += extracted.candidates.length;
+        addRejections(
+          queryDiagnostics.rejectionReasons,
+          extracted.rejectionReasons,
         );
-        const identifiers = structuredTexts(notice["winner-identifier"], 240);
-        const countries = structuredTexts(notice["winner-country"], 20);
-        const cpvCodes = structuredTexts(notice["classification-cpv"], 40)
-          .map(normalizeCpv).filter(Boolean) as string[];
-        const exactCpv = cpvCodes.some((code) => targetCpvCodes.includes(code));
-        const relatedCpv = exactCpv ||
-          cpvCodes.some((code) =>
-            targetCpvCodes.some((target) =>
-              code.slice(0, 5) === target.slice(0, 5)
-            )
-          );
-        if (!relatedCpv) continue;
-        const publicationNumber = structuredFirst(
-          notice["publication-number"],
-          100,
+        addRejections(rejectionReasons, extracted.rejectionReasons);
+        const ensureCountry = (country: string) => {
+          countries[country] ||= {
+            noticesRetrieved: 0,
+            productRelevantNotices: 0,
+            supplierEntitiesExtracted: 0,
+            candidateEntitiesProduced: 0,
+          };
+          return countries[country];
+        };
+        const noticeCountries = new Set(
+          extracted.supplierCountries.length
+            ? extracted.supplierCountries
+            : ["UNKNOWN"],
         );
-        if (!publicationNumber) continue;
-        const title = first(notice["notice-title"]) || "TED contract award";
-        const lot = first(notice["description-lot"]);
-        const evidenceDate = structuredFirst(
-          notice["contract-conclusion-date"] || notice["publication-date"],
-          20,
-        ).match(/^\d{4}-\d{2}-\d{2}/)?.[0] || null;
-        for (let index = 0; index < names.length; index += 1) {
-          const name = sanitizeEvidenceText(names[index], 240);
-          if (!name) continue;
-          const winnerCountry = countryCode(countries[index] || countries[0]);
-          const websiteUrl = normalizeHttpsUrl(websites[index] || websites[0]);
-          const evidence = classifyEvidenceForProduct({
-            sourceType: "TED_AWARD",
-            sourceUrl: `https://ted.europa.eu/en/notice/-/detail/${
-              encodeURIComponent(publicationNumber)
-            }`,
-            sourceDomain: "ted.europa.eu",
-            title: sanitizeEvidenceText(title, 300),
-            snippet: sanitizeEvidenceText(lot || title, 1600),
-            // CPV is a retrieval signal. Product relevance is established
-            // below from the title/lot text, never from a broad CPV alone.
-            evidenceKind: "WEAK_CONTEXT",
-            confidence: exactCpv ? 0.86 : 0.72,
-            evidenceDate,
-            noticeId: publicationNumber,
-            procurementBuyer:
-              sanitizeEvidenceText(first(notice["buyer-name"]), 300) || null,
-            lotContext: sanitizeEvidenceText(lot, 1000) || null,
-            cpvCodes,
-            taxonomyIds: targetTaxonomyIds,
-          }, productFamily);
-          const commerciallyRelevant = evidence.relevanceClass !== "GENERIC";
-          candidates.push({
-            name,
-            countryCode: winnerCountry,
-            countryName: winnerCountry
-              ? COUNTRY_NAMES[winnerCountry] || null
-              : null,
-            cityRegion: null,
-            companyType: companyType(`${title} ${lot}`),
-            websiteUrl,
-            // TED exposes this as a typed procurement identifier. Preserve the
-            // bounded structured value so an explicit `KRS:##########` can be
-            // used by the Polish official-registry lookup adapter.
-            registryIdentifier: structuredFirst(
-              identifiers[index] || identifiers[0],
-              240,
-            ) || null,
-            description: sanitizeEvidenceText(lot || title, 1600) || null,
-            evidence: [evidence],
-            activities: [],
-            taxonomyIds: commerciallyRelevant ? targetTaxonomyIds : [],
-            taxonomyRelation: evidence.relevanceClass === "DIRECT"
-              ? "exact"
-              : evidence.relevanceClass === "ADJACENT"
-              ? "family"
-              : "none",
-            targetCountry: false,
-            preferredCompanyType: false,
-            relatedAwardCount: commerciallyRelevant ? 1 : 0,
-            lastEvidenceAt: evidenceDate,
-          });
+        for (const country of noticeCountries) {
+          ensureCountry(country).noticesRetrieved += 1;
+        }
+        for (const country of extracted.productRelevantCountries) {
+          ensureCountry(country).productRelevantNotices += 1;
+        }
+        for (const country of extracted.supplierCountries) {
+          ensureCountry(country).supplierEntitiesExtracted += 1;
+        }
+        for (const candidate of extracted.candidates) {
+          ensureCountry(candidate.countryCode || "UNKNOWN")
+            .candidateEntitiesProduced += 1;
         }
       }
     } catch (_) {
@@ -408,7 +669,30 @@ async function fetchTedAwards(
       clearTimeout(timeout);
     }
   }
-  return { candidates, checked, unavailable };
+  return {
+    candidates,
+    checked,
+    unavailable,
+    queries,
+    countries,
+    noticesReturned: queries.reduce(
+      (total, item) => total + item.noticesReturned,
+      0,
+    ),
+    productRelevantNotices: queries.reduce(
+      (total, item) => total + item.productRelevantNotices,
+      0,
+    ),
+    supplierEntitiesExtracted: queries.reduce(
+      (total, item) => total + item.supplierEntitiesExtracted,
+      0,
+    ),
+    domainEntities: queries.reduce(
+      (total, item) => total + item.domainEntities,
+      0,
+    ),
+    rejectionReasons,
+  };
 }
 
 async function fetchRegistryCandidates(
@@ -621,6 +905,7 @@ export function mergeSignals(
         1600,
       ),
       evidenceKind: "INDIRECT_COMMERCIAL_EVIDENCE",
+      discoveryReason: "OFFICIAL_REGISTRY_ACTIVITY",
       confidence: registry.activity.strength === "STRONG_INDIRECT"
         ? 0.82
         : 0.55,
@@ -683,7 +968,14 @@ export function mergeSignals(
 async function verifyWebsites(
   candidates: ProspectCandidate[],
   productFamily: ProductFamilyProfile,
-): Promise<{ checked: number; unavailable: number }> {
+): Promise<{
+  available: number;
+  checked: number;
+  unavailable: number;
+  relevant: number;
+  generic: number;
+  skipped: number;
+}> {
   const withWebsites = candidates.filter((item) => item.websiteUrl);
   const selected: ProspectCandidate[] = [];
   const countryCounts = new Map<string, number>();
@@ -701,7 +993,7 @@ async function verifyWebsites(
   }
   const results = await Promise.all(selected.map(async (candidate) => {
     const website = normalizeHttpsUrl(candidate.websiteUrl);
-    if (!website) return 0;
+    if (!website) return "SKIPPED" as const;
     try {
       const siteUrl = new URL(website);
       const robotsUrl = `${siteUrl.origin}/robots.txt`;
@@ -723,7 +1015,7 @@ async function verifyWebsites(
       } catch (_) {
         // An unavailable robots file is not a disallow rule.
       }
-      if (!allowed) return 0;
+      if (!allowed) return "SKIPPED" as const;
       const result = await safeFetchWithRedirects(website, {
         headers: {
           "Accept": "text/html,application/xhtml+xml",
@@ -732,12 +1024,12 @@ async function verifyWebsites(
       }, { maximumAttempts: 1, maximumRedirects: 3 });
       if (!result.response.ok) {
         await result.response.body?.cancel();
-        return 1;
+        return "UNAVAILABLE" as const;
       }
       const contentType = result.response.headers.get("content-type") || "";
       if (!contentType.includes("html")) {
         await result.response.body?.cancel();
-        return 0;
+        return "SKIPPED" as const;
       }
       const body = await readBoundedResponseBody(result.response, 512_000);
       const text = sanitizeEvidenceText(
@@ -787,14 +1079,20 @@ async function verifyWebsites(
       ) {
         candidate.taxonomyRelation = "family";
       }
-      return 0;
+      return classified.relevanceClass === "GENERIC"
+        ? "GENERIC" as const
+        : "RELEVANT" as const;
     } catch (_) {
-      return 1;
+      return "UNAVAILABLE" as const;
     }
   }));
   return {
+    available: withWebsites.length,
     checked: selected.length,
-    unavailable: results.reduce<number>((total, value) => total + value, 0),
+    unavailable: results.filter((value) => value === "UNAVAILABLE").length,
+    relevant: results.filter((value) => value === "RELEVANT").length,
+    generic: results.filter((value) => value === "GENERIC").length,
+    skipped: results.filter((value) => value === "SKIPPED").length,
   };
 }
 
@@ -1245,6 +1543,8 @@ async function persistCandidate(
       evidence_date: evidence.evidenceDate,
       confidence: Math.max(0, Math.min(1, evidence.confidence)),
       relevance_class: evidence.relevanceClass || "GENERIC",
+      candidate_discovery_reason: evidence.discoveryReason || null,
+      procurement_role: evidence.procurementRole || null,
       matched_terms: (evidence.matchedTerms || []).slice(0, 8),
       commercial_reason: sanitizeEvidenceText(evidence.commercialReason, 300),
       verification_status: "ACTIVE",
@@ -1524,9 +1824,6 @@ async function handleDiscovery(request: Request): Promise<Response> {
     ) {
       throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
     }
-    const taxonomyNames = taxonomyContextRows.map((item) =>
-      first(item.canonical_name)
-    ).filter(Boolean);
     const catalog = await taxonomyCatalog(admin);
     const selectedTaxonomy = catalog.filter((item) =>
       taxonomyIds.includes(item.id)
@@ -1572,22 +1869,16 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const fallbackCpv = cpvCodesFromIntent.length
       ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
-    const queries = boundedDiscoveryQueries({
-      cpvCodes: fallbackCpv,
-      targetCountries,
-      taxonomyNames: [
-        ...taxonomyNames,
-        ...productFamily.adjacentTerms.slice(0, 2),
-      ],
-    });
     const tedSearchPlan = boundedTedSearchPlan({
-      queries,
+      directTerms: productFamily.directTerms,
+      adjacentTerms: productFamily.adjacentTerms,
+      cpvCodes: fallbackCpv,
       targetCountries,
     });
     const registryCoverage = registryCoverageForCountries(discoveryCountries);
     await updateProgress({
       stage: "preparing_market_search",
-      queries_generated: queries.length,
+      queries_generated: tedSearchPlan.length,
       taxonomy_mapped: Math.min(100, taxonomyIds.length),
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
@@ -1605,11 +1896,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
         },
         countries_attempted: discoveryCountries,
         ted_requests_planned: tedSearchPlan.length,
+        ted_query_partitions: tedSearchPlan.map((item) => ({
+          retrieval_kind: item.retrievalKind,
+          countries: item.countries,
+          terms: item.terms,
+          unfiltered_country_fallback: item.unfilteredCountryFallback,
+        })),
       },
     });
     await updateProgress({
       stage: "searching_procurement",
-      queries_generated: queries.length,
+      queries_generated: tedSearchPlan.length,
     });
     const ted = await fetchTedAwards(
       tedSearchPlan,
@@ -1632,6 +1929,11 @@ async function handleDiscovery(request: Request): Promise<Response> {
         registryIdentifier: candidate.registryIdentifier,
       })),
     );
+    const tedPartitions = partitionTedCandidates(ted.candidates);
+    const boundedRegistryCandidates = registry.candidates.slice(
+      0,
+      DISCOVERY_LIMITS.maximumRegistryCandidates,
+    );
     await updateProgress({
       stage: "verifying_websites",
       sources_checked: Math.min(60, ted.checked + registry.checked),
@@ -1641,8 +1943,11 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ),
     });
     const merged = mergeSignals(
-      ted.candidates,
-      registry.candidates,
+      [
+        ...tedPartitions.productTermCandidates,
+        ...tedPartitions.cpvCandidates,
+      ],
+      boundedRegistryCandidates,
       targetCountries,
       partnerTypes,
     );
@@ -1732,6 +2037,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
       external_duplicates: deduped.externalDuplicates,
       ted_candidates_found: ted.candidates.length,
       registry_candidates_found: registry.candidates.length,
+      ted_product_term_candidates_selected:
+        tedPartitions.productTermCandidates.length,
+      ted_cpv_candidates_selected: tedPartitions.cpvCandidates.length,
+      registry_candidates_selected: boundedRegistryCandidates.length,
+      candidates_rejected_by_source_caps: tedPartitions.rejectedBySourceCaps +
+        Math.max(
+          0,
+          registry.candidates.length - boundedRegistryCandidates.length,
+        ),
+      ted_duplicates_collapsed_before_source_caps:
+        tedPartitions.duplicatesCollapsedBeforeCaps,
       merged_candidates_found: merged.length,
       deduplicated_candidates_remaining: deduped.candidates.length,
       countries_attempted: discoveryCountries,
@@ -1757,9 +2073,92 @@ async function handleDiscovery(request: Request): Promise<Response> {
       },
       ted_requests_planned: tedSearchPlan.length,
       ted_requests_actual: ted.checked,
+      ted_queries: ted.queries.map((item) => ({
+        retrieval_kind: item.retrievalKind,
+        countries: item.countries,
+        terms: item.terms,
+        unfiltered_country_fallback: item.unfilteredCountryFallback,
+        notices_returned: item.noticesReturned,
+        product_relevant_notices: item.productRelevantNotices,
+        supplier_entities_extracted: item.supplierEntitiesExtracted,
+        domain_entities: item.domainEntities,
+        candidates_produced: item.candidatesProduced,
+        rejection_reasons: item.rejectionReasons,
+      })),
+      ted_notices_returned: ted.noticesReturned,
+      ted_product_relevant_notices: ted.productRelevantNotices,
+      ted_supplier_entities_extracted: ted.supplierEntitiesExtracted,
+      ted_domain_entities: ted.domainEntities,
+      ted_rejection_reasons: ted.rejectionReasons,
+      ted_by_country: ted.countries,
+      registry_by_country: Object.fromEntries(
+        discoveryCountries.map((country) => [
+          country,
+          registry.candidates.filter((candidate) =>
+            candidate.countryCode === country
+          ).length,
+        ]),
+      ),
       registry_requests_checked: registry.checked,
+      website_candidates_with_domains: website.available,
       website_checks: website.checked,
+      website_product_relevant: website.relevant,
+      website_generic_or_mismatch: website.generic,
       candidate_pool_size: deduped.candidates.length,
+      rejection_stages: {
+        ted_before_verification: Object.values(ted.rejectionReasons).reduce(
+          (total, value) => total + value,
+          0,
+        ),
+        source_partition_caps: tedPartitions.rejectedBySourceCaps +
+          Math.max(
+            0,
+            registry.candidates.length - boundedRegistryCandidates.length,
+          ),
+        registered_company_deduplication: deduped.registeredDuplicates,
+        external_entity_deduplication: deduped.externalDuplicates,
+        strict_product_verification: ranking.rejected.length,
+      },
+      quality_metrics: {
+        retrieval_candidates: ted.candidates.length +
+          registry.candidates.length,
+        verified_candidates: deduped.candidates.length,
+        accepted_candidates: ranking.accepted.length,
+        persisted_candidates: accepted,
+        precision_proxy: deduped.candidates.length
+          ? Number(
+            (ranking.accepted.length / deduped.candidates.length).toFixed(4),
+          )
+          : 0,
+        source_coverage: {
+          product_term_ted: tedPartitions.productTermCandidates.length,
+          related_cpv_ted: tedPartitions.cpvCandidates.length,
+          official_registry: boundedRegistryCandidates.length,
+          websites_with_official_domains: website.available,
+        },
+      },
+      country_pipeline: Object.fromEntries(
+        [...discoveryCountries, "UNKNOWN"].map((country) => [
+          country,
+          {
+            ted_notices_retrieved: ted.countries[country]?.noticesRetrieved ||
+              0,
+            ted_product_relevant_notices:
+              ted.countries[country]?.productRelevantNotices || 0,
+            ted_supplier_entities:
+              ted.countries[country]?.supplierEntitiesExtracted || 0,
+            ted_candidate_entities:
+              ted.countries[country]?.candidateEntitiesProduced || 0,
+            registry_entities: registry.candidates.filter((candidate) =>
+              candidate.countryCode === country
+            ).length,
+            verified_candidates:
+              ranking.diagnostics.candidatesByCountry[country] || 0,
+            accepted_candidates:
+              ranking.diagnostics.acceptedByCountry[country] || 0,
+          },
+        ]),
+      ),
       direct_contact_fields_stored: 0,
     };
     const completion = await admin.from("external_prospect_discovery_runs")
@@ -1784,7 +2183,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
         diagnostics,
         completed_at: new Date().toISOString(),
       }).eq("id", runId);
-    if (completion.error) throw completion.error;
+    if (completion.error) {
+      throw completion.error;
+    }
     return json(request, {
       ok: true,
       run: {
