@@ -76,7 +76,7 @@ alter table public.company_external_prospect_matches
   );
 
 alter table public.company_external_prospect_matches
-  drop constraint company_external_prospect_matches_company_id_external_company_i;
+  drop constraint company_external_prospect_mat_company_id_external_company_i_key;
 alter table public.company_external_prospect_matches
   add constraint company_external_matches_company_entity_intent_key
   unique (company_id, external_company_id, intent_hash);

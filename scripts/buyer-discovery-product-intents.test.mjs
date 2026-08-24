@@ -64,7 +64,7 @@ assert.match(migration,/if v_daily >= 2/);
 assert.match(migration,/if v_monthly >= 10/);
 assert.match(migration,/jsonb_array_length\(suggestions\) <= 8/);
 assert.match(migration,/pages_checked between 0 and 12/);
-assert.match(migration,/drop constraint company_external_prospect_matches_company_id_external_company_i/);
+assert.match(migration,/drop constraint company_external_prospect_mat_company_id_external_company_i_key/);
 assert.match(migration,/force row level security/);
 assert.match(migration,/from public, anon, authenticated/);
 assert.doesNotMatch(migration,/grant (?:select|insert|update|delete|all)[^;]+to (?:anon|authenticated)/is);
