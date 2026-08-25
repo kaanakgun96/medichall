@@ -17,6 +17,8 @@ assert.match(migration, /buyer_discovery_partitions/);
 assert.match(migration, /buyer_discovery_seen_companies/);
 assert.match(migration, /buyer_discovery_run_partitions/);
 assert.match(migration, /direct_verified_yield/);
+assert.match(migration, /public\.is_bounded_medical_product_phrase_v1/);
+assert.doesNotMatch(migration, /public\.is_bounded_medical_product_phrase_v2/);
 assert.match(migration, /cached_intent_14_days/);
 assert.match(migration, /Customer Fresh Discovery is feature-gated/);
 assert.match(migration, /Daily Admin QA Fresh Discovery limit reached/);

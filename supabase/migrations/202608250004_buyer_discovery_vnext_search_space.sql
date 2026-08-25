@@ -13,7 +13,7 @@ begin
      or to_regprocedure('public.start_external_prospect_discovery_v2(bigint,uuid,jsonb)') is null
      or to_regprocedure('public.get_external_prospect_workspace_v2(bigint,integer)') is null
      or to_regprocedure('public.unknown_product_phrase_signature_v1(text)') is null
-     or to_regprocedure('public.is_bounded_medical_product_phrase_v2(text)') is null then
+     or to_regprocedure('public.is_bounded_medical_product_phrase_v1(text)') is null then
     raise exception 'Buyer Discovery V2.3 and Unknown Product Validator Expansion must be installed first';
   end if;
 end
@@ -423,7 +423,7 @@ begin
     v_signature := public.unknown_product_phrase_signature_v1(v_phrase);
     if cardinality(v_taxonomy_ids) <> 0
        or v_phrase <> coalesce(p_intent->>'normalized_product_phrase', '')
-       or not public.is_bounded_medical_product_phrase_v2(v_phrase)
+       or not public.is_bounded_medical_product_phrase_v1(v_phrase)
        or coalesce(p_intent->>'resolution_event_id', '') !~
           '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
       raise exception 'A bounded unmapped medical-product intent is required'
