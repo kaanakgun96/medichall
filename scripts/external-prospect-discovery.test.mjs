@@ -161,8 +161,8 @@ assert.match(edge, /evidence_snapshot:[\s\S]*?matched_terms:/);
 assert.match(edge, /evidence_snapshot:[\s\S]*?commercial_reason:/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.css\?v=20260824relevance2/);
-  assert.match(page, /external-prospects\.js\?v=20260824stability1/);
+  assert.match(page, /external-prospects\.css\?v=20260825unknown1/);
+  assert.match(page, /external-prospects\.js\?v=20260825unknown1/);
 }
 assert.match(portal, /European Buyer Discovery/);
 assert.match(portal, /#buyer-discovery/);

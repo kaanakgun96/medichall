@@ -143,5 +143,5 @@ test("C and M: background matchmaking refresh preserves the mounted root and no 
   assert.match(workspaceSource,/setInterval\(\(\)=>\{if\(!document\.hidden\)loadWorkspace\(true\);\},30000\)/);
   assert.doesNotMatch(workspaceSource,/location\.reload/);
   assert.doesNotMatch(uiSource,/setInterval/);
-  assert.match(portalSource,/external-prospects\.js\?v=20260824stability1/);
+  assert.match(portalSource,/external-prospects\.js\?v=20260825unknown1/);
 });

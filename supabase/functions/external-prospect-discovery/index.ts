@@ -62,6 +62,11 @@ import {
   type PublicWebDiscoveryCache,
   runPublicWebDiscovery,
 } from "../_shared/public-web-discovery.ts";
+import {
+  buildTemporaryProductFamilyProfile,
+  resolveProductIntentDeterministically,
+  unmappedWebsiteProductSuggestions,
+} from "../_shared/unknown-product-resolution.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 const ALLOWED_ORIGINS = new Set([
@@ -1264,7 +1269,7 @@ async function taxonomyCatalog(
 ): Promise<ProductTaxonomyCandidate[]> {
   const [taxonomyResult, aliasResult] = await Promise.all([
     admin.from("medical_product_taxonomy").select(
-      "id,canonical_name,slug,node_type",
+      "id,parent_id,canonical_name,slug,node_type,description",
     ).eq("is_active", true).limit(500),
     admin.from("medical_product_aliases").select("taxonomy_id,alias_text")
       .eq("is_active", true).eq("verification_status", "approved").limit(2000),
@@ -1280,14 +1285,27 @@ async function taxonomyCatalog(
     if (!Number.isSafeInteger(taxonomyId) || !alias) continue;
     aliases.set(taxonomyId, [...(aliases.get(taxonomyId) || []), alias]);
   }
-  return array(taxonomyResult.data).map((value) => {
-    const row = record(value);
+  const taxonomyRows = array(taxonomyResult.data).map(record);
+  const taxonomyNames = new Map<number, string>();
+  for (const row of taxonomyRows) {
     const id = Number(row.id);
+    if (Number.isSafeInteger(id)) {
+      taxonomyNames.set(id, first(row.canonical_name));
+    }
+  }
+  return taxonomyRows.map((row) => {
+    const id = Number(row.id);
+    const parentId = Number(row.parent_id);
     return {
       id,
+      parentId: Number.isSafeInteger(parentId) ? parentId : null,
       canonicalName: first(row.canonical_name),
       slug: first(row.slug),
       nodeType: first(row.node_type),
+      description: first(row.description) || null,
+      parentName: Number.isSafeInteger(parentId)
+        ? taxonomyNames.get(parentId) || null
+        : null,
       aliases: aliases.get(id) || [],
     };
   }).filter((item) => Number.isSafeInteger(item.id) && item.canonicalName);
@@ -1510,7 +1528,16 @@ async function scanCompanyWebsiteProducts(
   });
   const catalog = await taxonomyCatalog(admin);
   await updateScan({ stage: "matching_categories" });
-  const suggestions = normalizeWebsiteProductSignals(signals, catalog);
+  const mappedSuggestions = normalizeWebsiteProductSignals(signals, catalog)
+    .map((item) => ({ ...item, resolution: "MAPPED" }));
+  const unknownSuggestions = unmappedWebsiteProductSuggestions(
+    signals,
+    mappedSuggestions.map((item) => item.raw_website_label),
+  );
+  const suggestions = [...mappedSuggestions, ...unknownSuggestions].slice(
+    0,
+    WEBSITE_PRODUCT_SCAN_LIMITS.maximumSuggestions,
+  );
   const status = suggestions.length ? "COMPLETED" : "NO_PRODUCTS";
   const completedAt = new Date();
   await updateScan({
@@ -1958,24 +1985,45 @@ async function handleDiscovery(request: Request): Promise<Response> {
           : "Invalid product query.",
       }, 400);
     }
-    const resolved = await admin.rpc("resolve_medical_product_term_v1", {
-      p_term: productQuery,
-      p_limit: 5,
-    });
-    if (resolved.error) {
+    let result;
+    try {
+      result = resolveProductIntentDeterministically(
+        productQuery,
+        await taxonomyCatalog(admin),
+      );
+    } catch (_) {
       return json(request, { error: "Product taxonomy is unavailable." }, 503);
     }
-    const result = record(resolved.data);
-    const resolution = String(result.resolution || "unmapped");
+    if (result.resolution === "unmapped" && !result.search_anyway_allowed) {
+      return json(request, {
+        error:
+          "Enter a specific medical product name, not a general web-search request.",
+      }, 400);
+    }
+    const event = await authClient.rpc("record_product_resolution_event_v1", {
+      p_company_id: companyId,
+      p_idempotency_key: idempotencyKey,
+      p_normalized_phrase: result.normalized_source_text,
+      p_phrase_signature: result.phrase_signature,
+      p_resolution_status: result.resolution === "high_confidence"
+        ? "EXACT_APPROVED"
+        : result.resolution === "medium_confidence"
+        ? "SUGGESTED"
+        : "UNMAPPED",
+      p_suggestions: result.suggestions,
+    });
+    if (event.error) {
+      return json(
+        request,
+        { error: "Product resolution could not be saved." },
+        503,
+      );
+    }
     return json(request, {
       ok: true,
-      resolution,
-      recommended: result.recommended || null,
-      alternatives: array(result.alternatives).slice(0, 5),
-      confirmation_required: resolution !== "high_confidence",
-      semantic_provider_used: false,
-      provider_requests: 0,
-      estimated_cost_usd: 0,
+      ...result,
+      resolution_event_id: record(event.data).resolution_event_id || null,
+      confirmation_required: result.resolution !== "high_confidence",
     });
   }
   if (operation === "scan_company_products") {
@@ -2099,6 +2147,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
       throw new Error("DISCOVERY_CONTEXT_UNAVAILABLE");
     }
     const taxonomyContextRows = array(intentContext.taxonomy).map(record);
+    const unmappedIntent = String(intentContext.intent_source || "") ===
+      "UNMAPPED_PRODUCT";
     const taxonomyIds = [
       ...new Set(
         taxonomyContextRows.map((item) => Number(item.taxonomy_id)).filter(
@@ -2108,7 +2158,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
     ];
     if (
       !UUID_PATTERN.test(runId) || !/^[a-f0-9]{64}$/.test(intentHash) ||
-      !taxonomyIds.length
+      (!unmappedIntent && !taxonomyIds.length)
     ) {
       throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
     }
@@ -2116,21 +2166,26 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const selectedTaxonomy = catalog.filter((item) =>
       taxonomyIds.includes(item.id)
     );
-    const productFamily = buildProductFamilyProfile(
-      selectedTaxonomy.length
-        ? selectedTaxonomy.map((item) => ({
-          taxonomyId: item.id,
-          canonicalName: item.canonicalName,
-          slug: item.slug,
-          aliases: item.aliases,
-        }))
-        : taxonomyContextRows.map((item) => ({
-          taxonomyId: Number(item.taxonomy_id),
-          canonicalName: first(item.canonical_name),
-          slug: first(item.slug),
-          aliases: [] as string[],
-        })),
-    );
+    const productFamily = unmappedIntent
+      ? buildTemporaryProductFamilyProfile({
+        phrase: intentContext.normalized_product_phrase,
+        intentHash,
+      })
+      : buildProductFamilyProfile(
+        selectedTaxonomy.length
+          ? selectedTaxonomy.map((item) => ({
+            taxonomyId: item.id,
+            canonicalName: item.canonicalName,
+            slug: item.slug,
+            aliases: item.aliases,
+          }))
+          : taxonomyContextRows.map((item) => ({
+            taxonomyId: Number(item.taxonomy_id),
+            canonicalName: first(item.canonical_name),
+            slug: first(item.slug),
+            aliases: [] as string[],
+          })),
+      );
     const profile = record(profileResult.data);
     const matchProfile = record(matchProfileResult.data);
     const targetCountries = [
@@ -2154,7 +2209,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
           .map(normalizeCpv).filter(Boolean),
       ),
     ] as string[];
-    const fallbackCpv = cpvCodesFromIntent.length
+    const fallbackCpv = unmappedIntent
+      ? []
+      : cpvCodesFromIntent.length
       ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
     const tedSearchPlan = boundedTedSearchPlan({
@@ -2181,12 +2238,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
       1,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
     ));
+    const boundedPublicWebQueries = unmappedIntent
+      ? Math.min(4, publicWebMaximumQueries)
+      : publicWebMaximumQueries;
     const publicWebMaximumCost = boundedEnvironmentNumber(
       Deno.env.get("PUBLIC_WEB_MAX_COST_USD_PER_RUN"),
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
       0,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
     );
+    const boundedPublicWebCost = unmappedIntent
+      ? Math.min(.02, publicWebMaximumCost)
+      : publicWebMaximumCost;
     await updateProgress({
       stage: "preparing_market_search",
       // The existing production progress column is constrained to 0..4.
@@ -2209,8 +2272,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
         },
         countries_attempted: discoveryCountries,
         public_web_discovery_enabled: publicWebEnabled,
-        public_web_query_limit: publicWebMaximumQueries,
-        public_web_cost_limit_usd: publicWebMaximumCost,
+        public_web_query_limit: boundedPublicWebQueries,
+        public_web_cost_limit_usd: boundedPublicWebCost,
+        temporary_unmapped_intent: unmappedIntent,
         ted_requests_planned: tedSearchPlan.length,
         ted_query_partitions: tedSearchPlan.map((item) => ({
           retrieval_kind: item.retrievalKind,
@@ -2237,8 +2301,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
         cache: publicWebDiscoveryCache(admin),
         productFamily,
         targetCountries,
-        maximumQueries: publicWebMaximumQueries,
-        maximumCostUsd: publicWebMaximumCost,
+        maximumQueries: boundedPublicWebQueries,
+        maximumCostUsd: boundedPublicWebCost,
       }),
     ]);
     publicWebProviderRequests = publicWeb.providerRequests;
@@ -2563,6 +2627,21 @@ async function handleDiscovery(request: Request): Promise<Response> {
     if (completion.error) {
       throw completion.error;
     }
+    const verifiedEvidenceCount = ranking.accepted.reduce(
+      (total, item) =>
+        total +
+        item.candidate.evidence.filter((evidence) =>
+          evidence.relevanceClass === "DIRECT" ||
+          evidence.relevanceClass === "ADJACENT"
+        ).length,
+      0,
+    );
+    const learning = await admin.rpc("record_product_resolution_outcome_v1", {
+      p_run_id: runId,
+      p_verified_evidence_count: Math.min(100, verifiedEvidenceCount),
+      p_successful_discovery_count: accepted > 0 ? 1 : 0,
+    });
+    if (learning.error) throw new Error("PRODUCT_RESOLUTION_OUTCOME_FAILED");
     return json(request, {
       ok: true,
       run: {

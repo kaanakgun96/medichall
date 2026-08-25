@@ -29,9 +29,12 @@ export type WebsiteProductSignal = {
 
 export type ProductTaxonomyCandidate = {
   id: number;
+  parentId?: number | null;
   canonicalName: string;
   slug: string;
   nodeType: string;
+  description?: string | null;
+  parentName?: string | null;
   aliases: string[];
 };
 

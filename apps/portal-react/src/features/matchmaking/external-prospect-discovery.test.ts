@@ -10,8 +10,8 @@ import registryAdapters from "../../../../../supabase/functions/_shared/external
 describe("External Prospect Discovery production contract", () => {
   it("uses one shared workspace across first-class Buyer Discovery surfaces", () => {
     for (const page of [portal, standalone]) {
-      expect(page).toContain("external-prospects.js?v=20260824stability1");
-      expect(page).toContain("external-prospects.css?v=20260824relevance2");
+      expect(page).toContain("external-prospects.js?v=20260825unknown1");
+      expect(page).toContain("external-prospects.css?v=20260825unknown1");
     }
     expect(portal).toContain("European Buyer Discovery");
     expect(portal).toContain('id="panel-buyer-discovery"');

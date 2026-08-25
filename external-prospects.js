@@ -43,7 +43,7 @@ const EUROPE_COUNTRIES=[
   ["MT","Malta"],["NL","Netherlands"],["NO","Norway"],["PL","Poland"],["PT","Portugal"],["RO","Romania"],
   ["SK","Slovakia"],["SI","Slovenia"],["ES","Spain"],["SE","Sweden"],["CH","Switzerland"],["GB","United Kingdom"]
 ];
-const INTENT_LABELS={PROFILE_PRODUCT:"My products",AD_HOC_PRODUCT:"Manual product search",WEBSITE_DETECTED_PRODUCT:"Detected from your website"};
+const INTENT_LABELS={PROFILE_PRODUCT:"My products",AD_HOC_PRODUCT:"Manual product search",WEBSITE_DETECTED_PRODUCT:"Detected from your website",UNMAPPED_PRODUCT:"Searching as entered product"};
 
 function createWorkspace(options){
   if(!options?.root||typeof options.rpc!=="function"||typeof options.edge!=="function")throw new Error("Buyer Discovery workspace configuration is incomplete.");
@@ -86,7 +86,7 @@ function createWorkspace(options){
     saved.forEach(value=>state.selectedCountries.add(value));
     state.countryMode=saved.length?"selected":"europe";
     const scan=list(state.data.website_scans).find(item=>["COMPLETED","NO_PRODUCTS"].includes(String(item.status)));
-    list(scan?.suggestions).filter(item=>item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
+    list(scan?.suggestions).filter(item=>Number.isSafeInteger(Number(item.taxonomy_id))&&item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
     state.mode=products.length?"profile":context.website_available?"website":"adhoc";
     state.selectedRunId=list(state.data.runs)[0]?.id||null;
     state.initialized=true;
@@ -164,7 +164,8 @@ function createWorkspace(options){
     return {
       product:context.normalized_product_label||"your selected products",
       source:INTENT_LABELS[run?.intent_source||context.intent_source]||"Buyer Discovery",
-      markets:countries.length?countries.join(" · "):"Europe-wide"
+      markets:countries.length?countries.join(" · "):"Europe-wide",
+      temporary:context.temporary_intent===true
     };
   }
   function coverageHtml(run){
@@ -188,7 +189,7 @@ function createWorkspace(options){
     if(status==="PARTIAL")outcome='<div class="mhxp-state partial"><b>Results are ready with limited source coverage.</b><p>Available evidence was ranked normally. One or more public sources could not be reached, so absence of a result is not proof that no buyer exists.</p></div>';
     if(status==="FAILED")outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="retry">Retry search</button></div>';
     if(status==="COMPLETED")outcome='<div class="mhxp-state complete"><b>European buyer search complete.</b><p>'+accepted+' evidence-backed candidate'+(accepted===1?"":"s")+' met the current confidence threshold.</p></div>';
-    return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">'+esc(context.source)+'</span><h4>'+esc(stageName(run.stage,status))+'</h4><p><b>Discovering buyers for '+esc(context.product)+'</b> · '+esc(context.markets)+'. Only completed backend work is shown; no estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
+    return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">'+esc(context.source)+'</span><h4>'+esc(stageName(run.stage,status))+'</h4><p><b>Buyer Discovery for: '+esc(context.product)+'</b> · '+esc(context.markets)+'. '+(context.temporary?'Searching as entered product. ':'Matched category. ')+'Only completed backend work is shown; no estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
       (isActive(run)?'<ol class="mhxp-stages">'+steps+'</ol>':"")+
       '<div class="mhxp-counters"><div><strong>'+sourceCount+'</strong><span>public sources checked</span></div><div><strong>'+found+'</strong><span>candidates found</span></div><div><strong>'+deduped+'</strong><span>duplicates removed</span></div><div><strong>'+accepted+'</strong><span>evidence-backed results</span></div></div>'+outcome+coverageHtml(run)+'</section>';
   }
@@ -244,12 +245,15 @@ function createWorkspace(options){
     return '<div class="mhxp-choice-grid">'+products.map(item=>item.taxonomy_id?'<label class="mhxp-choice"><input type="checkbox" data-profile-taxonomy="'+Number(item.taxonomy_id)+'" '+(state.profileSelected.has(Number(item.taxonomy_id))?'checked':'')+'><span><b>'+esc(item.product_name)+'</b><small>'+esc(item.canonical_name)+'</small></span></label>':'<div class="mhxp-choice unavailable"><span><b>'+esc(item.product_name)+'</b><small>Choose a canonical category in My Products before using this item.</small></span></div>').join("")+'</div>';
   }
   function adhocModeHtml(){
-    const resolution=state.adhocResolution,recommended=resolution?.recommended;
+    const resolution=state.adhocResolution,recommended=resolution?.recommended,suggestions=list(resolution?.suggestions||resolution?.alternatives);
     let result="";
-    if(resolution?.resolution==="unmapped")result='<div class="mhxp-state neutral" role="status"><b>MedicHall could not confidently classify this product.</b><p>Try a more specific or broader medical product name. No category was invented.</p></div>';
-    else if(recommended){
+    if(resolution?.resolution==="unmapped")result='<div class="mhxp-resolution" role="status"><span class="mhxp-kicker">No reliable category yet</span><b>We couldn’t confidently map this product to an existing MedicHall category yet.</b><p>MedicHall will search using the product name you entered and verify potential buyers using public product, procurement and company evidence.</p><div class="mhxp-resolution-actions"><button type="button" class="primary" data-action="search-anyway" '+(resolution.search_anyway_allowed===false?'disabled aria-disabled="true"':'')+'>'+(resolution.confirmed?'Searching as entered product ✓':'Search this product anyway')+'</button><button type="button" data-action="change-product">Try a different product name</button></div></div>';
+    else if(resolution?.resolution==="high_confidence"&&recommended){
       const item={taxonomy_id:Number(recommended.canonical_taxonomy_id),canonical_name:recommended.canonical_name,slug:recommended.slug||""};
-      result='<div class="mhxp-normalized" role="status"><span class="mhxp-kicker">'+(resolution.resolution==="high_confidence"?'Exact or approved alias':'Suggested category — confirmation required')+'</span><b>'+esc(item.canonical_name)+'</b><p>'+esc(recommended.reasoning||"Deterministic taxonomy match.")+'</p><div><button type="button" class="primary" data-action="confirm-adhoc" data-taxonomy="'+item.taxonomy_id+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug)+'">'+(resolution.confirmed?'Category confirmed ✓':'Use this category')+'</button>'+productSuggestionActions(item,"AD_HOC_PRODUCT")+'</div></div>';
+      result='<div class="mhxp-normalized" role="status"><span class="mhxp-kicker">Product matched</span><b>'+esc(item.canonical_name)+'</b><p>'+esc(recommended.reasoning||"Exact canonical name or approved alias.")+'</p><div><span class="mhxp-already">Ready to search ✓</span>'+productSuggestionActions(item,"AD_HOC_PRODUCT")+'</div></div>';
+    }else if(recommended){
+      const choices=(suggestions.length?suggestions:[recommended]).slice(0,3);
+      result='<div class="mhxp-resolution" role="status"><span class="mhxp-kicker">Possible product categories</span><b>'+(choices.length===1?'We found a likely product category:':'We found a few possible matches:')+'</b><p>Choose the category that best describes your product. MedicHall will not change your product or publish a new global alias.</p><div class="mhxp-suggestion-list" role="list">'+choices.map(item=>'<article role="listitem" class="'+(Number(resolution?.recommended?.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'recommended':'')+'"><div><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.confidence_label||"MEDIUM")+' confidence · '+esc(item.reasoning||"Multiple deterministic product-family signals.")+'</small></div><button type="button" class="primary" data-action="confirm-adhoc" data-taxonomy="'+Number(item.canonical_taxonomy_id)+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug||"")+'">'+(resolution.confirmed&&Number(recommended.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'Category confirmed ✓':'Use this category')+'</button></article>').join("")+'</div><button type="button" data-action="change-product">Choose another category or product name</button></div>';
     }
     return '<form class="mhxp-product-search" data-product-search><label for="mhxpProductQuery">Medical product or category</label><div><input id="mhxpProductQuery" name="product_query" maxlength="160" value="'+esc(state.adhocQuery)+'" placeholder="Enter a medical product, e.g. Ultrasound Probe Cover" aria-describedby="mhxp-product-help"><button class="primary" type="submit">Match product</button></div><p id="mhxp-product-help" class="mhxp-help">Commercial names and approved aliases are normalized to MedicHall’s existing Medical Product Taxonomy. No paid AI is used.</p></form>'+result;
   }
@@ -260,12 +264,12 @@ function createWorkspace(options){
       const stages={reading_website:"Reading your website",finding_product_pages:"Finding product pages",identifying_products:"Identifying medical products",matching_categories:"Matching product categories",ready:"Ready"};
       return '<div class="mhxp-scan-progress" role="status" aria-live="polite"><span class="mhxp-kicker">'+esc(context.website_domain||"Company website")+'</span><b>'+esc(stages[scan?.stage]||"Reading your website")+'</b><p>Only bounded public pages are checked. No scripts, forms, contacts or private pages are used.</p></div>';
     }
-    const suggestions=list(scan?.suggestions);
+    const suggestions=list(scan?.suggestions),mappedSuggestions=suggestions.filter(item=>Number.isSafeInteger(Number(item.taxonomy_id))),unmappedSuggestions=suggestions.filter(item=>!Number.isSafeInteger(Number(item.taxonomy_id))&&item.resolution==="UNMAPPED");
     if(scan&&["FAILED","ROBOTS_DENIED"].includes(String(scan.status)))return '<div class="mhxp-state neutral"><b>We could not scan your website right now.</b><p>'+ (scan.status==="ROBOTS_DENIED"?'The site’s robots rules do not allow this scan.':'You can still enter a product manually.') +'</p><button type="button" data-action="mode" data-mode="adhoc">Enter a product manually</button></div>';
     if(scan&&scan.status==="NO_PRODUCTS")return '<div class="mhxp-state neutral"><b>No clear product categories were found on your website.</b><p>MedicHall did not fabricate suggestions. Enter a product manually instead.</p><button type="button" data-action="mode" data-mode="adhoc">Enter a product manually</button></div>';
     if(!suggestions.length)return '<div class="mhxp-scan-start"><span class="mhxp-kicker">Stored company domain</span><b>'+esc(context.website_domain)+'</b><p>MedicHall safely checks up to 12 relevant public pages, respects robots rules, maps product signals to the existing taxonomy, and stores no raw page content or contacts.</p><button class="primary" type="button" data-action="scan">Scan my website</button></div>';
     const createdAt=Date.parse(scan.created_at||""),rescanAllowed=!Number.isFinite(createdAt)||Date.now()-createdAt>=86400000;
-    return '<div class="mhxp-detected"><div class="mhxp-detected-head"><div><span class="mhxp-kicker">Detected from '+esc(context.website_domain)+'</span><b>Confirm the categories you want to use</b><p>High and medium-confidence suggestions are preselected. Low-confidence suggestions always require your choice.</p></div><button type="button" data-action="scan" data-force="true" '+(rescanAllowed?'':'disabled aria-disabled="true" title="Website rescans are available after the 24-hour safety cooldown"')+'>'+(rescanAllowed?'Rescan website':'Rescan available later')+'</button></div><div class="mhxp-choice-grid">'+suggestions.map(item=>'<article class="mhxp-detected-card '+String(item.confidence).toLowerCase()+'"><label><input type="checkbox" data-website-taxonomy="'+Number(item.taxonomy_id)+'" '+(state.websiteSelected.has(Number(item.taxonomy_id))?'checked':'')+'><span><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.raw_website_label)+' · '+esc(item.confidence)+' confidence</small></span></label><p>Found on '+list(item.source_pages).length+' public page'+(list(item.source_pages).length===1?'':'s')+'.</p>'+productSuggestionActions(item,"WEBSITE_DETECTED_PRODUCT")+'</article>').join("")+'</div></div>';
+    return '<div class="mhxp-detected"><div class="mhxp-detected-head"><div><span class="mhxp-kicker">Detected from '+esc(context.website_domain)+'</span><b>Confirm the categories you want to use</b><p>High and medium-confidence mapped suggestions are preselected. Unknown phrases remain unselected until you resolve them.</p></div><button type="button" data-action="scan" data-force="true" '+(rescanAllowed?'':'disabled aria-disabled="true" title="Website rescans are available after the 24-hour safety cooldown"')+'>'+(rescanAllowed?'Rescan website':'Rescan available later')+'</button></div><div class="mhxp-choice-grid">'+mappedSuggestions.map(item=>'<article class="mhxp-detected-card '+String(item.confidence).toLowerCase()+'"><label><input type="checkbox" data-website-taxonomy="'+Number(item.taxonomy_id)+'" '+(state.websiteSelected.has(Number(item.taxonomy_id))?'checked':'')+'><span><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.raw_website_label)+' · '+esc(item.confidence)+' confidence</small></span></label><p>Found on '+list(item.source_pages).length+' public page'+(list(item.source_pages).length===1?'':'s')+'.</p>'+productSuggestionActions(item,"WEBSITE_DETECTED_PRODUCT")+'</article>').join("")+unmappedSuggestions.map(item=>'<article class="mhxp-detected-card unmapped"><span class="mhxp-kicker">Possible product — category not yet mapped</span><b>'+esc(item.raw_website_label)+'</b><p>Found on '+list(item.source_pages).length+' public page'+(list(item.source_pages).length===1?'':'s')+'. Review this phrase before using it.</p><button type="button" data-action="resolve-website-phrase" data-phrase="'+esc(item.raw_website_label)+'">Resolve this product</button></article>').join("")+'</div></div>';
   }
   function recentHtml(){
     const runs=list(state.data.runs).slice(0,8);if(!runs.length)return"";
@@ -274,7 +278,7 @@ function createWorkspace(options){
   function readinessHtml(){
     const ready=readiness(),modeContent=state.mode==="profile"?profileModeHtml():state.mode==="website"?websiteModeHtml():adhocModeHtml();
     const action=state.retryRequired?"retry":"discover",busy=state.discovering,label=busy?"Searching Europe…":state.retryRequired?"Retry search":"Discover European buyers";
-    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+action+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+label+'</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm at least one product category to continue.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
+    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+action+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+label+'</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm a category or choose bounded Search anyway for a valid unmapped product.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
   }
   function friendlyRunError(code){
     const value=String(code||"").toUpperCase();
@@ -312,11 +316,15 @@ function createWorkspace(options){
     }
     if(state.retryRequired&&!explicitRetry)return;
     const ready=readiness();
-    if(!ready.ready){state.notice={tone:"neutral",title:"Confirm a product category first.",message:"Choose a profile product, confirm a manual taxonomy match, or select a website-detected category."};render();return;}
-    const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
-    const intentSource=state.mode==="profile"?"PROFILE_PRODUCT":state.mode==="website"?"WEBSITE_DETECTED_PRODUCT":"AD_HOC_PRODUCT";
+    if(!ready.ready){state.notice={tone:"neutral",title:"Confirm or resolve a product first.",message:"Choose a profile product, confirm a suggested category, select a website-detected category, or use bounded Search anyway for a valid unmapped medical product."};render();return;}
+    const unmapped=state.mode==="adhoc"&&state.adhocResolution?.useUnmapped===true;
+    const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:unmapped?[]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
+    const intentSource=state.mode==="profile"?"PROFILE_PRODUCT":state.mode==="website"?"WEBSITE_DETECTED_PRODUCT":unmapped?"UNMAPPED_PRODUCT":"AD_HOC_PRODUCT";
     state.discovering=true;state.notice=null;render();track("external_prospect_discovery_started");
-    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:{intent_source:intentSource,taxonomy_ids:taxonomyIds.slice(0,8),target_countries:targetCountries()}});
+    const intent={intent_source:intentSource,taxonomy_ids:taxonomyIds.slice(0,8),target_countries:targetCountries()};
+    if(state.mode==="adhoc"&&state.adhocResolution?.resolution_event_id)intent.resolution_event_id=state.adhocResolution.resolution_event_id;
+    if(unmapped)intent.normalized_product_phrase=state.adhocResolution.normalized_source_text;
+    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent});
     schedulePoll(700);
     try{
       const result=await request;
@@ -343,7 +351,7 @@ function createWorkspace(options){
     state.notice=null;state.adhocResolution=null;render();
     try{
       const result=await options.edge("external-prospect-discovery",{operation:"resolve_product_intent",company_id:Number(options.companyId),idempotency_key:uuid(),product_query:query});
-      state.adhocResolution={...result,confirmed:false};
+      state.adhocResolution={...result,confirmed:result?.resolution==="high_confidence",useUnmapped:false};
     }catch(error){state.notice={tone:"failed",title:"This product could not be matched.",message:friendlyError(error)};}
     render();
   }
@@ -354,7 +362,7 @@ function createWorkspace(options){
       const result=await options.edge("external-prospect-discovery",{operation:"scan_company_products",company_id:Number(options.companyId),idempotency_key:uuid(),force_rescan:force===true});
       await load({silent:true});
       state.websiteSelected.clear();
-      list(result?.scan?.suggestions).filter(item=>item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
+      list(result?.scan?.suggestions).filter(item=>Number.isSafeInteger(Number(item.taxonomy_id))&&item.confidence!=="LOW").forEach(item=>state.websiteSelected.add(Number(item.taxonomy_id)));
       if(result?.scan?.status==="NO_PRODUCTS")state.notice={tone:"neutral",title:"No clear product categories were found.",message:"MedicHall did not fabricate suggestions. Enter a product manually instead."};
       else if(result?.scan?.status==="ROBOTS_DENIED")state.notice={tone:"neutral",title:"Website scan is not permitted by the site.",message:"You can enter a product manually and continue immediately."};
       else state.notice={tone:"complete",title:result?.cached?"Saved website suggestions restored.":"Website product suggestions are ready.",message:"Review and confirm the categories before starting Buyer Discovery."};
@@ -385,8 +393,19 @@ function createWorkspace(options){
     else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;state.retryRequired=false;render();}
     else if(action==="confirm-adhoc"){
       state.retryRequired=false;
-      if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
+      if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:false,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
       render();
+    }
+    else if(action==="search-anyway"){
+      state.retryRequired=false;
+      if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:true};
+      render();
+    }
+    else if(action==="change-product"){
+      state.adhocResolution=null;state.retryRequired=false;render();options.root.querySelector("#mhxpProductQuery")?.focus();
+    }
+    else if(action==="resolve-website-phrase"){
+      state.mode="adhoc";state.adhocQuery=String(target.dataset.phrase||"").slice(0,160);state.adhocResolution=null;state.notice=null;render();resolveAdhoc();
     }
     else if(action==="scan")scanWebsite(target.dataset.force==="true");
     else if(action==="add-profile")addToProfile(target);

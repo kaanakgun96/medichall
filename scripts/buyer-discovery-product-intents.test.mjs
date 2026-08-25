@@ -21,7 +21,7 @@ for(const label of ["Use my products","Search by product","Scan my website","No 
 for(const source of ["PROFILE_PRODUCT","AD_HOC_PRODUCT","WEBSITE_DETECTED_PRODUCT"]){
   assert.match(ui,new RegExp(source));assert.match(migration,new RegExp(source));
 }
-assert.match(ui,/Confirm at least one product category/);
+assert.match(ui,/Confirm a category or choose bounded Search anyway/);
 assert.doesNotMatch(ui,/Add an active product and at least one European target market/);
 assert.match(ui,/get_external_prospect_workspace_v2/);
 assert.match(ui,/resolve_product_intent/);
@@ -30,8 +30,8 @@ assert.match(ui,/mh_buyer_discovery_product_draft_v1/);
 assert.match(portal,/openBuyerDiscoveryProductDraft/);
 assert.match(portal,/prefill:suggestion/);
 assert.match(portal,/PRODUCT_DRAFT_GUARD\.load/);
-assert.match(standalone,/external-prospects\.js\?v=20260824stability1/);
-assert.match(portal,/external-prospects\.js\?v=20260824stability1/);
+assert.match(standalone,/external-prospects\.js\?v=20260825unknown1/);
+assert.match(portal,/external-prospects\.js\?v=20260825unknown1/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 

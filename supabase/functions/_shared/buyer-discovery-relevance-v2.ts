@@ -39,6 +39,11 @@ export type ProductFamilyProfile = {
   genericTerms: string[];
   mismatchTerms: string[];
   componentFitLabel: string | null;
+  temporaryIntent?: {
+    normalizedPhrase: string;
+    phraseSignature: string;
+    requiredTokens: string[];
+  } | null;
 };
 
 export type EquipmentCoverProductKind =
@@ -328,6 +333,26 @@ function containsTerm(text: string, term: string): boolean {
   return false;
 }
 
+function temporaryPhraseMatches(
+  text: string,
+  profile: ProductFamilyProfile,
+): boolean {
+  const temporary = profile.temporaryIntent;
+  if (!temporary || temporary.requiredTokens.length < 2) return false;
+  const singular = (token: string) =>
+    token === "sets" || token === "kits"
+      ? token.slice(0, -1)
+      : token.endsWith("s") && token.length > 4
+      ? token.slice(0, -1)
+      : token;
+  const evidenceTokens = new Set(
+    normalizeTerm(text).split(" ").filter(Boolean)
+      .map(singular),
+  );
+  const required = temporary.requiredTokens.map(singular);
+  return required.every((token) => evidenceTokens.has(token));
+}
+
 function matchedTerms(text: string, terms: string[]): string[] {
   return terms.filter((term) => containsTerm(text, term));
 }
@@ -482,11 +507,16 @@ export function classifyEvidenceForProduct(
   const adjacent = matchedTerms(text, profile.adjacentTerms);
   let relevanceClass: ProductEvidenceClass = "GENERIC";
   let commercialReason = "General healthcare or company-activity context";
-  if (evidence.sourceType !== "PUBLIC_REGISTRY" && direct.length) {
+  const temporaryDirect = evidence.sourceType !== "PUBLIC_REGISTRY" &&
+    temporaryPhraseMatches(text, profile);
+  if (
+    evidence.sourceType !== "PUBLIC_REGISTRY" &&
+    (direct.length || temporaryDirect)
+  ) {
     relevanceClass = "DIRECT";
-    commercialReason = `Direct product-family evidence: ${
-      direct.slice(0, 3).join(", ")
-    }`;
+    commercialReason = temporaryDirect
+      ? "Direct verified phrase evidence for this temporary product intent"
+      : `Direct product-family evidence: ${direct.slice(0, 3).join(", ")}`;
   } else if (evidence.sourceType !== "PUBLIC_REGISTRY" && adjacent.length) {
     relevanceClass = "ADJACENT";
     commercialReason = `Adjacent commercial evidence: ${
@@ -503,7 +533,11 @@ export function classifyEvidenceForProduct(
       ? "INDIRECT_COMMERCIAL_EVIDENCE"
       : "WEAK_CONTEXT",
     relevanceClass,
-    matchedTerms: relevanceClass === "DIRECT" ? direct : adjacent,
+    matchedTerms: relevanceClass === "DIRECT"
+      ? (direct.length
+        ? direct
+        : [profile.temporaryIntent?.normalizedPhrase || ""])
+      : adjacent,
     commercialReason,
     taxonomyIds: relevanceClass === "GENERIC" ? [] : evidence.taxonomyIds,
   };
