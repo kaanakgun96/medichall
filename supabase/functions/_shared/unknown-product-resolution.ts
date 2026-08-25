@@ -79,43 +79,112 @@ const SAFE_SINGULARS: Record<string, string> = Object.freeze({
   consumables: "consumable",
   accessories: "accessory",
   systems: "system",
+  tubes: "tube",
+  lines: "line",
+  extensions: "extension",
+  connectors: "connector",
+  electrodes: "electrode",
+  leads: "lead",
+  sensors: "sensor",
+  transducers: "transducer",
+  trocars: "trocar",
+  cannulas: "cannula",
+  filters: "filter",
+  caps: "cap",
+  gloves: "glove",
+  aprons: "apron",
+  sponges: "sponge",
+  pads: "pad",
+  drains: "drain",
+  reservoirs: "reservoir",
+  collectors: "collector",
+  meters: "meter",
+  warmers: "warmer",
+  implants: "implant",
+  endoscopes: "endoscope",
+  scopes: "scope",
+  pencils: "pencil",
+  sheaths: "sheath",
 });
 
 const MEDICAL_CONTEXT = new Set([
   "medical",
+  "clinical",
   "surgical",
+  "surgery",
   "sterile",
   "patient",
   "hospital",
+  "therapy",
+  "treatment",
   "dialysis",
   "hemodialysis",
   "hemofiltration",
+  "extracorporeal",
   "arterial",
   "venous",
+  "vascular",
+  "cardiac",
+  "cardiology",
   "blood",
   "bloodline",
   "ecg",
   "ekg",
+  "electrocardiography",
+  "defibrillator",
   "irrigation",
   "suction",
   "laparoscopy",
   "laparoscopic",
+  "arthroscopy",
+  "arthroscopic",
   "endoscopy",
   "endoscopic",
   "ultrasound",
+  "sonography",
+  "radiology",
+  "imaging",
   "catheter",
   "cannula",
+  "picc",
   "wound",
+  "drainage",
+  "drain",
   "anesthesia",
+  "anesthetic",
   "respiratory",
+  "ventilation",
+  "breathing",
+  "airway",
+  "oxygen",
+  "endotracheal",
   "infusion",
   "intravenous",
+  "iv",
+  "urology",
+  "urinary",
+  "urine",
+  "urethral",
+  "bladder",
+  "orthopedic",
+  "bone",
+  "arthroplasty",
+  "trauma",
+  "warming",
   "diagnostic",
   "operating",
+  "theatre",
   "procedure",
   "fluoroscopy",
   "microscope",
   "probe",
+  "electrosurgical",
+  "infection",
+  "disinfection",
+  "antiseptic",
+  "scrub",
+  "protective",
+  "fluid",
 ]);
 
 const PRODUCT_FORMS = new Set([
@@ -150,12 +219,65 @@ const PRODUCT_FORMS = new Set([
   "implant",
   "instrument",
   "system",
+  "sheath",
+  "tube",
+  "line",
+  "extension",
+  "connector",
+  "electrode",
+  "lead",
+  "sensor",
+  "transducer",
+  "trocar",
+  "filter",
+  "cap",
+  "glove",
+  "apron",
+  "sponge",
+  "pad",
+  "drain",
+  "reservoir",
+  "collector",
+  "meter",
+  "warmer",
+  "cement",
+  "scope",
+  "endoscope",
+  "pencil",
 ]);
+
+// These nouns are sufficiently specific to medical products that an unknown
+// brand/modifier does not need to supply a second domain token. This is a
+// domain-admission signal only; it never creates taxonomy or evidence.
+const STRONG_MEDICAL_PRODUCT_FORMS = new Set([
+  "bloodline",
+  "catheter",
+  "cannula",
+  "electrode",
+  "endoscope",
+  "syringe",
+  "trocar",
+]);
+
+// Reviewed multi-word forms preserve bounded support for established medical
+// commercial terminology without treating their individual generic nouns as
+// universally medical. Other multi-word forms still work through the normal
+// context + product-form rule (for example bone + mixing system).
+const STRONG_MEDICAL_MULTIWORD_FORMS = [
+  ["camera", "cover"],
+  ["camera", "sleeve"],
+  ["c", "arm", "cover"],
+  ["c", "arm", "drape"],
+] as const;
 
 const GENERIC_ONLY = new Set([
   "medical",
+  "clinical",
   "healthcare",
   "hospital",
+  "patient",
+  "sterile",
+  "surgical",
   "product",
   "products",
   "device",
@@ -164,6 +286,8 @@ const GENERIC_ONLY = new Set([
   "system",
   "supply",
   "supplies",
+  "consumable",
+  "accessory",
 ]);
 
 const CONNECTORS = new Set(["and", "for", "of", "the", "with"]);
@@ -185,7 +309,32 @@ const PROXY_COMMANDS = new Set([
   "sellers",
   "supplier",
   "suppliers",
+  "buy",
+  "cheapest",
+  "code",
+  "execute",
+  "ignore",
+  "instruction",
+  "instructions",
+  "javascript",
+  "online",
+  "price",
+  "prices",
+  "write",
 ]);
+
+function includesTokenSequence(
+  tokens: string[],
+  sequence: readonly string[],
+): boolean {
+  if (sequence.length > tokens.length) return false;
+  for (let offset = 0; offset <= tokens.length - sequence.length; offset++) {
+    if (sequence.every((token, index) => tokens[offset + index] === token)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function normalizedTokens(value: unknown): string[] {
   return String(value ?? "").normalize("NFKD").toLowerCase()
@@ -213,6 +362,14 @@ export function validateUnmappedMedicalProductPhrase(value: unknown): {
   normalizedPhrase: string;
   phraseSignature: string;
 } {
+  const rawPhrase = String(value ?? "");
+  if (
+    rawPhrase.length > 160 || /[\u0000-\u001f\u007f]/u.test(rawPhrase)
+  ) {
+    throw new Error(
+      "Enter a specific medical product name, not a general web-search request.",
+    );
+  }
   const displayPhrase = validateProductSearchQuery(value);
   const tokens = normalizedTokens(displayPhrase);
   const meaningful = tokens.filter((token) => !CONNECTORS.has(token));
@@ -220,13 +377,20 @@ export function validateUnmappedMedicalProductPhrase(value: unknown): {
     MEDICAL_CONTEXT.has(token)
   );
   const hasProductForm = meaningful.some((token) => PRODUCT_FORMS.has(token));
+  const hasStrongMedicalProductForm = meaningful.some((token) =>
+    STRONG_MEDICAL_PRODUCT_FORMS.has(token)
+  ) || STRONG_MEDICAL_MULTIWORD_FORMS.some((sequence) =>
+    includesTokenSequence(tokens, sequence)
+  );
   const onlyGeneric = meaningful.every((token) => GENERIC_ONLY.has(token));
   const containsProxyCommand = meaningful.some((token) =>
     PROXY_COMMANDS.has(token)
   );
   if (
-    meaningful.length < 2 || meaningful.length > 12 || onlyGeneric ||
-    containsProxyCommand || !hasMedicalContext || !hasProductForm
+    meaningful.length < 1 || meaningful.length > 12 ||
+    (meaningful.length === 1 && !hasStrongMedicalProductForm) || onlyGeneric ||
+    containsProxyCommand || !hasProductForm ||
+    (!hasMedicalContext && !hasStrongMedicalProductForm)
   ) {
     throw new Error(
       "Enter a specific medical product name, not a general web-search request.",
