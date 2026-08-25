@@ -17,8 +17,9 @@ and search-proxy instructions remain blocked.
 
 The Edge validator and SQL validator use the same decision model:
 
-1. Apply bounded safe normalization and enforce two to twelve meaningful words,
-   except that one inherently medical product-form word is accepted.
+1. Apply bounded safe case, whitespace, punctuation, and common Latin-accent
+   normalization and enforce two to twelve meaningful words, except that one
+   inherently medical product-form word is accepted.
 2. Reject unsafe, command-like, generic-only, or non-medical input.
 3. Require a recognized product form.
 4. Require either a medical-context signal or a high-confidence medical product

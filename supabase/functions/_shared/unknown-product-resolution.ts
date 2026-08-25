@@ -338,6 +338,9 @@ function includesTokenSequence(
 
 function normalizedTokens(value: unknown): string[] {
   return String(value ?? "").normalize("NFKD").toLowerCase()
+    .replace(/ß/g, "ss").replace(/æ/g, "ae").replace(/œ/g, "oe")
+    .replace(/[đð]/g, "d").replace(/ı/g, "i").replace(/ł/g, "l")
+    .replace(/ø/g, "o")
     .replace(/[\u0300-\u036f]/g, "").replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()
     .split(" ").filter(Boolean).map((token) =>

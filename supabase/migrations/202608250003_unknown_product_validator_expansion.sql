@@ -25,7 +25,13 @@ parallel safe
 set search_path = public, pg_temp
 as $function$
   with phrase as (
-    select public.normalize_unknown_product_phrase_v1(p_value) value
+    select public.normalize_unknown_product_phrase_v1(
+      translate(
+        replace(replace(replace(lower(coalesce(p_value, '')), 'ß', 'ss'), 'æ', 'ae'), 'œ', 'oe'),
+        'áàâäãåāăąçćčďđéèêëēėęěíìîïīįıłñńňóòôöõøōřšśşťţúùûüūůýÿžźż',
+        'aaaaaaaaacccddeeeeeeeeiiiiiiilnnnooooooorsssttuuuuuuyyzzz'
+      )
+    ) value
   ), signals as (
     select value,
       value ~ '\m(medical|clinical|surgical|surgery|sterile|patient|hospital|therapy|treatment|dialysis|hemodialysis|hemofiltration|extracorporeal|arterial|venous|vascular|cardiac|cardiology|blood|bloodline|ecg|ekg|electrocardiography|defibrillator|irrigation|suction|laparoscopy|laparoscopic|arthroscopy|arthroscopic|endoscopy|endoscopic|ultrasound|sonography|radiology|imaging|catheter|cannula|picc|wound|drainage|drain|anesthesia|anesthetic|respiratory|ventilation|breathing|airway|oxygen|endotracheal|infusion|intravenous|iv|urology|urinary|urine|urethral|bladder|orthopedic|bone|arthroplasty|trauma|warming|diagnostic|operating|theatre|procedure|fluoroscopy|microscope|probe|electrosurgical|infection|disinfection|antiseptic|scrub|protective|fluid)\M'
