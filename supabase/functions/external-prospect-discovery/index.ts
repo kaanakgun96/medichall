@@ -998,7 +998,7 @@ function pageLikeIdentity(value: unknown): boolean {
     /(?:\b(?:learn|know|understand|guide|how to|what is|overview|everything you need|ce que vous devez savoir)\b|:\s+\S)/i
       .test(name);
   const productOrCatalogueTitle =
-    /\b(?:products?|catalog(?:ue)?|portfolio|range|system(?:s)?|set(?:s)?|kit(?:s)?|cover(?:s)?|sleeve(?:s)?|drape(?:s)?|catheter(?:s)?|electrode(?:s)?|trocar(?:s)?|circuit(?:s)?|blanket(?:s)?|mixing|dispensing)\b/i
+    /\b(?:products?|produits?|productos?|prodotti|produkte|catalog(?:ue)?|catalogue|catalogo|katalog|portfolio|range|system(?:s)?|systèmes?|sistemi?|systeme|set(?:s)?|kit(?:s)?|cover(?:s)?|sleeve(?:s)?|drape(?:s)?|catheter(?:s)?|cathéters?|electrode(?:s)?|électrodes?|trocar(?:s)?|circuit(?:s)?|circuits?|blanket(?:s)?|mixing|dispensing)\b/i
       .test(name) && !legalSuffix;
   const sentenceLike = name.split(/\s+/).length > 10 ||
     (/[.!?]\s*$/.test(name) && name.split(/\s+/).length > 5 && !legalSuffix);
@@ -1172,7 +1172,7 @@ export function analyzeOfficialWebsitePage(
     8000,
   );
   const commercialSignal =
-    /\b(?:manufacturer|manufacturing|distributor|distribution|supplier|wholesal(?:e|er)|importer|exporter|reseller|oem|procedure pack|medical technology company|request (?:a )?quote|product catalogue|product catalog)\b/i
+    /\b(?:manufacturer|manufacturing|fabricant|fabbricante|fabricante|hersteller|fabrikant|distributor|distribution|distributeur|distributore|distribuidor|vertrieb|händler|supplier|fournisseur|fornitore|proveedor|lieferant|leverancier|wholesal(?:e|er)|grossiste|ingrosso|mayorista|großhandel|groothandel|importer|importateur|importatore|importador|importeur|exporter|reseller|revendeur|rivenditore|wiederverkäufer|oem|procedure pack|medical technology company|request (?:a )?quote|demander un devis|richiedi un preventivo|solicitar presupuesto|angebot anfordern|product catalogue|product catalog|catalogue produits|catalogo prodotti|produktkatalog)\b/i
       .test(visibleText);
   const healthcareProvider =
     schemaTypes.some((type) =>
@@ -1196,7 +1196,7 @@ export function analyzeOfficialWebsitePage(
           type,
         )
     ) ||
-    /\b(?:patient information|patient education|health library|medical encyclopedia|what is|how to|guide|ce que vous devez savoir)\b/i
+    /\b(?:patient information|patient education|health library|medical encyclopedia|what is|how to|guide|ce que vous devez savoir|informations? (?:pour les )?patients?|informazioni (?:per i )?pazienti|cosa sapere|información (?:para )?pacientes|qué es|patienteninformation|was ist|ratgeber|patiënteninformatie|wat is)\b/i
       .test(visibleText);
   // Commercial vocabulary inside an article is not organization-level proof.
   // An editorial page must obtain that proof from the bounded homepage check

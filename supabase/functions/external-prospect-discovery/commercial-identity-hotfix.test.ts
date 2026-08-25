@@ -123,6 +123,13 @@ Deno.test("F-I: registry/TED/schema/site metadata hierarchy and domain fallback 
     "identity confidence must follow the source hierarchy",
   );
   assert(
+    analyzeOfficialWebsitePage(
+      `<meta property="og:site_name" content="QA Dispositivi"><p>Distributore e fornitore di dispositivi medici.</p>`,
+      "qa-dispositivi.example",
+    ).commercialIdentityVerified,
+    "reviewed European commercial organization wording must remain usable",
+  );
+  assert(
     chooseTrustedCompanyIdentity({
       currentName: "Verified TED Supplier Ltd",
       currentSource: "TED_ECONOMIC_OPERATOR",
