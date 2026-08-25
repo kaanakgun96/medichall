@@ -63,8 +63,8 @@ assert.doesNotMatch(migration, /insert\s+into\s+public\.medical_product_(?:taxon
 assert.doesNotMatch(migration, /alter\s+table|create\s+table/i);
 
 // Existing safety and explicit-search gates are deliberately unchanged.
-assert.match(edge, /Math\.min\(4, publicWebMaximumQueries\)/);
-assert.match(edge, /Math\.min\(\.02, publicWebMaximumCost\)/);
+assert.match(edge, /searchPlan\.budget\.maximumPublicWebQueries/);
+assert.match(edge, /searchPlan\.budget\.maximumPublicWebCostUsd/);
 assert.match(edge, /UNMAPPED_PRODUCT/);
 assert.match(edge, /record_product_resolution_outcome_v1/);
 assert.match(relevance, /temporaryPhraseMatches/);

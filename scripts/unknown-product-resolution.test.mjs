@@ -58,8 +58,8 @@ assert.match(sql, /rollback;/);
 
 assert.match(edge, /buildTemporaryProductFamilyProfile/);
 assert.match(edge, /unmappedIntent\s*\? \[\]/);
-assert.match(edge, /Math\.min\(4, publicWebMaximumQueries\)/);
-assert.match(edge, /Math\.min\(\.02, publicWebMaximumCost\)/);
+assert.match(edge, /searchPlan\.budget\.maximumPublicWebQueries/);
+assert.match(edge, /searchPlan\.budget\.maximumPublicWebCostUsd/);
 assert.match(edge, /record_product_resolution_outcome_v1/);
 assert.match(resolution, /validateUnmappedMedicalProductPhrase/);
 assert.match(resolution, /signal_sources/);

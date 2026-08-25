@@ -81,7 +81,10 @@ Deno.test("multilingual camera-cover queries are reviewed, bounded, and market-t
     productFamily: camera,
     targetCountries: [],
   });
-  assert(plan.length === 6, "Europe-wide public-web plan must remain at six");
+  assert(
+    plan.length === 10,
+    "Europe-wide vNext public-web plan must remain at ten",
+  );
   const markets = new Map(plan.map((item) => [item.country, item.language]));
   for (
     const [country, language] of [
@@ -433,11 +436,27 @@ Deno.test("request keys change by product/market but remain stable for retries",
   })[0];
   const one = await publicWebRequestKey("FIXTURE", camera.key, query);
   const retry = await publicWebRequestKey("FIXTURE", camera.key, query);
+  const reordered = await publicWebRequestKey("FIXTURE", camera.key, {
+    ...query,
+    variant: query.variant + 7,
+  });
+  const reclassified = await publicWebRequestKey("FIXTURE", camera.key, {
+    ...query,
+    strategy: "SYNONYM",
+  });
   const different = await publicWebRequestKey("FIXTURE", cArm.key, {
     ...query,
     query: query.query.replace("camera", "c-arm"),
   });
   assert(one === retry, "identical retry key must be stable");
+  assert(
+    one === reordered,
+    "query ordinal must not create a duplicate provider request",
+  );
+  assert(
+    one === reclassified,
+    "internal strategy metadata must not create a duplicate provider request",
+  );
   assert(one !== different, "legitimate product change must change cache key");
 });
 
@@ -641,10 +660,10 @@ Deno.test("cost and result budgets remain hard bounded", async () => {
   });
   assert(
     observedQueries <= PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
-    "query budget must remain capped at six",
+    "query budget must remain capped at ten",
   );
   assert(
-    result.providerCostEstimateUsd <= 0.03,
-    "provider cost estimate must remain at or below $0.03/run",
+    result.providerCostEstimateUsd <= 0.05,
+    "provider cost estimate must remain at or below $0.05/run",
   );
 });

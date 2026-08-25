@@ -36,6 +36,7 @@ export type ProductTaxonomyCandidate = {
   description?: string | null;
   parentName?: string | null;
   aliases: string[];
+  localizedAliases?: Array<{ term: string; language: string }>;
 };
 
 export type WebsiteProductSuggestion = {

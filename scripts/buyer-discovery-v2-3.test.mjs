@@ -55,9 +55,9 @@ assert.match(ranking, /sourceType === "PUBLIC_REGISTRY"/);
 assert.match(ranking, /chooseTrustedCompanyIdentity/);
 assert.match(ranking, /companyIdentityKeys/);
 
-assert.match(publicWeb, /maximumQueries: 6/);
-assert.match(publicWeb, /maximumCostUsdPerRun: 0\.03/);
-assert.match(publicWeb, /public-web-v2\.3/);
+assert.match(publicWeb, /maximumQueries: 10/);
+assert.match(publicWeb, /maximumCostUsdPerRun: 0\.05/);
+assert.match(publicWeb, /public-web-vnext-1/);
 assert.match(publicWeb, /"EXACT" \| "SYNONYM" \| "LOCALIZED" \| "ADJACENT"/);
 assert.match(edge, /public_web_query_strategies/);
 assert.match(edge, /extractOfficialWebsiteIdentity/);

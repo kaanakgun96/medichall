@@ -12,10 +12,10 @@ import {
 import { readBoundedResponseBody } from "./safe-public-fetch.ts";
 
 export const PUBLIC_WEB_DISCOVERY_LIMITS = Object.freeze({
-  maximumQueries: 6,
+  maximumQueries: 10,
   maximumResultsPerQuery: 6,
-  maximumRawResults: 36,
-  maximumCandidates: 20,
+  maximumRawResults: 60,
+  maximumCandidates: 40,
   maximumResponseBytes: 512_000,
   maximumConcurrency: 2,
   requestTimeoutMs: 6_500,
@@ -23,7 +23,7 @@ export const PUBLIC_WEB_DISCOVERY_LIMITS = Object.freeze({
   zeroResultCacheDays: 7,
   unavailableCacheMinutes: 15,
   braveRequestCostUsd: 0.005,
-  maximumCostUsdPerRun: 0.03,
+  maximumCostUsdPerRun: 0.05,
 });
 
 export type PublicWebSearchQuery = {
@@ -41,6 +41,9 @@ export type PublicWebSearchQuery = {
     | "VERIFIED_PRODUCT_TERMINOLOGY"
     | "DETERMINISTIC_VARIANT";
   familySignature?: string;
+  partitionKey?: string;
+  marketRegion?: string;
+  buyerArchetype?: string;
 };
 
 export type PublicWebCandidate = {
@@ -695,13 +698,11 @@ export async function publicWebRequestKey(
   query: PublicWebSearchQuery,
 ): Promise<string> {
   return await sha256([
-    "public-web-v2.3",
+    "public-web-vnext-1",
     providerCode,
     productFamilyKey,
     query.country,
     query.language,
-    query.variant,
-    query.strategy || "UNSPECIFIED",
     query.query,
   ].join("|"));
 }
@@ -736,6 +737,7 @@ export async function runPublicWebDiscovery(input: {
   targetCountries: string[];
   maximumQueries?: number;
   maximumCostUsd?: number;
+  queryPlan?: PublicWebSearchQuery[];
   now?: Date;
 }): Promise<PublicWebDiscoveryResult> {
   const empty = (
@@ -782,11 +784,14 @@ export async function runPublicWebDiscovery(input: {
     ),
     costBoundedQueries,
   );
-  const queries = buildPublicWebSearchPlan({
+  // A caller-supplied plan is accepted only from this server-side module
+  // boundary. The Edge handler never accepts provider query arrays from the
+  // request body.
+  const queries = (input.queryPlan || buildPublicWebSearchPlan({
     productFamily: input.productFamily,
     targetCountries: input.targetCountries,
     maximumQueries: Math.max(1, maximumQueries || 1),
-  }).slice(0, maximumQueries);
+  })).slice(0, maximumQueries);
   const queryStrategies = queries.reduce<Record<string, number>>(
     (counts, query) => {
       const strategy = query.strategy || "UNSPECIFIED";

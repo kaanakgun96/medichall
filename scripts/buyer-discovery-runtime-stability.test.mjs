@@ -67,10 +67,10 @@ function createHarness({workspace=completedWorkspace(),edgeSteps=[]}={}){
 
 const flush=async()=>{for(let index=0;index<8;index+=1)await Promise.resolve();};
 
-test("A: V2.1 keeps the exact six-request cap while legacy progress stays bounded",()=>{
+test("A: procurement stays six-request bounded while vNext progress records the combined plan",()=>{
   assert.match(relevanceSource,/maximumTedRequests:\s*6/);
   assert.match(edgeSource,/ted_requests_planned:\s*tedSearchPlan\.length/);
-  assert.match(edgeSource,/queries_generated:\s*legacyQueryProgressCount\(tedSearchPlan\.length\)/);
+  assert.match(edgeSource,/tedSearchPlan\.length \+ searchPlan\.publicWebQueries\.length/);
 });
 
 test("B, K and L: idle and completed workspaces remain terminal and unchanged for three simulated minutes",async()=>{

@@ -251,9 +251,10 @@ Deno.test("PUBLIC_WEB exact returned page enters the canonical safe website veri
   assertEquals(candidate.evidence[0].relevanceClass, "DIRECT");
 });
 
-Deno.test("six-request V2.1 retrieval fits the legacy production progress constraint", () => {
-  assertEquals(legacyQueryProgressCount(6), 4);
+Deno.test("vNext combined retrieval fits the expanded production progress constraint", () => {
+  assertEquals(legacyQueryProgressCount(6), 6);
   assertEquals(legacyQueryProgressCount(4), 4);
+  assertEquals(legacyQueryProgressCount(20), 16);
   assertEquals(legacyQueryProgressCount(-1), 0);
 });
 

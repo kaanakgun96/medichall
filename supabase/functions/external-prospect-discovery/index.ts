@@ -70,6 +70,15 @@ import {
   unmappedWebsiteProductSuggestions,
 } from "../_shared/unknown-product-resolution.ts";
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
+import {
+  buildDiscoverySearchPlan,
+  classifyDiscoveryResultState,
+  type DiscoveryResultState,
+  type DiscoveryRunMode,
+  discoverySaturation,
+  freshDiscoveryMessage,
+  type SearchPartitionHistory,
+} from "../_shared/buyer-discovery-search-space.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 const ALLOWED_ORIGINS = new Set([
@@ -126,7 +135,7 @@ type JsonRecord = Record<string, unknown>;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WEBSITE_SCAN_USER_AGENT = "MedicHall-Website-Product-Discovery/1.0";
-const LEGACY_QUERY_PROGRESS_LIMIT = 4;
+const LEGACY_QUERY_PROGRESS_LIMIT = 16;
 
 function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get("origin") || "";
@@ -1588,19 +1597,29 @@ async function taxonomyCatalog(
     admin.from("medical_product_taxonomy").select(
       "id,parent_id,canonical_name,slug,node_type,description",
     ).eq("is_active", true).limit(500),
-    admin.from("medical_product_aliases").select("taxonomy_id,alias_text")
+    admin.from("medical_product_aliases").select(
+      "taxonomy_id,alias_text,language_code",
+    )
       .eq("is_active", true).eq("verification_status", "approved").limit(2000),
   ]);
   if (taxonomyResult.error || aliasResult.error) {
     throw new Error("WEBSITE_TAXONOMY_UNAVAILABLE");
   }
   const aliases = new Map<number, string[]>();
+  const localizedAliases = new Map<
+    number,
+    Array<{ term: string; language: string }>
+  >();
   for (const value of array(aliasResult.data)) {
     const row = record(value);
     const taxonomyId = Number(row.taxonomy_id);
     const alias = first(row.alias_text);
     if (!Number.isSafeInteger(taxonomyId) || !alias) continue;
     aliases.set(taxonomyId, [...(aliases.get(taxonomyId) || []), alias]);
+    localizedAliases.set(taxonomyId, [
+      ...(localizedAliases.get(taxonomyId) || []),
+      { term: alias, language: first(row.language_code) || "en" },
+    ]);
   }
   const taxonomyRows = array(taxonomyResult.data).map(record);
   const taxonomyNames = new Map<number, string>();
@@ -1624,6 +1643,7 @@ async function taxonomyCatalog(
         ? taxonomyNames.get(parentId) || null
         : null,
       aliases: aliases.get(id) || [],
+      localizedAliases: localizedAliases.get(id) || [],
     };
   }).filter((item) => Number.isSafeInteger(item.id) && item.canonicalName);
 }
@@ -1879,6 +1899,31 @@ async function scanCompanyWebsiteProducts(
   };
 }
 
+async function candidateEvidenceFingerprint(
+  candidate: ProspectCandidate,
+): Promise<string> {
+  return await sha256(
+    candidate.evidence.map((evidence) =>
+      [
+        evidence.sourceType,
+        normalizeHttpsUrl(evidence.sourceUrl) || "",
+        evidence.noticeId || "",
+        evidence.relevanceClass || "GENERIC",
+        [...(evidence.matchedTerms || [])].map(normalizeRetrievalTerm).sort()
+          .join(","),
+      ].join("|")
+    ).sort().join("\n"),
+  );
+}
+
+function candidateHistoryKeys(candidate: ProspectCandidate): string[] {
+  return [
+    normalizeDomain(candidate.websiteUrl),
+    normalizeCompanyName(candidate.name),
+    candidate.registryIdentifier || "",
+  ].filter((value): value is string => Boolean(value));
+}
+
 async function persistCandidate(
   // The repository does not generate database types; service writes target
   // new migration tables that the untyped Supabase client cannot infer.
@@ -1886,13 +1931,20 @@ async function persistCandidate(
   admin: any,
   companyId: number,
   runId: string,
+  searchSpaceId: string,
   intentHash: string,
   taxonomyContext: JsonRecord[],
   candidate: ProspectCandidate,
   score: ProspectScore,
   productFamily: ProductFamilyProfile,
-): Promise<boolean> {
-  if (!score.eligible || score.relevanceScore < 55) return false;
+): Promise<
+  {
+    externalCompanyId: number;
+    evidenceFingerprint: string;
+    discoveryState: DiscoveryResultState;
+  } | null
+> {
+  if (!score.eligible || score.relevanceScore < 55) return null;
   const domain = normalizeDomain(candidate.websiteUrl);
   const safeCompanyName = candidate.nameSource === "PAGE_METADATA"
     ? domain
@@ -1900,7 +1952,7 @@ async function persistCandidate(
   const safeIdentitySource = candidate.nameSource === "PAGE_METADATA"
     ? "DOMAIN_FALLBACK"
     : candidate.nameSource || "DOMAIN_FALLBACK";
-  if (!safeCompanyName) return false;
+  if (!safeCompanyName) return null;
   let external: {
     id: number;
     membership_status: string;
@@ -1947,7 +1999,7 @@ async function persistCandidate(
       break;
     }
   }
-  if (external?.membership_status === "ON_MEDICHALL") return false;
+  if (external?.membership_status === "ON_MEDICHALL") return null;
   const trustedIdentityUpgrade = safeIdentitySource !== "DOMAIN_FALLBACK";
   const legacyPageIdentityRepair = safeIdentitySource === "DOMAIN_FALLBACK" &&
     pageLikeIdentity(external?.company_name);
@@ -1978,11 +2030,22 @@ async function persistCandidate(
     if (
       insertion.error || !insertion.data ||
       insertion.data.membership_status === "ON_MEDICHALL"
-    ) return false;
+    ) return null;
     external = insertion.data;
   }
-  if (!external) return false;
+  if (!external) return null;
   const externalCompanyId = Number(external.id);
+  const evidenceFingerprint = await candidateEvidenceFingerprint(candidate);
+  const seen = await admin.from("buyer_discovery_seen_companies").select(
+    "first_discovery_run_id,evidence_fingerprint,first_relevance_score,times_verified",
+  ).eq("search_space_id", searchSpaceId)
+    .eq("external_company_id", externalCompanyId).maybeSingle();
+  if (seen.error) throw seen.error;
+  const priorSeen = record(seen.data);
+  const discoveryState = classifyDiscoveryResultState({
+    priorEvidenceFingerprint: first(priorSeen.evidence_fingerprint) || null,
+    currentEvidenceFingerprint: evidenceFingerprint,
+  });
   for (const evidence of candidate.evidence) {
     const sourceHash = await sha256([
       evidence.sourceType,
@@ -2057,6 +2120,10 @@ async function persistCandidate(
     company_id: companyId,
     external_company_id: externalCompanyId,
     discovery_run_id: runId,
+    first_discovery_run_id: first(priorSeen.first_discovery_run_id) || runId,
+    last_discovery_run_id: runId,
+    discovery_state: discoveryState,
+    evidence_fingerprint: evidenceFingerprint,
     intent_hash: intentHash,
     relevance_score: score.relevanceScore,
     product_taxonomy_score: score.productTaxonomyScore,
@@ -2119,7 +2186,23 @@ async function persistCandidate(
     last_scored_at: new Date().toISOString(),
   }, { onConflict: "company_id,external_company_id,intent_hash" });
   if (match.error) throw match.error;
-  return true;
+  const seenWrite = await admin.from("buyer_discovery_seen_companies").upsert({
+    search_space_id: searchSpaceId,
+    external_company_id: externalCompanyId,
+    first_discovery_run_id: first(priorSeen.first_discovery_run_id) || runId,
+    last_discovery_run_id: runId,
+    evidence_fingerprint: evidenceFingerprint,
+    first_relevance_score: Number(priorSeen.first_relevance_score) ||
+      score.relevanceScore,
+    last_relevance_score: score.relevanceScore,
+    times_verified: Math.max(0, Number(priorSeen.times_verified) || 0) + 1,
+    first_seen_at: priorSeen.first_discovery_run_id
+      ? undefined
+      : new Date().toISOString(),
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: "search_space_id,external_company_id" });
+  if (seenWrite.error) throw seenWrite.error;
+  return { externalCompanyId, evidenceFingerprint, discoveryState };
 }
 
 export function discoveryCompletionStatus(input: {
@@ -2425,10 +2508,13 @@ async function handleDiscovery(request: Request): Promise<Response> {
     return json(request, { error: "Unsupported operation." }, 400);
   }
   const intent = record(body.intent);
-  const start = await authClient.rpc("start_external_prospect_discovery_v2", {
+  const requestedRunMode = String(body.run_mode || "NORMAL_DISCOVERY")
+    .trim().toUpperCase() as DiscoveryRunMode;
+  const start = await authClient.rpc("start_external_prospect_discovery_v3", {
     p_company_id: companyId,
     p_idempotency_key: idempotencyKey,
     p_intent: intent,
+    p_run_mode: requestedRunMode,
   });
   if (start.error) {
     return json(request, {
@@ -2441,11 +2527,16 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ok: true,
       run,
       cached: true,
+      run_mode: "CACHED_REUSE",
       provider_requests: 0,
       estimated_cost_usd: 0,
     });
   }
   const runId = String(run.run_id || "");
+  const searchSpaceId = String(run.search_space_id || "");
+  const runMode = String(
+    run.run_mode || "NORMAL_DISCOVERY",
+  ) as DiscoveryRunMode;
   const intentHash = String(run.intent_hash || "");
   const intentContext = record(run.intent_context);
   const updateProgress = async (progress: JsonRecord) => {
@@ -2461,6 +2552,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
   });
   let publicWebProviderRequests = 0;
   let publicWebProviderCostUsd = 0;
+  let providerExecutionStarted = false;
   try {
     const [profileResult, matchProfileResult, companiesResult] = await Promise
       .all([
@@ -2488,7 +2580,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ),
     ];
     if (
-      !UUID_PATTERN.test(runId) || !/^[a-f0-9]{64}$/.test(intentHash) ||
+      !UUID_PATTERN.test(runId) || !UUID_PATTERN.test(searchSpaceId) ||
+      !/^[a-f0-9]{64}$/.test(intentHash) ||
       (!unmappedIntent && !taxonomyIds.length)
     ) {
       throw new Error("TAXONOMY_CONTEXT_UNAVAILABLE");
@@ -2509,6 +2602,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
             canonicalName: item.canonicalName,
             slug: item.slug,
             aliases: item.aliases,
+            localizedAliases: item.localizedAliases,
           }))
           : taxonomyContextRows.map((item) => ({
             taxonomyId: Number(item.taxonomy_id),
@@ -2547,14 +2641,152 @@ async function handleDiscovery(request: Request): Promise<Response> {
       : cpvCodesFromIntent.length
       ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
-    const tedSearchPlan = boundedTedSearchPlan({
-      directTerms: unmappedIntent
-        ? unmappedRetrievalTerms.map((term) => term.term)
-        : productFamily.directTerms,
-      adjacentTerms: productFamily.adjacentTerms,
-      cpvCodes: fallbackCpv,
+    const [partitionHistoryResult, freshYieldResult, seenCompanyResult] =
+      await Promise.all([
+        admin.from("buyer_discovery_partitions").select(
+          "partition_key,last_explored_at,executions,new_buyer_yield,updated_buyer_yield,direct_verified_yield,provider_requests",
+        ).eq("search_space_id", searchSpaceId),
+        admin.from("external_prospect_discovery_runs").select(
+          "new_verified_buyers",
+        ).eq("search_space_id", searchSpaceId)
+          .in("run_mode", ["FRESH_DISCOVERY", "ADMIN_QA_FRESH"])
+          .in("status", ["PARTIAL", "COMPLETED"])
+          .order("completed_at", { ascending: false }).limit(3),
+        admin.from("buyer_discovery_seen_companies").select(
+          "external_company_id,evidence_fingerprint",
+        ).eq("search_space_id", searchSpaceId),
+      ]);
+    if (
+      partitionHistoryResult.error || freshYieldResult.error ||
+      seenCompanyResult.error
+    ) {
+      throw new Error("DISCOVERY_SEARCH_HISTORY_UNAVAILABLE");
+    }
+    const seenCompanyRows = array(seenCompanyResult.data).map(record);
+    const seenExternalIds = seenCompanyRows.map((item) =>
+      Number(item.external_company_id)
+    ).filter(Number.isSafeInteger);
+    const seenIdentityResult = seenExternalIds.length
+      ? await admin.from("external_companies").select(
+        "id,normalized_domain,normalized_company_name,registry_identifier,country_code",
+      ).in("id", seenExternalIds)
+      : { data: [], error: null };
+    if (seenIdentityResult.error) {
+      throw new Error("DISCOVERY_SEEN_IDENTITY_UNAVAILABLE");
+    }
+    const seenFingerprintByIdentity = new Map<string, string>();
+    const fingerprintByExternalId = new Map(
+      seenCompanyRows.map((item) => [
+        Number(item.external_company_id),
+        first(item.evidence_fingerprint),
+      ]),
+    );
+    for (const value of array(seenIdentityResult.data)) {
+      const identity = record(value);
+      const fingerprint = fingerprintByExternalId.get(Number(identity.id));
+      if (!fingerprint) continue;
+      for (
+        const key of [
+          first(identity.normalized_domain),
+          first(identity.normalized_company_name),
+          first(identity.registry_identifier),
+        ].filter(Boolean)
+      ) seenFingerprintByIdentity.set(key, fingerprint);
+    }
+    const partitionHistory: SearchPartitionHistory[] = array(
+      partitionHistoryResult.data,
+    ).map(record).filter((item) => item.last_explored_at).map((item) => ({
+      partitionKey: first(item.partition_key),
+      lastExploredAt: first(item.last_explored_at),
+      executions: Math.max(0, Number(item.executions) || 0),
+      newBuyerYield: Math.max(0, Number(item.new_buyer_yield) || 0),
+    }));
+    const partitionHistoryRecordByKey = new Map(
+      array(partitionHistoryResult.data).map(record).map((item) => [
+        first(item.partition_key),
+        item,
+      ]),
+    );
+    const recentFreshYields = array(freshYieldResult.data).map((item) =>
+      Math.max(0, Number(record(item).new_verified_buyers) || 0)
+    ).reverse();
+    const searchPlan = buildDiscoverySearchPlan({
+      runMode,
+      productFamily,
       targetCountries,
+      cpvCodes: fallbackCpv,
+      history: partitionHistory,
+      recentFreshYields,
     });
+    const tedSearchPlan = searchPlan.tedPartitions.flatMap((partition) => {
+      const plan = boundedTedSearchPlan({
+        directTerms: partition.retrievalKind === "DIRECT_TERMS"
+          ? partition.terminology
+          : [],
+        adjacentTerms: partition.retrievalKind === "ADJACENT_TERMS"
+          ? partition.terminology
+          : [],
+        cpvCodes: partition.retrievalKind === "RELATED_CPV"
+          ? partition.terminology
+          : [],
+        targetCountries: partition.countryCodes,
+      });
+      const selected = plan.find((item) =>
+        partition.retrievalKind === "RELATED_CPV"
+          ? item.retrievalKind === "RELATED_CPV"
+          : item.retrievalKind === "PRODUCT_TERMS"
+      );
+      return selected ? [selected] : [];
+    }).filter((item, index, values) =>
+      values.findIndex((candidate) => candidate.query === item.query) === index
+    ).slice(0, searchPlan.budget.maximumTedRequests);
+    const partitionRows = searchPlan.selectedPartitions.map((partition) => ({
+      search_space_id: searchSpaceId,
+      partition_key: partition.partitionKey,
+      provider_kind: partition.providerKind,
+      partition_type: partition.partitionType,
+      terminology: partition.terminology,
+      language_code: partition.language,
+      country_codes: partition.countryCodes,
+      market_region: partition.marketRegion,
+      buyer_archetype: partition.buyerArchetype,
+      retrieval_kind: partition.retrievalKind,
+      priority: partition.priority,
+    }));
+    if (partitionRows.length) {
+      const partitionSeed = await admin.from("buyer_discovery_partitions")
+        .upsert(partitionRows, {
+          onConflict: "search_space_id,partition_key",
+          ignoreDuplicates: true,
+        });
+      if (partitionSeed.error) {
+        throw new Error("DISCOVERY_PARTITION_SEED_FAILED");
+      }
+      const storedPartitions = await admin.from("buyer_discovery_partitions")
+        .select("id,partition_key,last_explored_at")
+        .eq("search_space_id", searchSpaceId)
+        .in("partition_key", partitionRows.map((item) => item.partition_key));
+      if (storedPartitions.error) {
+        throw new Error("DISCOVERY_PARTITION_LOAD_FAILED");
+      }
+      const historyKeys = new Set(
+        partitionHistory.map((item) => item.partitionKey),
+      );
+      const planWrites = array(storedPartitions.data).map(record).map(
+        (stored, ordinal) => ({
+          run_id: runId,
+          partition_id: Number(stored.id),
+          ordinal,
+          novelty: historyKeys.has(first(stored.partition_key))
+            ? "STALE_REVISIT"
+            : "NEW_PARTITION",
+          status: "PLANNED",
+        }),
+      );
+      const planWrite = await admin.from("buyer_discovery_run_partitions")
+        .upsert(planWrites, { onConflict: "run_id,partition_id" });
+      if (planWrite.error) throw new Error("DISCOVERY_RUN_PLAN_WRITE_FAILED");
+    }
     const registryCoverage = registryCoverageForCountries(discoveryCountries);
     const publicWebEnabled = enabledEnvironmentFlag(
       Deno.env.get("PUBLIC_WEB_DISCOVERY_ENABLED"),
@@ -2573,24 +2805,53 @@ async function handleDiscovery(request: Request): Promise<Response> {
       1,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
     ));
-    const boundedPublicWebQueries = unmappedIntent
-      ? Math.min(4, publicWebMaximumQueries)
-      : publicWebMaximumQueries;
+    const boundedPublicWebQueries = Math.min(
+      searchPlan.budget.maximumPublicWebQueries,
+      publicWebMaximumQueries,
+    );
     const publicWebMaximumCost = boundedEnvironmentNumber(
       Deno.env.get("PUBLIC_WEB_MAX_COST_USD_PER_RUN"),
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
       0,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
     );
-    const boundedPublicWebCost = unmappedIntent
-      ? Math.min(.02, publicWebMaximumCost)
-      : publicWebMaximumCost;
+    const boundedPublicWebCost = Math.min(
+      searchPlan.budget.maximumPublicWebCostUsd,
+      publicWebMaximumCost,
+    );
     await updateProgress({
       stage: "preparing_market_search",
-      // The existing production progress column is constrained to 0..4.
-      // V2.1's exact six-request count remains available in diagnostics.
-      queries_generated: legacyQueryProgressCount(tedSearchPlan.length),
+      queries_generated: legacyQueryProgressCount(
+        tedSearchPlan.length + searchPlan.publicWebQueries.length,
+      ),
       taxonomy_mapped: Math.min(100, taxonomyIds.length),
+      product_profile: searchPlan.productProfile,
+      partition_summary: {
+        version: searchPlan.version,
+        run_mode: runMode,
+        selected_partition_keys: searchPlan.selectedPartitions.map((item) =>
+          item.partitionKey
+        ),
+        languages: [
+          ...new Set(
+            searchPlan.selectedPartitions.map((item) => item.language),
+          ),
+        ],
+        regions: [
+          ...new Set(
+            searchPlan.selectedPartitions.map((item) => item.marketRegion),
+          ),
+        ],
+        buyer_archetypes: [
+          ...new Set(
+            searchPlan.selectedPartitions.map((item) => item.buyerArchetype),
+          ),
+        ],
+        unused_partitions_remaining: searchPlan.unusedPartitionsRemaining,
+        stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
+        saturation: searchPlan.saturation,
+        provider_budget: searchPlan.budget,
+      },
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
           country_code: item.countryCode,
@@ -2604,7 +2865,26 @@ async function handleDiscovery(request: Request): Promise<Response> {
         product_family: {
           key: productFamily.key,
           label: productFamily.label,
+          market_profile: searchPlan.productProfile,
         },
+        discovery_run_mode: runMode,
+        search_space_id: searchSpaceId,
+        selected_search_partitions: searchPlan.selectedPartitions.map((
+          item,
+        ) => ({
+          partition_key: item.partitionKey,
+          provider_kind: item.providerKind,
+          partition_type: item.partitionType,
+          terminology: item.terminology,
+          language: item.language,
+          countries: item.countryCodes,
+          market_region: item.marketRegion,
+          buyer_archetype: item.buyerArchetype,
+          retrieval_kind: item.retrievalKind,
+        })),
+        unused_partitions_remaining: searchPlan.unusedPartitionsRemaining,
+        stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
+        search_saturation: searchPlan.saturation,
         countries_attempted: discoveryCountries,
         public_web_discovery_enabled: publicWebEnabled,
         public_web_query_limit: boundedPublicWebQueries,
@@ -2638,8 +2918,26 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
     await updateProgress({
       stage: "searching_procurement",
-      queries_generated: legacyQueryProgressCount(tedSearchPlan.length),
+      queries_generated: legacyQueryProgressCount(
+        tedSearchPlan.length + searchPlan.publicWebQueries.length,
+      ),
     });
+    if (searchPlan.selectedPartitions.length) {
+      const executionAcceptance = await admin.rpc(
+        "accept_buyer_discovery_execution_v1",
+        { p_run_id: runId },
+      );
+      if (executionAcceptance.error) {
+        throw new Error("DISCOVERY_EXECUTION_ACCEPTANCE_FAILED");
+      }
+      providerExecutionStarted = true;
+      const partitionStart = await admin.from("buyer_discovery_run_partitions")
+        .update({ status: "STARTED", started_at: new Date().toISOString() })
+        .eq("run_id", runId);
+      if (partitionStart.error) {
+        throw new Error("DISCOVERY_PARTITION_START_FAILED");
+      }
+    }
     const [ted, publicWeb] = await Promise.all([
       fetchTedAwards(
         tedSearchPlan,
@@ -2655,6 +2953,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
         targetCountries,
         maximumQueries: boundedPublicWebQueries,
         maximumCostUsd: boundedPublicWebCost,
+        queryPlan: searchPlan.publicWebQueries,
       }),
     ]);
     publicWebProviderRequests = publicWeb.providerRequests;
@@ -2746,6 +3045,35 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const ranking = rankProspects(deduped.candidates, productFamily, {
       europeWide: targetCountries.length === 0,
     });
+    const acceptedWithNovelty = await Promise.all(ranking.accepted.map(
+      async (ranked) => {
+        const currentFingerprint = await candidateEvidenceFingerprint(
+          ranked.candidate,
+        );
+        const priorFingerprint = candidateHistoryKeys(ranked.candidate)
+          .map((key) => seenFingerprintByIdentity.get(key)).find(Boolean) ||
+          null;
+        return {
+          ranked,
+          discoveryState: classifyDiscoveryResultState({
+            priorEvidenceFingerprint: priorFingerprint,
+            currentEvidenceFingerprint: currentFingerprint,
+          }),
+        };
+      },
+    ));
+    const noveltyPriority: Record<DiscoveryResultState, number> = {
+      NEW: 0,
+      UPDATED: 1,
+      PREVIOUSLY_DISCOVERED: 2,
+    };
+    if (runMode !== "NORMAL_DISCOVERY") {
+      acceptedWithNovelty.sort((left, right) =>
+        noveltyPriority[left.discoveryState] -
+          noveltyPriority[right.discoveryState] ||
+        right.ranked.score.relevanceScore - left.ranked.score.relevanceScore
+      );
+    }
     const retrievalTermOutcomes = unmappedRetrievalTerms.map((term) => {
       const normalized = normalizeRetrievalTerm(term.term);
       const verifiedDirectEvidence = [...ranking.accepted, ...ranking.rejected]
@@ -2769,22 +3097,41 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
     let accepted = 0;
     let rejected = ranking.rejected.length;
-    for (const ranked of ranking.accepted) {
-      if (
-        await persistCandidate(
-          admin,
-          companyId,
-          runId,
-          intentHash,
-          taxonomyContextRows,
-          ranked.candidate,
-          ranked.score,
-          productFamily,
-        )
-      ) {
+    const persistedCandidates: Array<{
+      candidate: ProspectCandidate;
+      externalCompanyId: number;
+      evidenceFingerprint: string;
+      discoveryState: DiscoveryResultState;
+    }> = [];
+    for (const item of acceptedWithNovelty) {
+      const persisted = await persistCandidate(
+        admin,
+        companyId,
+        runId,
+        searchSpaceId,
+        intentHash,
+        taxonomyContextRows,
+        item.ranked.candidate,
+        item.ranked.score,
+        productFamily,
+      );
+      if (persisted) {
         accepted += 1;
+        persistedCandidates.push({
+          candidate: item.ranked.candidate,
+          ...persisted,
+        });
       } else rejected += 1;
     }
+    const stateCounts = persistedCandidates.reduce<
+      Record<DiscoveryResultState, number>
+    >(
+      (counts, item) => {
+        counts[item.discoveryState] += 1;
+        return counts;
+      },
+      { NEW: 0, UPDATED: 0, PREVIOUSLY_DISCOVERED: 0 },
+    );
     await updateProgress({
       stage: "preparing_results",
       candidates_accepted: Math.min(30, accepted),
@@ -2989,7 +3336,161 @@ async function handleDiscovery(request: Request): Promise<Response> {
         ]),
       ),
       direct_contact_fields_stored: 0,
+      discovery_result_states: {
+        new: stateCounts.NEW,
+        updated: stateCounts.UPDATED,
+        previously_discovered: stateCounts.PREVIOUSLY_DISCOVERED,
+      },
     };
+    const partitionOutcomes = new Map(searchPlan.selectedPartitions.map(
+      (partition) => [partition.partitionKey, {
+        partition,
+        candidateObservations: 0,
+        newBuyers: 0,
+        updatedBuyers: 0,
+        directVerifiedBuyers: 0,
+      }],
+    ));
+    for (const persisted of persistedCandidates) {
+      const sourceKind = persisted.candidate.discoverySources?.includes(
+          "PUBLIC_WEB",
+        )
+        ? "PUBLIC_WEB"
+        : "TED";
+      const evidenceTerms = new Set(
+        persisted.candidate.evidence.flatMap((evidence) =>
+          (evidence.matchedTerms || []).map(normalizeRetrievalTerm)
+        ),
+      );
+      const outcome = [...partitionOutcomes.values()].find((item) =>
+        item.partition.providerKind === sourceKind &&
+        item.partition.terminology.some((term) =>
+          evidenceTerms.has(normalizeRetrievalTerm(term))
+        )
+      ) || [...partitionOutcomes.values()].find((item) =>
+        item.partition.providerKind === sourceKind
+      );
+      if (!outcome) {
+        continue;
+      }
+      outcome.candidateObservations += 1;
+      if (persisted.discoveryState === "NEW") {
+        outcome.newBuyers += 1;
+      }
+      if (persisted.discoveryState === "UPDATED") {
+        outcome.updatedBuyers += 1;
+      }
+      if (
+        persisted.candidate.evidence.some((evidence) =>
+          evidence.relevanceClass === "DIRECT"
+        )
+      ) {
+        outcome.directVerifiedBuyers += 1;
+      }
+    }
+    const storedPartitionResult = searchPlan.selectedPartitions.length
+      ? await admin.from("buyer_discovery_partitions").select(
+        "id,partition_key",
+      ).eq("search_space_id", searchSpaceId).in(
+        "partition_key",
+        searchPlan.selectedPartitions.map((item) => item.partitionKey),
+      )
+      : { data: [], error: null };
+    if (storedPartitionResult.error) {
+      throw new Error("DISCOVERY_PARTITION_COMPLETION_LOAD_FAILED");
+    }
+    const webPartitions = searchPlan.selectedPartitions.filter((item) =>
+      item.providerKind === "PUBLIC_WEB"
+    );
+    const tedPartitionsUsed = searchPlan.selectedPartitions.filter((item) =>
+      item.providerKind === "TED"
+    );
+    for (const value of array(storedPartitionResult.data)) {
+      const stored = record(value);
+      const key = first(stored.partition_key);
+      const outcome = partitionOutcomes.get(key);
+      if (!outcome) continue;
+      const prior = partitionHistoryRecordByKey.get(key) || {};
+      const requestOrdinal = outcome.partition.providerKind === "PUBLIC_WEB"
+        ? webPartitions.findIndex((item) => item.partitionKey === key)
+        : tedPartitionsUsed.findIndex((item) => item.partitionKey === key);
+      const providerRequests = requestOrdinal >= 0 &&
+          requestOrdinal <
+            (outcome.partition.providerKind === "PUBLIC_WEB"
+              ? publicWebProviderRequests
+              : ted.checked)
+        ? 1
+        : 0;
+      const runPartitionWrite = await admin.from(
+        "buyer_discovery_run_partitions",
+      ).update({
+        status: "COMPLETED",
+        provider_requests: providerRequests,
+        candidate_observations: Math.min(300, outcome.candidateObservations),
+        new_buyer_yield: Math.min(30, outcome.newBuyers),
+        updated_buyer_yield: Math.min(30, outcome.updatedBuyers),
+        direct_verified_yield: Math.min(30, outcome.directVerifiedBuyers),
+        estimated_cost_usd: outcome.partition.providerKind === "PUBLIC_WEB"
+          ? providerRequests * PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd
+          : 0,
+        completed_at: new Date().toISOString(),
+      }).eq("run_id", runId).eq("partition_id", Number(stored.id));
+      if (runPartitionWrite.error) {
+        throw new Error("DISCOVERY_RUN_PARTITION_COMPLETION_FAILED");
+      }
+      const partitionWrite = await admin.from("buyer_discovery_partitions")
+        .update({
+          status: "EXPLORED",
+          executions: Math.max(0, Number(prior.executions) || 0) + 1,
+          new_buyer_yield: Math.max(0, Number(prior.new_buyer_yield) || 0) +
+            outcome.newBuyers,
+          updated_buyer_yield:
+            Math.max(0, Number(prior.updated_buyer_yield) || 0) +
+            outcome.updatedBuyers,
+          direct_verified_yield:
+            Math.max(0, Number(prior.direct_verified_yield) || 0) +
+            outcome.directVerifiedBuyers,
+          provider_requests: Math.max(0, Number(prior.provider_requests) || 0) +
+            providerRequests,
+          last_explored_at: new Date().toISOString(),
+        }).eq("id", Number(stored.id));
+      if (partitionWrite.error) {
+        throw new Error("DISCOVERY_PARTITION_COMPLETION_FAILED");
+      }
+    }
+    const cumulativeResult = await admin.from(
+      "buyer_discovery_seen_companies",
+    ).select("id", { count: "exact", head: true })
+      .eq("search_space_id", searchSpaceId);
+    if (cumulativeResult.error) {
+      throw new Error("DISCOVERY_CUMULATIVE_COUNT_FAILED");
+    }
+    const cumulativeVerifiedBuyers = Math.max(0, cumulativeResult.count || 0);
+    const terminalSaturation = discoverySaturation([
+      ...recentFreshYields,
+      stateCounts.NEW,
+    ]);
+    const searchSpaceWrite = await admin.from("buyer_discovery_search_spaces")
+      .update({
+        product_profile: searchPlan.productProfile,
+        cumulative_verified_buyers: cumulativeVerifiedBuyers,
+        last_new_buyer_yield: stateCounts.NEW,
+        zero_new_streak: stateCounts.NEW === 0
+          ? Math.min(
+            1000000,
+            [...recentFreshYields].reverse().findIndex((value) => value > 0) < 0
+              ? recentFreshYields.length + 1
+              : [...recentFreshYields].reverse().findIndex((value) =>
+                value > 0
+              ) + 1,
+          )
+          : 0,
+        saturation_signal: terminalSaturation,
+        last_discovery_at: new Date().toISOString(),
+      }).eq("id", searchSpaceId);
+    if (searchSpaceWrite.error) {
+      throw new Error("DISCOVERY_SEARCH_SPACE_COMPLETION_FAILED");
+    }
     const completion = await admin.from("external_prospect_discovery_runs")
       .update({
         status: partial ? "PARTIAL" : "COMPLETED",
@@ -3006,12 +3507,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
         ),
         candidates_accepted: Math.min(30, accepted),
         candidates_rejected: Math.min(100, rejected),
+        new_verified_buyers: stateCounts.NEW,
+        updated_verified_buyers: stateCounts.UPDATED,
+        previously_discovered_buyers: stateCounts.PREVIOUSLY_DISCOVERED,
+        cumulative_verified_buyers: cumulativeVerifiedBuyers,
         taxonomy_mapped: Math.min(100, accepted * taxonomyIds.length),
         ai_classifications: 0,
         provider_requests: publicWebProviderRequests,
-        // Customer workspaces currently expose this legacy column. Keep it
-        // zero and retain the internal estimate only in service diagnostics.
-        estimated_cost_usd: 0,
+        estimated_cost_usd: publicWebProviderCostUsd,
+        fresh_request_state: runMode === "NORMAL_DISCOVERY"
+          ? "NOT_FRESH"
+          : "TERMINAL",
         diagnostics,
         completed_at: new Date().toISOString(),
       }).eq("id", runId);
@@ -3039,12 +3545,28 @@ async function handleDiscovery(request: Request): Promise<Response> {
         run_id: runId,
         status: partial ? "PARTIAL" : "COMPLETED",
         stage: "completed",
+        run_mode: runMode,
+        search_space_id: searchSpaceId,
       },
       candidates_accepted: accepted,
       candidates_rejected: rejected,
+      new_verified_buyers: stateCounts.NEW,
+      updated_verified_buyers: stateCounts.UPDATED,
+      previously_discovered_buyers: stateCounts.PREVIOUSLY_DISCOVERED,
+      cumulative_verified_buyers: cumulativeVerifiedBuyers,
+      result_summary: runMode === "NORMAL_DISCOVERY"
+        ? `${cumulativeVerifiedBuyers} verified buyers found so far. Results verified at ${
+          new Date().toISOString()
+        }.`
+        : freshDiscoveryMessage({
+          newBuyers: stateCounts.NEW,
+          updatedBuyers: stateCounts.UPDATED,
+          previousBuyers: stateCounts.PREVIOUSLY_DISCOVERED,
+          cumulativeBuyers: cumulativeVerifiedBuyers,
+        }),
       provider_requests: publicWebProviderRequests,
       ai_classifications: 0,
-      estimated_cost_usd: 0,
+      estimated_cost_usd: publicWebProviderCostUsd,
       emails_sent: 0,
       notifications_created: 0,
       registry_coverage: registryCoverage.map((item) => ({
@@ -3064,9 +3586,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
       error_code: errorCode,
       ai_classifications: 0,
       provider_requests: publicWebProviderRequests,
-      estimated_cost_usd: 0,
+      estimated_cost_usd: publicWebProviderCostUsd,
+      fresh_request_state: runMode === "NORMAL_DISCOVERY"
+        ? "NOT_FRESH"
+        : providerExecutionStarted
+        ? "FAILED_AFTER_PROVIDER"
+        : "FAILED_PRE_PROVIDER",
       completed_at: new Date().toISOString(),
     }).eq("id", runId);
+    await admin.from("buyer_discovery_run_partitions").update({
+      status: "FAILED",
+      completed_at: new Date().toISOString(),
+    }).eq("run_id", runId).in("status", ["PLANNED", "STARTED"]);
     console.error("external prospect discovery failed", {
       run_id: runId,
       error_code: errorCode,

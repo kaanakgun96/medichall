@@ -26,6 +26,7 @@ export type ProductFamilyTaxonomyNode = {
   canonicalName: string;
   slug: string;
   aliases?: string[];
+  localizedAliases?: Array<{ term: string; language: string }>;
   familyName?: string | null;
   familySlug?: string | null;
 };
@@ -54,6 +55,7 @@ export type ProductFamilyProfile = {
   genericTerms: string[];
   mismatchTerms: string[];
   componentFitLabel: string | null;
+  reviewedRetrievalTerms?: ProductRetrievalTerm[];
   temporaryIntent?: {
     normalizedPhrase: string;
     phraseSignature: string;
@@ -512,6 +514,18 @@ export function buildProductFamilyProfile(
     genericTerms: uniqueTerms(COMMON_GENERIC_TERMS),
     mismatchTerms: uniqueTerms(mismatch),
     componentFitLabel,
+    reviewedRetrievalTerms: nodes.flatMap((node) =>
+      (node.localizedAliases || []).map((alias) => ({
+        term: alias.term,
+        normalizedTerm: normalizeTerm(alias.term),
+        language: alias.language,
+        countries: [],
+        confidence: "HIGH" as const,
+        source: "APPROVED_ALIAS" as const,
+        reason: "Approved multilingual medical-product taxonomy alias",
+        familySignature: key,
+      }))
+    ),
   };
 }
 

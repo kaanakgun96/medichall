@@ -35,7 +35,7 @@ assert.match(portal,/external-prospects\.js\?v=20260825unknown1/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 
-assert.match(edge,/start_external_prospect_discovery_v2/);
+assert.match(edge,/start_external_prospect_discovery_v3/);
 assert.match(edge,/scanCompanyWebsiteProducts/);
 assert.match(edge,/get_buyer_discovery_product_context_v1/);
 assert.match(edge,/safeFetchWithRedirects/);
