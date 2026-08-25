@@ -4,7 +4,6 @@ import {
   reviewedEquipmentCoverTerms,
 } from "./buyer-discovery-relevance-v2.ts";
 import {
-  normalizeCompanyName,
   normalizeDomain,
   normalizeHttpsUrl,
   type ProspectCandidate,
@@ -147,9 +146,6 @@ const REJECTED_DOMAINS = [
   "x.com",
   "youtube.com",
 ];
-
-const COMPANY_SUFFIX =
-  /\b(?:s\.?r\.?l\.?|s\.?a\.?s\.?|s\.?a\.?|gmbh|b\.?v\.?|ltd\.?|limited|inc\.?|llc|ag|spa|s\.p\.a\.|medical|medikal|healthcare|hospital)\b/i;
 
 function normalizeProductText(value: unknown): string {
   return String(value ?? "").normalize("NFKD").toLowerCase()
@@ -349,36 +345,11 @@ export function normalizePublicWebResult(
   const pageUrl = url.href.slice(0, 1000);
   const canonicalDomain = normalizeDomain(pageUrl);
   if (!canonicalDomain || isRejectedDomain(canonicalDomain)) return null;
-  const profile = row.profile && typeof row.profile === "object" &&
-      !Array.isArray(row.profile)
-    ? row.profile as Record<string, unknown>
-    : {};
-  const rawTitle = sanitizeEvidenceText(
-    row.name || profile.long_name || row.title || canonicalDomain.split(".")[0],
-    180,
-  ).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const titleSegments = rawTitle.split(/\s+[|–—]\s+|\s+-\s+/).map((item) =>
-    item.trim()
-  ).filter(Boolean);
-  const companySegment =
-    titleSegments.find((item) => COMPANY_SUFFIX.test(item)) ||
-    titleSegments.at(-1) || rawTitle;
-  const name = sanitizeEvidenceText(companySegment, 180) || canonicalDomain;
-  if (!normalizeCompanyName(name)) return null;
-  const domainFallback = normalizeProductText(name) ===
-      normalizeProductText(canonicalDomain) ||
-    normalizeProductText(name) ===
-      normalizeProductText(canonicalDomain.split(".")[0]) ||
-    /^[a-z0-9-]+\.[a-z]{2,}$/i.test(name);
-  const suppliedIdentitySource = row.identitySource || row.identity_source;
   return {
-    name,
-    identitySource: suppliedIdentitySource === "PAGE_METADATA" &&
-        !domainFallback
-      ? "PAGE_METADATA"
-      : domainFallback
-      ? "DOMAIN_FALLBACK"
-      : "PAGE_METADATA",
+    // Search-provider result titles describe pages, products, or articles.
+    // They are discovery metadata only and never become company identity.
+    name: canonicalDomain,
+    identitySource: "DOMAIN_FALLBACK",
     pageUrl,
     canonicalDomain,
     countryCode: inferCountryFromDomain(canonicalDomain),
@@ -860,8 +831,14 @@ export function publicWebCandidatesToProspects(input: {
     PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
   )
     .map((candidate) => ({
-      name: candidate.name,
-      nameSource: candidate.identitySource || "DOMAIN_FALLBACK",
+      // Sanitize pre-hotfix cached PAGE_METADATA candidates as well as new
+      // provider results, so no provider re-request is required.
+      name: candidate.identitySource === "PAGE_METADATA"
+        ? candidate.canonicalDomain
+        : candidate.name,
+      nameSource: candidate.identitySource === "PAGE_METADATA"
+        ? "DOMAIN_FALLBACK" as const
+        : candidate.identitySource || "DOMAIN_FALLBACK" as const,
       countryCode: candidate.countryCode,
       countryName: null,
       cityRegion: null,
@@ -882,5 +859,9 @@ export function publicWebCandidatesToProspects(input: {
       lastEvidenceAt: null,
       discoverySources: ["PUBLIC_WEB" as const],
       websiteVerificationUrls: [candidate.pageUrl],
+      organizationType: "UNKNOWN" as const,
+      identityConfidence: "LOW" as const,
+      commercialIdentityVerified: false,
+      editorialContent: false,
     }));
 }

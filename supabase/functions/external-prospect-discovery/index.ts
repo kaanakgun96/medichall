@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   boundedTedSearchPlan,
   chooseTrustedCompanyIdentity,
+  type CompanyIdentityConfidence,
   companyIdentityKeys,
   type CompanyIdentitySource,
   deduplicateCandidates,
@@ -15,6 +16,7 @@ import {
   normalizeCpv,
   normalizeDomain,
   normalizeHttpsUrl,
+  type OrganizationType,
   partitionTedCandidates,
   type ProspectCandidate,
   type ProspectEvidence,
@@ -516,6 +518,10 @@ export function extractTedCandidatesFromNotice(input: {
           : "PRODUCT_TED",
       ],
       websiteVerificationUrls: websiteUrl ? [websiteUrl] : [],
+      organizationType: "COMMERCIAL_COMPANY",
+      identityConfidence: "HIGH",
+      commercialIdentityVerified: true,
+      editorialContent: false,
     });
   }
   return {
@@ -952,6 +958,13 @@ export function mergeSignals(
       lastEvidenceAt: registry.activity.effectiveFrom,
       discoverySources: ["REGISTRY"],
       websiteVerificationUrls: [],
+      organizationType: registry.activity.strength === "STRONG_INDIRECT"
+        ? "COMMERCIAL_COMPANY"
+        : "UNKNOWN",
+      identityConfidence: "HIGH",
+      commercialIdentityVerified:
+        registry.activity.strength === "STRONG_INDIRECT",
+      editorialContent: false,
     });
   }
   for (const candidate of publicWebCandidates) addCandidate(candidate);
@@ -976,17 +989,38 @@ function decodeIdentityText(value: unknown): string {
     .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function pageLikeIdentity(value: unknown): boolean {
+  const name = decodeIdentityText(value);
+  const legalSuffix =
+    /\b(?:s\.?r\.?l\.?|s\.?a\.?s\.?|s\.?a\.?|gmbh|b\.?v\.?|ltd\.?|limited|inc\.?|llc|a\.?g\.?|s\.?p\.?a\.?)\s*$/i
+      .test(name);
+  const articleOrInstructional =
+    /(?:\b(?:learn|know|understand|guide|how to|what is|overview|everything you need|ce que vous devez savoir)\b|:\s+\S)/i
+      .test(name);
+  const productOrCatalogueTitle =
+    /\b(?:products?|catalog(?:ue)?|portfolio|range|system(?:s)?|set(?:s)?|kit(?:s)?|cover(?:s)?|sleeve(?:s)?|drape(?:s)?|catheter(?:s)?|electrode(?:s)?|trocar(?:s)?|circuit(?:s)?|blanket(?:s)?|mixing|dispensing)\b/i
+      .test(name) && !legalSuffix;
+  const sentenceLike = name.split(/\s+/).length > 10 ||
+    (/[.!?]\s*$/.test(name) && name.split(/\s+/).length > 5 && !legalSuffix);
+  return articleOrInstructional || productOrCatalogueTitle || sentenceLike;
+}
+
 function plausibleWebsiteIdentity(
   value: unknown,
   domain: string,
+  pageLabels: string[] = [],
 ): string | null {
   const name = decodeIdentityText(value);
   const normalized = normalizeCompanyName(name);
-  const domainLabel = normalizeCompanyName(domain.split(".")[0]);
+  const normalizedPageLabels = pageLabels.map(normalizeCompanyName).filter(
+    Boolean,
+  );
   if (
     name.length < 2 || name.length > 180 ||
     name.split(/\s+/).length > 16 ||
-    normalized === domainLabel || normalized === normalizeCompanyName(domain) ||
+    normalized === normalizeCompanyName(domain) ||
+    pageLikeIdentity(name) ||
+    normalizedPageLabels.includes(normalized) ||
     /^(?:home|products?|catalog(?:ue)?|camera covers?|medical devices?|welcome|contact|about us)$/i
       .test(name) ||
     /^[a-z0-9-]+\.[a-z]{2,}$/i.test(name)
@@ -1013,50 +1047,188 @@ function jsonLdOrganizations(value: unknown): JsonRecord[] {
   ].flatMap(jsonLdOrganizations);
   const types = texts(row["@type"]).map((item) => item.toLowerCase());
   return types.some((type) =>
-      /^(?:organization|corporation|localbusiness|medicalbusiness)$/.test(type)
+      /^(?:organization|corporation|localbusiness|medicalbusiness|medicalorganization|hospital|medicalclinic|physician)$/
+        .test(
+          type,
+        )
     )
     ? [row, ...nested]
     : nested;
 }
 
-export function extractOfficialWebsiteIdentity(
-  html: string,
-  domain: string,
-): { name: string; source: CompanyIdentitySource } | null {
+function jsonLdRows(value: unknown): JsonRecord[] {
+  if (Array.isArray(value)) return value.flatMap(jsonLdRows);
+  const row = record(value);
+  if (!Object.keys(row).length) return [];
+  return [
+    row,
+    ...[
+      ...array(row["@graph"]),
+      ...array(row.mainEntity),
+      ...array(row.publisher),
+      ...array(row.manufacturer),
+      ...array(row.brand),
+      ...array(row.provider),
+    ].flatMap(jsonLdRows),
+  ];
+}
+
+function websiteJsonLdRows(html: string): JsonRecord[] {
+  const output: JsonRecord[] = [];
   for (
     const match of html.matchAll(
       /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
     )
   ) {
     try {
-      const payload = JSON.parse(match[1].trim());
-      for (const organization of jsonLdOrganizations(payload)) {
-        const name = plausibleWebsiteIdentity(
-          organization.legalName || organization.name,
-          domain,
-        );
-        if (name) return { name, source: "SCHEMA_ORG" };
-      }
+      output.push(...jsonLdRows(JSON.parse(match[1].trim())));
     } catch (_) {
-      // Invalid JSON-LD is ignored; it never blocks website evidence.
+      // Invalid JSON-LD is not organization evidence.
     }
+  }
+  return output;
+}
+
+function pageIdentityLabels(html: string, rows: JsonRecord[]): string[] {
+  const labels = [
+    html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "",
+    html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "",
+  ];
+  for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+    const key = (htmlAttribute(tag, "property") || htmlAttribute(tag, "name"))
+      .toLowerCase();
+    if (key === "og:title" || key === "twitter:title") {
+      labels.push(htmlAttribute(tag, "content"));
+    }
+  }
+  for (const row of rows) {
+    const types = texts(row["@type"]).map((item) => item.toLowerCase());
+    if (
+      types.some((type) =>
+        /^(?:product|article|newsarticle|blogposting|medicalwebpage|webpage|collectionpage|itemlist)$/
+          .test(
+            type,
+          )
+      )
+    ) labels.push(first(row.name || row.headline));
+  }
+  return labels.map(decodeIdentityText).filter(Boolean);
+}
+
+function extractWebsiteIdentity(
+  html: string,
+  domain: string,
+  rows = websiteJsonLdRows(html),
+): { name: string; source: CompanyIdentitySource } | null {
+  const pageLabels = pageIdentityLabels(html, rows);
+  for (const organization of jsonLdOrganizations(rows)) {
+    const name = plausibleWebsiteIdentity(
+      organization.legalName || organization.name,
+      domain,
+      pageLabels.filter((label) =>
+        normalizeCompanyName(label) !==
+          normalizeCompanyName(organization.legalName || organization.name)
+      ),
+    );
+    if (name) return { name, source: "SCHEMA_ORG" };
   }
   for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
     const key = (htmlAttribute(tag, "property") || htmlAttribute(tag, "name"))
       .toLowerCase();
     if (key !== "og:site_name" && key !== "application-name") continue;
+    const proposed = htmlAttribute(tag, "content");
     const name = plausibleWebsiteIdentity(
-      htmlAttribute(tag, "content"),
+      proposed,
       domain,
+      pageLabels.filter((label) =>
+        normalizeCompanyName(label) !== normalizeCompanyName(proposed)
+      ),
     );
     if (name) return { name, source: "OFFICIAL_WEBSITE" };
   }
-  const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "";
-  const candidates = decodeIdentityText(title).split(/\s+[|–—]\s+|\s+-\s+/)
-    .map((item) => plausibleWebsiteIdentity(item, domain)).filter(Boolean);
-  return candidates.length
-    ? { name: candidates.at(-1)!, source: "PAGE_METADATA" }
-    : null;
+  return null;
+}
+
+export type WebsiteOrganizationAnalysis = {
+  identity: { name: string; source: CompanyIdentitySource } | null;
+  identityConfidence: CompanyIdentityConfidence;
+  organizationType: OrganizationType;
+  commercialIdentityVerified: boolean;
+  editorialContent: boolean;
+};
+
+export function analyzeOfficialWebsitePage(
+  html: string,
+  domain: string,
+): WebsiteOrganizationAnalysis {
+  const rows = websiteJsonLdRows(html);
+  const identity = extractWebsiteIdentity(html, domain, rows);
+  const schemaTypes = rows.flatMap((row) => texts(row["@type"]))
+    .map((item) => item.toLowerCase());
+  const visibleText = sanitizeEvidenceText(
+    html.replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+    8000,
+  );
+  const commercialSignal =
+    /\b(?:manufacturer|manufacturing|distributor|distribution|supplier|wholesal(?:e|er)|importer|exporter|reseller|oem|procedure pack|medical technology company|request (?:a )?quote|product catalogue|product catalog)\b/i
+      .test(visibleText);
+  const healthcareProvider =
+    schemaTypes.some((type) =>
+      /^(?:hospital|medicalclinic|physician|medicalorganization)$/.test(type)
+    ) ||
+    /\b(?:hospital|clinic|health system|patient care|make an appointment)\b/i
+      .test(identity?.name || "");
+  const educationResearch =
+    schemaTypes.some((type) =>
+      /^(?:collegeoruniversity|educationalorganization|researchorganization)$/
+        .test(
+          type,
+        )
+    ) || /\b(?:university|research institute|medical school)\b/i.test(
+      identity?.name || "",
+    );
+  const editorialContent =
+    schemaTypes.some((type) =>
+      /^(?:article|newsarticle|blogposting|medicalwebpage|scholarlyarticle)$/
+        .test(
+          type,
+        )
+    ) ||
+    /\b(?:patient information|patient education|health library|medical encyclopedia|what is|how to|guide|ce que vous devez savoir)\b/i
+      .test(visibleText);
+  // Commercial vocabulary inside an article is not organization-level proof.
+  // An editorial page must obtain that proof from the bounded homepage check
+  // or an independent registry/TED signal.
+  const commercialOrganizationSignal = commercialSignal && !editorialContent;
+  const organizationType: OrganizationType = commercialOrganizationSignal
+    ? "COMMERCIAL_COMPANY"
+    : healthcareProvider
+    ? "HEALTHCARE_PROVIDER"
+    : educationResearch
+    ? "EDUCATION_RESEARCH"
+    : editorialContent
+    ? "EDITORIAL_PUBLISHER"
+    : "UNKNOWN";
+  return {
+    identity,
+    identityConfidence: identity?.source === "SCHEMA_ORG"
+      ? "HIGH"
+      : identity?.source === "OFFICIAL_WEBSITE"
+      ? "MEDIUM"
+      : "LOW",
+    organizationType,
+    commercialIdentityVerified: organizationType === "COMMERCIAL_COMPANY",
+    editorialContent,
+  };
+}
+
+export function extractOfficialWebsiteIdentity(
+  html: string,
+  domain: string,
+): { name: string; source: CompanyIdentitySource } | null {
+  return extractWebsiteIdentity(html, domain);
 }
 
 export async function verifyWebsites(
@@ -1076,6 +1248,11 @@ export async function verifyWebsites(
   skipped: number;
   publicWebChecked: number;
   publicWebVerified: number;
+  identityRejected: number;
+  organizationRequests: number;
+  organizationVerified: number;
+  editorialRejected: number;
+  domainFallbackUsed: number;
 }> {
   const withWebsites = candidates.filter((item) => item.websiteUrl).sort(
     (left, right) => {
@@ -1107,14 +1284,38 @@ export async function verifyWebsites(
     if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
   }
   const results = await Promise.all(selected.map(async (candidate) => {
+    type WebsiteResult = {
+      status:
+        | "SKIPPED"
+        | "UNAVAILABLE"
+        | "GENERIC"
+        | "RELEVANT"
+        | "REJECTED_IDENTITY";
+      organizationRequests: number;
+      organizationVerified: boolean;
+      editorialRejected: boolean;
+      domainFallbackUsed: boolean;
+    };
+    const outcome = (
+      status: WebsiteResult["status"],
+      overrides: Partial<Omit<WebsiteResult, "status">> = {},
+    ): WebsiteResult => ({
+      status,
+      organizationRequests: 0,
+      organizationVerified: Boolean(candidate.commercialIdentityVerified),
+      editorialRejected: false,
+      domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+      ...overrides,
+    });
     const website = normalizeHttpsUrl(
       candidate.websiteVerificationUrls?.[0] || candidate.websiteUrl,
     );
-    if (!website) return "SKIPPED" as const;
+    if (!website) return outcome("SKIPPED");
     try {
       const siteUrl = new URL(website);
       const robotsUrl = `${siteUrl.origin}/robots.txt`;
       let allowed = true;
+      let robotsText = "";
       try {
         const robots = await safeFetchWithRedirects(robotsUrl, {
           headers: {
@@ -1128,8 +1329,9 @@ export async function verifyWebsites(
         });
         if (robots.response.ok) {
           const body = await readBoundedResponseBody(robots.response, 128_000);
+          robotsText = new TextDecoder().decode(body.bytes);
           allowed = isPathAllowedByRobots(
-            new TextDecoder().decode(body.bytes),
+            robotsText,
             siteUrl.pathname,
             "medichall-external-prospect-discovery",
           );
@@ -1137,7 +1339,7 @@ export async function verifyWebsites(
       } catch (_) {
         // An unavailable robots file is not a disallow rule.
       }
-      if (!allowed) return "SKIPPED" as const;
+      if (!allowed) return outcome("SKIPPED");
       const result = await safeFetchWithRedirects(website, {
         headers: {
           "Accept": "text/html,application/xhtml+xml",
@@ -1154,32 +1356,115 @@ export async function verifyWebsites(
         normalizeDomain(result.resolvedUrl) !== normalizeDomain(website)
       ) {
         await result.response.body?.cancel();
-        return "SKIPPED" as const;
+        return outcome("SKIPPED");
       }
       if (!result.response.ok) {
         await result.response.body?.cancel();
-        return "UNAVAILABLE" as const;
+        return outcome("UNAVAILABLE");
       }
       const contentType = result.response.headers.get("content-type") || "";
       if (!contentType.includes("html")) {
         await result.response.body?.cancel();
-        return "SKIPPED" as const;
+        return outcome("SKIPPED");
       }
       const body = await readBoundedResponseBody(result.response, 512_000);
       const html = new TextDecoder().decode(body.bytes);
-      const identity = extractOfficialWebsiteIdentity(
-        html,
-        normalizeDomain(result.resolvedUrl) || siteUrl.hostname,
-      );
-      if (identity) {
+      const resolvedDomain = normalizeDomain(result.resolvedUrl) ||
+        siteUrl.hostname;
+      const isPublicWeb = candidate.discoverySources?.includes("PUBLIC_WEB") ===
+        true;
+      if (isPublicWeb && candidate.nameSource === "PAGE_METADATA") {
+        candidate.name = resolvedDomain;
+        candidate.nameSource = "DOMAIN_FALLBACK";
+      }
+      const pageAnalysis = analyzeOfficialWebsitePage(html, resolvedDomain);
+      const analyses = [pageAnalysis];
+      let organizationRequests = 0;
+      if (
+        isPublicWeb &&
+        (!pageAnalysis.commercialIdentityVerified ||
+          !pageAnalysis.identity || pageAnalysis.editorialContent) &&
+        (!robotsText ||
+          isPathAllowedByRobots(
+            robotsText,
+            "/",
+            "medichall-external-prospect-discovery",
+          ))
+      ) {
+        organizationRequests += 1;
+        try {
+          const homepage = await safeFetchWithRedirects(siteUrl.origin + "/", {
+            headers: {
+              "Accept": "text/html,application/xhtml+xml",
+              "User-Agent": "MedicHall-External-Prospect-Discovery/1.0",
+            },
+          }, {
+            maximumAttempts: 1,
+            maximumRedirects: 3,
+            resolver: dependencies.resolver,
+            fetcher: dependencies.fetcher,
+          });
+          if (
+            homepage.response.ok &&
+            (homepage.response.headers.get("content-type") || "").includes(
+              "html",
+            ) && normalizeDomain(homepage.resolvedUrl) === resolvedDomain
+          ) {
+            const homepageBody = await readBoundedResponseBody(
+              homepage.response,
+              512_000,
+            );
+            analyses.push(analyzeOfficialWebsitePage(
+              new TextDecoder().decode(homepageBody.bytes),
+              resolvedDomain,
+            ));
+          } else await homepage.response.body?.cancel();
+        } catch (_) {
+          // Product evidence remains usable; organization validation fails
+          // closed when the bounded homepage check is unavailable.
+        }
+      }
+      for (const analysis of analyses) {
+        if (!analysis.identity) continue;
         const selectedIdentity = chooseTrustedCompanyIdentity({
           currentName: candidate.name,
           currentSource: candidate.nameSource,
-          proposedName: identity.name,
-          proposedSource: identity.source,
+          proposedName: analysis.identity.name,
+          proposedSource: analysis.identity.source,
         });
         candidate.name = selectedIdentity.name;
         candidate.nameSource = selectedIdentity.source;
+      }
+      const confidenceOrder: Record<CompanyIdentityConfidence, number> = {
+        LOW: 1,
+        MEDIUM: 2,
+        HIGH: 3,
+      };
+      candidate.identityConfidence = analyses.reduce(
+        (best, item) =>
+          confidenceOrder[item.identityConfidence] > confidenceOrder[best]
+            ? item.identityConfidence
+            : best,
+        candidate.identityConfidence || "LOW",
+      );
+      candidate.commercialIdentityVerified = Boolean(
+        candidate.commercialIdentityVerified ||
+          analyses.some((item) => item.commercialIdentityVerified),
+      );
+      if (candidate.commercialIdentityVerified) {
+        candidate.organizationType = "COMMERCIAL_COMPANY";
+      } else {
+        candidate.organizationType = analyses.find((item) =>
+          item.organizationType !== "UNKNOWN"
+        )?.organizationType || candidate.organizationType || "UNKNOWN";
+      }
+      candidate.editorialContent = analyses.some((item) =>
+        item.editorialContent
+      );
+      if (isPublicWeb && candidate.nameSource === "PAGE_METADATA") {
+        candidate.name = resolvedDomain;
+        candidate.nameSource = "DOMAIN_FALLBACK";
+        candidate.identityConfidence = "LOW";
       }
       const text = sanitizeEvidenceText(
         html.replace(
@@ -1238,28 +1523,59 @@ export async function verifyWebsites(
         candidate.lastEvidenceAt = (dependencies.now || new Date())
           .toISOString().slice(0, 10);
       }
-      return classified.relevanceClass === "GENERIC"
-        ? "GENERIC" as const
-        : "RELEVANT" as const;
+      if (classified.relevanceClass === "GENERIC") {
+        return outcome("GENERIC", {
+          organizationRequests,
+          organizationVerified: Boolean(candidate.commercialIdentityVerified),
+          domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+        });
+      }
+      if (isPublicWeb && !candidate.commercialIdentityVerified) {
+        return outcome("REJECTED_IDENTITY", {
+          organizationRequests,
+          organizationVerified: false,
+          editorialRejected: Boolean(candidate.editorialContent),
+          domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+        });
+      }
+      return outcome("RELEVANT", {
+        organizationRequests,
+        organizationVerified: Boolean(candidate.commercialIdentityVerified),
+        domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+      });
     } catch (_) {
-      return "UNAVAILABLE" as const;
+      return outcome("UNAVAILABLE");
     }
   }));
   return {
     available: withWebsites.length,
     checked: selected.length,
-    unavailable: results.filter((value) => value === "UNAVAILABLE").length,
-    relevant: results.filter((value) => value === "RELEVANT").length,
-    generic: results.filter((value) => value === "GENERIC").length,
-    skipped: results.filter((value) => value === "SKIPPED").length,
+    unavailable: results.filter((value) => value.status === "UNAVAILABLE")
+      .length,
+    relevant: results.filter((value) => value.status === "RELEVANT").length,
+    generic: results.filter((value) => value.status === "GENERIC").length,
+    skipped: results.filter((value) => value.status === "SKIPPED").length,
     publicWebChecked:
       selected.filter((candidate) =>
         candidate.discoverySources?.includes("PUBLIC_WEB")
       ).length,
-    publicWebVerified: results.filter((value, index) =>
-      value === "RELEVANT" &&
-      selected[index].discoverySources?.includes("PUBLIC_WEB")
-    ).length,
+    publicWebVerified:
+      results.filter((value, index) =>
+        value.status === "RELEVANT" &&
+        selected[index].discoverySources?.includes("PUBLIC_WEB")
+      ).length,
+    identityRejected:
+      results.filter((value) => value.status === "REJECTED_IDENTITY").length,
+    organizationRequests: results.reduce(
+      (total, value) => total + value.organizationRequests,
+      0,
+    ),
+    organizationVerified:
+      results.filter((value) => value.organizationVerified).length,
+    editorialRejected: results.filter((value) => value.editorialRejected)
+      .length,
+    domainFallbackUsed: results.filter((value) => value.domainFallbackUsed)
+      .length,
   };
 }
 
@@ -1577,6 +1893,13 @@ async function persistCandidate(
 ): Promise<boolean> {
   if (!score.eligible || score.relevanceScore < 55) return false;
   const domain = normalizeDomain(candidate.websiteUrl);
+  const safeCompanyName = candidate.nameSource === "PAGE_METADATA"
+    ? domain
+    : candidate.name;
+  const safeIdentitySource = candidate.nameSource === "PAGE_METADATA"
+    ? "DOMAIN_FALLBACK"
+    : candidate.nameSource || "DOMAIN_FALLBACK";
+  if (!safeCompanyName) return false;
   let external: {
     id: number;
     membership_status: string;
@@ -1609,7 +1932,7 @@ async function persistCandidate(
       "id,membership_status,company_name",
     )
       .eq("duplicate_status", "ACTIVE")
-      .eq("normalized_company_name", normalizeCompanyName(candidate.name));
+      .eq("normalized_company_name", normalizeCompanyName(safeCompanyName));
     lookup = candidate.countryCode
       ? lookup.eq("country_code", candidate.countryCode)
       : lookup.is("country_code", null);
@@ -1624,20 +1947,22 @@ async function persistCandidate(
     }
   }
   if (external?.membership_status === "ON_MEDICHALL") return false;
+  const trustedIdentityUpgrade = safeIdentitySource !== "DOMAIN_FALLBACK";
+  const legacyPageIdentityRepair = safeIdentitySource === "DOMAIN_FALLBACK" &&
+    pageLikeIdentity(external?.company_name);
   if (
-    external && candidate.nameSource &&
-    candidate.nameSource !== "DOMAIN_FALLBACK" &&
-    candidate.name !== external.company_name
+    external && (trustedIdentityUpgrade || legacyPageIdentityRepair) &&
+    safeCompanyName !== external.company_name
   ) {
     const identityUpdate = await admin.from("external_companies").update({
-      company_name: candidate.name,
+      company_name: safeCompanyName,
       last_verified_at: new Date().toISOString(),
     }).eq("id", external.id);
     if (identityUpdate.error) throw identityUpdate.error;
   }
   if (!external) {
     const insertion = await admin.from("external_companies").insert({
-      company_name: candidate.name,
+      company_name: safeCompanyName,
       country_code: candidate.countryCode,
       country_name: candidate.countryName,
       city_region: candidate.cityRegion,
@@ -1783,7 +2108,12 @@ async function persistCandidate(
       product_family_label: productFamily.label,
       commercial_fit: score.commercialFitClassification,
       qualification_path: score.qualificationPath,
-      company_identity_source: candidate.nameSource || "DOMAIN_FALLBACK",
+      company_identity_source: safeIdentitySource,
+      company_identity_confidence: candidate.identityConfidence || "LOW",
+      organization_type: candidate.organizationType || "UNKNOWN",
+      commercial_identity_verified: Boolean(
+        candidate.commercialIdentityVerified,
+      ),
     })),
     last_scored_at: new Date().toISOString(),
   }, { onConflict: "company_id,external_company_id,intent_hash" });
@@ -2451,6 +2781,11 @@ async function handleDiscovery(request: Request): Promise<Response> {
       public_web_results_received: publicWeb.resultsReceived,
       public_web_candidates_created: publicWeb.candidatesCreated,
       public_web_candidates_verified: website.publicWebVerified,
+      public_web_commercial_identity_rejected: website.identityRejected,
+      public_web_organization_requests: website.organizationRequests,
+      public_web_organization_verified: website.organizationVerified,
+      public_web_editorial_rejected: website.editorialRejected,
+      public_web_domain_fallback_used: website.domainFallbackUsed,
       public_web_candidates_accepted: ranking.accepted.filter((item) =>
         item.candidate.discoverySources?.includes("PUBLIC_WEB")
       ).length,
@@ -2541,6 +2876,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       website_checks: website.checked,
       website_product_relevant: website.relevant,
       website_generic_or_mismatch: website.generic,
+      website_commercial_identity_rejected: website.identityRejected,
       candidate_pool_size: deduped.candidates.length,
       rejection_stages: {
         ted_before_verification: Object.values(ted.rejectionReasons).reduce(

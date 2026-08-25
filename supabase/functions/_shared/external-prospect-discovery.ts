@@ -59,6 +59,15 @@ export type CompanyIdentitySource =
   | "PAGE_METADATA"
   | "DOMAIN_FALLBACK";
 
+export type CompanyIdentityConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+export type OrganizationType =
+  | "COMMERCIAL_COMPANY"
+  | "HEALTHCARE_PROVIDER"
+  | "EDITORIAL_PUBLISHER"
+  | "EDUCATION_RESEARCH"
+  | "UNKNOWN";
+
 export type ActivitySignal = {
   providerCode: string;
   countryCode: string;
@@ -255,6 +264,12 @@ export type ProspectCandidate = {
   // page may add COMPANY_WEBSITE evidence.
   discoverySources?: CandidateSourcePartition[];
   websiteVerificationUrls?: string[];
+  // Transient organization-level validation. Product/page relevance and
+  // company identity are deliberately separate gates.
+  organizationType?: OrganizationType;
+  identityConfidence?: CompanyIdentityConfidence;
+  commercialIdentityVerified?: boolean;
+  editorialContent?: boolean;
 };
 
 export type ProspectScore = {
@@ -385,12 +400,18 @@ export function chooseTrustedCompanyIdentity(input: {
 }): { name: string; source: CompanyIdentitySource } {
   const current = validCompanyIdentity(input.currentName) ||
     sanitizeEvidenceText(input.currentName, 180) || "Unknown company";
-  const proposed = validCompanyIdentity(input.proposedName);
+  // PAGE_METADATA is retained as a legacy enum for stored/cache compatibility,
+  // but page, product, category, and article titles are never organization
+  // identities.
+  const proposed = input.proposedSource === "PAGE_METADATA"
+    ? null
+    : validCompanyIdentity(input.proposedName);
   const currentSource = input.currentSource || "DOMAIN_FALLBACK";
   if (
     proposed &&
-    IDENTITY_SOURCE_PRIORITY[input.proposedSource] >
-      IDENTITY_SOURCE_PRIORITY[currentSource]
+    (currentSource === "PAGE_METADATA" ||
+      IDENTITY_SOURCE_PRIORITY[input.proposedSource] >
+        IDENTITY_SOURCE_PRIORITY[currentSource])
   ) {
     return { name: proposed, source: input.proposedSource };
   }
@@ -438,8 +459,11 @@ export function companyIdentityKeys(
         ? `registry:${candidate.countryCode}:${candidate.registryIdentifier}`
         : "",
       domain ? `domain:${domain}` : "",
-      normalized ? `name:${country}:${normalized}` : "",
-      legal && legal.length >= 4 && (hasLegalSuffix || trustedName)
+      normalized && candidate.nameSource !== "PAGE_METADATA"
+        ? `name:${country}:${normalized}`
+        : "",
+      legal && legal.length >= 4 && candidate.nameSource !== "PAGE_METADATA" &&
+        (hasLegalSuffix || trustedName)
         ? `brand:${country}:${legal}`
         : "",
       domainLabel && country ? `brand:${country}:${domainLabel}` : "",
@@ -526,6 +550,28 @@ export function mergeProspectCandidate(
         ],
     ),
   ];
+  const confidencePriority: Record<CompanyIdentityConfidence, number> = {
+    LOW: 1,
+    MEDIUM: 2,
+    HIGH: 3,
+  };
+  if (
+    incoming.identityConfidence &&
+    (!target.identityConfidence ||
+      confidencePriority[incoming.identityConfidence] >
+        confidencePriority[target.identityConfidence])
+  ) target.identityConfidence = incoming.identityConfidence;
+  target.commercialIdentityVerified = Boolean(
+    target.commercialIdentityVerified || incoming.commercialIdentityVerified,
+  );
+  if (
+    incoming.organizationType &&
+    (target.organizationType == null || target.organizationType === "UNKNOWN" ||
+      incoming.commercialIdentityVerified)
+  ) target.organizationType = incoming.organizationType;
+  target.editorialContent = Boolean(
+    target.editorialContent || incoming.editorialContent,
+  );
   return target;
 }
 
@@ -886,11 +932,24 @@ export function scoreProspect(
   const adjacent = compatibility.adjacentEvidence.filter((item) =>
     item.confidence >= 0.65
   );
+  const needsPublicWebOrganizationGate = candidate.discoverySources?.includes(
+    "PUBLIC_WEB",
+  ) === true;
+  const websiteOrganizationVerified = !needsPublicWebOrganizationGate ||
+    candidate.commercialIdentityVerified === true;
+  const qualifiedDirect = direct.filter((item) =>
+    item.sourceType !== "COMPANY_WEBSITE" &&
+      item.sourceType !== "PRODUCT_CATALOGUE" || websiteOrganizationVerified
+  );
+  const qualifiedAdjacent = adjacent.filter((item) =>
+    item.sourceType !== "COMPANY_WEBSITE" &&
+      item.sourceType !== "PRODUCT_CATALOGUE" || websiteOrganizationVerified
+  );
   const strongActivities = candidate.activities.filter((item) =>
     item.strength === "STRONG_INDIRECT"
   );
   const indirectSources = new Set(
-    adjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
+    qualifiedAdjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
   );
   const strongAdjacentArchetype = compatibility.archetypes.some((item) =>
     item.strength === "HIGH" && item.archetype !== "UNKNOWN"
@@ -898,24 +957,35 @@ export function scoreProspect(
   const supportedAdjacentArchetype = compatibility.archetypes.some((item) =>
     item.strength !== "LOW" && item.archetype !== "UNKNOWN"
   );
-  const directWebsite = direct.some((item) =>
+  const directWebsite = qualifiedDirect.some((item) =>
     item.sourceType === "COMPANY_WEBSITE" ||
     item.sourceType === "PRODUCT_CATALOGUE"
   );
-  const directProcurement = direct.some((item) =>
+  const directProcurement = qualifiedDirect.some((item) =>
     item.sourceType === "TED_AWARD"
   );
-  const adjacentProcurement = adjacent.some((item) =>
+  const adjacentProcurement = qualifiedAdjacent.some((item) =>
     item.sourceType === "TED_AWARD" && item.confidence >= 0.8
   );
+  const qualifiedAdjacentConceptCount = new Set(
+    qualifiedAdjacent.flatMap((item) =>
+      (item.matchedTerms?.length ? item.matchedTerms : [item.title]).map(
+        normalizeCompanyName,
+      )
+    ).filter(Boolean),
+  ).size;
+  const qualifiedIndependentAdjacentSourceCount = new Set(
+    qualifiedAdjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
+  ).size;
   const commercialAdjacencyQualifies =
-    compatibility.independentAdjacentSourceCount >= 2 ||
-    (compatibility.adjacentConceptCount >= 2 && strongAdjacentArchetype) ||
-    (adjacent.some((item) => item.confidence >= 0.85) &&
+    qualifiedIndependentAdjacentSourceCount >= 2 ||
+    (qualifiedAdjacentConceptCount >= 2 && strongAdjacentArchetype) ||
+    (qualifiedAdjacent.some((item) => item.confidence >= 0.85) &&
       strongAdjacentArchetype);
   const combinedSupportQualifies = adjacentProcurement &&
     strongActivities.length >= 1 && supportedAdjacentArchetype;
-  const eligible = direct.length >= 1 || commercialAdjacencyQualifies ||
+  const eligible = qualifiedDirect.length >= 1 ||
+    commercialAdjacencyQualifies ||
     combinedSupportQualifies;
   const qualificationPath: ProspectScore["qualificationPath"] = directWebsite
     ? "OFFICIAL_WEBSITE"
@@ -928,17 +998,17 @@ export function scoreProspect(
     : "INSUFFICIENT";
 
   let productTaxonomyScore = 0;
-  if (direct.length) {
+  if (qualifiedDirect.length) {
     productTaxonomyScore = scoredCandidate.taxonomyRelation === "exact"
       ? 40
       : scoredCandidate.taxonomyRelation === "parent_child"
       ? 36
       : 34;
-  } else if (compatibility.adjacentConceptCount >= 3) {
+  } else if (qualifiedAdjacentConceptCount >= 3) {
     productTaxonomyScore = 32;
-  } else if (compatibility.adjacentConceptCount >= 2) {
+  } else if (qualifiedAdjacentConceptCount >= 2) {
     productTaxonomyScore = 28;
-  } else if (adjacent.length) productTaxonomyScore = 22;
+  } else if (qualifiedAdjacent.length) productTaxonomyScore = 22;
 
   const geographyScore = scoredCandidate.targetCountry
     ? 10
@@ -963,8 +1033,8 @@ export function scoreProspect(
     : 2;
   const relevantProcurementCount = new Set(
     [
-      ...direct,
-      ...adjacent,
+      ...qualifiedDirect,
+      ...qualifiedAdjacent,
     ].filter((item) => item.sourceType === "TED_AWARD").map((item) =>
       item.noticeId || item.sourceUrl
     ),
@@ -975,19 +1045,19 @@ export function scoreProspect(
     ? 10
     : 0;
   const independentCount = new Set(
-    [...direct, ...adjacent].map((item) =>
+    [...qualifiedDirect, ...qualifiedAdjacent].map((item) =>
       `${item.sourceType}:${item.sourceDomain}`
     ),
   ).size;
-  const evidenceQualityScore = direct.length && independentCount >= 2
+  const evidenceQualityScore = qualifiedDirect.length && independentCount >= 2
     ? 10
-    : direct.length
+    : qualifiedDirect.length
     ? 8
-    : compatibility.independentAdjacentSourceCount >= 2
+    : qualifiedIndependentAdjacentSourceCount >= 2
     ? 9
-    : compatibility.adjacentConceptCount >= 2
+    : qualifiedAdjacentConceptCount >= 2
     ? 7
-    : adjacent.length
+    : qualifiedAdjacent.length
     ? 5
     : strongActivities.length
     ? 2
@@ -1011,9 +1081,11 @@ export function scoreProspect(
   if (genericOnlyCeilingApplied) relevanceScore = Math.min(42, relevanceScore);
 
   const reasons: ProspectScore["reasons"] = [];
-  if (direct.length) {
-    const directTed = direct.filter((item) => item.sourceType === "TED_AWARD");
-    const directOfficialWebsite = direct.filter((item) =>
+  if (qualifiedDirect.length) {
+    const directTed = qualifiedDirect.filter((item) =>
+      item.sourceType === "TED_AWARD"
+    );
+    const directOfficialWebsite = qualifiedDirect.filter((item) =>
       item.sourceType === "COMPANY_WEBSITE" ||
       item.sourceType === "PRODUCT_CATALOGUE"
     );
@@ -1036,7 +1108,7 @@ export function scoreProspect(
           "The exact product is not currently verified on the official website; procurement evidence is the qualifying source.",
       });
     }
-  } else if (adjacent.length) {
+  } else if (qualifiedAdjacent.length) {
     reasons.push({
       kind: "INDIRECT_COMMERCIAL_EVIDENCE",
       code: "ADJACENT_COMMERCIAL_FIT",
@@ -1052,7 +1124,7 @@ export function scoreProspect(
     reasons.push({
       kind: "INDIRECT_COMMERCIAL_EVIDENCE",
       code: "BUYER_ARCHETYPE",
-      evidenceClass: direct.length ? "DIRECT" : "ADJACENT",
+      evidenceClass: qualifiedDirect.length ? "DIRECT" : "ADJACENT",
       buyerArchetype: bestArchetype.archetype,
       text: `${
         archetypeLabel(bestArchetype.archetype)
@@ -1061,11 +1133,13 @@ export function scoreProspect(
   }
   if (relevantProcurementCount) {
     reasons.push({
-      kind: direct.some((item) => item.sourceType === "TED_AWARD")
+      kind: qualifiedDirect.some((item) => item.sourceType === "TED_AWARD")
         ? "DIRECT_PRODUCT_EVIDENCE"
         : "INDIRECT_COMMERCIAL_EVIDENCE",
       code: "RELEVANT_PROCUREMENT",
-      evidenceClass: direct.some((item) => item.sourceType === "TED_AWARD")
+      evidenceClass: qualifiedDirect.some((item) =>
+          item.sourceType === "TED_AWARD"
+        )
         ? "DIRECT"
         : "ADJACENT",
       text:
@@ -1108,15 +1182,15 @@ export function scoreProspect(
       ? "MEDIUM"
       : "LOW";
   reasons.unshift({
-    kind: direct.length
+    kind: qualifiedDirect.length
       ? "DIRECT_PRODUCT_EVIDENCE"
-      : adjacent.length
+      : qualifiedAdjacent.length
       ? "INDIRECT_COMMERCIAL_EVIDENCE"
       : "WEAK_CONTEXT",
     code: "COMMERCIAL_FIT",
-    evidenceClass: direct.length
+    evidenceClass: qualifiedDirect.length
       ? "DIRECT"
-      : adjacent.length
+      : qualifiedAdjacent.length
       ? "ADJACENT"
       : "GENERIC",
     buyerArchetype: bestArchetype?.archetype,
@@ -1132,8 +1206,8 @@ export function scoreProspect(
     procurementSignalScore,
     evidenceQualityScore,
     recencyScore,
-    directEvidenceCount: direct.length,
-    adjacentEvidenceCount: adjacent.length,
+    directEvidenceCount: qualifiedDirect.length,
+    adjacentEvidenceCount: qualifiedAdjacent.length,
     genericEvidenceCount: compatibility.genericEvidence.length,
     independentIndirectSourceCount: indirectSources.size,
     qualificationPath,

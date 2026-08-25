@@ -470,6 +470,9 @@ Deno.test("search hit alone never scores; verified official page can become DIRE
     taxonomyIds: [336],
   };
   prospects[0].evidence.push(websiteEvidence);
+  prospects[0].organizationType = "COMMERCIAL_COMPANY";
+  prospects[0].identityConfidence = "MEDIUM";
+  prospects[0].commercialIdentityVerified = true;
   prospects[0].taxonomyRelation = "exact";
   prospects[0].lastEvidenceAt = "2026-08-24";
   const verified = rankProspects(prospects, camera, {
@@ -522,6 +525,9 @@ Deno.test("verified C-Arm and Microscope official pages remain DIRECT", () => {
       evidenceDate: "2026-08-24",
       taxonomyIds: [1],
     });
+    candidate.organizationType = "COMMERCIAL_COMPANY";
+    candidate.identityConfidence = "MEDIUM";
+    candidate.commercialIdentityVerified = true;
     candidate.taxonomyRelation = "exact";
     candidate.lastEvidenceAt = "2026-08-24";
     const ranked = rankProspects([candidate], profile, {
@@ -559,6 +565,9 @@ Deno.test("verified procedure-pack company can become ADJACENT without an exact 
     evidenceDate: "2026-08-24",
     taxonomyIds: [336],
   });
+  candidate.organizationType = "COMMERCIAL_COMPANY";
+  candidate.identityConfidence = "MEDIUM";
+  candidate.commercialIdentityVerified = true;
   candidate.lastEvidenceAt = "2026-08-24";
   const ranked = rankProspects([candidate], camera, {
     now: new Date("2026-08-24T00:00:00Z"),
