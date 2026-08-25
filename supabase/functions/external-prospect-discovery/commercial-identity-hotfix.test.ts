@@ -6,6 +6,7 @@ import {
   rankProspects,
 } from "../_shared/external-prospect-discovery.ts";
 import { buildProductFamilyProfile } from "../_shared/buyer-discovery-relevance-v2.ts";
+import { buildTemporaryProductFamilyProfile } from "../_shared/unknown-product-resolution.ts";
 import {
   normalizePublicWebResult,
   publicWebCandidatesToProspects,
@@ -342,7 +343,11 @@ Deno.test("S-Z: six unknown-product fixtures resolve commercial identity without
   for (const [index, label] of labels.entries()) {
     const domain = `qa-commercial-${index}.example`;
     const candidate = publicCandidate(label, domain);
-    const result = await verifyWebsites([candidate], profile(label), {
+    const unknownProfile = buildTemporaryProductFamilyProfile({
+      phrase: label,
+      intentHash: (index + 1).toString(16).padStart(64, "0"),
+    });
+    const result = await verifyWebsites([candidate], unknownProfile, {
       now: new Date("2026-08-25T00:00:00Z"),
       resolver: () => Promise.resolve(["93.184.216.34"]),
       fetcher: (request) =>
@@ -362,7 +367,7 @@ Deno.test("S-Z: six unknown-product fixtures resolve commercial identity without
       `${label} page title must not leak into company identity`,
     );
     assert(
-      rankProspects([candidate], profile(label)).accepted.length === 1,
+      rankProspects([candidate], unknownProfile).accepted.length === 1,
       `${label} must preserve bounded unknown-product discovery`,
     );
     const duplicate = { ...candidate, evidence: [...candidate.evidence] };
