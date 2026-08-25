@@ -33,12 +33,158 @@ export type ProductFamilyTaxonomyNode = {
 export type ProductFamilyProfile = {
   key: string;
   label: string;
+  equipmentCoverKind?: EquipmentCoverProductKind | null;
   directTerms: string[];
   adjacentTerms: string[];
   genericTerms: string[];
   mismatchTerms: string[];
   componentFitLabel: string | null;
 };
+
+export type EquipmentCoverProductKind =
+  | "camera"
+  | "c_arm"
+  | "microscope"
+  | "equipment";
+
+type ReviewedEquipmentCoverAliases = Record<
+  EquipmentCoverProductKind,
+  Record<string, readonly string[]>
+>;
+
+// Product terminology is reviewed and deterministic. These terms are shared
+// by evidence classification and bounded public-web query generation; they
+// are never generated or translated at runtime.
+export const REVIEWED_EQUIPMENT_COVER_ALIASES: ReviewedEquipmentCoverAliases = {
+  camera: {
+    en: [
+      "camera cover",
+      "surgical camera cover",
+      "sterile camera cover",
+      "camera drape",
+      "camera sleeve",
+      "sterile camera sleeve",
+      "endoscopic camera cover",
+      "endoscopy camera cover",
+      "video camera cover",
+      "camera sheath",
+      "sterile camera sheath",
+      "camera protective cover",
+      "camera equipment cover",
+      "sterile camera drape",
+      "surgical video camera cover",
+      "sterile video camera sleeve",
+    ],
+    it: [
+      "copri telecamera",
+      "copertura telecamera",
+      "guaina per telecamera",
+      "copri videocamera",
+    ],
+    fr: [
+      "housse caméra",
+      "gaine caméra",
+      "protection caméra stérile",
+    ],
+    es: [
+      "funda de cámara",
+      "cubierta de cámara",
+      "funda estéril para cámara",
+    ],
+    de: [
+      "Kameraabdeckung",
+      "Kamerahülle",
+      "sterile Kameraabdeckung",
+    ],
+    nl: ["camerahoes", "camera hoes", "steriele camerabescherming"],
+  },
+  c_arm: {
+    en: [
+      "c-arm cover",
+      "c arm cover",
+      "c-arm drape",
+      "c arm drape",
+      "c-arm equipment cover",
+      "c-arm protective cover",
+      "sterile c-arm cover",
+      "sterile c-arm drape",
+      "image intensifier cover",
+      "image intensifier drape",
+      "fluoroscopy equipment cover",
+    ],
+    it: ["copertura sterile arco a C", "telo arco a C"],
+    fr: ["housse arceau chirurgical", "housse amplificateur de brillance"],
+    es: [
+      "funda estéril arco en C",
+      "funda para arco en C",
+      "fundas para arco en C",
+    ],
+    de: ["C-Bogen Abdeckung", "sterile C-Bogen Hülle"],
+    nl: ["steriele C-boog hoes", "C-boog afdekhoes"],
+  },
+  microscope: {
+    en: [
+      "microscope cover",
+      "microscope drape",
+      "sterile microscope cover",
+      "sterile microscope drape",
+      "microscope sleeve",
+      "surgical microscope cover",
+      "surgical microscope drape",
+      "operating microscope cover",
+    ],
+    it: ["copri microscopio", "telo sterile microscopio"],
+    fr: ["housse microscope", "housse stérile microscope"],
+    es: ["funda de microscopio", "cubierta estéril de microscopio"],
+    de: ["Mikroskopabdeckung", "sterile Mikroskophülle"],
+    nl: ["steriele microscoophoes", "microscoop afdekhoes"],
+  },
+  equipment: {
+    en: [
+      "sterile medical equipment cover",
+      "sterile medical equipment covers",
+      "surgical equipment drape",
+      "surgical equipment drapes",
+      "operating room equipment cover",
+      "operating room equipment covers",
+      "sterile equipment cover",
+      "sterile equipment drape",
+    ],
+    it: ["copertura sterile apparecchiatura medica"],
+    fr: ["housse stérile équipement médical"],
+    es: ["funda estéril para equipo médico"],
+    de: ["sterile Medizingeräteabdeckung"],
+    nl: ["steriele hoes medische apparatuur"],
+  },
+};
+
+export function reviewedEquipmentCoverTerms(
+  kind: EquipmentCoverProductKind,
+  language?: string,
+): string[] {
+  const groups = REVIEWED_EQUIPMENT_COVER_ALIASES[kind];
+  return language
+    ? [...(groups[language] || groups.en || [])]
+    : Object.values(groups).flatMap((terms) => [...terms]);
+}
+
+export function reviewedEquipmentCoverDiscoveryTerms(
+  kind: EquipmentCoverProductKind,
+): string[] {
+  const groups = REVIEWED_EQUIPMENT_COVER_ALIASES[kind];
+  const representative = [
+    ...(groups.en || []).slice(0, 3),
+    ...["it", "fr", "es", "de", "nl"].flatMap((language) =>
+      (groups[language] || []).slice(0, 1)
+    ),
+  ];
+  return [
+    ...new Set([
+      ...representative,
+      ...Object.values(groups).flatMap((terms) => [...terms]),
+    ]),
+  ];
+}
 
 export type CandidateCompatibility = {
   candidate: ProspectCandidate;
@@ -123,54 +269,6 @@ const GOWN_ADJACENT_TERMS = [
   "op sets",
 ];
 
-const EQUIPMENT_COVER_DIRECT_TERMS = [
-  "medical equipment cover",
-  "medical equipment covers",
-  "sterile equipment cover",
-  "sterile equipment covers",
-  "sterile equipment drape",
-  "sterile equipment drapes",
-  "c arm cover",
-  "c arm covers",
-  "c arm drape",
-  "c arm drapes",
-  "fluoroscopy cover",
-  "camera cover",
-  "camera covers",
-  "sterile camera drape",
-  "camera sleeve",
-  "microscope cover",
-  "microscope covers",
-  "microscope drape",
-  "microscope drapes",
-  "equipment protection cover",
-  "fundas para arco en c",
-  "fundas esteriles para equipamiento",
-  "housse amplificateur",
-  "housse arceau chirurgical",
-  "housse pour camera",
-  "gaine camera",
-  "housse pour microscope",
-  "housses de protection",
-  "copri telecamera",
-  "copertura telecamera",
-  "guaina telecamera",
-  "copri microscopio",
-  "coperture sterili",
-  "funda de camara",
-  "cubierta de camara",
-  "funda esteril arco en c",
-  "funda de microscopio",
-  "kameraabdeckung",
-  "kamerahulle",
-  "c bogen abdeckung",
-  "mikroskopabdeckung",
-  "steriele camerahoes",
-  "camerahoes",
-  "steriele c boog hoes",
-  "steriele microscoophoes",
-];
-
 const EQUIPMENT_COVER_ADJACENT_TERMS = [
   "surgical drape",
   "operating room disposable",
@@ -246,7 +344,7 @@ function evidenceText(evidence: ProspectEvidence): string {
 
 function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
   gown: boolean;
-  equipmentCover: boolean;
+  equipmentCoverKind: EquipmentCoverProductKind | null;
   ultrasound: boolean;
   scrubBrush: boolean;
 } {
@@ -258,11 +356,19 @@ function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
       node.familySlug,
     ]).join(" "),
   );
+  const equipmentCoverKind: EquipmentCoverProductKind | null =
+    /camera cover/.test(text)
+      ? "camera"
+      : /\bc arm\b|image intensifier|fluoroscop.+cover/.test(text)
+      ? "c_arm"
+      : /microscope drape|microscope cover/.test(text)
+      ? "microscope"
+      : /equipment cover/.test(text)
+      ? "equipment"
+      : null;
   return {
     gown: /\bgowns?\b|surgical gowns apparel/.test(text),
-    equipmentCover:
-      /equipment cover|c arm|camera cover|microscope drape|microscope cover/
-        .test(text),
+    equipmentCoverKind,
     ultrasound: /ultrasound probe cover|transducer sheath/.test(text),
     scrubBrush: /scrub brush|surgical hand preparation/.test(text),
   };
@@ -284,6 +390,7 @@ export function buildProductFamilyProfile(
   const mismatch: string[] = [];
   let key = nodes.map((node) => node.slug).filter(Boolean).join("+") ||
     "medical-product";
+  let equipmentCoverKind: EquipmentCoverProductKind | null = null;
   let componentFitLabel: string | null = null;
   if (flags.gown) {
     key = "surgical-gown-family";
@@ -299,11 +406,27 @@ export function buildProductFamilyProfile(
     );
     componentFitLabel = "Potential procedure-pack component buyer";
   }
-  if (flags.equipmentCover) {
-    key = flags.ultrasound
-      ? "ultrasound-probe-cover-family"
-      : "sterile-equipment-cover-family";
-    direct.push(...EQUIPMENT_COVER_DIRECT_TERMS);
+  if (flags.equipmentCoverKind) {
+    equipmentCoverKind = flags.equipmentCoverKind;
+    key = `${flags.equipmentCoverKind.replace("_", "-")}-cover-family`;
+    if (flags.equipmentCoverKind === "equipment") {
+      direct.unshift(
+        ...reviewedEquipmentCoverDiscoveryTerms("equipment"),
+        ...reviewedEquipmentCoverDiscoveryTerms("camera"),
+        ...reviewedEquipmentCoverDiscoveryTerms("c_arm"),
+        ...reviewedEquipmentCoverDiscoveryTerms("microscope"),
+      );
+    } else {
+      direct.unshift(
+        ...reviewedEquipmentCoverDiscoveryTerms(flags.equipmentCoverKind),
+      );
+      adjacent.push(
+        ...reviewedEquipmentCoverTerms("equipment"),
+        ...(["camera", "c_arm", "microscope"] as const)
+          .filter((kind) => kind !== flags.equipmentCoverKind)
+          .flatMap((kind) => reviewedEquipmentCoverTerms(kind)),
+      );
+    }
     adjacent.push(...EQUIPMENT_COVER_ADJACENT_TERMS);
     mismatch.push(
       "imaging system",
@@ -316,6 +439,7 @@ export function buildProductFamilyProfile(
     componentFitLabel = "Potential sterile equipment-cover component buyer";
   }
   if (flags.ultrasound) {
+    key = "ultrasound-probe-cover-family";
     direct.push(...ULTRASOUND_DIRECT_TERMS);
     adjacent.push(
       "ultrasound consumable",
@@ -340,6 +464,7 @@ export function buildProductFamilyProfile(
     label: familyLabels[0] ||
       nodes.map((node) => node.canonicalName).join(", ") ||
       "Medical product",
+    equipmentCoverKind,
     directTerms: uniqueTerms(direct),
     adjacentTerms: uniqueTerms(adjacent),
     genericTerms: uniqueTerms(COMMON_GENERIC_TERMS),

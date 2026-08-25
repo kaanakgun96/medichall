@@ -51,6 +51,14 @@ export type CandidateSourcePartition =
   | "REGISTRY"
   | "PUBLIC_WEB";
 
+export type CompanyIdentitySource =
+  | "OFFICIAL_REGISTRY"
+  | "TED_ECONOMIC_OPERATOR"
+  | "SCHEMA_ORG"
+  | "OFFICIAL_WEBSITE"
+  | "PAGE_METADATA"
+  | "DOMAIN_FALLBACK";
+
 export type ActivitySignal = {
   providerCode: string;
   countryCode: string;
@@ -217,6 +225,7 @@ export type ProspectEvidence = {
 
 export type ProspectCandidate = {
   name: string;
+  nameSource?: CompanyIdentitySource;
   countryCode: string | null;
   countryName: string | null;
   cityRegion: string | null;
@@ -261,6 +270,12 @@ export type ProspectScore = {
   adjacentEvidenceCount: number;
   genericEvidenceCount: number;
   independentIndirectSourceCount: number;
+  qualificationPath:
+    | "OFFICIAL_WEBSITE"
+    | "PUBLIC_PROCUREMENT"
+    | "COMMERCIAL_ADJACENCY"
+    | "COMBINED_SUPPORT"
+    | "INSUFFICIENT";
   confidence: "HIGH" | "MEDIUM" | "LOW";
   commercialFitClassification:
     | "DIRECT_PRODUCT_FIT"
@@ -313,6 +328,205 @@ export function normalizeCompanyName(value: unknown): string {
   return String(value ?? "").normalize("NFC").toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+const LEGAL_SUFFIX_PATTERN = new RegExp(
+  "(?:^|\\s)(?:s r l|srl|s p a|spa|s a s|sas|s a|sa|gmbh|b v|bv|ltd|limited|inc|llc|a g|ag|n v|nv|plc|oy|ab|as|kft|zrt|sp z o o)$",
+);
+const GENERIC_IDENTITY_NAMES = new Set([
+  "home",
+  "homepage",
+  "products",
+  "product catalogue",
+  "medical products",
+  "camera covers",
+  "company",
+  "group",
+  "healthcare",
+  "medical",
+  "contact",
+  "about us",
+]);
+const IDENTITY_SOURCE_PRIORITY: Record<CompanyIdentitySource, number> = {
+  OFFICIAL_REGISTRY: 6,
+  TED_ECONOMIC_OPERATOR: 5,
+  SCHEMA_ORG: 4,
+  OFFICIAL_WEBSITE: 3,
+  PAGE_METADATA: 2,
+  DOMAIN_FALLBACK: 1,
+};
+
+export function normalizeLegalCompanyName(value: unknown): string {
+  let normalized = normalizeCompanyName(value);
+  while (LEGAL_SUFFIX_PATTERN.test(normalized)) {
+    normalized = normalized.replace(LEGAL_SUFFIX_PATTERN, "").trim();
+  }
+  return normalized;
+}
+
+function validCompanyIdentity(value: unknown): string | null {
+  const name = sanitizeEvidenceText(value, 180).replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ").trim();
+  const normalized = normalizeCompanyName(name);
+  if (
+    name.length < 2 || normalized.length < 2 ||
+    GENERIC_IDENTITY_NAMES.has(normalized) ||
+    /^(?:https?:\/\/|www\.)/i.test(name) ||
+    name.split(/\s+/).length > 16
+  ) return null;
+  return name;
+}
+
+export function chooseTrustedCompanyIdentity(input: {
+  currentName: string;
+  currentSource?: CompanyIdentitySource;
+  proposedName: unknown;
+  proposedSource: CompanyIdentitySource;
+}): { name: string; source: CompanyIdentitySource } {
+  const current = validCompanyIdentity(input.currentName) ||
+    sanitizeEvidenceText(input.currentName, 180) || "Unknown company";
+  const proposed = validCompanyIdentity(input.proposedName);
+  const currentSource = input.currentSource || "DOMAIN_FALLBACK";
+  if (
+    proposed &&
+    IDENTITY_SOURCE_PRIORITY[input.proposedSource] >
+      IDENTITY_SOURCE_PRIORITY[currentSource]
+  ) {
+    return { name: proposed, source: input.proposedSource };
+  }
+  return { name: current, source: currentSource };
+}
+
+function registrableDomainLabel(value: unknown): string | null {
+  const domain = normalizeDomain(value);
+  if (!domain) return null;
+  const labels = domain.split(".");
+  const label = labels.length >= 3 && labels.at(-1)?.length === 2 &&
+      (labels.at(-2)?.length || 0) <= 3
+    ? labels.at(-3)
+    : labels.at(-2);
+  const normalized = normalizeCompanyName(label);
+  return normalized.length >= 4 && !GENERIC_IDENTITY_NAMES.has(normalized)
+    ? normalized
+    : null;
+}
+
+export function companyIdentityKeys(
+  candidate: Pick<
+    ProspectCandidate,
+    | "name"
+    | "nameSource"
+    | "countryCode"
+    | "countryName"
+    | "websiteUrl"
+    | "registryIdentifier"
+  >,
+): string[] {
+  const country = String(candidate.countryCode || candidate.countryName || "")
+    .toUpperCase();
+  const normalized = normalizeCompanyName(candidate.name);
+  const legal = normalizeLegalCompanyName(candidate.name);
+  const domain = normalizeDomain(candidate.websiteUrl);
+  const domainLabel = registrableDomainLabel(candidate.websiteUrl);
+  const hasLegalSuffix = legal && legal !== normalized;
+  const trustedName = candidate.nameSource &&
+    candidate.nameSource !== "DOMAIN_FALLBACK" &&
+    candidate.nameSource !== "PAGE_METADATA";
+  return [
+    ...new Set([
+      candidate.registryIdentifier && candidate.countryCode
+        ? `registry:${candidate.countryCode}:${candidate.registryIdentifier}`
+        : "",
+      domain ? `domain:${domain}` : "",
+      normalized ? `name:${country}:${normalized}` : "",
+      legal && legal.length >= 4 && (hasLegalSuffix || trustedName)
+        ? `brand:${country}:${legal}`
+        : "",
+      domainLabel && country ? `brand:${country}:${domainLabel}` : "",
+    ].filter(Boolean)),
+  ];
+}
+
+export function mergeProspectCandidate(
+  target: ProspectCandidate,
+  incoming: ProspectCandidate,
+): ProspectCandidate {
+  const identity = chooseTrustedCompanyIdentity({
+    currentName: target.name,
+    currentSource: target.nameSource,
+    proposedName: incoming.name,
+    proposedSource: incoming.nameSource || "DOMAIN_FALLBACK",
+  });
+  target.name = identity.name;
+  target.nameSource = identity.source;
+  target.countryCode ||= incoming.countryCode;
+  target.countryName ||= incoming.countryName;
+  target.cityRegion ||= incoming.cityRegion;
+  target.websiteUrl ||= incoming.websiteUrl;
+  target.registryIdentifier ||= incoming.registryIdentifier;
+  target.description ||= incoming.description;
+  if (target.companyType === "Unknown" && incoming.companyType !== "Unknown") {
+    target.companyType = incoming.companyType;
+  }
+  target.evidence.push(...incoming.evidence);
+  const activityKeys = new Set(
+    target.activities.map((item) =>
+      `${item.providerCode}:${
+        item.registryIdentifier || ""
+      }:${item.nationalCode}`
+    ),
+  );
+  for (const activity of incoming.activities) {
+    const key = `${activity.providerCode}:${
+      activity.registryIdentifier || ""
+    }:${activity.nationalCode}`;
+    if (!activityKeys.has(key)) {
+      target.activities.push(activity);
+      activityKeys.add(key);
+    }
+  }
+  target.taxonomyIds = [
+    ...new Set([...target.taxonomyIds, ...incoming.taxonomyIds]),
+  ];
+  const relationPriority = {
+    none: 0,
+    family: 1,
+    sibling: 2,
+    parent_child: 3,
+    exact: 4,
+  };
+  if (
+    relationPriority[incoming.taxonomyRelation] >
+      relationPriority[target.taxonomyRelation]
+  ) target.taxonomyRelation = incoming.taxonomyRelation;
+  target.targetCountry ||= incoming.targetCountry;
+  target.preferredCompanyType ||= incoming.preferredCompanyType;
+  target.relatedAwardCount += incoming.relatedAwardCount;
+  target.lastEvidenceAt = [target.lastEvidenceAt, incoming.lastEvidenceAt]
+    .filter(Boolean).sort().reverse()[0] || null;
+  target.discoverySources = [
+    ...new Set([
+      ...(target.discoverySources || []),
+      ...(incoming.discoverySources || []),
+    ]),
+  ];
+  const incomingWebsiteFirst = incoming.discoverySources?.includes(
+    "PUBLIC_WEB",
+  );
+  target.websiteVerificationUrls = [
+    ...new Set(
+      incomingWebsiteFirst
+        ? [
+          ...(incoming.websiteVerificationUrls || []),
+          ...(target.websiteVerificationUrls || []),
+        ]
+        : [
+          ...(target.websiteVerificationUrls || []),
+          ...(incoming.websiteVerificationUrls || []),
+        ],
+    ),
+  ];
+  return target;
 }
 
 export function normalizeHttpsUrl(value: unknown): string | null {
@@ -681,11 +895,37 @@ export function scoreProspect(
   const strongAdjacentArchetype = compatibility.archetypes.some((item) =>
     item.strength === "HIGH" && item.archetype !== "UNKNOWN"
   );
-  const eligible = direct.length >= 1 ||
+  const supportedAdjacentArchetype = compatibility.archetypes.some((item) =>
+    item.strength !== "LOW" && item.archetype !== "UNKNOWN"
+  );
+  const directWebsite = direct.some((item) =>
+    item.sourceType === "COMPANY_WEBSITE" ||
+    item.sourceType === "PRODUCT_CATALOGUE"
+  );
+  const directProcurement = direct.some((item) =>
+    item.sourceType === "TED_AWARD"
+  );
+  const adjacentProcurement = adjacent.some((item) =>
+    item.sourceType === "TED_AWARD" && item.confidence >= 0.8
+  );
+  const commercialAdjacencyQualifies =
     compatibility.independentAdjacentSourceCount >= 2 ||
     (compatibility.adjacentConceptCount >= 2 && strongAdjacentArchetype) ||
     (adjacent.some((item) => item.confidence >= 0.85) &&
       strongAdjacentArchetype);
+  const combinedSupportQualifies = adjacentProcurement &&
+    strongActivities.length >= 1 && supportedAdjacentArchetype;
+  const eligible = direct.length >= 1 || commercialAdjacencyQualifies ||
+    combinedSupportQualifies;
+  const qualificationPath: ProspectScore["qualificationPath"] = directWebsite
+    ? "OFFICIAL_WEBSITE"
+    : directProcurement
+    ? "PUBLIC_PROCUREMENT"
+    : commercialAdjacencyQualifies
+    ? "COMMERCIAL_ADJACENCY"
+    : combinedSupportQualifies
+    ? "COMBINED_SUPPORT"
+    : "INSUFFICIENT";
 
   let productTaxonomyScore = 0;
   if (direct.length) {
@@ -772,12 +1012,30 @@ export function scoreProspect(
 
   const reasons: ProspectScore["reasons"] = [];
   if (direct.length) {
+    const directTed = direct.filter((item) => item.sourceType === "TED_AWARD");
+    const directOfficialWebsite = direct.filter((item) =>
+      item.sourceType === "COMPANY_WEBSITE" ||
+      item.sourceType === "PRODUCT_CATALOGUE"
+    );
     reasons.push({
       kind: "DIRECT_PRODUCT_EVIDENCE",
       code: "DIRECT_PRODUCT_FIT",
       evidenceClass: "DIRECT",
-      text: "Direct public evidence supports the selected product family.",
+      text: directTed.length
+        ? "Product-specific public procurement evidence identifies this company as a supplier or selected economic operator."
+        : directOfficialWebsite.length
+        ? "The selected product is supported by the company's official website or catalogue."
+        : "Direct structured public evidence supports the selected product family.",
     });
+    if (directTed.length && !directOfficialWebsite.length) {
+      reasons.push({
+        kind: "WEAK_CONTEXT",
+        code: "WEBSITE_PRODUCT_NOT_VERIFIED",
+        evidenceClass: "GENERIC",
+        text:
+          "The exact product is not currently verified on the official website; procurement evidence is the qualifying source.",
+      });
+    }
   } else if (adjacent.length) {
     reasons.push({
       kind: "INDIRECT_COMMERCIAL_EVIDENCE",
@@ -878,6 +1136,7 @@ export function scoreProspect(
     adjacentEvidenceCount: adjacent.length,
     genericEvidenceCount: compatibility.genericEvidence.length,
     independentIndirectSourceCount: indirectSources.size,
+    qualificationPath,
     confidence,
     commercialFitClassification: compatibility.classification,
     commercialReason: compatibility.commercialReason,
@@ -899,47 +1158,37 @@ export function deduplicateCandidates(
   registeredDuplicates: number;
   externalDuplicates: number;
 } {
-  const registeredDomains = new Set(
-    registered.map((item) => normalizeDomain(item.website)).filter(Boolean),
-  );
-  const registeredNames = new Set(
-    registered.map((item) =>
-      `${normalizeCompanyName(item.name)}:${
-        String(item.country || "").toUpperCase()
-      }`
+  const registeredKeys = new Set(
+    registered.flatMap((item) =>
+      companyIdentityKeys({
+        name: item.name,
+        nameSource: "OFFICIAL_REGISTRY",
+        websiteUrl: item.website,
+        countryCode: item.country,
+        countryName: null,
+        registryIdentifier: null,
+      })
     ),
   );
-  const seenDomains = new Set<string>();
-  const seenNames = new Set<string>();
-  const seenRegistries = new Set<string>();
+  const seen = new Map<string, ProspectCandidate>();
   const output: ProspectCandidate[] = [];
   let registeredDuplicates = 0;
   let externalDuplicates = 0;
   for (const candidate of candidates) {
-    const domain = normalizeDomain(candidate.websiteUrl);
-    const nameKey = `${normalizeCompanyName(candidate.name)}:${
-      String(candidate.countryCode || candidate.countryName || "").toUpperCase()
-    }`;
-    if (
-      (domain && registeredDomains.has(domain)) || registeredNames.has(nameKey)
-    ) {
+    const keys = companyIdentityKeys(candidate);
+    if (keys.some((key) => registeredKeys.has(key))) {
       registeredDuplicates += 1;
       continue;
     }
-    const registryKey = candidate.registryIdentifier && candidate.countryCode
-      ? `${candidate.countryCode}:${candidate.registryIdentifier}`
-      : null;
-    if (
-      (domain && seenDomains.has(domain)) || seenNames.has(nameKey) ||
-      (registryKey && seenRegistries.has(registryKey))
-    ) {
+    const previous = keys.map((key) => seen.get(key)).find(Boolean);
+    if (previous) {
       externalDuplicates += 1;
+      mergeProspectCandidate(previous, candidate);
+      for (const key of companyIdentityKeys(previous)) seen.set(key, previous);
       continue;
     }
-    if (domain) seenDomains.add(domain);
-    seenNames.add(nameKey);
-    if (registryKey) seenRegistries.add(registryKey);
     output.push(candidate);
+    for (const key of keys) seen.set(key, candidate);
     if (output.length >= DISCOVERY_LIMITS.maximumCandidatePool) break;
   }
   return { candidates: output, registeredDuplicates, externalDuplicates };

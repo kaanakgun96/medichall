@@ -4,9 +4,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   boundedTedSearchPlan,
+  chooseTrustedCompanyIdentity,
+  companyIdentityKeys,
+  type CompanyIdentitySource,
   deduplicateCandidates,
   DISCOVERY_LIMITS,
   EUROPE_DISCOVERY_COUNTRIES,
+  mergeProspectCandidate,
   normalizeCompanyName,
   normalizeCpv,
   normalizeDomain,
@@ -478,6 +482,7 @@ export function extractTedCandidatesFromNotice(input: {
     if (websiteUrl) domainEntities += 1;
     candidates.push({
       name,
+      nameSource: "TED_ECONOMIC_OPERATOR",
       countryCode: winnerCountry,
       countryName: winnerCountry ? COUNTRY_NAMES[winnerCountry] || null : null,
       cityRegion: null,
@@ -882,55 +887,27 @@ export function mergeSignals(
   partnerTypes: string[],
   publicWebCandidates: ProspectCandidate[] = [],
 ): ProspectCandidate[] {
-  const byName = new Map<string, ProspectCandidate>();
-  const byRegistry = new Map<string, ProspectCandidate>();
-  const byDomain = new Map<string, ProspectCandidate>();
-  for (const candidate of tedCandidates) {
-    const key = `${normalizeCompanyName(candidate.name)}:${
-      candidate.countryCode || ""
-    }`;
-    const registryKey = candidate.registryIdentifier && candidate.countryCode
-      ? `${candidate.countryCode}:${candidate.registryIdentifier}`
-      : null;
-    const previous = (registryKey ? byRegistry.get(registryKey) : null) ||
-      byName.get(key);
-    if (previous) {
-      previous.evidence.push(...candidate.evidence);
-      previous.relatedAwardCount += candidate.relatedAwardCount;
-      previous.websiteUrl ||= candidate.websiteUrl;
-      previous.registryIdentifier ||= candidate.registryIdentifier;
-      previous.discoverySources = [
-        ...new Set([
-          ...(previous.discoverySources || []),
-          ...(candidate.discoverySources || []),
-        ]),
-      ];
-      previous.websiteVerificationUrls = [
-        ...new Set([
-          ...(candidate.websiteVerificationUrls || []),
-          ...(previous.websiteVerificationUrls || []),
-        ]),
-      ];
-      previous.lastEvidenceAt =
-        [previous.lastEvidenceAt, candidate.lastEvidenceAt]
-          .filter(Boolean).sort().reverse()[0] || null;
-      byName.set(key, previous);
-      if (registryKey) byRegistry.set(registryKey, previous);
-      const domain = normalizeDomain(previous.websiteUrl);
-      if (domain) byDomain.set(domain, previous);
-    } else {
-      byName.set(key, candidate);
-      if (registryKey) byRegistry.set(registryKey, candidate);
-      const domain = normalizeDomain(candidate.websiteUrl);
-      if (domain) byDomain.set(domain, candidate);
+  const output: ProspectCandidate[] = [];
+  const identityIndex = new Map<string, ProspectCandidate>();
+  const indexCandidate = (candidate: ProspectCandidate) => {
+    for (const key of companyIdentityKeys(candidate)) {
+      identityIndex.set(key, candidate);
     }
-  }
+  };
+  const addCandidate = (candidate: ProspectCandidate) => {
+    const previous = companyIdentityKeys(candidate).map((key) =>
+      identityIndex.get(key)
+    ).find(Boolean);
+    if (previous) {
+      mergeProspectCandidate(previous, candidate);
+      indexCandidate(previous);
+      return;
+    }
+    output.push(candidate);
+    indexCandidate(candidate);
+  };
+  for (const candidate of tedCandidates) addCandidate(candidate);
   for (const registry of registryCandidates) {
-    const key = `${
-      normalizeCompanyName(registry.name)
-    }:${registry.countryCode}`;
-    const registryKey =
-      `${registry.countryCode}:${registry.registryIdentifier}`;
     const evidence: ProspectEvidence = {
       sourceType: "PUBLIC_REGISTRY",
       sourceUrl: registry.sourceUrl,
@@ -948,84 +925,33 @@ export function mergeSignals(
       evidenceDate: registry.activity.effectiveFrom,
       registryProviderCode: registry.activity.providerCode,
     };
-    const previous = byRegistry.get(registryKey) || byName.get(key);
-    if (previous) {
-      previous.activities.push(registry.activity);
-      previous.evidence.push(evidence);
-      previous.registryIdentifier ||= registry.registryIdentifier;
-      previous.cityRegion ||= registry.cityRegion;
-      previous.discoverySources = [
-        ...new Set([
-          ...(previous.discoverySources || []),
-          "REGISTRY" as const,
-        ]),
-      ];
-      if (
-        previous.companyType === "Unknown" &&
-        registry.activity.strength === "STRONG_INDIRECT"
-      ) {
-        previous.companyType = "Wholesaler";
-      }
-      byName.set(key, previous);
-      byRegistry.set(registryKey, previous);
-    } else {
-      const created: ProspectCandidate = {
-        name: registry.name,
-        countryCode: registry.countryCode,
-        countryName: registry.countryName,
-        cityRegion: registry.cityRegion,
-        companyType: registry.activity.strength === "STRONG_INDIRECT"
-          ? "Wholesaler"
-          : "Unknown",
-        websiteUrl: null,
-        registryIdentifier: registry.registryIdentifier,
-        description: registry.activity.description,
-        evidence: [evidence],
-        activities: [registry.activity],
-        taxonomyIds: [],
-        taxonomyRelation: "none",
-        targetCountry: false,
-        preferredCompanyType: false,
-        relatedAwardCount: 0,
-        lastEvidenceAt: registry.activity.effectiveFrom,
-        discoverySources: ["REGISTRY"],
-        websiteVerificationUrls: [],
-      };
-      byName.set(key, created);
-      byRegistry.set(registryKey, created);
-    }
+    addCandidate({
+      name: registry.name,
+      nameSource: "OFFICIAL_REGISTRY",
+      countryCode: registry.countryCode,
+      countryName: registry.countryName,
+      cityRegion: registry.cityRegion,
+      companyType: registry.activity.strength === "STRONG_INDIRECT"
+        ? "Wholesaler"
+        : "Unknown",
+      websiteUrl: null,
+      registryIdentifier: registry.registryIdentifier,
+      description: registry.activity.description,
+      evidence: [evidence],
+      activities: [registry.activity],
+      taxonomyIds: [],
+      taxonomyRelation: "none",
+      targetCountry: false,
+      preferredCompanyType: false,
+      relatedAwardCount: 0,
+      lastEvidenceAt: registry.activity.effectiveFrom,
+      discoverySources: ["REGISTRY"],
+      websiteVerificationUrls: [],
+    });
   }
-  for (const candidate of publicWebCandidates) {
-    const domain = normalizeDomain(candidate.websiteUrl);
-    const key = `${normalizeCompanyName(candidate.name)}:${
-      candidate.countryCode || ""
-    }`;
-    const previous = (domain ? byDomain.get(domain) : null) || byName.get(key);
-    if (previous) {
-      previous.websiteUrl ||= candidate.websiteUrl;
-      previous.countryCode ||= candidate.countryCode;
-      previous.countryName ||= candidate.countryName;
-      previous.discoverySources = [
-        ...new Set([
-          ...(previous.discoverySources || []),
-          "PUBLIC_WEB" as const,
-        ]),
-      ];
-      previous.websiteVerificationUrls = [
-        ...new Set([
-          ...(candidate.websiteVerificationUrls || []),
-          ...(previous.websiteVerificationUrls || []),
-        ]),
-      ];
-      byName.set(key, previous);
-      if (domain) byDomain.set(domain, previous);
-      continue;
-    }
-    byName.set(key, candidate);
-    if (domain) byDomain.set(domain, candidate);
-  }
+  for (const candidate of publicWebCandidates) addCandidate(candidate);
   const wantedTypes = partnerTypes.map((item) => item.toLowerCase());
-  return [...new Set(byName.values())].map((candidate) => ({
+  return output.map((candidate) => ({
     ...candidate,
     targetCountry: Boolean(
       candidate.countryCode && targetCountries.includes(candidate.countryCode),
@@ -1036,6 +962,96 @@ export function mergeSignals(
         type.includes(candidate.companyType.toLowerCase())
       ),
   }));
+}
+
+function decodeIdentityText(value: unknown): string {
+  return sanitizeEvidenceText(value, 180)
+    .replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/&nbsp;/gi, " ")
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function plausibleWebsiteIdentity(
+  value: unknown,
+  domain: string,
+): string | null {
+  const name = decodeIdentityText(value);
+  const normalized = normalizeCompanyName(name);
+  const domainLabel = normalizeCompanyName(domain.split(".")[0]);
+  if (
+    name.length < 2 || name.length > 180 ||
+    name.split(/\s+/).length > 16 ||
+    normalized === domainLabel || normalized === normalizeCompanyName(domain) ||
+    /^(?:home|products?|catalog(?:ue)?|camera covers?|medical devices?|welcome|contact|about us)$/i
+      .test(name) ||
+    /^[a-z0-9-]+\.[a-z]{2,}$/i.test(name)
+  ) return null;
+  return name;
+}
+
+function htmlAttribute(tag: string, attribute: string): string {
+  const match = tag.match(
+    new RegExp(`${attribute}\\s*=\\s*["']([^"']+)["']`, "i"),
+  );
+  return match?.[1] || "";
+}
+
+function jsonLdOrganizations(value: unknown): JsonRecord[] {
+  if (Array.isArray(value)) return value.flatMap(jsonLdOrganizations);
+  const row = record(value);
+  if (!Object.keys(row).length) return [];
+  const nested = [
+    ...array(row["@graph"]),
+    ...array(row.mainEntity),
+    ...array(row.publisher),
+    ...array(row.manufacturer),
+  ].flatMap(jsonLdOrganizations);
+  const types = texts(row["@type"]).map((item) => item.toLowerCase());
+  return types.some((type) =>
+      /^(?:organization|corporation|localbusiness|medicalbusiness)$/.test(type)
+    )
+    ? [row, ...nested]
+    : nested;
+}
+
+export function extractOfficialWebsiteIdentity(
+  html: string,
+  domain: string,
+): { name: string; source: CompanyIdentitySource } | null {
+  for (
+    const match of html.matchAll(
+      /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    )
+  ) {
+    try {
+      const payload = JSON.parse(match[1].trim());
+      for (const organization of jsonLdOrganizations(payload)) {
+        const name = plausibleWebsiteIdentity(
+          organization.legalName || organization.name,
+          domain,
+        );
+        if (name) return { name, source: "SCHEMA_ORG" };
+      }
+    } catch (_) {
+      // Invalid JSON-LD is ignored; it never blocks website evidence.
+    }
+  }
+  for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+    const key = (htmlAttribute(tag, "property") || htmlAttribute(tag, "name"))
+      .toLowerCase();
+    if (key !== "og:site_name" && key !== "application-name") continue;
+    const name = plausibleWebsiteIdentity(
+      htmlAttribute(tag, "content"),
+      domain,
+    );
+    if (name) return { name, source: "OFFICIAL_WEBSITE" };
+  }
+  const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "";
+  const candidates = decodeIdentityText(title).split(/\s+[|–—]\s+|\s+-\s+/)
+    .map((item) => plausibleWebsiteIdentity(item, domain)).filter(Boolean);
+  return candidates.length
+    ? { name: candidates.at(-1)!, source: "PAGE_METADATA" }
+    : null;
 }
 
 export async function verifyWebsites(
@@ -1145,8 +1161,23 @@ export async function verifyWebsites(
         return "SKIPPED" as const;
       }
       const body = await readBoundedResponseBody(result.response, 512_000);
+      const html = new TextDecoder().decode(body.bytes);
+      const identity = extractOfficialWebsiteIdentity(
+        html,
+        normalizeDomain(result.resolvedUrl) || siteUrl.hostname,
+      );
+      if (identity) {
+        const selectedIdentity = chooseTrustedCompanyIdentity({
+          currentName: candidate.name,
+          currentSource: candidate.nameSource,
+          proposedName: identity.name,
+          proposedSource: identity.source,
+        });
+        candidate.name = selectedIdentity.name;
+        candidate.nameSource = selectedIdentity.source;
+      }
       const text = sanitizeEvidenceText(
-        new TextDecoder().decode(body.bytes).replace(
+        html.replace(
           /<script[\s\S]*?<\/script>/gi,
           " ",
         )
@@ -1519,13 +1550,19 @@ async function persistCandidate(
 ): Promise<boolean> {
   if (!score.eligible || score.relevanceScore < 55) return false;
   const domain = normalizeDomain(candidate.websiteUrl);
-  let external: { id: number; membership_status: string } | null = null;
+  let external: {
+    id: number;
+    membership_status: string;
+    company_name?: string;
+  } | null = null;
   const lookups: Array<
     () => Promise<{ data: typeof external; error: unknown }>
   > = [];
   if (candidate.registryIdentifier && candidate.countryCode) {
     lookups.push(() =>
-      admin.from("external_companies").select("id,membership_status")
+      admin.from("external_companies").select(
+        "id,membership_status,company_name",
+      )
         .eq("duplicate_status", "ACTIVE")
         .eq("registry_identifier", candidate.registryIdentifier)
         .eq("country_code", candidate.countryCode).maybeSingle()
@@ -1533,13 +1570,17 @@ async function persistCandidate(
   }
   if (domain) {
     lookups.push(() =>
-      admin.from("external_companies").select("id,membership_status")
+      admin.from("external_companies").select(
+        "id,membership_status,company_name",
+      )
         .eq("duplicate_status", "ACTIVE").eq("normalized_domain", domain)
         .maybeSingle()
     );
   }
   lookups.push(() => {
-    let lookup = admin.from("external_companies").select("id,membership_status")
+    let lookup = admin.from("external_companies").select(
+      "id,membership_status,company_name",
+    )
       .eq("duplicate_status", "ACTIVE")
       .eq("normalized_company_name", normalizeCompanyName(candidate.name));
     lookup = candidate.countryCode
@@ -1556,6 +1597,17 @@ async function persistCandidate(
     }
   }
   if (external?.membership_status === "ON_MEDICHALL") return false;
+  if (
+    external && candidate.nameSource &&
+    candidate.nameSource !== "DOMAIN_FALLBACK" &&
+    candidate.name !== external.company_name
+  ) {
+    const identityUpdate = await admin.from("external_companies").update({
+      company_name: candidate.name,
+      last_verified_at: new Date().toISOString(),
+    }).eq("id", external.id);
+    if (identityUpdate.error) throw identityUpdate.error;
+  }
   if (!external) {
     const insertion = await admin.from("external_companies").insert({
       company_name: candidate.name,
@@ -1703,6 +1755,8 @@ async function persistCandidate(
       product_family_key: productFamily.key,
       product_family_label: productFamily.label,
       commercial_fit: score.commercialFitClassification,
+      qualification_path: score.qualificationPath,
+      company_identity_source: candidate.nameSource || "DOMAIN_FALLBACK",
     })),
     last_scored_at: new Date().toISOString(),
   }, { onConflict: "company_id,external_company_id,intent_hash" });
@@ -1794,6 +1848,7 @@ function publicWebDiscoveryCache(
         PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
       ).map((candidate) => ({
         name: sanitizeEvidenceText(candidate.name, 180),
+        identitySource: candidate.identitySource || "DOMAIN_FALLBACK",
         pageUrl: normalizeHttpsUrl(candidate.pageUrl),
         canonicalDomain: candidate.canonicalDomain,
         countryCode: candidate.countryCode,
@@ -2328,6 +2383,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       public_web_discovery_status: publicWeb.status,
       public_web_queries_planned: publicWeb.queriesPlanned,
       public_web_queries_used: publicWeb.queriesUsed,
+      public_web_query_strategies: publicWeb.queryStrategies,
       public_web_results_received: publicWeb.resultsReceived,
       public_web_candidates_created: publicWeb.candidatesCreated,
       public_web_candidates_verified: website.publicWebVerified,

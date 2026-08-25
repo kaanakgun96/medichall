@@ -1,4 +1,8 @@
-import type { ProductFamilyProfile } from "./buyer-discovery-relevance-v2.ts";
+import {
+  type EquipmentCoverProductKind,
+  type ProductFamilyProfile,
+  reviewedEquipmentCoverTerms,
+} from "./buyer-discovery-relevance-v2.ts";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -25,6 +29,7 @@ export const PUBLIC_WEB_DISCOVERY_LIMITS = Object.freeze({
 
 export type PublicWebSearchQuery = {
   variant: number;
+  strategy?: "EXACT" | "SYNONYM" | "LOCALIZED" | "ADJACENT";
   query: string;
   country: string;
   language: string;
@@ -33,6 +38,7 @@ export type PublicWebSearchQuery = {
 
 export type PublicWebCandidate = {
   name: string;
+  identitySource?: "PAGE_METADATA" | "DOMAIN_FALLBACK";
   pageUrl: string;
   canonicalDomain: string;
   countryCode: string | null;
@@ -96,6 +102,7 @@ export type PublicWebDiscoveryResult = {
   candidates: PublicWebCandidate[];
   queriesPlanned: number;
   queriesUsed: number;
+  queryStrategies: Record<string, number>;
   resultsReceived: number;
   candidatesCreated: number;
   cacheHits: number;
@@ -107,48 +114,6 @@ export type PublicWebDiscoveryResult = {
   rejectionReasons: Record<string, number>;
   unavailable: boolean;
   circuitOpen: boolean;
-};
-
-type ReviewedTerms = Record<string, string[]>;
-
-const EQUIPMENT_COVER_TERMS: Record<string, ReviewedTerms> = {
-  camera: {
-    en: [
-      "camera cover",
-      "sterile camera cover",
-      "camera drape",
-      "camera sleeve",
-    ],
-    it: ["copri telecamera", "copertura telecamera", "guaina telecamera"],
-    fr: ["housse caméra", "gaine caméra"],
-    es: ["funda de cámara", "cubierta de cámara"],
-    de: ["Kameraabdeckung", "Kamerahülle"],
-    nl: ["steriele camerahoes", "camerahoes"],
-  },
-  c_arm: {
-    en: ["c-arm cover", "c-arm drape", "sterile c-arm cover"],
-    it: ["copertura sterile arco a C", "telo arco a C"],
-    fr: ["housse arceau chirurgical", "housse amplificateur de brillance"],
-    es: ["funda estéril arco en C", "funda para arco en C"],
-    de: ["C-Bogen Abdeckung", "sterile C-Bogen Hülle"],
-    nl: ["steriele C-boog hoes", "C-boog afdekhoes"],
-  },
-  microscope: {
-    en: ["microscope cover", "microscope drape", "sterile microscope cover"],
-    it: ["copri microscopio", "telo sterile microscopio"],
-    fr: ["housse microscope", "housse stérile microscope"],
-    es: ["funda de microscopio", "cubierta estéril de microscopio"],
-    de: ["Mikroskopabdeckung", "sterile Mikroskophülle"],
-    nl: ["steriele microscoophoes", "microscoop afdekhoes"],
-  },
-  equipment: {
-    en: ["sterile medical equipment cover", "sterile equipment drape"],
-    it: ["copertura sterile apparecchiatura medica"],
-    fr: ["housse stérile équipement médical"],
-    es: ["funda estéril para equipo médico"],
-    de: ["sterile Medizingeräteabdeckung"],
-    nl: ["steriele hoes medische apparatuur"],
-  },
 };
 
 const MARKET_LOCALES = Object.freeze([
@@ -192,12 +157,15 @@ function normalizeProductText(value: unknown): string {
     .replace(/\s+/g, " ").trim();
 }
 
-function equipmentCoverVariant(profile: ProductFamilyProfile): string {
+function equipmentCoverVariant(
+  profile: ProductFamilyProfile,
+): EquipmentCoverProductKind | null {
+  if (profile.equipmentCoverKind) return profile.equipmentCoverKind;
   const label = normalizeProductText(profile.label);
   if (/\bc arm\b|fluoroscop/.test(label)) return "c_arm";
   if (/microscope/.test(label)) return "microscope";
   if (/camera/.test(label)) return "camera";
-  return "equipment";
+  return /equipment cover/.test(label) ? "equipment" : null;
 }
 
 function localizedTerm(
@@ -205,16 +173,31 @@ function localizedTerm(
   language: string,
   variant: number,
 ): string {
-  if (profile.key === "sterile-equipment-cover-family") {
-    const terms =
-      EQUIPMENT_COVER_TERMS[equipmentCoverVariant(profile)]?.[language] ||
-      EQUIPMENT_COVER_TERMS[equipmentCoverVariant(profile)]?.en || [];
+  const equipmentKind = equipmentCoverVariant(profile);
+  if (equipmentKind) {
+    const terms = reviewedEquipmentCoverTerms(equipmentKind, language);
     if (terms.length) return terms[variant % terms.length];
   }
   const approved = profile.directTerms.filter((term) =>
     term.length >= 4 && term.length <= 80 && term.split(" ").length <= 8
   );
   return approved[variant % Math.max(1, approved.length)] || profile.label;
+}
+
+function localizedAdjacentTerm(
+  profile: ProductFamilyProfile,
+  language: string,
+  variant: number,
+): string | null {
+  const equipmentKind = equipmentCoverVariant(profile);
+  if (equipmentKind && equipmentKind !== "equipment") {
+    const familyTerms = reviewedEquipmentCoverTerms("equipment", language);
+    if (familyTerms.length) return familyTerms[variant % familyTerms.length];
+  }
+  const approved = profile.adjacentTerms.filter((term) =>
+    term.length >= 4 && term.length <= 80 && term.split(" ").length <= 8
+  );
+  return approved.length ? approved[variant % approved.length] : null;
 }
 
 function queryFor(
@@ -264,17 +247,44 @@ export function buildPublicWebSearchPlan(input: {
   for (let index = 0; index < maximum; index += 1) {
     const locale = locales[index % locales.length];
     const termVariant = Math.floor(index / locales.length);
-    const term = localizedTerm(
-      input.productFamily,
-      locale.language,
-      termVariant,
-    );
-    const query = queryFor(
+    const strategy: NonNullable<PublicWebSearchQuery["strategy"]> = index === 0
+      ? "EXACT"
+      : index === maximum - 1 && maximum >= 4
+      ? "ADJACENT"
+      : termVariant > 0
+      ? "SYNONYM"
+      : "LOCALIZED";
+    const term = strategy === "EXACT"
+      ? input.productFamily.directTerms[0] || input.productFamily.label
+      : localizedTerm(
+        input.productFamily,
+        locale.language,
+        termVariant + (strategy === "SYNONYM" ? 1 : 0),
+      );
+    let query = queryFor(
       term,
       locale.context,
       input.productFamily,
-      termVariant > 0,
+      strategy === "ADJACENT" || termVariant > 0,
     );
+    if (strategy === "ADJACENT") {
+      const adjacent = localizedAdjacentTerm(
+        input.productFamily,
+        locale.language,
+        termVariant,
+      );
+      if (
+        adjacent &&
+        normalizeProductText(adjacent) !== normalizeProductText(term)
+      ) {
+        const safeTerm = sanitizeEvidenceText(term, 80).replace(/["\\]/g, " ")
+          .replace(/\s+/g, " ").trim();
+        const safeAdjacent = sanitizeEvidenceText(adjacent, 80)
+          .replace(/["\\]/g, " ").replace(/\s+/g, " ").trim();
+        query = `("${safeTerm}" OR "${safeAdjacent}") ${locale.context}`
+          .slice(0, 240);
+      }
+    }
     if (
       !query ||
       plan.some((item) =>
@@ -284,6 +294,7 @@ export function buildPublicWebSearchPlan(input: {
     ) continue;
     plan.push({
       variant: plan.length,
+      strategy,
       query,
       country: locale.country,
       language: locale.language,
@@ -354,8 +365,20 @@ export function normalizePublicWebResult(
     titleSegments.at(-1) || rawTitle;
   const name = sanitizeEvidenceText(companySegment, 180) || canonicalDomain;
   if (!normalizeCompanyName(name)) return null;
+  const domainFallback = normalizeProductText(name) ===
+      normalizeProductText(canonicalDomain) ||
+    normalizeProductText(name) ===
+      normalizeProductText(canonicalDomain.split(".")[0]) ||
+    /^[a-z0-9-]+\.[a-z]{2,}$/i.test(name);
+  const suppliedIdentitySource = row.identitySource || row.identity_source;
   return {
     name,
+    identitySource: suppliedIdentitySource === "PAGE_METADATA" &&
+        !domainFallback
+      ? "PAGE_METADATA"
+      : domainFallback
+      ? "DOMAIN_FALLBACK"
+      : "PAGE_METADATA",
     pageUrl,
     canonicalDomain,
     countryCode: inferCountryFromDomain(canonicalDomain),
@@ -595,12 +618,13 @@ export async function publicWebRequestKey(
   query: PublicWebSearchQuery,
 ): Promise<string> {
   return await sha256([
-    "public-web-v1",
+    "public-web-v2.3",
     providerCode,
     productFamilyKey,
     query.country,
     query.language,
     query.variant,
+    query.strategy || "UNSPECIFIED",
     query.query,
   ].join("|"));
 }
@@ -646,6 +670,7 @@ export async function runPublicWebDiscovery(input: {
     candidates: [],
     queriesPlanned: 0,
     queriesUsed: 0,
+    queryStrategies: {},
     resultsReceived: 0,
     candidatesCreated: 0,
     cacheHits: 0,
@@ -684,6 +709,14 @@ export async function runPublicWebDiscovery(input: {
     targetCountries: input.targetCountries,
     maximumQueries: Math.max(1, maximumQueries || 1),
   }).slice(0, maximumQueries);
+  const queryStrategies = queries.reduce<Record<string, number>>(
+    (counts, query) => {
+      const strategy = query.strategy || "UNSPECIFIED";
+      counts[strategy] = (counts[strategy] || 0) + 1;
+      return counts;
+    },
+    {},
+  );
   const cachedCandidates: PublicWebCandidate[] = [];
   const missing: PublicWebSearchQuery[] = [];
   let cacheHits = 0;
@@ -796,6 +829,7 @@ export async function runPublicWebDiscovery(input: {
     candidates,
     queriesPlanned: queries.length,
     queriesUsed: cacheHits + providerOutput.requestsMade,
+    queryStrategies,
     resultsReceived,
     candidatesCreated: candidates.length,
     cacheHits,
@@ -827,6 +861,7 @@ export function publicWebCandidatesToProspects(input: {
   )
     .map((candidate) => ({
       name: candidate.name,
+      nameSource: candidate.identitySource || "DOMAIN_FALLBACK",
       countryCode: candidate.countryCode,
       countryName: null,
       cityRegion: null,
