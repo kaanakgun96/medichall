@@ -69,6 +69,7 @@ import {
   resolveProductIntentDeterministically,
   unmappedWebsiteProductSuggestions,
 } from "../_shared/unknown-product-resolution.ts";
+import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
 const ALLOWED_ORIGINS = new Set([
@@ -2516,6 +2517,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
             aliases: [] as string[],
           })),
       );
+    const unmappedRetrievalTerms = productFamily.temporaryIntent
+      ?.retrievalTerms || [];
     const profile = record(profileResult.data);
     const matchProfile = record(matchProfileResult.data);
     const targetCountries = [
@@ -2545,7 +2548,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
     const tedSearchPlan = boundedTedSearchPlan({
-      directTerms: productFamily.directTerms,
+      directTerms: unmappedIntent
+        ? unmappedRetrievalTerms.map((term) => term.term)
+        : productFamily.directTerms,
       adjacentTerms: productFamily.adjacentTerms,
       cpvCodes: fallbackCpv,
       targetCountries,
@@ -2605,6 +2610,23 @@ async function handleDiscovery(request: Request): Promise<Response> {
         public_web_query_limit: boundedPublicWebQueries,
         public_web_cost_limit_usd: boundedPublicWebCost,
         temporary_unmapped_intent: unmappedIntent,
+        unmapped_retrieval_plan: unmappedIntent
+          ? {
+            version: "UNMAPPED_RETRIEVAL_V2",
+            family_signature: productFamily.temporaryIntent?.familySignature ||
+              null,
+            original_normalized_phrase:
+              productFamily.temporaryIntent?.normalizedPhrase || null,
+            terms: unmappedRetrievalTerms.map((term) => ({
+              term: term.term,
+              language: term.language,
+              countries: term.countries,
+              confidence: term.confidence,
+              source: term.source,
+              reason: term.reason,
+            })),
+          }
+          : null,
         ted_requests_planned: tedSearchPlan.length,
         ted_query_partitions: tedSearchPlan.map((item) => ({
           retrieval_kind: item.retrievalKind,
@@ -2724,6 +2746,27 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const ranking = rankProspects(deduped.candidates, productFamily, {
       europeWide: targetCountries.length === 0,
     });
+    const retrievalTermOutcomes = unmappedRetrievalTerms.map((term) => {
+      const normalized = normalizeRetrievalTerm(term.term);
+      const verifiedDirectEvidence = [...ranking.accepted, ...ranking.rejected]
+        .flatMap((item) => item.candidate.evidence)
+        .filter((evidence) =>
+          evidence.relevanceClass === "DIRECT" &&
+          (evidence.matchedTerms || []).some((matched) =>
+            normalizeRetrievalTerm(matched) === normalized
+          )
+        );
+      return {
+        term: term.term,
+        language: term.language,
+        confidence: term.confidence,
+        source: term.source,
+        verified_direct_evidence_count: verifiedDirectEvidence.length,
+        verified_direct_source_types: [
+          ...new Set(verifiedDirectEvidence.map((item) => item.sourceType)),
+        ],
+      };
+    });
     let accepted = 0;
     let rejected = ranking.rejected.length;
     for (const ranked of ranking.accepted) {
@@ -2778,6 +2821,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
       public_web_queries_planned: publicWeb.queriesPlanned,
       public_web_queries_used: publicWeb.queriesUsed,
       public_web_query_strategies: publicWeb.queryStrategies,
+      public_web_query_plan: publicWeb.queryPlan.map((item) => ({
+        term: item.retrievalTerm || null,
+        country: item.country,
+        language: item.language,
+        strategy: item.strategy || null,
+        confidence: item.retrievalTermConfidence || null,
+        source: item.retrievalTermSource || null,
+        family_signature: item.familySignature || null,
+      })),
+      unmapped_retrieval_term_outcomes: unmappedIntent
+        ? retrievalTermOutcomes
+        : [],
       public_web_results_received: publicWeb.resultsReceived,
       public_web_candidates_created: publicWeb.candidatesCreated,
       public_web_candidates_verified: website.publicWebVerified,

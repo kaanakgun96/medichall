@@ -1,5 +1,9 @@
 import type { ProductFamilyProfile } from "./buyer-discovery-relevance-v2.ts";
 import { validateProductSearchQuery } from "./website-product-discovery.ts";
+import {
+  buildUnmappedProductRetrievalPlan,
+  normalizeRetrievalTerm,
+} from "./unmapped-product-terminology.ts";
 
 export type ResolutionConfidence = "HIGH" | "MEDIUM" | "LOW";
 
@@ -380,11 +384,11 @@ export function validateUnmappedMedicalProductPhrase(value: unknown): {
     MEDICAL_CONTEXT.has(token)
   );
   const hasProductForm = meaningful.some((token) => PRODUCT_FORMS.has(token));
-  const hasStrongMedicalProductForm = meaningful.some((token) =>
-    STRONG_MEDICAL_PRODUCT_FORMS.has(token)
-  ) || STRONG_MEDICAL_MULTIWORD_FORMS.some((sequence) =>
-    includesTokenSequence(tokens, sequence)
-  );
+  const hasStrongMedicalProductForm =
+    meaningful.some((token) => STRONG_MEDICAL_PRODUCT_FORMS.has(token)) ||
+    STRONG_MEDICAL_MULTIWORD_FORMS.some((sequence) =>
+      includesTokenSequence(tokens, sequence)
+    );
   const onlyGeneric = meaningful.every((token) => GENERIC_ONLY.has(token));
   const containsProxyCommand = meaningful.some((token) =>
     PROXY_COMMANDS.has(token)
@@ -540,11 +544,18 @@ export function buildTemporaryProductFamilyProfile(input: {
   if (!/^[a-f0-9]{64}$/.test(input.intentHash)) {
     throw new Error("INVALID_TEMPORARY_INTENT_HASH");
   }
+  const retrieval = buildUnmappedProductRetrievalPlan({
+    originalPhrase: safe.displayPhrase,
+    normalizedPhrase: safe.normalizedPhrase,
+    phraseSignature: safe.phraseSignature,
+  });
   return {
     key: `unmapped-${input.intentHash.slice(0, 24)}`,
     label: safe.displayPhrase,
     equipmentCoverKind: null,
-    directTerms: [safe.normalizedPhrase],
+    directTerms: retrieval.terms.map((term) =>
+      normalizeRetrievalTerm(term.term)
+    ),
     adjacentTerms: [],
     genericTerms: [
       "medical distributor",
@@ -558,6 +569,8 @@ export function buildTemporaryProductFamilyProfile(input: {
       normalizedPhrase: safe.normalizedPhrase,
       phraseSignature: safe.phraseSignature,
       requiredTokens: safe.phraseSignature.split(" ").filter(Boolean),
+      familySignature: retrieval.familySignature,
+      retrievalTerms: retrieval.terms,
     },
   };
 }

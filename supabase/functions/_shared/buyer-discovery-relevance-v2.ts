@@ -30,6 +30,21 @@ export type ProductFamilyTaxonomyNode = {
   familySlug?: string | null;
 };
 
+export type ProductRetrievalTerm = {
+  term: string;
+  normalizedTerm: string;
+  language: string;
+  countries: string[];
+  confidence: "HIGH" | "MEDIUM";
+  source:
+    | "APPROVED_ALIAS"
+    | "TED_TERMINOLOGY"
+    | "VERIFIED_PRODUCT_TERMINOLOGY"
+    | "DETERMINISTIC_VARIANT";
+  reason: string;
+  familySignature: string;
+};
+
 export type ProductFamilyProfile = {
   key: string;
   label: string;
@@ -43,6 +58,8 @@ export type ProductFamilyProfile = {
     normalizedPhrase: string;
     phraseSignature: string;
     requiredTokens: string[];
+    familySignature: string;
+    retrievalTerms: ProductRetrievalTerm[];
   } | null;
 };
 

@@ -33,6 +33,14 @@ export type PublicWebSearchQuery = {
   country: string;
   language: string;
   uiLanguage: string;
+  retrievalTerm?: string;
+  retrievalTermConfidence?: "HIGH" | "MEDIUM";
+  retrievalTermSource?:
+    | "APPROVED_ALIAS"
+    | "TED_TERMINOLOGY"
+    | "VERIFIED_PRODUCT_TERMINOLOGY"
+    | "DETERMINISTIC_VARIANT";
+  familySignature?: string;
 };
 
 export type PublicWebCandidate = {
@@ -101,6 +109,7 @@ export type PublicWebDiscoveryResult = {
   candidates: PublicWebCandidate[];
   queriesPlanned: number;
   queriesUsed: number;
+  queryPlan: PublicWebSearchQuery[];
   queryStrategies: Record<string, number>;
   resultsReceived: number;
   candidatesCreated: number;
@@ -122,6 +131,8 @@ const MARKET_LOCALES = Object.freeze([
   { country: "ES", language: "es", uiLanguage: "es-ES", context: "médico" },
   { country: "DE", language: "de", uiLanguage: "de-DE", context: "medizin" },
   { country: "NL", language: "nl", uiLanguage: "nl-NL", context: "medisch" },
+  { country: "PT", language: "pt", uiLanguage: "pt-PT", context: "médico" },
+  { country: "PL", language: "pl", uiLanguage: "pl-PL", context: "medyczny" },
 ]);
 
 const REJECTED_DOMAINS = [
@@ -211,6 +222,92 @@ function queryFor(
   return `"${boundedTerm}" ${context}${procedureContext}`.slice(0, 240);
 }
 
+function unmappedPublicWebPlan(input: {
+  productFamily: ProductFamilyProfile;
+  targetCountries: string[];
+  maximum: number;
+}): PublicWebSearchQuery[] {
+  const temporary = input.productFamily.temporaryIntent;
+  if (!temporary?.retrievalTerms.length) return [];
+  const targets = [
+    ...new Set(input.targetCountries.map((item) => item.toUpperCase())),
+  ];
+  const localeForCountry = (country: string) =>
+    MARKET_LOCALES.find((item) => item.country === country) || {
+      country,
+      language: "en",
+      uiLanguage: "en-GB",
+      context: "medical",
+    };
+  const localizedTargets = new Set(targets);
+  const exact = temporary.retrievalTerms[0];
+  const english = temporary.retrievalTerms.filter((term, index) =>
+    index > 0 && term.language === "en"
+  ).sort((left, right) =>
+    Number(right.confidence === "HIGH") - Number(left.confidence === "HIGH")
+  );
+  const localized = temporary.retrievalTerms.filter((term) =>
+    term.language !== "en"
+  ).sort((left, right) => {
+    const leftTargeted = left.countries.some((country) =>
+      localizedTargets.has(country)
+    );
+    const rightTargeted = right.countries.some((country) =>
+      localizedTargets.has(country)
+    );
+    return Number(rightTargeted) - Number(leftTargeted) ||
+      Number(right.confidence === "HIGH") -
+        Number(left.confidence === "HIGH") ||
+      left.countries[0].localeCompare(right.countries[0]);
+  });
+  const ranked = [
+    exact,
+    ...english.slice(0, 1),
+    ...localized,
+    ...english.slice(1),
+  ];
+  const plan: PublicWebSearchQuery[] = [];
+  const seenTerms = new Set<string>();
+  for (const term of ranked) {
+    if (!term || seenTerms.has(term.normalizedTerm)) continue;
+    const matchingTarget = targets.find((country) =>
+      term.countries.includes(country)
+    );
+    if (
+      targets.length && term.language !== "en" && !matchingTarget
+    ) continue;
+    const country = matchingTarget || targets[0] || term.countries[0] || "GB";
+    const marketLocale = localeForCountry(country);
+    const termLocale = MARKET_LOCALES.find((item) =>
+      item.language === term.language &&
+      (!targets.length || item.country === country)
+    );
+    const context = termLocale?.context ||
+      (term.language === "en" ? "medical" : marketLocale.context);
+    const query = queryFor(term.term, context, input.productFamily, false);
+    if (!query) continue;
+    seenTerms.add(term.normalizedTerm);
+    plan.push({
+      variant: plan.length,
+      strategy: plan.length === 0
+        ? "EXACT"
+        : term.language === "en"
+        ? "SYNONYM"
+        : "LOCALIZED",
+      query,
+      country,
+      language: term.language,
+      uiLanguage: marketLocale.uiLanguage,
+      retrievalTerm: term.term,
+      retrievalTermConfidence: term.confidence,
+      retrievalTermSource: term.source,
+      familySignature: term.familySignature,
+    });
+    if (plan.length >= input.maximum) break;
+  }
+  return plan;
+}
+
 export function buildPublicWebSearchPlan(input: {
   productFamily: ProductFamilyProfile;
   targetCountries: string[];
@@ -225,6 +322,13 @@ export function buildPublicWebSearchPlan(input: {
       ),
     ),
   );
+  if (input.productFamily.temporaryIntent?.retrievalTerms.length) {
+    return unmappedPublicWebPlan({
+      productFamily: input.productFamily,
+      targetCountries: input.targetCountries,
+      maximum,
+    });
+  }
   const wanted = new Set(
     input.targetCountries.map((item) => item.toUpperCase()),
   );
@@ -320,6 +424,8 @@ function inferCountryFromDomain(domain: string): string | null {
     ".es": "ES",
     ".de": "DE",
     ".nl": "NL",
+    ".pt": "PT",
+    ".pl": "PL",
     ".co.uk": "GB",
     ".uk": "GB",
   };
@@ -641,6 +747,7 @@ export async function runPublicWebDiscovery(input: {
     candidates: [],
     queriesPlanned: 0,
     queriesUsed: 0,
+    queryPlan: [],
     queryStrategies: {},
     resultsReceived: 0,
     candidatesCreated: 0,
@@ -800,6 +907,7 @@ export async function runPublicWebDiscovery(input: {
     candidates,
     queriesPlanned: queries.length,
     queriesUsed: cacheHits + providerOutput.requestsMade,
+    queryPlan: queries,
     queryStrategies,
     resultsReceived,
     candidatesCreated: candidates.length,
