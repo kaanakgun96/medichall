@@ -44,18 +44,25 @@ const EUROPE_COUNTRIES=[
   ["SK","Slovakia"],["SI","Slovenia"],["ES","Spain"],["SE","Sweden"],["CH","Switzerland"],["GB","United Kingdom"]
 ];
 const INTENT_LABELS={PROFILE_PRODUCT:"My products",AD_HOC_PRODUCT:"Manual product search",WEBSITE_DETECTED_PRODUCT:"Detected from your website",UNMAPPED_PRODUCT:"Searching as entered product"};
+const CUSTOMER_FRESH_CONTRACT=Object.freeze({
+  enabled:false,visible:false,label:"Find More Buyers · 1 Credit",creditCost:1,
+  creditBalance:null,status:"IDLE",newBuyerCount:null,error:null,
+  states:Object.freeze(["IDLE","REQUESTED","ACCEPTED","FAILED_PRE_PROVIDER","COMPLETED"])
+});
 
 function createWorkspace(options){
   if(!options?.root||typeof options.rpc!=="function"||typeof options.edge!=="function")throw new Error("Buyer Discovery workspace configuration is incomplete.");
   const state={
     data:{runs:[],prospects:[],website_scans:[],product_context:{}},loading:false,discovering:false,scanning:false,openId:null,
-    notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,retryRequired:false,
+    notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,retryMode:null,activeRequestMode:null,
+    admin:{checked:false,allowed:false,dailyLimitReached:false},freshDialogOpen:false,liveMessage:"",lastFreshResult:null,
     initialized:false,mode:null,selectedRunId:null,profileSelected:new Set(),websiteSelected:new Set(),
     countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,
     filters:{query:"",country:"",market:"",type:"",evidence:"",score:"",freshness:"",status:"",sort:"score"}
   };
   const toast=message=>options.toast?.(message);
   const track=event=>options.track?.(event);
+  const isAdmin=()=>state.admin.checked&&state.admin.allowed;
 
   function activeRun(){return list(state.data.runs).find(run=>ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase()))||null;}
   function currentRun(){return activeRun()||list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId))||list(state.data.runs)[0]||null;}
@@ -97,7 +104,13 @@ function createWorkspace(options){
     state.loading=true;
     if(!settings.silent&&!state.data.prospects.length)options.root.innerHTML='<div class="mhxp"><div class="mhxp-empty"><b>Loading European Buyer Discovery…</b></div></div>';
     try{
-      state.data=await options.rpc("get_external_prospect_workspace_v2",{p_company_id:Number(options.companyId),p_limit:200})||{runs:[],prospects:[],website_scans:[],product_context:{}};
+      const adminCheck=state.admin.checked?Promise.resolve(state.admin.allowed):options.rpc("is_admin",{}).then(value=>value===true).catch(()=>false);
+      const [workspace,adminAllowed]=await Promise.all([
+        options.rpc("get_external_prospect_workspace_v3",{p_company_id:Number(options.companyId),p_limit:200}),
+        adminCheck
+      ]);
+      state.data=workspace||{runs:[],prospects:[],website_scans:[],product_context:{}};
+      state.admin={...state.admin,checked:true,allowed:adminAllowed===true};
       hydrate();
       if(!state.destroyed){syncPolling();render();}
     }catch(error){
@@ -130,10 +143,19 @@ function createWorkspace(options){
     }
   }
 
+  function prospectIdentity(item){return String(item.external_company_id||item.match_id||item.website_url||item.company_name||"");}
+  function intentProspects(){
+    const intentHash=currentRun()?.intent_hash;
+    const seen=new Set();
+    return list(state.data.prospects).filter(item=>!intentHash||item.intent_hash===intentHash).filter(item=>{
+      const identity=prospectIdentity(item);
+      if(seen.has(identity))return false;
+      seen.add(identity);return true;
+    });
+  }
   function filtered(){
     const query=state.filters.query.trim().toLowerCase();
-    const intentHash=currentRun()?.intent_hash;
-    const prospects=list(state.data.prospects).filter(item=>!intentHash||item.intent_hash===intentHash).filter(item=>{
+    const prospects=intentProspects().filter(item=>{
       const evidence=list(item.evidence);
       return (!query||[item.company_name,item.country_name,item.company_type,item.reason_summary,...list(item.taxonomy).map(row=>row.canonical_name)].join(" ").toLowerCase().includes(query))&&
         (!state.filters.country||item.country_code===state.filters.country)&&
@@ -168,6 +190,24 @@ function createWorkspace(options){
       temporary:context.temporary_intent===true
     };
   }
+  function formatVerifiedAt(value){
+    const time=Date.parse(value||"");
+    if(!Number.isFinite(time))return"Verification time unavailable";
+    return new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(time));
+  }
+  function searchSpaceFor(run){return list(state.data.search_spaces).find(space=>space.intent_hash===run?.intent_hash)||null;}
+  function lastFreshRun(run){return list(state.data.runs).find(item=>item.intent_hash===run?.intent_hash&&item.run_mode==="ADMIN_QA_FRESH"&&TERMINAL_STATUSES.has(String(item.status||"").toUpperCase())&&String(item.status||"").toUpperCase()!=="FAILED")||null;}
+  function freshnessHtml(run){
+    if(!run)return"";
+    const verified=formatVerifiedAt(run.completed_at||run.created_at),fresh=lastFreshRun(run),space=searchSpaceFor(run);
+    return '<div class="mhxp-freshness" aria-label="Buyer Discovery freshness"><span><b>Last verified</b>'+esc(verified)+'</span>'+(fresh?'<span><b>Last fresh discovery</b>'+esc(formatVerifiedAt(fresh.completed_at||fresh.created_at))+'</span>':"")+'<span><b>Total verified buyers found</b>'+Number(space?.cumulative_verified_buyers||run.cumulative_verified_buyers||run.candidates_accepted||0)+'</span></div>';
+  }
+  function freshSummaryHtml(run){
+    if(!isAdmin()||run?.run_mode!=="ADMIN_QA_FRESH"||!TERMINAL_STATUSES.has(String(run?.status||"").toUpperCase())||String(run?.status||"").toUpperCase()==="FAILED")return"";
+    const added=Number(run.new_verified_buyers||0),updated=Number(run.updated_verified_buyers||0),previous=Number(run.previously_discovered_buyers||0),total=Number(run.cumulative_verified_buyers||0);
+    const message=added===0?"No additional verified buyers were found in this search.":"Fresh search completed.";
+    return '<div class="mhxp-fresh-summary" role="status" aria-live="polite"><div><span class="mhxp-kicker">Admin QA · no customer credit used</span><b>'+esc(message)+'</b></div><dl><div><dt>New verified buyers</dt><dd>'+added+'</dd></div><div><dt>Updated evidence</dt><dd>'+updated+'</dd></div><div><dt>Previously discovered</dt><dd>'+previous+'</dd></div><div><dt>Total verified buyers discovered</dt><dd>'+total+'</dd></div></dl></div>';
+  }
   function coverageHtml(run){
     const requested=run?list(run.intent_context?.target_countries):targetCountries();
     if(!requested.length)return"";
@@ -187,11 +227,14 @@ function createWorkspace(options){
     const sourceCount=Number(run.sources_checked||0),found=Number(run.candidates_found||0),accepted=Number(run.candidates_accepted||0),deduped=Number(run.candidates_deduplicated||0),context=runContext(run);
     let outcome="";
     if(status==="PARTIAL")outcome='<div class="mhxp-state partial"><b>Results are ready with limited source coverage.</b><p>Available evidence was ranked normally. One or more public sources could not be reached, so absence of a result is not proof that no buyer exists.</p></div>';
-    if(status==="FAILED")outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="retry">Retry search</button></div>';
+    if(status==="FAILED"){
+      const fresh=run.run_mode==="ADMIN_QA_FRESH"&&isAdmin();
+      outcome='<div class="mhxp-state failed" role="alert"><b>This search could not be completed.</b><p>'+esc(friendlyRunError(run.error_code))+'</p><button type="button" data-action="'+(fresh?'retry-fresh':'retry')+'">'+(fresh?'Retry fresh discovery':'Retry search')+'</button></div>';
+    }
     if(status==="COMPLETED")outcome='<div class="mhxp-state complete"><b>European buyer search complete.</b><p>'+accepted+' evidence-backed candidate'+(accepted===1?"":"s")+' met the current confidence threshold.</p></div>';
     return '<section class="mhxp-progress '+status.toLowerCase()+'" aria-live="polite" aria-label="Buyer Discovery progress"><div class="mhxp-progress-head"><div><span class="mhxp-kicker">'+esc(context.source)+'</span><h4>'+esc(stageName(run.stage,status))+'</h4><p><b>Buyer Discovery for: '+esc(context.product)+'</b> · '+esc(context.markets)+'. '+(context.temporary?'Searching as entered product. ':'Matched category. ')+'Only completed backend work is shown; no estimated percentage is used.</p></div><span class="mhxp-run-state '+status.toLowerCase()+'">'+esc(status)+'</span></div>'+
       (isActive(run)?'<ol class="mhxp-stages">'+steps+'</ol>':"")+
-      '<div class="mhxp-counters"><div><strong>'+sourceCount+'</strong><span>public sources checked</span></div><div><strong>'+found+'</strong><span>candidates found</span></div><div><strong>'+deduped+'</strong><span>duplicates removed</span></div><div><strong>'+accepted+'</strong><span>evidence-backed results</span></div></div>'+outcome+coverageHtml(run)+'</section>';
+      '<div class="mhxp-counters"><div><strong>'+sourceCount+'</strong><span>public sources checked</span></div><div><strong>'+found+'</strong><span>candidates found</span></div><div><strong>'+deduped+'</strong><span>duplicates removed</span></div><div><strong>'+accepted+'</strong><span>evidence-backed results</span></div></div>'+outcome+freshSummaryHtml(run)+freshnessHtml(run)+coverageHtml(run)+'</section>';
   }
 
   function components(item){return[
@@ -215,7 +258,9 @@ function createWorkspace(options){
     const open=Number(state.openId)===Number(item.match_id),website=safeUrl(item.website_url),status=String(item.workflow_status||"NEW"),signals=signalCounts(item);
     const reasons=list(item.reasons),fit=reasons.find(row=>row.code==="COMMERCIAL_FIT")||{},archetype=reasons.find(row=>row.code==="BUYER_ARCHETYPE")||{};
     const freshness={RECENT:"Recently verified",AGING:"Verification aging",STALE:"Recheck recommended"}[item.freshness]||"Verification date unavailable";
-    return '<article class="mhxp-card '+(status==="DISMISSED"?"dismissed":"")+'" data-match="'+Number(item.match_id)+'"><div class="mhxp-top"><div><div class="mhxp-badges"><span class="mhxp-badge external">European buyer candidate</span><span class="mhxp-badge">'+esc(fit.confidence||"Evidence-backed")+' confidence</span><span class="mhxp-badge">'+esc(freshness)+'</span></div><h4>'+esc(item.company_name)+'</h4><div class="mhxp-meta">'+esc(archetype.text||label(item.company_type||"Business buyer"))+(item.country_name||item.country_code?' · '+esc(item.country_name||item.country_code):"")+(item.city_region?' · '+esc(item.city_region):"")+'</div></div><div class="mhxp-score" style="--score:'+Number(item.relevance_score||0)+'"><b>'+Number(item.relevance_score||0)+'</b><span>match</span></div></div><p class="mhxp-reason">'+esc(fit.text||item.reason_summary||"Evidence suggests commercial relevance to your product categories.")+'</p><div class="mhxp-signal-summary"><span>'+signals.direct+' direct product signal'+(signals.direct===1?"":"s")+'</span><span>'+signals.adjacent+' adjacent commercial signal'+(signals.adjacent===1?"":"s")+'</span><span>'+signals.generic+' generic context signal'+(signals.generic===1?"":"s")+'</span></div><div class="mhxp-components">'+components(item)+'</div><div class="mhxp-taxonomy">'+list(item.taxonomy).map(row=>'<span>'+esc(row.canonical_name)+'</span>').join("")+'</div><div class="mhxp-card-actions"><button type="button" data-action="detail" data-id="'+Number(item.match_id)+'" aria-expanded="'+String(open)+'">'+(open?"Hide evidence":"View evidence")+'</button>'+(website?'<a class="mhxp-button" data-action="website" data-id="'+Number(item.match_id)+'" href="'+esc(website)+'" target="_blank" rel="noopener noreferrer">Company website ↗</a>':"")+'<button type="button" data-action="feedback" data-state="SAVED" data-id="'+Number(item.match_id)+'">'+(status==="SAVED"?"Saved ✓":"Save")+'</button><button type="button" data-action="feedback" data-state="INTERESTING" data-id="'+Number(item.match_id)+'">Interesting</button><button type="button" data-action="feedback" data-state="DISMISSED" data-id="'+Number(item.match_id)+'">Dismiss</button></div><div class="mhxp-detail" '+(open?"":"hidden")+'><div class="mhxp-section"><h5>Why this company appears</h5><p class="mhxp-evidence-note">Direct evidence supports a product-level statement. Adjacent evidence supports commercial relevance only and never proves the company currently sells your exact product. Generic context cannot qualify a result by itself.</p><div class="mhxp-evidence">'+evidenceHtml(item)+'</div></div><div class="mhxp-section"><h5>Private company note</h5><textarea class="mhxp-note" maxlength="2000" data-note="'+Number(item.match_id)+'" placeholder="Visible only inside your company workspace">'+esc(item.private_note||"")+'</textarea><p class="mhxp-note-help">No outreach is sent. MedicHall stores this note only for your company.</p><button type="button" data-action="note" data-id="'+Number(item.match_id)+'">Save private note</button></div></div></article>';
+    const discoveryState=String(item.discovery_state||"PREVIOUSLY_DISCOVERED").toUpperCase();
+    const discoveryLabel={NEW:"New buyer",UPDATED:"Updated evidence",PREVIOUSLY_DISCOVERED:"Previously discovered"}[discoveryState]||"Previously discovered";
+    return '<article class="mhxp-card '+(status==="DISMISSED"?"dismissed":"")+'" data-match="'+Number(item.match_id)+'"><div class="mhxp-top"><div><div class="mhxp-badges"><span class="mhxp-badge external">European buyer candidate</span><span class="mhxp-badge discovery '+esc(discoveryState.toLowerCase())+'">'+esc(discoveryLabel)+'</span><span class="mhxp-badge">'+esc(fit.confidence||"Evidence-backed")+' confidence</span><span class="mhxp-badge">'+esc(freshness)+'</span></div><h4>'+esc(item.company_name)+'</h4><div class="mhxp-meta">'+esc(archetype.text||label(item.company_type||"Business buyer"))+(item.country_name||item.country_code?' · '+esc(item.country_name||item.country_code):"")+(item.city_region?' · '+esc(item.city_region):"")+'</div></div><div class="mhxp-score" style="--score:'+Number(item.relevance_score||0)+'"><b>'+Number(item.relevance_score||0)+'</b><span>match</span></div></div><p class="mhxp-reason">'+esc(fit.text||item.reason_summary||"Evidence suggests commercial relevance to your product categories.")+'</p><div class="mhxp-signal-summary"><span>'+signals.direct+' direct product signal'+(signals.direct===1?"":"s")+'</span><span>'+signals.adjacent+' adjacent commercial signal'+(signals.adjacent===1?"":"s")+'</span><span>'+signals.generic+' generic context signal'+(signals.generic===1?"":"s")+'</span></div><div class="mhxp-components">'+components(item)+'</div><div class="mhxp-taxonomy">'+list(item.taxonomy).map(row=>'<span>'+esc(row.canonical_name)+'</span>').join("")+'</div><div class="mhxp-card-actions"><button type="button" data-action="detail" data-id="'+Number(item.match_id)+'" aria-expanded="'+String(open)+'">'+(open?"Hide evidence":"View evidence")+'</button>'+(website?'<a class="mhxp-button" data-action="website" data-id="'+Number(item.match_id)+'" href="'+esc(website)+'" target="_blank" rel="noopener noreferrer">Company website ↗</a>':"")+'<button type="button" data-action="feedback" data-state="SAVED" data-id="'+Number(item.match_id)+'">'+(status==="SAVED"?"Saved ✓":"Save")+'</button><button type="button" data-action="feedback" data-state="INTERESTING" data-id="'+Number(item.match_id)+'">Interesting</button><button type="button" data-action="feedback" data-state="DISMISSED" data-id="'+Number(item.match_id)+'">Dismiss</button></div><div class="mhxp-detail" '+(open?"":"hidden")+'><div class="mhxp-section"><h5>Why this company appears</h5><p class="mhxp-evidence-note">Direct evidence supports a product-level statement. Adjacent evidence supports commercial relevance only and never proves the company currently sells your exact product. Generic context cannot qualify a result by itself.</p><div class="mhxp-evidence">'+evidenceHtml(item)+'</div></div><div class="mhxp-section"><h5>Private company note</h5><textarea class="mhxp-note" maxlength="2000" data-note="'+Number(item.match_id)+'" placeholder="Visible only inside your company workspace">'+esc(item.private_note||"")+'</textarea><p class="mhxp-note-help">No outreach is sent. MedicHall stores this note only for your company.</p><button type="button" data-action="note" data-id="'+Number(item.match_id)+'">Save private note</button></div></div></article>';
   }
   function selectOptions(values,current,labels={}){return values.map(value=>'<option '+(current===value?'selected':'')+' value="'+esc(value)+'">'+esc(labels[value]||label(value))+'</option>').join("");}
   function filtersHtml(){
@@ -273,12 +318,18 @@ function createWorkspace(options){
   }
   function recentHtml(){
     const runs=list(state.data.runs).slice(0,8);if(!runs.length)return"";
-    return '<details class="mhxp-recent"><summary>Recent buyer searches</summary><div>'+runs.map(run=>{const context=runContext(run);return '<button type="button" data-action="open-run" data-run="'+esc(run.id)+'" class="'+(String(currentRun()?.id)===String(run.id)?'active':'')+'"><b>'+esc(context.product)+'</b><span>'+esc(context.markets)+' · '+esc(context.source)+'</span></button>';}).join("")+'</div></details>';
+    return '<details class="mhxp-recent"><summary>Recent buyer searches</summary><div>'+runs.map(run=>{const context=runContext(run),fresh=run.run_mode==="ADMIN_QA_FRESH"?' · Admin fresh':'';return '<button type="button" data-action="open-run" data-run="'+esc(run.id)+'" class="'+(String(currentRun()?.id)===String(run.id)?'active':'')+'"><b>'+esc(context.product)+'</b><span>'+esc(context.markets)+' · '+esc(context.source)+fresh+'</span></button>';}).join("")+'</div></details>';
   }
   function readinessHtml(){
     const ready=readiness(),modeContent=state.mode==="profile"?profileModeHtml():state.mode==="website"?websiteModeHtml():adhocModeHtml();
-    const action=state.retryRequired?"retry":"discover",busy=state.discovering,label=busy?"Searching Europe…":state.retryRequired?"Retry search":"Discover European buyers";
-    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+action+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+label+'</button><p class="mhxp-help">'+(ready.ready?'Searches are bounded, cached and share company-level rate limits.':'Confirm a category or choose bounded Search anyway for a valid unmapped product.')+'</p></div>'+recentHtml()+coverageHtml(null)+'</section>';
+    const normalRetry=state.retryMode==="NORMAL_DISCOVERY",busy=state.discovering,normalLabel=busy&&state.activeRequestMode==="NORMAL_DISCOVERY"?"Searching Europe…":normalRetry?"Retry search":"Discover European buyers";
+    const freshDisabled=!ready.ready||busy||isActive()||state.admin.dailyLimitReached;
+    const adminFresh=isAdmin()?'<div class="mhxp-admin-fresh"><div><span class="mhxp-kicker">Platform admin QA</span><b>Explore more of the verified buyer search space</b><p>Explore additional search regions, languages, terminology and buyer sources.</p><small>Admin QA — no customer credit used</small></div><button class="mhxp-admin-button" type="button" data-action="request-fresh" '+(freshDisabled?'disabled aria-disabled="true"':'')+'>'+(state.admin.dailyLimitReached?'Daily limit reached':busy&&state.activeRequestMode==="ADMIN_QA_FRESH"?'Running fresh discovery…':state.retryMode==="ADMIN_QA_FRESH"?'Retry fresh discovery':'Run Fresh Discovery')+'</button></div>':"";
+    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+(normalRetry?'retry':'discover')+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+normalLabel+'</button><p class="mhxp-help">'+(ready.ready?'Normal searches show cached verified results when the same product was checked within 14 days.':'Confirm a category or choose bounded Search anyway for a valid unmapped product.')+'</p></div>'+adminFresh+recentHtml()+coverageHtml(null)+'</section>';
+  }
+  function freshDialogHtml(){
+    if(!isAdmin()||!state.freshDialogOpen)return"";
+    return '<div class="mhxp-dialog-backdrop" data-fresh-backdrop><section class="mhxp-dialog" role="dialog" aria-modal="true" aria-labelledby="mhxp-fresh-title" aria-describedby="mhxp-fresh-description"><button class="mhxp-dialog-close" type="button" data-action="cancel-fresh" aria-label="Close fresh discovery confirmation">×</button><span class="mhxp-kicker">Admin QA · no customer credit used</span><h4 id="mhxp-fresh-title">Run a fresh discovery?</h4><p id="mhxp-fresh-description">MedicHall will explore additional unused search partitions for this product. Previously discovered buyers will remain available.</p><div class="mhxp-dialog-actions"><button type="button" data-action="cancel-fresh">Cancel</button><button class="primary" type="button" data-action="confirm-fresh">Run Fresh Discovery</button></div></section></div>';
   }
   function friendlyRunError(code){
     const value=String(code||"").toUpperCase();
@@ -288,6 +339,7 @@ function createWorkspace(options){
   }
   function friendlyError(error){
     const value=[error?.userMessage,error?.message,error?.backendMessage,error?.backendCode,error?.code,error?.edgeDetails?.backendMessage,error?.edgeDetails?.code].filter(Boolean).join(" ");
+    if(/Admin QA Fresh Discovery limit reached|fresh discovery limit reached/i.test(value))return"Admin fresh discovery limit reached for today.";
     if(/30 minutes|cooldown/i.test(value))return"A recent search is still within the safety cooldown. Your existing results remain available; try again after 30 minutes.";
     if(/daily/i.test(value))return"Today’s safe search limit has been reached. Existing results remain available; try again tomorrow.";
     if(/monthly/i.test(value))return"This month’s search limit has been reached. Existing results remain available.";
@@ -296,49 +348,78 @@ function createWorkspace(options){
   }
   function render(){
     if(state.destroyed)return;
-    const prospects=filtered(),run=currentRun(),intentHash=run?.intent_hash,all=list(state.data.prospects).filter(item=>!intentHash||item.intent_hash===intentHash);
+    const prospects=filtered(),run=currentRun(),all=intentProspects();
     const header='<div class="mhxp-head"><div><span class="mhxp-kicker">European market development</span><h3>European Buyer Discovery</h3><p>Find evidence-backed distributors, importers, wholesalers and institutional buyers beyond the current MedicHall member network.</p></div><div class="mhxp-actions"><button type="button" data-action="reload">Refresh results</button></div></div>';
     const privacy='<div class="mhxp-notice"><b>Public business evidence only.</b> No private contact details are collected, no outreach is sent, and broad activity codes are never presented as proof of exact product availability.</div>';
-    const notice=state.notice?'<div class="mhxp-state '+esc(state.notice.tone||"neutral")+'" role="status"><b>'+esc(state.notice.title)+'</b><p>'+esc(state.notice.message)+'</p></div>':"";
+    const notice=state.notice?'<div class="mhxp-state '+esc(state.notice.tone||"neutral")+'" role="status" aria-live="polite" aria-atomic="true"><b>'+esc(state.notice.title)+'</b><p>'+esc(state.notice.message)+'</p></div>':"";
     const results=all.length?'<section class="mhxp-results"><div class="mhxp-results-head"><div><span class="mhxp-kicker">Ranked candidates</span><h4>'+all.length+' buyer candidate'+(all.length===1?"":"s")+'</h4><p>Each result passed the configured direct-or-multiple-independent-signal confidence gate for this product intent.</p></div></div>'+filtersHtml()+(prospects.length?'<div class="mhxp-list">'+prospects.map(card).join("")+'</div>':'<div class="mhxp-empty"><b>No buyers match these filters.</b><p>Clear or change a filter to see more saved results.</p></div>')+'</section>':(run&&!statusAllowsEmpty(run)?'<div class="mhxp-empty"><b>No candidates met the evidence threshold for this product intent.</b><p>The search completed normally. Weak single-source matches are intentionally excluded.</p></div>':'');
-    options.root.innerHTML='<div class="mhxp">'+header+privacy+notice+readinessHtml()+runHtml(run)+results+'</div>';
+    options.root.innerHTML='<div class="mhxp">'+header+privacy+'<div class="mhxp-sr-only" role="status" aria-live="polite" aria-atomic="true">'+esc(state.liveMessage)+'</div>'+notice+readinessHtml()+runHtml(run)+results+freshDialogHtml()+'</div>';
     options.root.querySelectorAll(".mhxp-card .mhxp-badges").forEach(badges=>{
       const membership=document.createElement("span");membership.className="mhxp-badge";membership.textContent="Not yet a MedicHall member";
       badges.firstElementChild?.after(membership);
     });
+    if(state.freshDialogOpen)options.root.querySelector('[data-action="confirm-fresh"]')?.focus();
   }
   function statusAllowsEmpty(run){return !run||ACTIVE_STATUSES.has(String(run.status||"").toUpperCase())||String(run.status||"").toUpperCase()==="FAILED";}
 
-  async function discover(explicitRetry=false){
+  function discoveryIntent(){
+    const unmapped=state.mode==="adhoc"&&state.adhocResolution?.useUnmapped===true;
+    const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:unmapped?[]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
+    const intentSource=state.mode==="profile"?"PROFILE_PRODUCT":state.mode==="website"?"WEBSITE_DETECTED_PRODUCT":unmapped?"UNMAPPED_PRODUCT":"AD_HOC_PRODUCT";
+    const intent={intent_source:intentSource,taxonomy_ids:taxonomyIds.slice(0,8),target_countries:targetCountries()};
+    if(state.mode==="adhoc"&&state.adhocResolution?.resolution_event_id)intent.resolution_event_id=state.adhocResolution.resolution_event_id;
+    if(unmapped)intent.normalized_product_phrase=state.adhocResolution.normalized_source_text;
+    return intent;
+  }
+  function freshResultMessage(result){
+    const added=Number(result?.new_verified_buyers||0),updated=Number(result?.updated_verified_buyers||0),previous=Number(result?.previously_discovered_buyers||0),total=Number(result?.cumulative_verified_buyers||0);
+    const newLabel=added+' new verified buyer'+(added===1?'':'s'),updatedLabel=updated+' buyer'+(updated===1?'':'s')+' with updated evidence',previousLabel=previous+' previously discovered buyer'+(previous===1?'':'s');
+    if(added===0)return 'No additional verified buyers were found in this search. '+updatedLabel+', '+previousLabel+', and '+total+' verified buyer'+(total===1?' remains':'s remain')+' available.';
+    return newLabel+', '+updatedLabel+', and '+previousLabel+'. Total verified buyers discovered: '+total+'.';
+  }
+  function errorText(error){return [error?.userMessage,error?.message,error?.backendMessage,error?.backendCode,error?.code,error?.edgeDetails?.backendMessage,error?.edgeDetails?.code].filter(Boolean).join(" ");}
+  async function discover(runMode="NORMAL_DISCOVERY",explicitRetry=false){
     if(state.discovering||isActive()){
       state.notice={tone:"neutral",title:"A search is already running.",message:"Progress will update here automatically. Starting the same search again would not create a second request."};
       render();syncPolling();return;
     }
-    if(state.retryRequired&&!explicitRetry)return;
+    if(runMode==="ADMIN_QA_FRESH"&&!isAdmin()){
+      state.notice={tone:"failed",title:"Fresh discovery is unavailable.",message:"Only a server-authorized platform admin may run Admin QA Fresh Discovery."};render();return;
+    }
+    if(runMode==="ADMIN_QA_FRESH"&&state.admin.dailyLimitReached){
+      state.notice={tone:"failed",title:"Admin fresh discovery limit reached for today.",message:"Existing results remain available. No automatic retry will occur."};render();return;
+    }
+    if(state.retryMode===runMode&&!explicitRetry)return;
     const ready=readiness();
     if(!ready.ready){state.notice={tone:"neutral",title:"Confirm or resolve a product first.",message:"Choose a profile product, confirm a suggested category, select a website-detected category, or use bounded Search anyway for a valid unmapped medical product."};render();return;}
-    const unmapped=state.mode==="adhoc"&&state.adhocResolution?.useUnmapped===true;
-    const taxonomyIds=state.mode==="profile"?[...state.profileSelected]:state.mode==="website"?[...state.websiteSelected]:unmapped?[]:[Number(state.adhocResolution?.recommended?.canonical_taxonomy_id)].filter(Number.isSafeInteger);
-    const intentSource=state.mode==="profile"?"PROFILE_PRODUCT":state.mode==="website"?"WEBSITE_DETECTED_PRODUCT":unmapped?"UNMAPPED_PRODUCT":"AD_HOC_PRODUCT";
-    state.discovering=true;state.notice=null;render();track("external_prospect_discovery_started");
-    const intent={intent_source:intentSource,taxonomy_ids:taxonomyIds.slice(0,8),target_countries:targetCountries()};
-    if(state.mode==="adhoc"&&state.adhocResolution?.resolution_event_id)intent.resolution_event_id=state.adhocResolution.resolution_event_id;
-    if(unmapped)intent.normalized_product_phrase=state.adhocResolution.normalized_source_text;
-    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent});
+    state.discovering=true;state.activeRequestMode=runMode;state.notice=null;state.freshDialogOpen=false;state.liveMessage=runMode==="ADMIN_QA_FRESH"?"Fresh discovery started. Existing results remain available.":"Buyer Discovery started.";render();track("external_prospect_discovery_started");
+    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:discoveryIntent(),run_mode:runMode});
     schedulePoll(700);
     try{
       const result=await request;
       await load({silent:true});
       state.selectedRunId=result?.run?.run_id||list(state.data.runs)[0]?.id||state.selectedRunId;
-      state.retryRequired=false;
-      state.notice={tone:"complete",title:result?.cached?"Existing results restored.":"Buyer search finished.",message:result?.cached?"MedicHall reused the matching cached search safely.":"The latest evidence-backed results are ready to review."};
-      toast(result?.cached?"Existing Buyer Discovery results loaded.":"European Buyer Discovery completed.");
+      state.retryMode=null;
+      if(runMode==="ADMIN_QA_FRESH"){
+        state.lastFreshResult=result;state.liveMessage="Fresh search completed. "+freshResultMessage(result);
+        state.notice={tone:"complete",title:"Fresh search completed",message:freshResultMessage(result)};
+        toast("Fresh Buyer Discovery completed.");
+      }else{
+        const selected=list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId));
+        const verified=formatVerifiedAt(result?.run?.last_verified_at||selected?.completed_at||selected?.created_at);
+        state.liveMessage=result?.cached?"Showing your latest verified results.":"Buyer search finished.";
+        state.notice={tone:"complete",title:result?.cached?"Showing your latest verified results":"Buyer search finished.",message:result?.cached?"Last verified: "+verified+". No new provider search was started.":"The latest evidence-backed results are ready to review."};
+        toast(result?.cached?"Latest verified Buyer Discovery results loaded.":"European Buyer Discovery completed.");
+      }
     }catch(error){
       await load({silent:true});
-      state.retryRequired=true;
-      state.notice={tone:"failed",title:"Search not started or interrupted.",message:friendlyError(error)};
+      const limit=/Admin QA Fresh Discovery limit reached|fresh discovery limit reached/i.test(errorText(error));
+      if(limit)state.admin.dailyLimitReached=true;
+      state.retryMode=limit?null:runMode;
+      state.liveMessage=runMode==="ADMIN_QA_FRESH"?"Fresh discovery failed. Existing results remain available.":"Buyer Discovery failed. Existing results remain available.";
+      state.notice={tone:"failed",title:limit?"Admin fresh discovery limit reached for today.":runMode==="ADMIN_QA_FRESH"?"Fresh discovery was not completed.":"Search not started or interrupted.",message:friendlyError(error)};
       toast(friendlyError(error));
-    }finally{state.discovering=false;render();syncPolling();}
+    }finally{state.discovering=false;state.activeRequestMode=null;render();syncPolling();}
   }
   function scheduleScanPoll(){
     clearTimeout(state.scanPollTimer);
@@ -384,25 +465,38 @@ function createWorkspace(options){
       await load({silent:true});toast(feedbackState==="DISMISSED"?"Buyer candidate dismissed.":"Buyer candidate updated.");
     }catch(error){toast(friendlyError(error));}
   }
+  function openFreshDialog(){
+    if(!isAdmin()||state.admin.dailyLimitReached||state.discovering||isActive())return;
+    state.freshDialogOpen=true;render();
+  }
+  function closeFreshDialog(){
+    if(!state.freshDialogOpen)return;
+    state.freshDialogOpen=false;render();
+    options.root.querySelector('[data-action="request-fresh"]')?.focus();
+  }
   function onClick(event){
+    if(event.target.matches?.("[data-fresh-backdrop]")){closeFreshDialog();return;}
     const target=event.target.closest("[data-action]");if(!target||!options.root.contains(target))return;
     const action=target.dataset.action,id=Number(target.dataset.id);
-    if(action==="discover")discover();
-    else if(action==="retry")discover(true);
+    if(action==="discover")discover("NORMAL_DISCOVERY");
+    else if(action==="retry")discover("NORMAL_DISCOVERY",true);
+    else if(action==="request-fresh"||action==="retry-fresh")openFreshDialog();
+    else if(action==="cancel-fresh")closeFreshDialog();
+    else if(action==="confirm-fresh")discover("ADMIN_QA_FRESH",true);
     else if(action==="reload")load();
-    else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;state.retryRequired=false;render();}
+    else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;state.retryMode=null;render();}
     else if(action==="confirm-adhoc"){
-      state.retryRequired=false;
+      state.retryMode=null;
       if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:false,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
       render();
     }
     else if(action==="search-anyway"){
-      state.retryRequired=false;
+      state.retryMode=null;
       if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:true};
       render();
     }
     else if(action==="change-product"){
-      state.adhocResolution=null;state.retryRequired=false;render();options.root.querySelector("#mhxpProductQuery")?.focus();
+      state.adhocResolution=null;state.retryMode=null;render();options.root.querySelector("#mhxpProductQuery")?.focus();
     }
     else if(action==="resolve-website-phrase"){
       state.mode="adhoc";state.adhocQuery=String(target.dataset.phrase||"").slice(0,160);state.adhocResolution=null;state.notice=null;render();resolveAdhoc();
@@ -416,26 +510,37 @@ function createWorkspace(options){
     else if(action==="website")track("external_prospect_website_clicked");
   }
   function onChange(event){
-    if(event.target.id==="mhxpProductQuery"){state.adhocResolution=null;state.retryRequired=false;render();return;}
+    if(event.target.id==="mhxpProductQuery"){state.adhocResolution=null;state.retryMode=null;render();return;}
     const key=event.target.dataset.filter;if(key){state.filters[key]=event.target.value;render();return;}
-    if(event.target.dataset.profileTaxonomy){const id=Number(event.target.dataset.profileTaxonomy);event.target.checked?state.profileSelected.add(id):state.profileSelected.delete(id);state.retryRequired=false;render();return;}
-    if(event.target.dataset.websiteTaxonomy){const id=Number(event.target.dataset.websiteTaxonomy);event.target.checked?state.websiteSelected.add(id):state.websiteSelected.delete(id);state.retryRequired=false;render();return;}
-    if(event.target.dataset.countryMode){state.countryMode=event.target.dataset.countryMode;state.retryRequired=false;render();return;}
-    if(event.target.dataset.countrySelect!==undefined){state.selectedCountries=new Set([...event.target.selectedOptions].map(option=>option.value));state.retryRequired=false;render();}
+    if(event.target.dataset.profileTaxonomy){const id=Number(event.target.dataset.profileTaxonomy);event.target.checked?state.profileSelected.add(id):state.profileSelected.delete(id);state.retryMode=null;render();return;}
+    if(event.target.dataset.websiteTaxonomy){const id=Number(event.target.dataset.websiteTaxonomy);event.target.checked?state.websiteSelected.add(id):state.websiteSelected.delete(id);state.retryMode=null;render();return;}
+    if(event.target.dataset.countryMode){state.countryMode=event.target.dataset.countryMode;state.retryMode=null;render();return;}
+    if(event.target.dataset.countrySelect!==undefined){state.selectedCountries=new Set([...event.target.selectedOptions].map(option=>option.value));state.retryMode=null;render();}
   }
   function onInput(event){if(event.target.id==="mhxpProductQuery")state.adhocQuery=event.target.value;}
   function onSubmit(event){if(event.target.matches("[data-product-search]")){event.preventDefault();resolveAdhoc();}}
   function onVisibility(){if(!document.hidden&&(isActive()||state.discovering))schedulePoll(100);}
+  function onKeydown(event){
+    if(!state.freshDialogOpen)return;
+    if(event.key==="Escape"){event.preventDefault();closeFreshDialog();return;}
+    if(event.key!=="Tab")return;
+    const controls=[...options.root.querySelectorAll('.mhxp-dialog button:not([disabled])')];
+    if(!controls.length){event.preventDefault();return;}
+    const first=controls[0],last=controls.at(-1);
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  }
   options.root.addEventListener("click",onClick);
   options.root.addEventListener("change",onChange);
   options.root.addEventListener("input",onInput);
   options.root.addEventListener("submit",onSubmit);
+  options.root.addEventListener("keydown",onKeydown);
   document.addEventListener("visibilitychange",onVisibility);
   return Object.freeze({
     load,render,
-    destroy(){state.destroyed=true;clearTimeout(state.pollTimer);clearTimeout(state.scanPollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);options.root.removeEventListener("input",onInput);options.root.removeEventListener("submit",onSubmit);document.removeEventListener("visibilitychange",onVisibility);}
+    destroy(){state.destroyed=true;clearTimeout(state.pollTimer);clearTimeout(state.scanPollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);options.root.removeEventListener("input",onInput);options.root.removeEventListener("submit",onSubmit);options.root.removeEventListener("keydown",onKeydown);document.removeEventListener("visibilitychange",onVisibility);}
   });
 }
 
-global.MedicHallExternalProspects=Object.freeze({createWorkspace});
+global.MedicHallExternalProspects=Object.freeze({createWorkspace,CUSTOMER_FRESH_CONTRACT});
 })(globalThis);

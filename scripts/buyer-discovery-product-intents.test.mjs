@@ -23,15 +23,15 @@ for(const source of ["PROFILE_PRODUCT","AD_HOC_PRODUCT","WEBSITE_DETECTED_PRODUC
 }
 assert.match(ui,/Confirm a category or choose bounded Search anyway/);
 assert.doesNotMatch(ui,/Add an active product and at least one European target market/);
-assert.match(ui,/get_external_prospect_workspace_v2/);
+assert.match(ui,/get_external_prospect_workspace_v3/);
 assert.match(ui,/resolve_product_intent/);
 assert.match(ui,/scan_company_products/);
 assert.match(ui,/mh_buyer_discovery_product_draft_v1/);
 assert.match(portal,/openBuyerDiscoveryProductDraft/);
 assert.match(portal,/prefill:suggestion/);
 assert.match(portal,/PRODUCT_DRAFT_GUARD\.load/);
-assert.match(standalone,/external-prospects\.js\?v=20260825unknown1/);
-assert.match(portal,/external-prospects\.js\?v=20260825unknown1/);
+assert.match(standalone,/external-prospects\.js\?v=20260826adminfresh1/);
+assert.match(portal,/external-prospects\.js\?v=20260826adminfresh1/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 

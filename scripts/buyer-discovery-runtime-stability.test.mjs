@@ -30,8 +30,9 @@ function completedWorkspace(){
   };
 }
 
-function createHarness({workspace=completedWorkspace(),edgeSteps=[]}={}){
+function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=false}={}){
   const rootListeners=new Map(),documentListeners=new Map(),timers=new Map();
+  const rpcNames=[],edgeBodies=[];
   let timerId=0,rpcCalls=0,edgeCalls=0;
   const root={
     innerHTML:"",
@@ -56,13 +57,13 @@ function createHarness({workspace=completedWorkspace(),edgeSteps=[]}={}){
   vm.runInNewContext(uiSource,context,{filename:"external-prospects.js"});
   const component=context.MedicHallExternalProspects.createWorkspace({
     root,companyId:7,profile:{role:"manufacturer",target_countries:[]},
-    rpc:async()=>{rpcCalls+=1;return structuredClone(workspace);},
-    edge:async()=>{edgeCalls+=1;const next=edgeSteps.shift();return typeof next==="function"?next():next;},
+    rpc:async(name)=>{rpcCalls+=1;rpcNames.push(name);return name==="is_admin"?isAdmin:structuredClone(workspace);},
+    edge:async(_name,body)=>{edgeCalls+=1;edgeBodies.push(structuredClone(body));const next=edgeSteps.shift();return typeof next==="function"?next():next;},
     toast:()=>{},track:()=>{}
   });
-  const click=action=>rootListeners.get("click")({target:{dataset:{action},closest(){return this;}}});
+  const click=(action,dataset={})=>rootListeners.get("click")({target:{dataset:{...dataset,action},matches(){return false;},closest(){return this;}}});
   const visibility=hidden=>{document.hidden=hidden;documentListeners.get("visibilitychange")?.();};
-  return {component,root,document,timers,click,visibility,rpcCalls:()=>rpcCalls,edgeCalls:()=>edgeCalls};
+  return {component,root,document,timers,click,visibility,rpcNames,edgeBodies,rpcCalls:()=>rpcCalls,edgeCalls:()=>edgeCalls};
 }
 
 const flush=async()=>{for(let index=0;index<8;index+=1)await Promise.resolve();};
@@ -82,7 +83,8 @@ test("B, K and L: idle and completed workspaces remain terminal and unchanged fo
   assert.equal(harness.timers.size,0);
   harness.visibility(true);harness.visibility(false);
   assert.equal(harness.timers.size,0);
-  assert.equal(harness.rpcCalls(),1);
+  assert.equal(harness.rpcCalls(),2);
+  assert.deepEqual(harness.rpcNames,["is_admin","get_external_prospect_workspace_v3"]);
   assert.equal(harness.root.innerHTML,initial);
 });
 
@@ -107,7 +109,7 @@ test("C, D, E, F and G: one attempt, stable cooldown failure, saved results, and
   harness.click("retry");
   await flush();
   assert.equal(harness.edgeCalls(),2,"one explicit retry must create exactly one attempt");
-  assert.match(harness.root.innerHTML,/Existing results restored/);
+  assert.match(harness.root.innerHTML,/Showing your latest verified results/);
   assert.match(harness.root.innerHTML,/Saved Buyer/);
 });
 
@@ -122,8 +124,93 @@ test("I: same-intent cached completion is rendered as stable saved state",async(
   harness.click("discover");
   await flush();
   assert.equal(harness.edgeCalls(),1);
-  assert.match(harness.root.innerHTML,/Existing results restored/);
+  assert.match(harness.root.innerHTML,/Showing your latest verified results/);
   assert.equal(harness.timers.size,0);
+});
+
+test("N: customer cannot see or invoke admin Fresh while the credit-ready CTA remains disabled",async()=>{
+  const harness=createHarness({isAdmin:false});
+  await harness.component.load();
+  assert.doesNotMatch(harness.root.innerHTML,/Run Fresh Discovery|Find More Buyers · 1 Credit/);
+  harness.click("confirm-fresh");
+  await flush();
+  assert.equal(harness.edgeCalls(),0);
+  assert.match(uiSource,/CUSTOMER_FRESH_CONTRACT=Object\.freeze/);
+  assert.match(uiSource,/enabled:false,visible:false,label:"Find More Buyers · 1 Credit",creditCost:1/);
+});
+
+test("O: trusted admin confirmation creates exactly one ADMIN_QA_FRESH request",async()=>{
+  let resolveFresh;
+  const fresh=new Promise(resolve=>{resolveFresh=resolve;});
+  const harness=createHarness({isAdmin:true,edgeSteps:[()=>fresh]});
+  await harness.component.load();
+  assert.match(harness.root.innerHTML,/Run Fresh Discovery/);
+  harness.click("request-fresh");
+  assert.match(harness.root.innerHTML,/role="dialog"/);
+  assert.match(harness.root.innerHTML,/Previously discovered buyers will remain available/);
+  harness.click("confirm-fresh");
+  harness.click("confirm-fresh");
+  assert.equal(harness.edgeCalls(),1);
+  assert.equal(harness.edgeBodies[0].run_mode,"ADMIN_QA_FRESH");
+  assert.equal(harness.edgeBodies[0].operation,"discover");
+  resolveFresh({run:{run_id:"00000000-0000-4000-8000-000000000001",status:"COMPLETED"},new_verified_buyers:2,updated_verified_buyers:1,previously_discovered_buyers:3,cumulative_verified_buyers:6});
+  await flush();
+  assert.match(harness.root.innerHTML,/Fresh search completed/);
+  assert.match(harness.root.innerHTML,/2 new verified buyers, 1 buyer with updated evidence, and 3 previously discovered buyers/);
+});
+
+test("P: Fresh failure preserves cards, never auto-retries, and provides manual retry",async()=>{
+  const harness=createHarness({isAdmin:true,edgeSteps:[()=>Promise.reject({backendMessage:"Temporary discovery failure"})]});
+  await harness.component.load();
+  harness.click("request-fresh");harness.click("confirm-fresh");
+  await flush();
+  assert.equal(harness.edgeCalls(),1);
+  assert.match(harness.root.innerHTML,/Fresh discovery was not completed/);
+  assert.match(harness.root.innerHTML,/Retry fresh discovery/);
+  assert.match(harness.root.innerHTML,/Saved Buyer/);
+  assert.equal(harness.timers.size,0);
+});
+
+test("Q: zero-new and daily-limit Fresh results are explicit and bounded",async()=>{
+  const zero=createHarness({isAdmin:true,edgeSteps:[Promise.resolve({run:{run_id:"00000000-0000-4000-8000-000000000001",status:"COMPLETED"},new_verified_buyers:0,updated_verified_buyers:1,previously_discovered_buyers:2,cumulative_verified_buyers:3})]});
+  await zero.component.load();zero.click("request-fresh");zero.click("confirm-fresh");await flush();
+  assert.match(zero.root.innerHTML,/No additional verified buyers were found in this search/);
+  const limited=createHarness({isAdmin:true,edgeSteps:[()=>Promise.reject({backendMessage:"Daily Admin QA Fresh Discovery limit reached"})]});
+  await limited.component.load();limited.click("request-fresh");limited.click("confirm-fresh");await flush();
+  assert.match(limited.root.innerHTML,/Admin fresh discovery limit reached for today/);
+  assert.match(limited.root.innerHTML,/Daily limit reached/);
+  limited.click("request-fresh");limited.click("confirm-fresh");await flush();
+  assert.equal(limited.edgeCalls(),1);
+});
+
+test("R: backend discovery-state semantics render without duplicate company cards",async()=>{
+  const workspace=completedWorkspace();
+  workspace.prospects=[
+    {...workspace.prospects[0],match_id:1,external_company_id:"buyer-1",company_name:"New Buyer",discovery_state:"NEW"},
+    {...workspace.prospects[0],match_id:2,external_company_id:"buyer-2",company_name:"Updated Buyer",discovery_state:"UPDATED"},
+    {...workspace.prospects[0],match_id:3,external_company_id:"buyer-3",company_name:"Known Buyer",discovery_state:"PREVIOUSLY_DISCOVERED"},
+    {...workspace.prospects[0],match_id:4,external_company_id:"buyer-3",company_name:"Known Buyer duplicate",discovery_state:"PREVIOUSLY_DISCOVERED"},
+  ];
+  const harness=createHarness({workspace,isAdmin:true});
+  await harness.component.load();
+  assert.match(harness.root.innerHTML,/New buyer/);
+  assert.match(harness.root.innerHTML,/Updated evidence/);
+  assert.match(harness.root.innerHTML,/Previously discovered/);
+  assert.doesNotMatch(harness.root.innerHTML,/Known Buyer duplicate/);
+});
+
+test("S: representative VNext product intents render through the same stable frontend contract",async()=>{
+  for(const product of ["Syringe","General Procedure Pack","Camera Cover"]){
+    const workspace=completedWorkspace();
+    workspace.product_context.products[0].canonical_name=product;
+    workspace.runs[0].intent_context.normalized_product_label=product;
+    const harness=createHarness({workspace,isAdmin:true});
+    await harness.component.load();
+    assert.match(harness.root.innerHTML,new RegExp(product));
+    assert.match(harness.root.innerHTML,/Discover European buyers/);
+    assert.match(harness.root.innerHTML,/Run Fresh Discovery/);
+    assert.equal(harness.timers.size,0);
+  }
 });
 
 test("J: visibility changes replace rather than duplicate an active poll timer",async()=>{
@@ -143,5 +230,5 @@ test("C and M: background matchmaking refresh preserves the mounted root and no 
   assert.match(workspaceSource,/setInterval\(\(\)=>\{if\(!document\.hidden\)loadWorkspace\(true\);\},30000\)/);
   assert.doesNotMatch(workspaceSource,/location\.reload/);
   assert.doesNotMatch(uiSource,/setInterval/);
-  assert.match(portalSource,/external-prospects\.js\?v=20260825unknown1/);
+  assert.match(portalSource,/external-prospects\.js\?v=20260826adminfresh1/);
 });
