@@ -30,7 +30,7 @@ function completedWorkspace(){
   };
 }
 
-function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=false}={}){
+function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=false,credits={customer_fresh_enabled:false,credit_cost:1,balance:0,can_run_fresh:false,history:[]}}={}){
   const rootListeners=new Map(),documentListeners=new Map(),timers=new Map();
   const rpcNames=[],edgeBodies=[];
   let timerId=0,rpcCalls=0,edgeCalls=0;
@@ -57,7 +57,7 @@ function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=fals
   vm.runInNewContext(uiSource,context,{filename:"external-prospects.js"});
   const component=context.MedicHallExternalProspects.createWorkspace({
     root,companyId:7,profile:{role:"manufacturer",target_countries:[]},
-    rpc:async(name)=>{rpcCalls+=1;rpcNames.push(name);return name==="is_admin"?isAdmin:structuredClone(workspace);},
+    rpc:async(name)=>{rpcCalls+=1;rpcNames.push(name);return name==="is_admin"?isAdmin:name==="get_company_buyer_discovery_credits_v1"?structuredClone(credits):structuredClone(workspace);},
     edge:async(_name,body)=>{edgeCalls+=1;edgeBodies.push(structuredClone(body));const next=edgeSteps.shift();return typeof next==="function"?next():next;},
     toast:()=>{},track:()=>{}
   });
@@ -83,8 +83,8 @@ test("B, K and L: idle and completed workspaces remain terminal and unchanged fo
   assert.equal(harness.timers.size,0);
   harness.visibility(true);harness.visibility(false);
   assert.equal(harness.timers.size,0);
-  assert.equal(harness.rpcCalls(),2);
-  assert.deepEqual(harness.rpcNames,["is_admin","get_external_prospect_workspace_v3"]);
+  assert.equal(harness.rpcCalls(),3);
+  assert.deepEqual(harness.rpcNames,["is_admin","get_external_prospect_workspace_v3","get_company_buyer_discovery_credits_v1"]);
   assert.equal(harness.root.innerHTML,initial);
 });
 
@@ -128,7 +128,7 @@ test("I: same-intent cached completion is rendered as stable saved state",async(
   assert.equal(harness.timers.size,0);
 });
 
-test("N: customer cannot see or invoke admin Fresh while the credit-ready CTA remains disabled",async()=>{
+test("N: customer cannot see or invoke Fresh while the backend feature flag is disabled",async()=>{
   const harness=createHarness({isAdmin:false});
   await harness.component.load();
   assert.doesNotMatch(harness.root.innerHTML,/Run Fresh Discovery|Find More Buyers · 1 Credit/);
@@ -136,7 +136,7 @@ test("N: customer cannot see or invoke admin Fresh while the credit-ready CTA re
   await flush();
   assert.equal(harness.edgeCalls(),0);
   assert.match(uiSource,/CUSTOMER_FRESH_CONTRACT=Object\.freeze/);
-  assert.match(uiSource,/enabled:false,visible:false,label:"Find More Buyers · 1 Credit",creditCost:1/);
+  assert.match(uiSource,/enabled:true,visible:true,label:"Find More Buyers · 1 Credit",creditCost:1/);
 });
 
 test("O: trusted admin confirmation creates exactly one ADMIN_QA_FRESH request",async()=>{
@@ -230,5 +230,5 @@ test("C and M: background matchmaking refresh preserves the mounted root and no 
   assert.match(workspaceSource,/setInterval\(\(\)=>\{if\(!document\.hidden\)loadWorkspace\(true\);\},30000\)/);
   assert.doesNotMatch(workspaceSource,/location\.reload/);
   assert.doesNotMatch(uiSource,/setInterval/);
-  assert.match(portalSource,/external-prospects\.js\?v=20260826adminfresh1/);
+  assert.match(portalSource,/external-prospects\.js\?v=20260826credits3/);
 });

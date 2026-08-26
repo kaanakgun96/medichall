@@ -35,15 +35,15 @@ assert.match(ui,/Existing results remain available/);
 assert.doesNotMatch(ui,/setInterval|autoRetry|retryAutomatically/);
 
 assert.match(ui,/CUSTOMER_FRESH_CONTRACT=Object\.freeze/);
-assert.match(ui,/enabled:false,visible:false,label:"Find More Buyers · 1 Credit",creditCost:1/);
+assert.match(ui,/enabled:true,visible:true,label:"Find More Buyers · 1 Credit",creditCost:1/);
 for(const state of ["REQUESTED","ACCEPTED","FAILED_PRE_PROVIDER","COMPLETED"]){
   assert.match(ui,new RegExp(`"${state}"`));
 }
 assert.doesNotMatch(ui,/localStorage[^\n]*(?:admin|role)|URLSearchParams[^\n]*(?:admin|role)|[?&]admin=/i);
 
 for(const page of [portal,standalone]){
-  assert.match(page,/external-prospects\.js\?v=20260826adminfresh1/);
-  assert.match(page,/external-prospects\.css\?v=20260826adminfresh1/);
+  assert.match(page,/external-prospects\.js\?v=20260826credits3/);
+  assert.match(page,/external-prospects\.css\?v=20260826credits3/);
 }
 for(const width of ["1024px","700px","430px"]){
   assert.match(css,new RegExp(width.replace(".","\\.")));

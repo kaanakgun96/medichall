@@ -30,8 +30,8 @@ assert.match(ui,/mh_buyer_discovery_product_draft_v1/);
 assert.match(portal,/openBuyerDiscoveryProductDraft/);
 assert.match(portal,/prefill:suggestion/);
 assert.match(portal,/PRODUCT_DRAFT_GUARD\.load/);
-assert.match(standalone,/external-prospects\.js\?v=20260826adminfresh1/);
-assert.match(portal,/external-prospects\.js\?v=20260826adminfresh1/);
+assert.match(standalone,/external-prospects\.js\?v=20260826credits3/);
+assert.match(portal,/external-prospects\.js\?v=20260826credits3/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 

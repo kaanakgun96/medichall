@@ -31,8 +31,8 @@ assert.match(workspace, /tab\("buyer_discovery","European Buyer Discovery"/);
 assert.match(workspace, /hash==="#buyer-discovery"/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.js\?v=20260826adminfresh1/);
-  assert.match(page, /external-prospects\.css\?v=20260826adminfresh1/);
+  assert.match(page, /external-prospects\.js\?v=20260826credits3/);
+  assert.match(page, /external-prospects\.css\?v=20260826credits3/);
 }
 assert.equal((ui.match(/function createWorkspace/g) || []).length, 1);
 assert.match(reactPage, /MedicHallExternalProspects\.createWorkspace/);

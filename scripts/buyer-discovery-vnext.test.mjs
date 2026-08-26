@@ -50,7 +50,7 @@ assert.match(publicWeb, /maximumRawResults: 60/);
 assert.match(publicWeb, /maximumCostUsdPerRun: 0\.05/);
 
 assert.match(edge, /start_external_prospect_discovery_v3/);
-assert.match(edge, /accept_buyer_discovery_execution_v1/);
+assert.match(edge, /accept_buyer_discovery_execution_v2/);
 assert.match(edge, /buildDiscoverySearchPlan/);
 assert.match(edge, /buyer_discovery_seen_companies/);
 assert.match(edge, /new_verified_buyers/);

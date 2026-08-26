@@ -45,9 +45,9 @@ const EUROPE_COUNTRIES=[
 ];
 const INTENT_LABELS={PROFILE_PRODUCT:"My products",AD_HOC_PRODUCT:"Manual product search",WEBSITE_DETECTED_PRODUCT:"Detected from your website",UNMAPPED_PRODUCT:"Searching as entered product"};
 const CUSTOMER_FRESH_CONTRACT=Object.freeze({
-  enabled:false,visible:false,label:"Find More Buyers · 1 Credit",creditCost:1,
+  enabled:true,visible:true,label:"Find More Buyers · 1 Credit",creditCost:1,
   creditBalance:null,status:"IDLE",newBuyerCount:null,error:null,
-  states:Object.freeze(["IDLE","REQUESTED","ACCEPTED","FAILED_PRE_PROVIDER","COMPLETED"])
+  states:Object.freeze(["IDLE","REQUESTED","ACCEPTED","PROVIDER_STARTED","FAILED_PRE_PROVIDER","FAILED_POST_PROVIDER","COMPLETED","PARTIAL"])
 });
 
 function createWorkspace(options){
@@ -55,7 +55,7 @@ function createWorkspace(options){
   const state={
     data:{runs:[],prospects:[],website_scans:[],product_context:{}},loading:false,discovering:false,scanning:false,openId:null,
     notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,retryMode:null,activeRequestMode:null,
-    admin:{checked:false,allowed:false,dailyLimitReached:false},freshDialogOpen:false,liveMessage:"",lastFreshResult:null,
+    admin:{checked:false,allowed:false,dailyLimitReached:false},credits:{customer_fresh_enabled:false,credit_cost:1,balance:0,can_run_fresh:false,history:[]},freshDialogOpen:false,liveMessage:"",lastFreshResult:null,
     initialized:false,mode:null,selectedRunId:null,profileSelected:new Set(),websiteSelected:new Set(),
     countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,
     filters:{query:"",country:"",market:"",type:"",evidence:"",score:"",freshness:"",status:"",sort:"score"}
@@ -63,9 +63,16 @@ function createWorkspace(options){
   const toast=message=>options.toast?.(message);
   const track=event=>options.track?.(event);
   const isAdmin=()=>state.admin.checked&&state.admin.allowed;
+  const creditBalance=()=>Math.max(0,Number(state.credits?.balance||0));
+  const lockDialogScroll=locked=>document.body?.classList?.toggle("mhxp-dialog-open",locked===true);
 
   function activeRun(){return list(state.data.runs).find(run=>ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase()))||null;}
   function currentRun(){return activeRun()||list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId))||list(state.data.runs)[0]||null;}
+  function freshBaseRun(){
+    const selected=list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId));
+    if(selected&&["COMPLETED","PARTIAL"].includes(String(selected.status||"").toUpperCase()))return selected;
+    return list(state.data.runs).find(run=>["COMPLETED","PARTIAL"].includes(String(run?.status||"").toUpperCase()))||null;
+  }
   function isActive(run=activeRun()){return ACTIVE_STATUSES.has(String(run?.status||"").toUpperCase());}
   function pollingExpired(run=currentRun()){
     if(!isActive(run))return false;
@@ -105,12 +112,14 @@ function createWorkspace(options){
     if(!settings.silent&&!state.data.prospects.length)options.root.innerHTML='<div class="mhxp"><div class="mhxp-empty"><b>Loading European Buyer Discovery…</b></div></div>';
     try{
       const adminCheck=state.admin.checked?Promise.resolve(state.admin.allowed):options.rpc("is_admin",{}).then(value=>value===true).catch(()=>false);
-      const [workspace,adminAllowed]=await Promise.all([
+      const [workspace,adminAllowed,credits]=await Promise.all([
         options.rpc("get_external_prospect_workspace_v3",{p_company_id:Number(options.companyId),p_limit:200}),
-        adminCheck
+        adminCheck,
+        options.rpc("get_company_buyer_discovery_credits_v1",{p_company_id:Number(options.companyId),p_limit:20}).catch(()=>({customer_fresh_enabled:false,credit_cost:1,balance:0,can_run_fresh:false,history:[]}))
       ]);
       state.data=workspace||{runs:[],prospects:[],website_scans:[],product_context:{}};
       state.admin={...state.admin,checked:true,allowed:adminAllowed===true};
+      state.credits=credits||{customer_fresh_enabled:false,credit_cost:1,balance:0,can_run_fresh:false,history:[]};
       hydrate();
       if(!state.destroyed){syncPolling();render();}
     }catch(error){
@@ -318,28 +327,37 @@ function createWorkspace(options){
   }
   function recentHtml(){
     const runs=list(state.data.runs).slice(0,8);if(!runs.length)return"";
-    return '<details class="mhxp-recent"><summary>Recent buyer searches</summary><div>'+runs.map(run=>{const context=runContext(run),fresh=run.run_mode==="ADMIN_QA_FRESH"?' · Admin fresh':'';return '<button type="button" data-action="open-run" data-run="'+esc(run.id)+'" class="'+(String(currentRun()?.id)===String(run.id)?'active':'')+'"><b>'+esc(context.product)+'</b><span>'+esc(context.markets)+' · '+esc(context.source)+fresh+'</span></button>';}).join("")+'</div></details>';
+    return '<details class="mhxp-recent"><summary>Recent buyer searches</summary><div>'+runs.map(run=>{const context=runContext(run),fresh=run.run_mode==="ADMIN_QA_FRESH"?' · Admin fresh':run.run_mode==="FRESH_DISCOVERY"?' · 1-credit fresh':'';return '<button type="button" data-action="open-run" data-run="'+esc(run.id)+'" class="'+(String(currentRun()?.id)===String(run.id)?'active':'')+'"><b>'+esc(context.product)+'</b><span>'+esc(context.markets)+' · '+esc(context.source)+fresh+'</span></button>';}).join("")+'</div></details>';
   }
   function readinessHtml(){
     const ready=readiness(),modeContent=state.mode==="profile"?profileModeHtml():state.mode==="website"?websiteModeHtml():adhocModeHtml();
     const normalRetry=state.retryMode==="NORMAL_DISCOVERY",busy=state.discovering,normalLabel=busy&&state.activeRequestMode==="NORMAL_DISCOVERY"?"Searching Europe…":normalRetry?"Retry search":"Discover European buyers";
     const freshDisabled=!ready.ready||busy||isActive()||state.admin.dailyLimitReached;
     const adminFresh=isAdmin()?'<div class="mhxp-admin-fresh"><div><span class="mhxp-kicker">Platform admin QA</span><b>Explore more of the verified buyer search space</b><p>Explore additional search regions, languages, terminology and buyer sources.</p><small>Admin QA — no customer credit used</small></div><button class="mhxp-admin-button" type="button" data-action="request-fresh" '+(freshDisabled?'disabled aria-disabled="true"':'')+'>'+(state.admin.dailyLimitReached?'Daily limit reached':busy&&state.activeRequestMode==="ADMIN_QA_FRESH"?'Running fresh discovery…':state.retryMode==="ADMIN_QA_FRESH"?'Retry fresh discovery':'Run Fresh Discovery')+'</button></div>':"";
-    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+(normalRetry?'retry':'discover')+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+normalLabel+'</button><p class="mhxp-help">'+(ready.ready?'Normal searches show cached verified results when the same product was checked within 14 days.':'Confirm a category or choose bounded Search anyway for a valid unmapped product.')+'</p></div>'+adminFresh+recentHtml()+coverageHtml(null)+'</section>';
+    const base=freshBaseRun(),customerEnabled=!isAdmin()&&state.credits?.customer_fresh_enabled===true&&!!base,balance=creditBalance();
+    const customerDisabled=busy||isActive()||balance<1;
+    const customerFresh=customerEnabled?'<div class="mhxp-customer-fresh"><div><span class="mhxp-kicker">Fresh Buyer Discovery</span><b>Explore additional verified buyer sources</b><p>A fresh search explores unused search partitions. It may find zero new buyers; successful provider work still uses 1 credit.</p><small aria-label="Buyer Discovery credit balance">'+(balance<1?'No credits available':balance+' credit'+(balance===1?'':'s')+' available')+'</small></div><div class="mhxp-customer-fresh-actions"><button class="mhxp-customer-button" type="button" data-action="request-fresh" '+(customerDisabled?'disabled aria-disabled="true"':'')+'>'+(busy&&state.activeRequestMode==="FRESH_DISCOVERY"?'Finding more buyers…':state.retryMode==="FRESH_DISCOVERY"?'Retry · 1 Credit':CUSTOMER_FRESH_CONTRACT.label)+'</button>'+(balance<1?'<span>Credits unavailable — contact MedicHall</span>':'')+'</div></div>':"";
+    return '<section class="mhxp-setup" aria-labelledby="mhxp-setup-title"><div class="mhxp-setup-copy"><span class="mhxp-kicker">Start with the product you want to grow</span><h4 id="mhxp-setup-title">Find your potential European buyers</h4><p>Choose products from your profile, enter one directly, or detect likely categories from your stored public website. Every mode uses the same evidence-backed discovery engine.</p></div><div class="mhxp-modes" role="group" aria-label="Buyer Discovery mode"><button type="button" data-action="mode" data-mode="profile" aria-pressed="'+String(state.mode==="profile")+'"><b>Use my products</b><span>'+ready.products.length+' active product'+(ready.products.length===1?'':'s')+'</span></button><button type="button" data-action="mode" data-mode="adhoc" aria-pressed="'+String(state.mode==="adhoc")+'"><b>Search by product</b><span>No catalogue required</span></button><button type="button" data-action="mode" data-mode="website" aria-pressed="'+String(state.mode==="website")+'" '+(!ready.website?'aria-describedby="mhxp-website-unavailable"':'')+'><b>Scan my website</b><span id="mhxp-website-unavailable">'+(ready.website?esc(state.data.product_context.website_domain):'Add a valid HTTPS website first')+'</span></button></div><div class="mhxp-mode-panel">'+modeContent+'</div>'+countryHtml()+'<div class="mhxp-launch"><button class="primary" type="button" data-action="'+(normalRetry?'retry':'discover')+'" '+(!ready.ready||busy?'disabled aria-disabled="true"':'')+'>'+normalLabel+'</button><p class="mhxp-help">'+(ready.ready?'Normal searches show cached verified results when the same product was checked within 14 days and use 0 credits.':'Confirm a category or choose bounded Search anyway for a valid unmapped product.')+'</p></div>'+adminFresh+customerFresh+recentHtml()+coverageHtml(null)+'</section>';
   }
   function freshDialogHtml(){
-    if(!isAdmin()||!state.freshDialogOpen)return"";
-    return '<div class="mhxp-dialog-backdrop" data-fresh-backdrop><section class="mhxp-dialog" role="dialog" aria-modal="true" aria-labelledby="mhxp-fresh-title" aria-describedby="mhxp-fresh-description"><button class="mhxp-dialog-close" type="button" data-action="cancel-fresh" aria-label="Close fresh discovery confirmation">×</button><span class="mhxp-kicker">Admin QA · no customer credit used</span><h4 id="mhxp-fresh-title">Run a fresh discovery?</h4><p id="mhxp-fresh-description">MedicHall will explore additional unused search partitions for this product. Previously discovered buyers will remain available.</p><div class="mhxp-dialog-actions"><button type="button" data-action="cancel-fresh">Cancel</button><button class="primary" type="button" data-action="confirm-fresh">Run Fresh Discovery</button></div></section></div>';
+    if(!state.freshDialogOpen)return"";
+    const admin=isAdmin(),balance=creditBalance();
+    return '<div class="mhxp-dialog-backdrop" data-fresh-backdrop><section class="mhxp-dialog" role="dialog" aria-modal="true" aria-labelledby="mhxp-fresh-title" aria-describedby="mhxp-fresh-description"><button class="mhxp-dialog-close" type="button" data-action="cancel-fresh" aria-label="Close fresh discovery confirmation">×</button><span class="mhxp-kicker">'+(admin?'Admin QA · no customer credit used':'Fresh Buyer Discovery · 1 credit')+'</span><h4 id="mhxp-fresh-title">'+(admin?'Run a fresh discovery?':'Find more buyers?')+'</h4><p id="mhxp-fresh-description">MedicHall will explore additional terminology, markets, languages and buyer sources for this product. Previously discovered buyers will remain available. '+(admin?'No customer credit will be charged.':'This does not guarantee a new buyer. If provider-backed work starts, 1 credit is used even when zero new buyers qualify. Pre-provider failure or no available search space uses no credit.')+'</p>'+(admin?'':'<div class="mhxp-credit-confirm"><span>Current balance</span><b>'+balance+' credit'+(balance===1?'':'s')+'</b><span>After accepted search</span><b>'+Math.max(0,balance-1)+' credit'+(balance-1===1?'':'s')+'</b></div>')+'<div class="mhxp-dialog-actions"><button type="button" data-action="cancel-fresh">Cancel</button><button class="primary" type="button" data-action="confirm-fresh" '+(!admin&&balance<1?'disabled aria-disabled="true"':'')+'>'+(admin?'Run Fresh Discovery':'Find More Buyers · 1 Credit')+'</button></div></section></div>';
   }
   function friendlyRunError(code){
     const value=String(code||"").toUpperCase();
     if(value.includes("CONTEXT")||value.includes("PROFILE"))return"Your company or product context could not be loaded. Review your profile, then try again.";
     if(value.includes("TAXONOMY"))return"Your structured product categories could not be loaded. Review your products, then try again.";
+    if(value.includes("NO_FRESH_SEARCH_SPACE"))return"No additional unused search space was available. No credit was used.";
+    if(value.includes("INSUFFICIENT"))return"You need 1 credit to run a Fresh Discovery. Existing results remain unchanged.";
     return"No saved results were removed. Refresh the status, then retry when ready.";
   }
   function friendlyError(error){
     const value=[error?.userMessage,error?.message,error?.backendMessage,error?.backendCode,error?.code,error?.edgeDetails?.backendMessage,error?.edgeDetails?.code].filter(Boolean).join(" ");
     if(/Admin QA Fresh Discovery limit reached|fresh discovery limit reached/i.test(value))return"Admin fresh discovery limit reached for today.";
+    if(/NO_FRESH_SEARCH_SPACE/i.test(value))return"No additional unused search space was available. No credit was used; your existing results remain available.";
+    if(/INSUFFICIENT(?:_FRESH_DISCOVERY)?_CREDITS/i.test(value))return"You need 1 credit to run a Fresh Discovery. Existing results remain available.";
+    if(error?.credit_refunded===true||error?.edgeDetails?.credit_refunded===true)return"Fresh discovery stopped before provider work began. The credit was returned and existing results remain available.";
     if(/30 minutes|cooldown/i.test(value))return"A recent search is still within the safety cooldown. Your existing results remain available; try again after 30 minutes.";
     if(/daily/i.test(value))return"Today’s safe search limit has been reached. Existing results remain available; try again tomorrow.";
     if(/monthly/i.test(value))return"This month’s search limit has been reached. Existing results remain available.";
@@ -389,20 +407,26 @@ function createWorkspace(options){
     if(runMode==="ADMIN_QA_FRESH"&&state.admin.dailyLimitReached){
       state.notice={tone:"failed",title:"Admin fresh discovery limit reached for today.",message:"Existing results remain available. No automatic retry will occur."};render();return;
     }
+    if(runMode==="FRESH_DISCOVERY"&&(isAdmin()||state.credits?.customer_fresh_enabled!==true||!freshBaseRun())){
+      state.notice={tone:"failed",title:"Fresh discovery is unavailable.",message:"A completed buyer search and an enabled customer credit entitlement are required."};render();return;
+    }
+    if(runMode==="FRESH_DISCOVERY"&&creditBalance()<1){
+      state.notice={tone:"failed",title:"No credits available.",message:"Existing results remain available. Credits unavailable — contact MedicHall."};render();return;
+    }
     if(state.retryMode===runMode&&!explicitRetry)return;
     const ready=readiness();
-    if(!ready.ready){state.notice={tone:"neutral",title:"Confirm or resolve a product first.",message:"Choose a profile product, confirm a suggested category, select a website-detected category, or use bounded Search anyway for a valid unmapped medical product."};render();return;}
-    state.discovering=true;state.activeRequestMode=runMode;state.notice=null;state.freshDialogOpen=false;state.liveMessage=runMode==="ADMIN_QA_FRESH"?"Fresh discovery started. Existing results remain available.":"Buyer Discovery started.";render();track("external_prospect_discovery_started");
-    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:discoveryIntent(),run_mode:runMode});
+    if(runMode!=="FRESH_DISCOVERY"&&!ready.ready){state.notice={tone:"neutral",title:"Confirm or resolve a product first.",message:"Choose a profile product, confirm a suggested category, select a website-detected category, or use bounded Search anyway for a valid unmapped medical product."};render();return;}
+    state.discovering=true;state.activeRequestMode=runMode;state.notice=null;state.freshDialogOpen=false;lockDialogScroll(false);state.liveMessage=runMode==="NORMAL_DISCOVERY"?"Buyer Discovery started.":"Fresh discovery requested. Existing results remain available.";render();track("external_prospect_discovery_started");
+    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:discoveryIntent(),run_mode:runMode,...(runMode==="FRESH_DISCOVERY"?{base_run_id:freshBaseRun()?.id}:{})});
     schedulePoll(700);
     try{
       const result=await request;
       await load({silent:true});
       state.selectedRunId=result?.run?.run_id||list(state.data.runs)[0]?.id||state.selectedRunId;
       state.retryMode=null;
-      if(runMode==="ADMIN_QA_FRESH"){
+      if(runMode==="ADMIN_QA_FRESH"||runMode==="FRESH_DISCOVERY"){
         state.lastFreshResult=result;state.liveMessage="Fresh search completed. "+freshResultMessage(result);
-        state.notice={tone:"complete",title:"Fresh search completed",message:freshResultMessage(result)};
+        state.notice={tone:"complete",title:"Fresh search completed",message:freshResultMessage(result)+(runMode==="FRESH_DISCOVERY"?' Remaining balance: '+creditBalance()+' credit'+(creditBalance()===1?'':'s')+'.':'')};
         toast("Fresh Buyer Discovery completed.");
       }else{
         const selected=list(state.data.runs).find(run=>String(run.id)===String(state.selectedRunId));
@@ -416,8 +440,8 @@ function createWorkspace(options){
       const limit=/Admin QA Fresh Discovery limit reached|fresh discovery limit reached/i.test(errorText(error));
       if(limit)state.admin.dailyLimitReached=true;
       state.retryMode=limit?null:runMode;
-      state.liveMessage=runMode==="ADMIN_QA_FRESH"?"Fresh discovery failed. Existing results remain available.":"Buyer Discovery failed. Existing results remain available.";
-      state.notice={tone:"failed",title:limit?"Admin fresh discovery limit reached for today.":runMode==="ADMIN_QA_FRESH"?"Fresh discovery was not completed.":"Search not started or interrupted.",message:friendlyError(error)};
+      state.liveMessage=runMode!=="NORMAL_DISCOVERY"?"Fresh discovery failed. Existing results remain available.":"Buyer Discovery failed. Existing results remain available.";
+      state.notice={tone:"failed",title:limit?"Admin fresh discovery limit reached for today.":runMode!=="NORMAL_DISCOVERY"?"Fresh discovery was not completed.":"Search not started or interrupted.",message:friendlyError(error)};
       toast(friendlyError(error));
     }finally{state.discovering=false;state.activeRequestMode=null;render();syncPolling();}
   }
@@ -466,12 +490,14 @@ function createWorkspace(options){
     }catch(error){toast(friendlyError(error));}
   }
   function openFreshDialog(){
-    if(!isAdmin()||state.admin.dailyLimitReached||state.discovering||isActive())return;
-    state.freshDialogOpen=true;render();
+    if(state.discovering||isActive())return;
+    if(isAdmin()&&state.admin.dailyLimitReached)return;
+    if(!isAdmin()&&(state.credits?.customer_fresh_enabled!==true||creditBalance()<1||!freshBaseRun()))return;
+    state.freshDialogOpen=true;lockDialogScroll(true);render();
   }
   function closeFreshDialog(){
     if(!state.freshDialogOpen)return;
-    state.freshDialogOpen=false;render();
+    state.freshDialogOpen=false;lockDialogScroll(false);render();
     options.root.querySelector('[data-action="request-fresh"]')?.focus();
   }
   function onClick(event){
@@ -482,7 +508,7 @@ function createWorkspace(options){
     else if(action==="retry")discover("NORMAL_DISCOVERY",true);
     else if(action==="request-fresh"||action==="retry-fresh")openFreshDialog();
     else if(action==="cancel-fresh")closeFreshDialog();
-    else if(action==="confirm-fresh")discover("ADMIN_QA_FRESH",true);
+    else if(action==="confirm-fresh")discover(isAdmin()?"ADMIN_QA_FRESH":"FRESH_DISCOVERY",true);
     else if(action==="reload")load();
     else if(action==="mode"){state.mode=target.dataset.mode;state.notice=null;state.retryMode=null;render();}
     else if(action==="confirm-adhoc"){
@@ -538,7 +564,7 @@ function createWorkspace(options){
   document.addEventListener("visibilitychange",onVisibility);
   return Object.freeze({
     load,render,
-    destroy(){state.destroyed=true;clearTimeout(state.pollTimer);clearTimeout(state.scanPollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);options.root.removeEventListener("input",onInput);options.root.removeEventListener("submit",onSubmit);options.root.removeEventListener("keydown",onKeydown);document.removeEventListener("visibilitychange",onVisibility);}
+    destroy(){state.destroyed=true;lockDialogScroll(false);clearTimeout(state.pollTimer);clearTimeout(state.scanPollTimer);options.root.removeEventListener("click",onClick);options.root.removeEventListener("change",onChange);options.root.removeEventListener("input",onInput);options.root.removeEventListener("submit",onSubmit);options.root.removeEventListener("keydown",onKeydown);document.removeEventListener("visibilitychange",onVisibility);}
   });
 }
 

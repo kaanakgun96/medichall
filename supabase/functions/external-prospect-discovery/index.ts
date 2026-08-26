@@ -2512,16 +2512,39 @@ async function handleDiscovery(request: Request): Promise<Response> {
   const intent = record(body.intent);
   const requestedRunMode = String(body.run_mode || "NORMAL_DISCOVERY")
     .trim().toUpperCase() as DiscoveryRunMode;
-  const start = await authClient.rpc("start_external_prospect_discovery_v3", {
-    p_company_id: companyId,
-    p_idempotency_key: idempotencyKey,
-    p_intent: intent,
-    p_run_mode: requestedRunMode,
-  });
+  const start = requestedRunMode === "FRESH_DISCOVERY"
+    ? await authClient.rpc("start_customer_buyer_discovery_fresh_v1", {
+      p_company_id: companyId,
+      p_idempotency_key: idempotencyKey,
+      p_base_run_id: String(body.base_run_id || ""),
+    })
+    : await authClient.rpc("start_external_prospect_discovery_v3", {
+      p_company_id: companyId,
+      p_idempotency_key: idempotencyKey,
+      p_intent: intent,
+      p_run_mode: requestedRunMode,
+    });
   if (start.error) {
-    return json(request, {
-      error: sanitizeEvidenceText(start.error.message, 300),
-    }, start.error.code === "42501" ? 403 : 429);
+    const startCode = String(start.error.message || "DISCOVERY_START_FAILED")
+      .toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 80);
+    const publicStartCode = startCode.includes("INSUFFICIENT")
+      ? "INSUFFICIENT_CREDITS"
+      : startCode;
+    return json(
+      request,
+      {
+        error: publicStartCode === "INSUFFICIENT_CREDITS"
+          ? "Fresh Discovery requires 1 credit."
+          : sanitizeEvidenceText(start.error.message, 300),
+        code: publicStartCode,
+        credit_charged: false,
+      },
+      start.error.code === "42501"
+        ? 403
+        : startCode.includes("INSUFFICIENT")
+        ? 409
+        : 429,
+    );
   }
   const run = record(start.data);
   if (run.reused === true) {
@@ -2926,19 +2949,33 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
     if (searchPlan.selectedPartitions.length) {
       const executionAcceptance = await admin.rpc(
-        "accept_buyer_discovery_execution_v1",
+        "accept_buyer_discovery_execution_v2",
         { p_run_id: runId },
       );
       if (executionAcceptance.error) {
-        throw new Error("DISCOVERY_EXECUTION_ACCEPTANCE_FAILED");
+        throw new Error(
+          String(
+            executionAcceptance.error.message ||
+              "DISCOVERY_EXECUTION_ACCEPTANCE_FAILED",
+          ),
+        );
       }
-      providerExecutionStarted = true;
       const partitionStart = await admin.from("buyer_discovery_run_partitions")
         .update({ status: "STARTED", started_at: new Date().toISOString() })
         .eq("run_id", runId);
       if (partitionStart.error) {
         throw new Error("DISCOVERY_PARTITION_START_FAILED");
       }
+      const providerStart = await admin.rpc(
+        "mark_buyer_discovery_provider_started_v1",
+        { p_run_id: runId },
+      );
+      if (providerStart.error) {
+        throw new Error("DISCOVERY_PROVIDER_START_FAILED");
+      }
+      providerExecutionStarted = true;
+    } else if (runMode === "FRESH_DISCOVERY") {
+      throw new Error("NO_FRESH_SEARCH_SPACE");
     }
     const [ted, publicWeb] = await Promise.all([
       fetchTedAwards(
@@ -3519,7 +3556,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
         estimated_cost_usd: publicWebProviderCostUsd,
         fresh_request_state: runMode === "NORMAL_DISCOVERY"
           ? "NOT_FRESH"
-          : "TERMINAL",
+          : partial
+          ? "PARTIAL"
+          : "COMPLETED",
         diagnostics,
         completed_at: new Date().toISOString(),
       }).eq("id", runId);
@@ -3541,6 +3580,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       p_successful_discovery_count: accepted > 0 ? 1 : 0,
     });
     if (learning.error) throw new Error("PRODUCT_RESOLUTION_OUTCOME_FAILED");
+    const creditAccount = runMode === "FRESH_DISCOVERY"
+      ? await admin.from("buyer_discovery_credit_accounts").select("balance")
+        .eq("company_id", companyId).maybeSingle()
+      : null;
     return json(request, {
       ok: true,
       run: {
@@ -3569,6 +3612,12 @@ async function handleDiscovery(request: Request): Promise<Response> {
       provider_requests: publicWebProviderRequests,
       ai_classifications: 0,
       estimated_cost_usd: publicWebProviderCostUsd,
+      credit_balance: Number(creditAccount?.data?.balance || 0),
+      credit_disposition: runMode === "FRESH_DISCOVERY"
+        ? "DEBIT_CONSUMED"
+        : runMode === "ADMIN_QA_FRESH"
+        ? "WAIVED_ADMIN_QA"
+        : "NOT_APPLICABLE",
       emails_sent: 0,
       notifications_created: 0,
       registry_coverage: registryCoverage.map((item) => ({
@@ -3582,6 +3631,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
       String(error instanceof Error ? error.message : "DISCOVERY_FAILED")
         .toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 80) ||
       "DISCOVERY_FAILED";
+    const publicErrorCode = errorCode.includes("INSUFFICIENT")
+      ? "INSUFFICIENT_CREDITS"
+      : errorCode;
     await admin.from("external_prospect_discovery_runs").update({
       status: "FAILED",
       stage: "failed",
@@ -3592,7 +3644,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       fresh_request_state: runMode === "NORMAL_DISCOVERY"
         ? "NOT_FRESH"
         : providerExecutionStarted
-        ? "FAILED_AFTER_PROVIDER"
+        ? "FAILED_POST_PROVIDER"
         : "FAILED_PRE_PROVIDER",
       completed_at: new Date().toISOString(),
     }).eq("id", runId);
@@ -3604,10 +3656,36 @@ async function handleDiscovery(request: Request): Promise<Response> {
       run_id: runId,
       error_code: errorCode,
     });
-    return json(request, {
-      error: "Prospect discovery could not be completed.",
-      run_id: runId,
-    }, 503);
+    const [failedCreditAccount, failedRun] = runMode === "FRESH_DISCOVERY"
+      ? await Promise.all([
+        admin.from("buyer_discovery_credit_accounts").select("balance")
+          .eq("company_id", companyId).maybeSingle(),
+        admin.from("external_prospect_discovery_runs").select(
+          "credit_disposition,provider_execution_started_at",
+        ).eq("id", runId).maybeSingle(),
+      ])
+      : [null, null];
+    const failedDisposition = String(
+      failedRun?.data?.credit_disposition || "NOT_APPLICABLE",
+    );
+    const failedCreditCharged = failedDisposition === "DEBIT_CONSUMED" ||
+      failedRun?.data?.provider_execution_started_at != null;
+    return json(
+      request,
+      {
+        error: "Prospect discovery could not be completed.",
+        run_id: runId,
+        code: publicErrorCode,
+        credit_balance: Number(failedCreditAccount?.data?.balance || 0),
+        credit_disposition: failedDisposition,
+        credit_refunded: failedDisposition === "REVERSED_PRE_PROVIDER",
+        credit_charged: runMode === "FRESH_DISCOVERY" && failedCreditCharged,
+      },
+      publicErrorCode === "INSUFFICIENT_CREDITS" ||
+        errorCode.includes("NO_FRESH_SEARCH_SPACE")
+        ? 409
+        : 503,
+    );
   }
 }
 
