@@ -242,3 +242,34 @@ Deno.test("search saturation is reported without claiming market exhaustion", ()
   assertEquals(discoverySaturation([4, 0, 0]), "ZERO_RECENT_YIELD");
   assertEquals(discoverySaturation([8, 4, 2]), "DECLINING_YIELD");
 });
+
+Deno.test("General Procedure Packs initial plan spans reviewed terms and commercial archetypes", () => {
+  const profile = buildProductFamilyProfile([{
+    canonicalName: "General Procedure Packs",
+    slug: "general-procedure-packs",
+    aliases: [],
+  }]);
+  const plan = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: profile,
+    targetCountries: [],
+    cpvCodes: ["33140000"],
+  });
+  const terms = new Set(
+    plan.selectedPartitions.flatMap((item) => item.terminology),
+  );
+  const archetypes = new Set(
+    plan.selectedPartitions.map((item) => item.buyerArchetype),
+  );
+  assert(
+    terms.size > 1 &&
+      [...terms].some((term) => term !== "General Procedure Packs"),
+    "initial retrieval must not depend only on the canonical plural phrase",
+  );
+  assert(
+    archetypes.has("PROCEDURE_PACK_MANUFACTURER") &&
+      archetypes.has("KIT_ASSEMBLER") &&
+      archetypes.has("HOSPITAL_SUPPLIER"),
+    "procedure-pack commercial archetypes must be represented",
+  );
+});

@@ -3,6 +3,7 @@ import {
   handleExternalProspectDiscoveryRequest,
   legacyQueryProgressCount,
   mergeSignals,
+  structuredFirst,
   structuredTexts,
   verifyWebsites,
 } from "./index.ts";
@@ -24,6 +25,10 @@ Deno.test("structured procurement identifiers are not mistaken for contact coord
     "2026-08-20",
   ]);
   assertEquals(structuredTexts({ ron: ["RO 16320869"] }), ["RO 16320869"]);
+  assertEquals(
+    structuredFirst("68f41e37-55ab-4823-8e11-812345c70a2a"),
+    "68f41e37-55ab-4823-8e11-812345c70a2a",
+  );
 });
 
 Deno.test("external prospect discovery OPTIONS is 204 and origin constrained", async () => {

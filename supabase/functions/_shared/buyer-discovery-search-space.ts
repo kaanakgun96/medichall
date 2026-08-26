@@ -189,6 +189,7 @@ const ARCHETYPE_TERMS: Readonly<
     TENDER_SUPPLIER: "tender supplier",
     KIT_ASSEMBLER: "medical kit assembler",
     PROCEDURE_PACK_MANUFACTURER: "procedure pack manufacturer",
+    HOSPITAL_SUPPLIER: "hospital supplier",
     OEM_PRIVATE_LABEL: "OEM private label",
     MANUFACTURER: "medical manufacturer",
     PUBLIC_PROCUREMENT_SUPPLIER: "public procurement supplier",
@@ -393,6 +394,15 @@ function archetypesFor(
   if (profile.componentFitLabel) {
     values.push("PROCEDURE_PACK_MANUFACTURER", "KIT_ASSEMBLER");
   }
+  if (profile.procedurePack) {
+    values.push(
+      "PROCEDURE_PACK_MANUFACTURER",
+      "KIT_ASSEMBLER",
+      "HOSPITAL_SUPPLIER",
+      "OEM_PRIVATE_LABEL",
+      "MANUFACTURER",
+    );
+  }
   if (productProfile === "NICHE") values.push("OEM_PRIVATE_LABEL");
   return [...new Set(values)];
 }
@@ -464,7 +474,16 @@ function buildUniverse(input: {
           Number(directIndex >= 0 || term.term === input.productFamily.label) *
             15 +
           Number(term.language === market.language) * 8 +
-          Number(archetype === "DISTRIBUTOR" || archetype === "IMPORTER") * 6 -
+          Number(archetype === "DISTRIBUTOR" || archetype === "IMPORTER") * 6 +
+          Number(
+              input.productFamily.procedurePack &&
+                [
+                  "PROCEDURE_PACK_MANUFACTURER",
+                  "KIT_ASSEMBLER",
+                  "HOSPITAL_SUPPLIER",
+                  "OEM_PRIVATE_LABEL",
+                ].includes(archetype),
+            ) * 10 -
           Math.max(0, directIndex);
         web.push({
           partitionKey: key,

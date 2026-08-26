@@ -53,6 +53,35 @@ Deno.test("production plural gown taxonomy activates the reviewed product family
   );
 });
 
+Deno.test("General Procedure Packs activates reviewed commercial terminology without generic drift", () => {
+  const profile = buildProductFamilyProfile([{
+    taxonomyId: 20,
+    canonicalName: "General Procedure Packs",
+    slug: "general-procedure-packs",
+    aliases: [],
+  }]);
+  assert(
+    profile.procedurePack === true,
+    "procedure-pack profile must activate",
+  );
+  assert(
+    profile.directTerms.includes("custom procedure pack") &&
+      profile.directTerms.includes("procedure tray") &&
+      profile.directTerms.includes("general surgery pack"),
+    "reviewed commercial procedure-pack terminology must be available",
+  );
+  assert(
+    !profile.directTerms.includes("custom pack"),
+    "generic custom-pack wording must not become direct evidence",
+  );
+  assert(
+    profile.reviewedRetrievalTerms?.some((item) =>
+      item.term === "kit procedurali" && item.language === "it"
+    ),
+    "reviewed localized terminology must retain its language",
+  );
+});
+
 function fixtureCandidate(fixture: Fixture): ProspectCandidate {
   return {
     name: fixture.company,

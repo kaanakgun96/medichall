@@ -10,6 +10,7 @@ export type BuyerArchetype =
   | "IMPORTER"
   | "KIT_ASSEMBLER"
   | "PROCEDURE_PACK_MANUFACTURER"
+  | "HOSPITAL_SUPPLIER"
   | "OEM_PRIVATE_LABEL"
   | "MANUFACTURER"
   | "TENDER_SUPPLIER"
@@ -50,6 +51,7 @@ export type ProductFamilyProfile = {
   key: string;
   label: string;
   equipmentCoverKind?: EquipmentCoverProductKind | null;
+  procedurePack?: boolean;
   directTerms: string[];
   adjacentTerms: string[];
   genericTerms: string[];
@@ -293,6 +295,69 @@ const GOWN_ADJACENT_TERMS = [
   "op sets",
 ];
 
+// Reviewed deterministic terminology already used by MedicHall's taxonomy,
+// catalog mappings, and procedure-pack compatibility rules. These terms
+// broaden retrieval for the canonical General Procedure Packs category; they
+// do not create evidence or a taxonomy alias by themselves.
+const GENERAL_PROCEDURE_PACK_DIRECT_TERMS = [
+  "general procedure pack",
+  "general procedure packs",
+  "procedure pack",
+  "procedure packs",
+  "custom procedure pack",
+  "customized procedure pack",
+  "surgical procedure pack",
+  "procedure tray",
+  "custom procedure tray",
+  "general surgery pack",
+  "laparotomy pack",
+  "universal pack",
+  "kit procedurali",
+  "set procedurali",
+  "pack chirurgici",
+];
+
+const GENERAL_PROCEDURE_PACK_ADJACENT_TERMS = [
+  "surgical pack",
+  "sterile surgical kit",
+  "operating room disposable",
+  "surgical consumables",
+  "custom medical kit",
+];
+
+const GENERAL_PROCEDURE_PACK_REVIEWED_TERMS: ProductRetrievalTerm[] = [
+  {
+    term: "kit procedurali",
+    normalizedTerm: "kit procedurali",
+    language: "it",
+    countries: ["IT"],
+    confidence: "HIGH",
+    source: "VERIFIED_PRODUCT_TERMINOLOGY",
+    reason: "Existing reviewed European procedure-pack terminology",
+    familySignature: "general-procedure-packs",
+  },
+  {
+    term: "set procedurali",
+    normalizedTerm: "set procedurali",
+    language: "it",
+    countries: ["IT"],
+    confidence: "HIGH",
+    source: "VERIFIED_PRODUCT_TERMINOLOGY",
+    reason: "Existing reviewed European procedure-pack terminology",
+    familySignature: "general-procedure-packs",
+  },
+  {
+    term: "pack chirurgici",
+    normalizedTerm: "pack chirurgici",
+    language: "it",
+    countries: ["IT"],
+    confidence: "MEDIUM",
+    source: "VERIFIED_PRODUCT_TERMINOLOGY",
+    reason: "Existing reviewed European surgical-pack terminology",
+    familySignature: "general-procedure-packs",
+  },
+];
+
 const EQUIPMENT_COVER_ADJACENT_TERMS = [
   "surgical drape",
   "operating room disposable",
@@ -388,6 +453,7 @@ function evidenceText(evidence: ProspectEvidence): string {
 
 function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
   gown: boolean;
+  generalProcedurePack: boolean;
   equipmentCoverKind: EquipmentCoverProductKind | null;
   ultrasound: boolean;
   scrubBrush: boolean;
@@ -399,6 +465,9 @@ function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
       node.familyName,
       node.familySlug,
     ]).join(" "),
+  );
+  const nodeText = normalizeTerm(
+    nodes.flatMap((node) => [node.canonicalName, node.slug]).join(" "),
   );
   const equipmentCoverKind: EquipmentCoverProductKind | null =
     /camera cover/.test(text)
@@ -412,6 +481,7 @@ function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
       : null;
   return {
     gown: /\bgowns?\b|surgical gowns apparel/.test(text),
+    generalProcedurePack: /\bgeneral procedure packs?\b/.test(nodeText),
     equipmentCoverKind,
     ultrasound: /ultrasound probe cover|transducer sheath/.test(text),
     scrubBrush: /scrub brush|surgical hand preparation/.test(text),
@@ -449,6 +519,19 @@ export function buildProductFamilyProfile(
       "capital equipment",
     );
     componentFitLabel = "Potential procedure-pack component buyer";
+  }
+  if (flags.generalProcedurePack) {
+    key = "general-procedure-packs";
+    direct.unshift(...GENERAL_PROCEDURE_PACK_DIRECT_TERMS);
+    adjacent.push(...GENERAL_PROCEDURE_PACK_ADJACENT_TERMS);
+    mismatch.push(
+      "software package",
+      "battery pack",
+      "shipping pack",
+      "consumer pack",
+      "backpack",
+    );
+    componentFitLabel = "Potential procedure-pack assembly or supply partner";
   }
   if (flags.equipmentCoverKind) {
     equipmentCoverKind = flags.equipmentCoverKind;
@@ -505,27 +588,35 @@ export function buildProductFamilyProfile(
   }
   return {
     key,
-    label: familyLabels[0] ||
-      nodes.map((node) => node.canonicalName).join(", ") ||
-      "Medical product",
+    label: flags.generalProcedurePack
+      ? "General Procedure Packs"
+      : familyLabels[0] ||
+        nodes.map((node) => node.canonicalName).join(", ") ||
+        "Medical product",
     equipmentCoverKind,
+    procedurePack: flags.generalProcedurePack,
     directTerms: uniqueTerms(direct),
     adjacentTerms: uniqueTerms(adjacent),
     genericTerms: uniqueTerms(COMMON_GENERIC_TERMS),
     mismatchTerms: uniqueTerms(mismatch),
     componentFitLabel,
-    reviewedRetrievalTerms: nodes.flatMap((node) =>
-      (node.localizedAliases || []).map((alias) => ({
-        term: alias.term,
-        normalizedTerm: normalizeTerm(alias.term),
-        language: alias.language,
-        countries: [],
-        confidence: "HIGH" as const,
-        source: "APPROVED_ALIAS" as const,
-        reason: "Approved multilingual medical-product taxonomy alias",
-        familySignature: key,
-      }))
-    ),
+    reviewedRetrievalTerms: [
+      ...(flags.generalProcedurePack
+        ? GENERAL_PROCEDURE_PACK_REVIEWED_TERMS
+        : []),
+      ...nodes.flatMap((node) =>
+        (node.localizedAliases || []).map((alias) => ({
+          term: alias.term,
+          normalizedTerm: normalizeTerm(alias.term),
+          language: alias.language,
+          countries: [],
+          confidence: "HIGH" as const,
+          source: "APPROVED_ALIAS" as const,
+          reason: "Approved multilingual medical-product taxonomy alias",
+          familySignature: key,
+        }))
+      ),
+    ],
   };
 }
 
@@ -658,6 +749,9 @@ function inferArchetypes(
   if (/\boem\b|private label|contract manufactur|tailor made/.test(text)) {
     add("OEM_PRIVATE_LABEL", "HIGH", "Potential OEM or private-label buyer");
   }
+  if (/hospital supplier|hospital supplies|clinical supply/.test(text)) {
+    add("HOSPITAL_SUPPLIER", "MEDIUM", "Relevant hospital-supply activity");
+  }
   if (
     candidate.companyType === "Importer" || /\bimport(?:er|ation)?\b/.test(text)
   ) {
@@ -773,6 +867,7 @@ export function archetypeLabel(value: BuyerArchetype): string {
     IMPORTER: "Importer",
     KIT_ASSEMBLER: "Surgical kit assembler",
     PROCEDURE_PACK_MANUFACTURER: "Procedure pack manufacturer",
+    HOSPITAL_SUPPLIER: "Hospital supplier",
     OEM_PRIVATE_LABEL: "OEM / private-label supplier",
     MANUFACTURER: "Manufacturer",
     TENDER_SUPPLIER: "Tender supplier",

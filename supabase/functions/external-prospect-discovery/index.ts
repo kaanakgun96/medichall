@@ -2120,7 +2120,8 @@ async function persistCandidate(
     company_id: companyId,
     external_company_id: externalCompanyId,
     discovery_run_id: runId,
-    first_discovery_run_id: first(priorSeen.first_discovery_run_id) || runId,
+    first_discovery_run_id: structuredFirst(priorSeen.first_discovery_run_id) ||
+      runId,
     last_discovery_run_id: runId,
     discovery_state: discoveryState,
     evidence_fingerprint: evidenceFingerprint,
@@ -2189,7 +2190,8 @@ async function persistCandidate(
   const seenWrite = await admin.from("buyer_discovery_seen_companies").upsert({
     search_space_id: searchSpaceId,
     external_company_id: externalCompanyId,
-    first_discovery_run_id: first(priorSeen.first_discovery_run_id) || runId,
+    first_discovery_run_id: structuredFirst(priorSeen.first_discovery_run_id) ||
+      runId,
     last_discovery_run_id: runId,
     evidence_fingerprint: evidenceFingerprint,
     first_relevance_score: Number(priorSeen.first_relevance_score) ||
@@ -3611,6 +3613,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
 
 export {
   handleDiscovery as handleExternalProspectDiscoveryRequest,
+  structuredFirst,
   structuredTexts,
 };
 
