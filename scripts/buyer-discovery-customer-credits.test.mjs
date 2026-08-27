@@ -8,6 +8,7 @@ const uiSource=read("external-prospects.js");
 const cssSource=read("external-prospects.css");
 const edgeSource=read("supabase/functions/external-prospect-discovery/index.ts");
 const migrationSource=read("supabase/migrations/202608260001_buyer_discovery_customer_credits.sql");
+const privilegeHotfixSource=read("supabase/migrations/202608270001_buyer_discovery_credit_ledger_privilege_hotfix.sql");
 const sqlTestSource=read("supabase/tests/buyer_discovery_customer_credits.sql");
 const portalSource=read("portal.html");
 const standaloneSource=read("matchmaking.html");
@@ -35,6 +36,11 @@ test("credit ledger is append-only, tenant-scoped and feature-gated",()=>{
   assert.match(migrationSource,/buyer_discovery_credit_ledger_run_debit_uidx/);
   assert.match(migrationSource,/FRESH_DISCOVERY_DEBIT/);
   assert.match(migrationSource,/ADMIN_ADJUSTMENT/);
+  assert.match(privilegeHotfixSource,/revoke all privileges on table[\s\S]*?from public, anon, authenticated, service_role/);
+  assert.match(privilegeHotfixSource,/grant select on table[\s\S]*?to service_role/);
+  assert.doesNotMatch(privilegeHotfixSource,/alter default privileges/i);
+  assert.match(sqlTestSource,/direct_ledger_mutation_denied/);
+  assert.match(sqlTestSource,/service_role truncated historical ledger entries/);
   assert.doesNotMatch(migrationSource,/stripe_customer|paypal_order|payment_intent|checkout_session/i);
 });
 

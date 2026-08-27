@@ -24,8 +24,23 @@ begin
      or has_table_privilege('authenticated', 'public.buyer_discovery_credit_ledger', 'INSERT')
      or has_table_privilege('authenticated', 'public.buyer_discovery_credit_ledger', 'UPDATE')
      or has_table_privilege('authenticated', 'public.buyer_discovery_credit_ledger', 'DELETE')
+     or has_table_privilege('authenticated', 'public.buyer_discovery_credit_ledger', 'TRUNCATE')
+     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'INSERT')
      or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'UPDATE')
-     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'DELETE') then
+     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'DELETE')
+     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'TRUNCATE')
+     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'REFERENCES')
+     or has_table_privilege('service_role', 'public.buyer_discovery_credit_ledger', 'TRIGGER')
+     or exists (
+       select 1 from information_schema.table_privileges
+       where table_schema = 'public'
+         and table_name in (
+           'buyer_discovery_credit_feature_state',
+           'buyer_discovery_credit_accounts',
+           'buyer_discovery_credit_ledger'
+         )
+         and grantee = 'PUBLIC'
+     ) then
     raise exception 'append-only ledger privilege contract regressed';
   end if;
   if has_function_privilege('authenticated',
@@ -205,6 +220,60 @@ end
 $admin_grant$;
 reset role;
 
+set local role service_role;
+do $direct_ledger_mutation_denied$
+declare
+  v_company bigint := (select company_id from buyer_credit_fixtures where ordinal = 1);
+  v_entry uuid;
+  v_original_amount integer;
+  v_original_balance integer;
+  v_original_reason text;
+begin
+  select id, amount, balance_after, reason
+  into v_entry, v_original_amount, v_original_balance, v_original_reason
+  from public.buyer_discovery_credit_ledger
+  where company_id = v_company
+  order by created_at, id
+  limit 1;
+
+  begin
+    insert into public.buyer_discovery_credit_ledger(
+      company_id, transaction_type, amount, balance_after,
+      idempotency_key, reason
+    ) values (
+      v_company, 'GRANT', 1, 3, gen_random_uuid(), 'Direct service insert'
+    );
+    raise exception 'service_role directly inserted ledger history';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.buyer_discovery_credit_ledger
+    set reason = 'Direct service update' where id = v_entry;
+    raise exception 'service_role updated historical ledger entry';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.buyer_discovery_credit_ledger where id = v_entry;
+    raise exception 'service_role deleted historical ledger entry';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    truncate table public.buyer_discovery_credit_ledger;
+    raise exception 'service_role truncated historical ledger entries';
+  exception when insufficient_privilege then null;
+  end;
+
+  if not exists (
+    select 1 from public.buyer_discovery_credit_ledger
+    where id = v_entry and amount = v_original_amount
+      and balance_after = v_original_balance and reason = v_original_reason
+  ) then
+    raise exception 'historical ledger entry changed during denied DML probes';
+  end if;
+end
+$direct_ledger_mutation_denied$;
+reset role;
+
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select user_id from buyer_credit_fixtures where ordinal = 1),
   'role', 'authenticated')::text, true);
@@ -351,8 +420,14 @@ set local role service_role;
 do $preprovider_reversal$
 declare
   v_run uuid := (select fresh_run_id from buyer_credit_fixtures where ordinal = 1);
+  v_debit uuid;
+  v_debit_amount integer;
+  v_debit_balance integer;
 begin
   perform public.accept_buyer_discovery_execution_v2(v_run);
+  select id, amount, balance_after into v_debit, v_debit_amount, v_debit_balance
+  from public.buyer_discovery_credit_ledger
+  where fresh_run_id = v_run and transaction_type = 'FRESH_DISCOVERY_DEBIT';
   update public.external_prospect_discovery_runs
   set status = 'FAILED', stage = 'failed', error_code = 'QA_PRE_PROVIDER_FAILURE',
       fresh_request_state = 'FAILED_PRE_PROVIDER', completed_at = clock_timestamp()
@@ -362,6 +437,14 @@ begin
       where id = v_run) <> 'REVERSED_PRE_PROVIDER'
      or (select count(*) from public.buyer_discovery_credit_ledger
          where fresh_run_id = v_run and transaction_type = 'REVERSAL') <> 1
+     or (select count(*) from public.buyer_discovery_credit_ledger
+         where fresh_run_id = v_run) <> 2
+     or not exists (
+       select 1 from public.buyer_discovery_credit_ledger
+       where id = v_debit and amount = v_debit_amount
+         and balance_after = v_debit_balance
+         and transaction_type = 'FRESH_DISCOVERY_DEBIT'
+     )
      or (select balance from public.buyer_discovery_credit_accounts
          where company_id = (select company_id from buyer_credit_fixtures where ordinal = 1)) <> 1 then
     raise exception 'pre-provider reversal/retry idempotency failed';
