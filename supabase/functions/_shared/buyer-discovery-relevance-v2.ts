@@ -42,7 +42,8 @@ export type ProductRetrievalTerm = {
     | "APPROVED_ALIAS"
     | "TED_TERMINOLOGY"
     | "VERIFIED_PRODUCT_TERMINOLOGY"
-    | "DETERMINISTIC_VARIANT";
+    | "DETERMINISTIC_VARIANT"
+    | "SMART_RESOLVER_CANDIDATE";
   reason: string;
   familySignature: string;
 };

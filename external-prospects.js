@@ -57,7 +57,7 @@ function createWorkspace(options){
     notice:null,pollTimer:null,pollInFlight:false,destroyed:false,lastTerminalRun:null,retryMode:null,activeRequestMode:null,
     admin:{checked:false,allowed:false,dailyLimitReached:false},credits:{customer_fresh_enabled:false,credit_cost:1,balance:0,can_run_fresh:false,history:[]},freshDialogOpen:false,liveMessage:"",lastFreshResult:null,
     initialized:false,mode:null,selectedRunId:null,profileSelected:new Set(),websiteSelected:new Set(),
-    countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,
+    countryMode:"europe",selectedCountries:new Set(),adhocQuery:"",adhocResolution:null,resolvingProduct:false,
     filters:{query:"",country:"",market:"",type:"",evidence:"",score:"",freshness:"",status:"",sort:"score"}
   };
   const toast=message=>options.toast?.(message);
@@ -301,15 +301,20 @@ function createWorkspace(options){
   function adhocModeHtml(){
     const resolution=state.adhocResolution,recommended=resolution?.recommended,suggestions=list(resolution?.suggestions||resolution?.alternatives);
     let result="";
-    if(resolution?.resolution==="unmapped")result='<div class="mhxp-resolution" role="status"><span class="mhxp-kicker">No reliable category yet</span><b>We couldn’t confidently map this product to an existing MedicHall category yet.</b><p>MedicHall will search using the product name you entered and verify potential buyers using public product, procurement and company evidence.</p><div class="mhxp-resolution-actions"><button type="button" class="primary" data-action="search-anyway" '+(resolution.search_anyway_allowed===false?'disabled aria-disabled="true"':'')+'>'+(resolution.confirmed?'Searching as entered product ✓':'Search this product anyway')+'</button><button type="button" data-action="change-product">Try a different product name</button></div></div>';
+    if(state.resolvingProduct)result='<div class="mhxp-resolving" role="status" aria-live="polite"><span class="mhxp-resolver-spinner" aria-hidden="true"></span><div><span class="mhxp-kicker">Smart Product Resolver</span><b>Understanding your product…</b><p>Known products resolve instantly. MedicHall uses one bounded server-side resolver request only when deterministic product knowledge is insufficient.</p></div></div>';
+    else if(resolution?.resolution==="unmapped")result='<div class="mhxp-resolution" role="status"><span class="mhxp-kicker">No reliable category yet</span><b>We couldn’t confidently map this product to an existing MedicHall category yet.</b><p>MedicHall will search using the product name you entered and verify potential buyers using public product, procurement and company evidence.</p><div class="mhxp-resolution-actions"><button type="button" class="primary" data-action="search-anyway" '+(resolution.search_anyway_allowed===false?'disabled aria-disabled="true"':'')+'>'+(resolution.confirmed?'Searching as entered product ✓':'Search this product anyway')+'</button><button type="button" data-action="change-product">Try a different product name</button></div></div>';
+    else if(resolution?.resolution==="temporary_intent")result='<div class="mhxp-resolution smart" role="status"><span class="mhxp-kicker">Medical product recognized</span><b>'+esc(resolution.resolved_concept||resolution.temporary_intent_label||state.adhocQuery)+'</b><p>It is not yet a permanent MedicHall taxonomy category. Buyer Discovery can use this temporary product intent while keeping the same verified evidence rules.</p><div class="mhxp-term-list" aria-label="Commercial retrieval terminology">'+list(resolution.commercial_terms_en).slice(0,4).map(term=>'<span>'+esc(term)+'</span>').join("")+'</div><div class="mhxp-resolution-actions"><button type="button" class="primary" data-action="search-anyway">'+(resolution.confirmed?'Product confirmed ✓':'Find buyers')+'</button><button type="button" data-action="change-product">Try a different product name</button></div></div>';
+    else if(resolution?.resolution==="ambiguous")result='<div class="mhxp-resolution smart" role="status"><span class="mhxp-kicker">Clarification needed</span><b>Which product do you mean?</b><p>This wording can describe materially different medical products. Choose one so Buyer Discovery does not search the wrong product family.</p><div class="mhxp-clarification-list" role="group" aria-label="Product interpretations">'+list(resolution.clarification_options).slice(0,4).map((item,index)=>'<button type="button" data-action="clarify-product" data-option="'+index+'"><b>'+esc(item.label||item.canonical_concept)+'</b><span>'+esc(item.product_family)+'</span></button>').join("")+'</div><button type="button" data-action="change-product">Enter a more specific product</button></div>';
+    else if(resolution?.resolution==="non_medical")result='<div class="mhxp-resolution blocked" role="alert"><span class="mhxp-kicker">Medical product required</span><b>This doesn’t appear to be a medical product or category.</b><p>Enter the medical device, consumable, instrument or supply you want to find buyers for.</p><button type="button" data-action="change-product">Try a different product</button></div>';
+    else if(resolution?.resolution==="technical_failure")result='<div class="mhxp-resolution technical" role="status"><span class="mhxp-kicker">Resolver temporarily unavailable</span><b>We couldn’t resolve this product right now.</b><p>Existing buyer results remain unchanged. MedicHall will not repeatedly retry or start an uncertain search.</p><div class="mhxp-resolution-actions"><button type="button" class="primary" data-action="retry-product-resolution">Try again</button>'+(resolution.search_anyway_allowed?'<button type="button" data-action="search-anyway">Search as entered</button>':'')+'</div></div>';
     else if(resolution?.resolution==="high_confidence"&&recommended){
       const item={taxonomy_id:Number(recommended.canonical_taxonomy_id),canonical_name:recommended.canonical_name,slug:recommended.slug||""};
       result='<div class="mhxp-normalized" role="status"><span class="mhxp-kicker">Product matched</span><b>'+esc(item.canonical_name)+'</b><p>'+esc(recommended.reasoning||"Exact canonical name or approved alias.")+'</p><div><span class="mhxp-already">Ready to search ✓</span>'+productSuggestionActions(item,"AD_HOC_PRODUCT")+'</div></div>';
     }else if(recommended){
       const choices=(suggestions.length?suggestions:[recommended]).slice(0,3);
-      result='<div class="mhxp-resolution" role="status"><span class="mhxp-kicker">Possible product categories</span><b>'+(choices.length===1?'We found a likely product category:':'We found a few possible matches:')+'</b><p>Choose the category that best describes your product. MedicHall will not change your product or publish a new global alias.</p><div class="mhxp-suggestion-list" role="list">'+choices.map(item=>'<article role="listitem" class="'+(Number(resolution?.recommended?.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'recommended':'')+'"><div><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.confidence_label||"MEDIUM")+' confidence · '+esc(item.reasoning||"Multiple deterministic product-family signals.")+'</small></div><button type="button" class="primary" data-action="confirm-adhoc" data-taxonomy="'+Number(item.canonical_taxonomy_id)+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug||"")+'">'+(resolution.confirmed&&Number(recommended.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'Category confirmed ✓':'Use this category')+'</button></article>').join("")+'</div><button type="button" data-action="change-product">Choose another category or product name</button></div>';
+      result='<div class="mhxp-resolution '+(resolution.resolution==="smart_match"?'smart':'')+'" role="status"><span class="mhxp-kicker">'+(resolution.resolution==="smart_match"?'Likely medical product':'Possible product categories')+'</span><b>'+(choices.length===1?'We found a likely product:':'We found a few possible matches:')+'</b><p>Choose the product that best describes your intent. Smart Resolver candidates never become buyer evidence or permanent taxonomy aliases.</p><div class="mhxp-suggestion-list" role="list">'+choices.map(item=>'<article role="listitem" class="'+(Number(resolution?.recommended?.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'recommended':'')+'"><div><b>'+esc(item.canonical_name)+'</b><small>'+esc(item.confidence_label||"MEDIUM")+' confidence · '+esc(item.reasoning||"Validated product-family signals.")+'</small></div><button type="button" class="primary" data-action="confirm-adhoc" data-taxonomy="'+Number(item.canonical_taxonomy_id)+'" data-name="'+esc(item.canonical_name)+'" data-slug="'+esc(item.slug||"")+'">'+(resolution.confirmed&&Number(recommended.canonical_taxonomy_id)===Number(item.canonical_taxonomy_id)?'Product confirmed ✓':'Use this product')+'</button></article>').join("")+'</div><button type="button" data-action="change-product">Choose another product name</button></div>';
     }
-    return '<form class="mhxp-product-search" data-product-search><label for="mhxpProductQuery">Medical product or category</label><div><input id="mhxpProductQuery" name="product_query" maxlength="160" value="'+esc(state.adhocQuery)+'" placeholder="Enter a medical product, e.g. Ultrasound Probe Cover" aria-describedby="mhxp-product-help"><button class="primary" type="submit">Match product</button></div><p id="mhxp-product-help" class="mhxp-help">Commercial names and approved aliases are normalized to MedicHall’s existing Medical Product Taxonomy. No paid AI is used.</p></form>'+result;
+    return '<form class="mhxp-product-search" data-product-search><label for="mhxpProductQuery">Medical product or category</label><div><input id="mhxpProductQuery" name="product_query" maxlength="160" value="'+esc(state.adhocQuery)+'" placeholder="Enter a medical product, e.g. Ultrasound Probe Cover" aria-describedby="mhxp-product-help" '+(state.resolvingProduct?'disabled aria-disabled="true"':'')+'><button class="primary" type="submit" '+(state.resolvingProduct?'disabled aria-disabled="true"':'')+'>'+(state.resolvingProduct?'Understanding…':'Match product')+'</button></div><p id="mhxp-product-help" class="mhxp-help">Known products and approved aliases resolve deterministically. A bounded server-side Smart Resolver is used only when needed; buyer evidence rules never change.</p></form>'+result;
   }
   function websiteModeHtml(){
     const context=state.data.product_context||{},scan=list(state.data.website_scans)[0];
@@ -417,7 +422,7 @@ function createWorkspace(options){
     const ready=readiness();
     if(runMode!=="FRESH_DISCOVERY"&&!ready.ready){state.notice={tone:"neutral",title:"Confirm or resolve a product first.",message:"Choose a profile product, confirm a suggested category, select a website-detected category, or use bounded Search anyway for a valid unmapped medical product."};render();return;}
     state.discovering=true;state.activeRequestMode=runMode;state.notice=null;state.freshDialogOpen=false;lockDialogScroll(false);state.liveMessage=runMode==="NORMAL_DISCOVERY"?"Buyer Discovery started.":"Fresh discovery requested. Existing results remain available.";render();track("external_prospect_discovery_started");
-    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:discoveryIntent(),run_mode:runMode,...(runMode==="FRESH_DISCOVERY"?{base_run_id:freshBaseRun()?.id}:{})});
+    const request=options.edge("external-prospect-discovery",{operation:"discover",company_id:Number(options.companyId),idempotency_key:uuid(),intent:discoveryIntent(),run_mode:runMode,...(["FRESH_DISCOVERY","ADMIN_QA_FRESH"].includes(runMode)?{base_run_id:freshBaseRun()?.id}:{})});
     schedulePoll(700);
     try{
       const result=await request;
@@ -453,12 +458,25 @@ function createWorkspace(options){
   async function resolveAdhoc(){
     const query=state.adhocQuery.trim();
     if(query.length<3){state.notice={tone:"neutral",title:"Enter a specific medical product.",message:"Use at least three characters and describe a product or medical category."};render();return;}
-    state.notice=null;state.adhocResolution=null;render();
+    if(state.resolvingProduct)return;
+    state.resolvingProduct=true;state.notice=null;state.adhocResolution=null;state.liveMessage="Understanding your product.";render();
     try{
-      const result=await options.edge("external-prospect-discovery",{operation:"resolve_product_intent",company_id:Number(options.companyId),idempotency_key:uuid(),product_query:query});
+      const result=await options.edge("external-prospect-discovery",{operation:"resolve_product_intent",company_id:Number(options.companyId),idempotency_key:uuid(),product_query:query,input_language:String(document.documentElement?.lang||navigator.language||"und").slice(0,12)});
       state.adhocResolution={...result,confirmed:result?.resolution==="high_confidence",useUnmapped:false};
-    }catch(error){state.notice={tone:"failed",title:"This product could not be matched.",message:friendlyError(error)};}
-    render();
+      state.liveMessage=result?.resolution==="ambiguous"?"Product clarification is required.":result?.resolution==="technical_failure"?"Product Resolver is temporarily unavailable.":"Product understanding is ready.";
+    }catch(error){state.notice={tone:"failed",title:"Product Resolver is unavailable.",message:friendlyError(error)};}
+    finally{state.resolvingProduct=false;render();}
+  }
+  async function confirmClarification(optionIndex){
+    const resolution=state.adhocResolution,eventId=resolution?.resolution_event_id;
+    if(state.resolvingProduct||!eventId||!Number.isSafeInteger(optionIndex))return;
+    state.resolvingProduct=true;state.notice=null;state.liveMessage="Confirming your product selection.";render();
+    try{
+      const result=await options.edge("external-prospect-discovery",{operation:"confirm_product_resolution",company_id:Number(options.companyId),idempotency_key:uuid(),resolution_event_id:eventId,option_index:optionIndex});
+      state.adhocResolution={...resolution,...result,confirmed:true,useUnmapped:result?.use_unmapped===true||result?.resolution==="temporary_intent"};
+      state.liveMessage="Product selection confirmed.";
+    }catch(error){state.notice={tone:"failed",title:"This product choice could not be confirmed.",message:friendlyError(error)};}
+    finally{state.resolvingProduct=false;render();}
   }
   async function scanWebsite(force=false){
     if(state.scanning)return;
@@ -516,6 +534,8 @@ function createWorkspace(options){
       if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:false,recommended:{...(state.adhocResolution.recommended||{}),canonical_taxonomy_id:Number(target.dataset.taxonomy),canonical_name:target.dataset.name,slug:target.dataset.slug||""}};
       render();
     }
+    else if(action==="clarify-product")confirmClarification(Number(target.dataset.option));
+    else if(action==="retry-product-resolution")resolveAdhoc();
     else if(action==="search-anyway"){
       state.retryMode=null;
       if(state.adhocResolution)state.adhocResolution={...state.adhocResolution,confirmed:true,useUnmapped:true};
@@ -547,6 +567,12 @@ function createWorkspace(options){
   function onSubmit(event){if(event.target.matches("[data-product-search]")){event.preventDefault();resolveAdhoc();}}
   function onVisibility(){if(!document.hidden&&(isActive()||state.discovering))schedulePoll(100);}
   function onKeydown(event){
+    const clarification=event.target.closest?.('[data-action="clarify-product"]');
+    if(clarification&&["Enter"," "].includes(event.key)){
+      event.preventDefault();
+      confirmClarification(Number(clarification.dataset.option));
+      return;
+    }
     if(!state.freshDialogOpen)return;
     if(event.key==="Escape"){event.preventDefault();closeFreshDialog();return;}
     if(event.key!=="Tab")return;

@@ -69,6 +69,16 @@ import {
   resolveProductIntentDeterministically,
   unmappedWebsiteProductSuggestions,
 } from "../_shared/unknown-product-resolution.ts";
+import {
+  callSmartProductResolver,
+  DEFAULT_SMART_PRODUCT_RESOLVER_MODEL,
+  SMART_PRODUCT_RESOLVER_LIMITS,
+  SMART_PRODUCT_RESOLVER_VERSION,
+  smartResolutionFromOutput,
+  technicalResolverFailure,
+  validateSmartResolverInput,
+  validateSmartResolverOutput,
+} from "../_shared/smart-product-resolver.ts";
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
 import {
   buildDiscoverySearchPlan,
@@ -2393,7 +2403,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
   if (operation === "resolve_product_intent") {
     let productQuery: string;
     try {
-      productQuery = validateProductSearchQuery(body.product_query);
+      productQuery = validateSmartResolverInput(body.product_query);
     } catch (error) {
       return json(request, {
         error: error instanceof Error
@@ -2401,45 +2411,361 @@ async function handleDiscovery(request: Request): Promise<Response> {
           : "Invalid product query.",
       }, 400);
     }
-    let result;
+    let catalog;
+    let deterministic;
     try {
-      result = resolveProductIntentDeterministically(
+      catalog = await taxonomyCatalog(admin);
+      deterministic = resolveProductIntentDeterministically(
         productQuery,
-        await taxonomyCatalog(admin),
+        catalog,
       );
     } catch (_) {
       return json(request, { error: "Product taxonomy is unavailable." }, 503);
     }
-    if (result.resolution === "unmapped" && !result.search_anyway_allowed) {
+    const deterministicUnderstandsProduct =
+      deterministic.resolution !== "unmapped" ||
+      deterministic.search_anyway_allowed;
+    if (deterministicUnderstandsProduct) {
+      const event = await authClient.rpc("record_product_resolution_event_v1", {
+        p_company_id: companyId,
+        p_idempotency_key: idempotencyKey,
+        p_normalized_phrase: deterministic.normalized_source_text,
+        p_phrase_signature: deterministic.phrase_signature,
+        p_resolution_status: deterministic.resolution === "high_confidence"
+          ? "EXACT_APPROVED"
+          : deterministic.resolution === "medium_confidence"
+          ? "SUGGESTED"
+          : "UNMAPPED",
+        p_suggestions: deterministic.suggestions,
+      });
+      if (event.error) {
+        return json(
+          request,
+          { error: "Product resolution could not be saved." },
+          503,
+        );
+      }
       return json(request, {
-        error:
-          "Enter a specific medical product name, not a general web-search request.",
-      }, 400);
+        ok: true,
+        ...deterministic,
+        resolution_type: "DETERMINISTIC",
+        resolver_version: "DETERMINISTIC_V2",
+        semantic_provider_used: false,
+        provider_requests: 0,
+        estimated_cost_usd: 0,
+        cache_hit: false,
+        resolution_event_id: record(event.data).resolution_event_id || null,
+        confirmation_required: deterministic.resolution !== "high_confidence",
+      });
     }
-    const event = await authClient.rpc("record_product_resolution_event_v1", {
+
+    const selectedLanguage = String(body.input_language || "und").trim()
+      .toLowerCase().slice(0, 12);
+    const reservationResult = await admin.rpc(
+      "reserve_smart_product_resolution_v1",
+      {
+        p_company_id: companyId,
+        p_requested_by: user.id,
+        p_normalized_phrase: deterministic.normalized_source_text,
+        p_input_language: selectedLanguage,
+        p_resolver_version: SMART_PRODUCT_RESOLVER_VERSION,
+      },
+    );
+    if (reservationResult.error) {
+      return json(request, {
+        ok: true,
+        ...technicalResolverFailure({
+          sourceText: productQuery,
+          searchAnywayAllowed: false,
+        }),
+        confirmation_required: false,
+      });
+    }
+    const reservation = record(reservationResult.data);
+    const decision = String(reservation.decision || "");
+    if (["DISABLED", "IN_PROGRESS", "RECENT_FAILURE"].includes(decision)) {
+      return json(request, {
+        ok: true,
+        ...technicalResolverFailure({
+          sourceText: productQuery,
+          searchAnywayAllowed: false,
+        }),
+        confirmation_required: false,
+      });
+    }
+
+    const cacheId = String(reservation.cache_id || "");
+    let smartResult;
+    if (decision === "CACHED") {
+      try {
+        const output = validateSmartResolverOutput(
+          reservation.structured_result,
+          catalog,
+        );
+        smartResult = smartResolutionFromOutput({
+          sourceText: productQuery,
+          output,
+          taxonomyCatalog: catalog,
+          resolutionType: "CACHED_AI",
+          model: String(reservation.model_name || "") || null,
+          providerRequests: 0,
+          estimatedCostUsd: 0,
+          latencyMs: Number.isFinite(Number(reservation.latency_ms))
+            ? Number(reservation.latency_ms)
+            : null,
+        });
+      } catch (_) {
+        return json(request, {
+          ok: true,
+          ...technicalResolverFailure({
+            sourceText: productQuery,
+            searchAnywayAllowed: false,
+          }),
+          confirmation_required: false,
+        });
+      }
+    } else if (decision === "PROCEED" && UUID_PATTERN.test(cacheId)) {
+      const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") || "";
+      if (!anthropicKey) {
+        await admin.rpc("fail_smart_product_resolution_v1", {
+          p_cache_id: cacheId,
+          p_error_code: "PROVIDER_NOT_CONFIGURED",
+        });
+        return json(request, {
+          ok: true,
+          ...technicalResolverFailure({
+            sourceText: productQuery,
+            searchAnywayAllowed: false,
+          }),
+          confirmation_required: false,
+        });
+      }
+      const dailyLimit = Math.max(
+        1,
+        Math.min(100, Number(reservation.daily_limit) || 20),
+      );
+      const usageReservation = await admin.rpc("reserve_medichall_ai_request", {
+        p_user_id: user.id,
+        p_mode: "smart_product_resolver",
+        p_role: "company",
+        p_input_chars: productQuery.length,
+        p_daily_limit: dailyLimit,
+      });
+      const usageRow = record(
+        Array.isArray(usageReservation.data)
+          ? usageReservation.data[0]
+          : usageReservation.data,
+      );
+      if (usageReservation.error || usageRow.allowed !== true) {
+        await admin.rpc("fail_smart_product_resolution_v1", {
+          p_cache_id: cacheId,
+          p_error_code: usageReservation.error
+            ? "USAGE_RESERVATION_FAILED"
+            : "DAILY_LIMIT_REACHED",
+        });
+        return json(request, {
+          ok: true,
+          ...technicalResolverFailure({
+            sourceText: productQuery,
+            searchAnywayAllowed: false,
+          }),
+          confirmation_required: false,
+        });
+      }
+      const usageId = Number(usageRow.usage_id);
+      const model = String(
+        Deno.env.get("SMART_PRODUCT_RESOLVER_MODEL") ||
+          Deno.env.get("ANTHROPIC_MODEL") ||
+          DEFAULT_SMART_PRODUCT_RESOLVER_MODEL,
+      ).trim().slice(0, 100);
+      const inputPrice = boundedEnvironmentNumber(
+        Deno.env.get("SMART_PRODUCT_RESOLVER_INPUT_COST_PER_MILLION_TOKENS"),
+        1,
+        0,
+        1000,
+      );
+      const outputPrice = boundedEnvironmentNumber(
+        Deno.env.get("SMART_PRODUCT_RESOLVER_OUTPUT_COST_PER_MILLION_TOKENS"),
+        5,
+        0,
+        1000,
+      );
+      const maximumCost = boundedEnvironmentNumber(
+        Deno.env.get("MAX_SMART_PRODUCT_RESOLVER_COST_USD"),
+        SMART_PRODUCT_RESOLVER_LIMITS.maximumEstimatedCostUsd,
+        0.0001,
+        SMART_PRODUCT_RESOLVER_LIMITS.maximumEstimatedCostUsd,
+      );
+      if (Number.isSafeInteger(usageId) && usageId > 0) {
+        await admin.from("medichall_ai_usage").update({
+          feature: "smart_product_resolver",
+          company_id: companyId,
+          provider_name: "Anthropic",
+          model_name: model,
+          request_key:
+            `${SMART_PRODUCT_RESOLVER_VERSION}:${deterministic.phrase_signature}`,
+        }).eq("id", usageId);
+      }
+      try {
+        const provider = await callSmartProductResolver({
+          apiKey: anthropicKey,
+          model,
+          sourceText: productQuery,
+          selectedLanguage,
+          taxonomyCatalog: catalog,
+          inputUsdPerMillion: inputPrice,
+          outputUsdPerMillion: outputPrice,
+          maximumEstimatedCostUsd: maximumCost,
+        });
+        const completion = await admin.rpc(
+          "complete_smart_product_resolution_v1",
+          {
+            p_cache_id: cacheId,
+            p_structured_result: provider.output,
+            p_model_name: provider.model,
+            p_provider_request_id: provider.providerRequestId,
+            p_input_tokens: provider.inputTokens,
+            p_output_tokens: provider.outputTokens,
+            p_total_tokens: provider.totalTokens,
+            p_estimated_cost_usd: provider.estimatedCostUsd,
+            p_latency_ms: provider.latencyMs,
+          },
+        );
+        if (completion.error) {
+          throw new Error("SMART_RESOLVER_CACHE_WRITE_FAILED");
+        }
+        if (Number.isSafeInteger(usageId) && usageId > 0) {
+          await admin.from("medichall_ai_usage").update({
+            estimated_cost_usd: provider.estimatedCostUsd,
+          }).eq("id", usageId);
+          await admin.rpc("finish_medichall_ai_request", {
+            p_usage_id: usageId,
+            p_status: "completed",
+            p_output_chars: JSON.stringify(provider.output).length,
+            p_prompt_tokens: provider.inputTokens,
+            p_completion_tokens: provider.outputTokens,
+            p_total_tokens: provider.totalTokens,
+            p_error_code: null,
+          });
+        }
+        smartResult = smartResolutionFromOutput({
+          sourceText: productQuery,
+          output: provider.output,
+          taxonomyCatalog: catalog,
+          resolutionType: "AI",
+          model: provider.model,
+          providerRequests: 1,
+          estimatedCostUsd: provider.estimatedCostUsd,
+          latencyMs: provider.latencyMs,
+        });
+      } catch (error) {
+        const errorCode = String(
+          error instanceof Error ? error.message : "SMART_RESOLVER_FAILED",
+        ).toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 100) ||
+          "SMART_RESOLVER_FAILED";
+        console.error("smart_product_resolver_failed", {
+          error_code: errorCode,
+        });
+        await admin.rpc("fail_smart_product_resolution_v1", {
+          p_cache_id: cacheId,
+          p_error_code: errorCode,
+        });
+        if (Number.isSafeInteger(usageId) && usageId > 0) {
+          await admin.rpc("finish_medichall_ai_request", {
+            p_usage_id: usageId,
+            p_status: "failed",
+            p_output_chars: 0,
+            p_prompt_tokens: null,
+            p_completion_tokens: null,
+            p_total_tokens: null,
+            p_error_code: errorCode,
+          });
+        }
+        return json(request, {
+          ok: true,
+          ...technicalResolverFailure({
+            sourceText: productQuery,
+            searchAnywayAllowed: false,
+          }),
+          confirmation_required: false,
+        });
+      }
+    } else {
+      return json(request, {
+        ok: true,
+        ...technicalResolverFailure({
+          sourceText: productQuery,
+          searchAnywayAllowed: false,
+        }),
+        confirmation_required: false,
+      });
+    }
+
+    const event = await admin.rpc("record_smart_product_resolution_event_v1", {
       p_company_id: companyId,
+      p_requested_by: user.id,
       p_idempotency_key: idempotencyKey,
-      p_normalized_phrase: result.normalized_source_text,
-      p_phrase_signature: result.phrase_signature,
-      p_resolution_status: result.resolution === "high_confidence"
-        ? "EXACT_APPROVED"
-        : result.resolution === "medium_confidence"
-        ? "SUGGESTED"
-        : "UNMAPPED",
-      p_suggestions: result.suggestions,
+      p_cache_id: cacheId,
+      p_resolver_type: smartResult.resolution_type,
     });
     if (event.error) {
-      return json(
-        request,
-        { error: "Product resolution could not be saved." },
-        503,
-      );
+      return json(request, {
+        error: "Product resolution could not be saved.",
+      }, 503);
     }
     return json(request, {
       ok: true,
-      ...result,
+      ...smartResult,
+      resolver_version: SMART_PRODUCT_RESOLVER_VERSION,
       resolution_event_id: record(event.data).resolution_event_id || null,
-      confirmation_required: result.resolution !== "high_confidence",
+      confirmation_required: [
+        "smart_match",
+        "ambiguous",
+        "temporary_intent",
+      ].includes(smartResult.resolution),
+    });
+  }
+  if (operation === "confirm_product_resolution") {
+    const eventId = String(body.resolution_event_id || "");
+    const optionIndex = Number(body.option_index);
+    if (
+      !UUID_PATTERN.test(eventId) || !Number.isSafeInteger(optionIndex) ||
+      optionIndex < 0 || optionIndex > 3
+    ) {
+      return json(request, { error: "Valid clarification is required." }, 400);
+    }
+    const confirmed = await admin.rpc(
+      "confirm_smart_product_resolution_option_v1",
+      {
+        p_company_id: companyId,
+        p_requested_by: user.id,
+        p_event_id: eventId,
+        p_option_index: optionIndex,
+      },
+    );
+    if (confirmed.error) {
+      return json(
+        request,
+        { error: "This product clarification is no longer available." },
+        confirmed.error.code === "42501" ? 403 : 409,
+      );
+    }
+    const result = record(confirmed.data);
+    const suggestions = array(result.suggestions);
+    return json(request, {
+      ok: true,
+      ...result,
+      resolution: suggestions.length ? "smart_match" : "temporary_intent",
+      recommended: suggestions[0] || null,
+      alternatives: suggestions.slice(1),
+      search_anyway_allowed: !suggestions.length,
+      confirmation_required: false,
+      confirmed: true,
+      use_unmapped: !suggestions.length,
+      semantic_provider_used: false,
+      provider_requests: 0,
+      estimated_cost_usd: 0,
+      cache_hit: true,
     });
   }
   if (operation === "scan_company_products") {
@@ -2512,11 +2838,52 @@ async function handleDiscovery(request: Request): Promise<Response> {
   const intent = record(body.intent);
   const requestedRunMode = String(body.run_mode || "NORMAL_DISCOVERY")
     .trim().toUpperCase() as DiscoveryRunMode;
+  const intentEventId = String(intent.resolution_event_id || "");
+  let smartTemporaryIntent = false;
+  if (
+    String(intent.intent_source || "").toUpperCase() === "UNMAPPED_PRODUCT" &&
+    UUID_PATTERN.test(intentEventId)
+  ) {
+    const smartEvent = await admin.from("product_resolution_events").select(
+      "id,resolver_type,resolution_status,medical_product_confirmed,ambiguity",
+    ).eq("id", intentEventId).eq("company_id", companyId).eq(
+      "requested_by",
+      user.id,
+    ).maybeSingle();
+    smartTemporaryIntent = !smartEvent.error &&
+      ["AI", "CACHED_AI"].includes(String(smartEvent.data?.resolver_type)) &&
+      ["UNMAPPED", "UNMAPPED_SEARCH"].includes(
+        String(smartEvent.data?.resolution_status),
+      ) && smartEvent.data?.medical_product_confirmed === true &&
+      String(smartEvent.data?.ambiguity) === "NONE";
+  }
+  let smartAdminFresh = false;
+  const baseRunId = String(body.base_run_id || "");
+  if (requestedRunMode === "ADMIN_QA_FRESH" && UUID_PATTERN.test(baseRunId)) {
+    const baseRun = await admin.from("external_prospect_discovery_runs").select(
+      "id,intent_context",
+    ).eq("id", baseRunId).eq("company_id", companyId).maybeSingle();
+    smartAdminFresh = !baseRun.error && ["AI", "CACHED_AI"].includes(
+      String(record(baseRun.data?.intent_context).resolver_type || ""),
+    );
+  }
   const start = requestedRunMode === "FRESH_DISCOVERY"
     ? await authClient.rpc("start_customer_buyer_discovery_fresh_v1", {
       p_company_id: companyId,
       p_idempotency_key: idempotencyKey,
-      p_base_run_id: String(body.base_run_id || ""),
+      p_base_run_id: baseRunId,
+    })
+    : smartAdminFresh
+    ? await authClient.rpc("start_smart_product_admin_fresh_v1", {
+      p_company_id: companyId,
+      p_idempotency_key: idempotencyKey,
+      p_base_run_id: baseRunId,
+    })
+    : smartTemporaryIntent
+    ? await authClient.rpc("start_smart_external_prospect_discovery_v1", {
+      p_company_id: companyId,
+      p_idempotency_key: idempotencyKey,
+      p_intent: intent,
     })
     : await authClient.rpc("start_external_prospect_discovery_v3", {
       p_company_id: companyId,
@@ -2619,6 +2986,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ? buildTemporaryProductFamilyProfile({
         phrase: intentContext.normalized_product_phrase,
         intentHash,
+        smartResolution:
+          ["AI", "CACHED_AI"].includes(String(intentContext.resolver_type)) &&
+            String(intentContext.resolved_product_concept || "").trim() &&
+            String(intentContext.product_family || "").trim()
+            ? {
+              resolvedConcept: String(
+                intentContext.resolved_product_concept,
+              ),
+              productFamily: String(intentContext.product_family),
+              commercialTermsEn: texts(intentContext.commercial_terms_en),
+            }
+            : null,
       })
       : buildProductFamilyProfile(
         selectedTaxonomy.length

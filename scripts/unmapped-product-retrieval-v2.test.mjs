@@ -30,8 +30,9 @@ assert.match(relevance, /evidence\.sourceType !== "PUBLIC_REGISTRY"/);
 assert.match(publicWeb, /temporaryIntent\?\.retrievalTerms/);
 assert.match(publicWeb, /seenTerms/);
 
-const combined = [terminology, resolution, relevance, publicWeb, edge].join("\n");
-assert.doesNotMatch(combined, /ANTHROPIC_API_KEY|OPENAI_API_KEY/);
+const discoveryHandler = edge.slice(edge.indexOf('if (operation !== "discover")'));
+const combined = [terminology, resolution, relevance, publicWeb, discoveryHandler].join("\n");
+assert.doesNotMatch(combined, /callSmartProductResolver|api\.anthropic\.com|OPENAI_API_KEY/);
 assert.doesNotMatch(combined, /contact_email|contact_name|linkedin_url|whatsapp/i);
 assert.doesNotMatch(combined, /sendEmail|notification_outbox/i);
 assert.doesNotMatch(edge, /retrievalTerms\s*:\s*(?:body|payload|input)/);

@@ -42,8 +42,8 @@ for(const state of ["REQUESTED","ACCEPTED","FAILED_PRE_PROVIDER","COMPLETED"]){
 assert.doesNotMatch(ui,/localStorage[^\n]*(?:admin|role)|URLSearchParams[^\n]*(?:admin|role)|[?&]admin=/i);
 
 for(const page of [portal,standalone]){
-  assert.match(page,/external-prospects\.js\?v=20260826credits3/);
-  assert.match(page,/external-prospects\.css\?v=20260826credits3/);
+  assert.match(page,/external-prospects\.js\?v=20260827smart1/);
+  assert.match(page,/external-prospects\.css\?v=20260827smart1/);
 }
 for(const width of ["1024px","700px","430px"]){
   assert.match(css,new RegExp(width.replace(".","\\.")));

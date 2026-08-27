@@ -7,6 +7,7 @@ const read=path=>fs.readFileSync(path,"utf8");
 const uiSource=read("external-prospects.js");
 const cssSource=read("external-prospects.css");
 const edgeSource=read("supabase/functions/external-prospect-discovery/index.ts");
+const discoveryHandler=edgeSource.slice(edgeSource.indexOf('if (operation !== "discover")'));
 const migrationSource=read("supabase/migrations/202608260001_buyer_discovery_customer_credits.sql");
 const privilegeHotfixSource=read("supabase/migrations/202608270001_buyer_discovery_credit_ledger_privilege_hotfix.sql");
 const sqlTestSource=read("supabase/tests/buyer_discovery_customer_credits.sql");
@@ -93,14 +94,14 @@ test("admin grants are audited and Admin QA stays waived",()=>{
 
 test("Edge uses one canonical engine with an explicit debit and provider-start boundary",()=>{
   assert.match(edgeSource,/start_customer_buyer_discovery_fresh_v1/);
-  assert.match(edgeSource,/p_base_run_id: String\(body\.base_run_id/);
+  assert.match(edgeSource,/p_base_run_id: baseRunId/);
   assert.match(edgeSource,/accept_buyer_discovery_execution_v2/);
   assert.match(edgeSource,/mark_buyer_discovery_provider_started_v1/);
   assert.match(edgeSource,/NO_FRESH_SEARCH_SPACE/);
   assert.match(edgeSource,/credit_refunded/);
   assert.match(edgeSource,/credit_charged/);
   assert.match(edgeSource,/FAILED_POST_PROVIDER/);
-  assert.doesNotMatch(edgeSource,/sendEmail|createNotification|openai|anthropic/i);
+  assert.doesNotMatch(discoveryHandler,/sendEmail|createNotification|openai|api\.anthropic\.com|callSmartProductResolver/i);
 });
 
 function completedWorkspace(){
@@ -201,8 +202,8 @@ test("responsive/accessibility and cache-release contracts are present",()=>{
   assert.match(uiSource,/event\.key!=="Tab"/);
   assert.match(uiSource,/aria-live="polite"/);
   for(const page of [portalSource,standaloneSource]){
-    assert.match(page,/external-prospects\.css\?v=20260826credits3/);
-    assert.match(page,/external-prospects\.js\?v=20260826credits3/);
+    assert.match(page,/external-prospects\.css\?v=20260827smart1/);
+    assert.match(page,/external-prospects\.js\?v=20260827smart1/);
   }
 });
 

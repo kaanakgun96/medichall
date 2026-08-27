@@ -6,6 +6,7 @@ const ui=read("external-prospects.js"),css=read("external-prospects.css"),portal
 const standalone=read("matchmaking.html");
 const react=read("apps/portal-react/src/features/buyer-discovery/components/BuyerDiscoveryPage.tsx");
 const edge=read("supabase/functions/external-prospect-discovery/index.ts");
+const discoveryHandler=edge.slice(edge.indexOf('if (operation !== "discover")'));
 const website=read("supabase/functions/_shared/website-product-discovery.ts");
 const migration=read("supabase/migrations/202608240001_buyer_discovery_product_intents.sql");
 const sql=read("supabase/tests/buyer_discovery_product_intents.sql");
@@ -30,8 +31,8 @@ assert.match(ui,/mh_buyer_discovery_product_draft_v1/);
 assert.match(portal,/openBuyerDiscoveryProductDraft/);
 assert.match(portal,/prefill:suggestion/);
 assert.match(portal,/PRODUCT_DRAFT_GUARD\.load/);
-assert.match(standalone,/external-prospects\.js\?v=20260826credits3/);
-assert.match(portal,/external-prospects\.js\?v=20260826credits3/);
+assert.match(standalone,/external-prospects\.js\?v=20260827smart1/);
+assert.match(portal,/external-prospects\.js\?v=20260827smart1/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 
@@ -44,7 +45,7 @@ assert.match(edge,/WEBSITE_CROSS_DOMAIN_REDIRECT/);
 assert.match(edge,/normalizeDomain\(result\.resolvedUrl\) !== expectedDomain/);
 assert.match(edge,/contact_fields_collected: 0/);
 assert.match(edge,/provider_requests: 0/);
-assert.doesNotMatch(edge,/ANTHROPIC|OPENAI|RESEND_API_KEY|sendEmail|notification_outbox/i);
+assert.doesNotMatch(discoveryHandler,/callSmartProductResolver|api\.anthropic\.com|OPENAI|RESEND_API_KEY|sendEmail|notification_outbox/i);
 assert.match(website,/maximumPages: 12/);
 assert.match(website,/maximumDepth: 1/);
 assert.match(website,/maximumResponseBytes: 512_000/);

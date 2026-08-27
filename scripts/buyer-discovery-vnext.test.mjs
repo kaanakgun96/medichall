@@ -10,6 +10,7 @@ const planner = read(
   "supabase/functions/_shared/buyer-discovery-search-space.ts",
 );
 const edge = read("supabase/functions/external-prospect-discovery/index.ts");
+const discoveryHandler = edge.slice(edge.indexOf('if (operation !== "discover")'));
 const publicWeb = read("supabase/functions/_shared/public-web-discovery.ts");
 
 assert.match(migration, /buyer_discovery_search_spaces/);
@@ -57,8 +58,8 @@ assert.match(edge, /new_verified_buyers/);
 assert.match(edge, /previously_discovered_buyers/);
 assert.match(edge, /queryPlan: searchPlan\.publicWebQueries/);
 assert.doesNotMatch(edge, /body\.(?:queries|provider_queries|search_plan)/);
-assert.doesNotMatch(edge, /openai|anthropic/i);
-assert.doesNotMatch(edge, /send_email|send_message|create_notification/i);
+assert.doesNotMatch(discoveryHandler, /callSmartProductResolver|api\.anthropic\.com|openai/i);
+assert.doesNotMatch(discoveryHandler, /send_email|send_message|create_notification/i);
 
 assert.match(sqlRegression, /^begin;$/m);
 assert.match(sqlRegression, /^rollback;$/m);

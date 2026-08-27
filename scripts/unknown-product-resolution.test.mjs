@@ -35,8 +35,8 @@ assert.match(css, /mhxp-suggestion-list/);
 assert.match(css, /max-width:430px/);
 assert.match(css, /:focus-visible/);
 assert.match(css, /prefers-reduced-motion/);
-assert.match(portal, /external-prospects\.js\?v=20260826credits3/);
-assert.match(standalone, /external-prospects\.js\?v=20260826credits3/);
+assert.match(portal, /external-prospects\.js\?v=20260827smart1/);
+assert.match(standalone, /external-prospects\.js\?v=20260827smart1/);
 
 for (const object of [
   "product_resolution_events",
@@ -66,8 +66,9 @@ assert.match(resolution, /signal_sources/);
 assert.match(relevance, /temporaryPhraseMatches/);
 assert.match(website, /maximumPages: 12/);
 
-const combined = [edge, resolution, relevance, ui].join("\n");
-assert.doesNotMatch(combined, /ANTHROPIC_API_KEY|OPENAI_API_KEY|RESEND_API_KEY|sendEmail|notification_outbox/i);
+const discoveryHandler = edge.slice(edge.indexOf('if (operation !== "discover")'));
+const combined = [discoveryHandler, resolution, relevance, ui].join("\n");
+assert.doesNotMatch(combined, /callSmartProductResolver|api\.anthropic\.com|OPENAI_API_KEY|RESEND_API_KEY|sendEmail|notification_outbox/i);
 assert.doesNotMatch(combined, /contact_email|contact_name|linkedin_url|whatsapp/i);
 
 console.log("Unknown Product Resolution static/security/UI contract: PASSED");

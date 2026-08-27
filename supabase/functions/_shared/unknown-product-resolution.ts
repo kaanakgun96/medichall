@@ -1,4 +1,7 @@
-import type { ProductFamilyProfile } from "./buyer-discovery-relevance-v2.ts";
+import type {
+  ProductFamilyProfile,
+  ProductRetrievalTerm,
+} from "./buyer-discovery-relevance-v2.ts";
 import { validateProductSearchQuery } from "./website-product-discovery.ts";
 import {
   buildUnmappedProductRetrievalPlan,
@@ -539,8 +542,24 @@ export function resolveProductIntentDeterministically(
 export function buildTemporaryProductFamilyProfile(input: {
   phrase: unknown;
   intentHash: string;
+  smartResolution?: {
+    resolvedConcept: string;
+    productFamily: string;
+    commercialTermsEn: string[];
+  } | null;
 }): ProductFamilyProfile {
-  const safe = validateUnmappedMedicalProductPhrase(input.phrase);
+  const smart = input.smartResolution;
+  const safe = smart
+    ? (() => {
+      const displayPhrase = validateProductSearchQuery(input.phrase);
+      const normalizedPhrase = normalizeUnknownProductPhrase(displayPhrase);
+      return {
+        displayPhrase,
+        normalizedPhrase,
+        phraseSignature: productPhraseSignature(normalizedPhrase),
+      };
+    })()
+    : validateUnmappedMedicalProductPhrase(input.phrase);
   if (!/^[a-f0-9]{64}$/.test(input.intentHash)) {
     throw new Error("INVALID_TEMPORARY_INTENT_HASH");
   }
@@ -549,11 +568,49 @@ export function buildTemporaryProductFamilyProfile(input: {
     normalizedPhrase: safe.normalizedPhrase,
     phraseSignature: safe.phraseSignature,
   });
+  const smartConcept = smart
+    ? normalizeRetrievalTerm(smart.resolvedConcept)
+    : "";
+  const smartFamily = smart ? normalizeRetrievalTerm(smart.productFamily) : "";
+  const smartFamilySignature = smartFamily
+    ? `smart-${smartFamily.replace(/\s+/g, "-").slice(0, 80)}`
+    : retrieval.familySignature;
+  const smartTerms: ProductRetrievalTerm[] = smart
+    ? [smart.resolvedConcept, ...smart.commercialTermsEn].map<
+      ProductRetrievalTerm
+    >((term) => ({
+      term: String(term).normalize("NFC").replace(/\s+/g, " ").trim(),
+      normalizedTerm: normalizeRetrievalTerm(term),
+      language: "en",
+      countries: ["GB", "IE"],
+      confidence: "HIGH",
+      source: "SMART_RESOLVER_CANDIDATE",
+      reason:
+        "User-confirmed Smart Resolver product terminology; retrieval candidate only.",
+      familySignature: smartFamilySignature,
+    })).filter((term) => term.normalizedTerm.length >= 3)
+    : [];
+  const seenTerms = new Set<string>();
+  const retrievalTerms = [
+    retrieval.terms[0],
+    ...smartTerms,
+    ...retrieval.terms.slice(1),
+  ].filter((term): term is ProductRetrievalTerm => Boolean(term)).filter(
+    (term) => {
+      const key = `${term.language}:${term.normalizedTerm}`;
+      if (seenTerms.has(key)) return false;
+      seenTerms.add(key);
+      return true;
+    },
+  ).slice(0, 12);
+  const resolvedSignature = smartConcept
+    ? productPhraseSignature(smartConcept)
+    : safe.phraseSignature;
   return {
     key: `unmapped-${input.intentHash.slice(0, 24)}`,
-    label: safe.displayPhrase,
+    label: smart?.resolvedConcept || safe.displayPhrase,
     equipmentCoverKind: null,
-    directTerms: retrieval.terms.map((term) =>
+    directTerms: retrievalTerms.map((term) =>
       normalizeRetrievalTerm(term.term)
     ),
     adjacentTerms: [],
@@ -568,9 +625,9 @@ export function buildTemporaryProductFamilyProfile(input: {
     temporaryIntent: {
       normalizedPhrase: safe.normalizedPhrase,
       phraseSignature: safe.phraseSignature,
-      requiredTokens: safe.phraseSignature.split(" ").filter(Boolean),
-      familySignature: retrieval.familySignature,
-      retrievalTerms: retrieval.terms,
+      requiredTokens: resolvedSignature.split(" ").filter(Boolean),
+      familySignature: smartFamilySignature,
+      retrievalTerms,
     },
   };
 }

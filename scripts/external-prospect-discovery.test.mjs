@@ -7,6 +7,7 @@ const sqlTest = read("supabase/tests/external_prospect_discovery.sql");
 const registryMigration = read("supabase/migrations/202608200004_external_registry_coverage.sql");
 const registrySqlTest = read("supabase/tests/external_registry_coverage.sql");
 const edge = read("supabase/functions/external-prospect-discovery/index.ts");
+const discoveryHandler = edge.slice(edge.indexOf('if (operation !== "discover")'));
 const shared = read("supabase/functions/_shared/external-prospect-discovery.ts");
 const relevance = read("supabase/functions/_shared/buyer-discovery-relevance-v2.ts");
 const registries = read("supabase/functions/_shared/external-registry-adapters.ts");
@@ -149,7 +150,7 @@ assert.match(edge, /emails_sent: 0/);
 assert.match(edge, /external_registry_request_cache/);
 assert.match(edge, /registry_cache_hits/);
 assert.match(edge, /mapping_confidence: activity\.mappingConfidence/);
-assert.doesNotMatch(edge, /ANTHROPIC|OPENAI|RESEND_API_KEY|sendEmail|notification_outbox/i);
+assert.doesNotMatch(discoveryHandler, /callSmartProductResolver|api\.anthropic\.com|OPENAI|RESEND_API_KEY|sendEmail|notification_outbox/i);
 assert.doesNotMatch(edge, /organisation-email|winner-touchpoint-email/i);
 assert.doesNotMatch(edge, /google\.|bing\.|duckduckgo/i);
 assert.doesNotMatch(registries, /APOLLO|api\.apollo|contact_email|contact_name|linkedin_url/i);
@@ -166,8 +167,8 @@ assert.match(edge, /evidence_snapshot:[\s\S]*?matched_terms:/);
 assert.match(edge, /evidence_snapshot:[\s\S]*?commercial_reason:/);
 
 for (const page of [portal, standalone]) {
-  assert.match(page, /external-prospects\.css\?v=20260826credits3/);
-  assert.match(page, /external-prospects\.js\?v=20260826credits3/);
+  assert.match(page, /external-prospects\.css\?v=20260827smart1/);
+  assert.match(page, /external-prospects\.js\?v=20260827smart1/);
 }
 assert.match(portal, /European Buyer Discovery/);
 assert.match(portal, /#buyer-discovery/);
