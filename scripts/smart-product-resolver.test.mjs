@@ -10,6 +10,7 @@ const edge=read("supabase/functions/external-prospect-discovery/index.ts");
 const resolver=read("supabase/functions/_shared/smart-product-resolver.ts");
 const terminology=read("supabase/functions/_shared/unknown-product-resolution.ts");
 const migration=read("supabase/migrations/202608270002_smart_product_resolver_v1.sql");
+const compatibility=read("supabase/migrations/202608270003_smart_product_resolver_deterministic_compatibility.sql");
 const sql=read("supabase/tests/smart_product_resolver.sql");
 const portal=read("portal.html");
 const standalone=read("matchmaking.html");
@@ -51,6 +52,14 @@ test("persistence is versioned, tenant scoped, service controlled and rollout-sa
   assert.match(sql,/Resolver event idempotency failed/);
   assert.match(sql,/Smart result auto-published a global alias/);
   assert.match(sql,/customer Fresh must remain disabled/i);
+});
+
+test("deterministic resolver event writer remains compatible with required Smart Resolver metadata",()=>{
+  assert.match(compatibility,/create or replace function public\.record_product_resolution_event_v1/);
+  assert.match(compatibility,/normalized_phrase,[\s\S]*?input_normalized_phrase/);
+  assert.match(compatibility,/'DETERMINISTIC', 'DETERMINISTIC_V2'/);
+  assert.match(compatibility,/revoke all on function public\.record_product_resolution_event_v1/);
+  assert.match(sql,/Deterministic resolver event is incompatible with Smart Resolver metadata/);
 });
 
 test("UI exposes exact, smart, ambiguous, temporary, nonmedical and failure states accessibly",()=>{

@@ -8,6 +8,7 @@ begin
      or to_regprocedure('public.reserve_smart_product_resolution_v1(bigint,uuid,text,text,text)') is null
      or to_regprocedure('public.complete_smart_product_resolution_v1(uuid,jsonb,text,text,integer,integer,integer,numeric,integer)') is null
      or to_regprocedure('public.record_smart_product_resolution_event_v1(bigint,uuid,uuid,uuid,text)') is null
+     or to_regprocedure('public.record_product_resolution_event_v1(bigint,uuid,text,text,text,jsonb)') is null
      or to_regprocedure('public.confirm_smart_product_resolution_option_v1(bigint,uuid,uuid,integer)') is null
      or to_regprocedure('public.start_smart_external_prospect_discovery_v1(bigint,uuid,jsonb)') is null then
     raise exception 'Smart Product Resolver database contract is incomplete';
@@ -159,8 +160,33 @@ do $tenant_visibility$
 declare
   v_company bigint := (select company_id from smart_resolver_tenants where ordinal=1);
   v_other bigint := (select company_id from smart_resolver_tenants where ordinal=2);
+  v_key uuid := gen_random_uuid();
+  v_phrase text := public.normalize_unknown_product_phrase_v1('Camera Cover');
+  v_event jsonb;
 begin
-  if (select count(*) from public.product_resolution_events where company_id=v_company) <> 1
+  v_event := public.record_product_resolution_event_v1(
+    v_company,
+    v_key,
+    v_phrase,
+    public.unknown_product_phrase_signature_v1(v_phrase),
+    'EXACT_APPROVED',
+    '[]'::jsonb
+  );
+  if v_event->>'resolution_status' <> 'EXACT_APPROVED'
+     or not exists (
+       select 1 from public.product_resolution_events
+       where company_id=v_company and idempotency_key=v_key
+         and normalized_phrase=v_phrase
+         and input_normalized_phrase=v_phrase
+         and resolver_type='DETERMINISTIC'
+         and resolver_version='DETERMINISTIC_V2'
+         and confidence_label='HIGH'
+         and medical_product_confirmed
+         and user_decision='NOT_REQUIRED'
+     ) then
+    raise exception 'Deterministic resolver event is incompatible with Smart Resolver metadata';
+  end if;
+  if (select count(*) from public.product_resolution_events where company_id=v_company) <> 2
      or exists (select 1 from public.product_resolution_events where company_id=v_other) then
     raise exception 'Tenant-scoped resolver history visibility failed';
   end if;
