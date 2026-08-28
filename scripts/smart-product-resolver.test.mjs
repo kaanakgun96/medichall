@@ -36,6 +36,12 @@ test("layered resolver uses deterministic first, one service-side AI fallback, c
   assert.match(edge,/resolver_version: SMART_PRODUCT_RESOLVER_VERSION,[\s\S]*?implementation_version: SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION/);
   assert.match(resolver,/tool_choice:[\s\S]*?return_product_resolution/);
   assert.match(resolver,/Return the smallest valid tool object/);
+  assert.match(resolver,/MedicHall's medical-device B2B marketplace is trusted context/);
+  assert.match(resolver,/Apply a medical-domain prior before rejecting a phrase/);
+  assert.match(resolver,/Do not reject a short or single-word phrase/);
+  assert.match(resolver,/Explicit non-medical purpose or context overrides/);
+  assert.match(resolver,/trusted_classification_context:[\s\S]*?medical_domain_prior:[\s\S]*?explicit_non_medical_context_overrides: true/);
+  assert.doesNotMatch(resolver,/\b(?:glove|mesh|pump|drain|needle)\s*=/i);
   assert.match(resolver,/NON_MEDICAL_PRODUCT[\s\S]*?omit all optional medical fields/);
   assert.doesNotMatch(edge,/body\.(?:provider|model|api_key)/i);
 });

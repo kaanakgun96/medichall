@@ -74,13 +74,67 @@ Deno.test("known taxonomy and approved aliases remain deterministic with zero AI
   }
 });
 
-Deno.test("glove, mesh and abdominal mesh reach the bounded AI fallback instead of a hard failure", () => {
-  for (const phrase of ["glove", "mesh", "abdominal mesh"]) {
+Deno.test("underspecified medical forms reach AI fallback instead of a hard failure", () => {
+  for (
+    const phrase of [
+      "glove",
+      "mesh",
+      "pump",
+      "drain",
+      "needle",
+      "stapler",
+      "guidewire",
+      "abdominal mesh",
+    ]
+  ) {
     const result = resolveProductIntentDeterministically(phrase, catalog);
     assert.equal(result.resolution, "unmapped", phrase);
     assert.equal(result.search_anyway_allowed, false, phrase);
     assert.equal(result.provider_requests, 0, phrase);
   }
+  const catheter = resolveProductIntentDeterministically("catheter", catalog);
+  assert.equal(catheter.resolution, "unmapped");
+  assert.equal(catheter.search_anyway_allowed, true);
+  assert.equal(catheter.provider_requests, 0);
+});
+
+Deno.test("provider request applies a bounded medical-domain prior without a literal exception", () => {
+  const body = smartResolverProviderBody({
+    sourceText: "glove",
+    selectedLanguage: "en",
+    candidates: [],
+    model: "fixture-model",
+  });
+  const message = (body.messages as Array<{ content: string }>)[0];
+  const payload = JSON.parse(message.content);
+  assert.equal(payload.untrusted_product_phrase, "glove");
+  assert.equal(
+    payload.trusted_classification_context.platform,
+    "MedicHall medical-device B2B marketplace",
+  );
+  assert.match(
+    payload.trusted_classification_context.medical_domain_prior,
+    /plausible medical device/i,
+  );
+  assert.equal(
+    payload.trusted_classification_context
+      .explicit_non_medical_context_overrides,
+    true,
+  );
+  assert.equal(
+    payload.trusted_classification_context
+      .materially_different_medical_meanings_require_clarification,
+    true,
+  );
+  assert.deepEqual(payload.active_taxonomy_candidates, []);
+  const system = String(body.system);
+  assert.match(
+    system,
+    /Apply a medical-domain prior before rejecting a phrase/,
+  );
+  assert.match(system, /Do not reject a short or single-word phrase/);
+  assert.match(system, /Explicit non-medical purpose or context overrides/);
+  assert.doesNotMatch(system, /\b(?:glove|mesh|pump|drain|needle)\s*=/i);
 });
 
 Deno.test("unoptimized medical-product matrix accepts strict bounded structured interpretations", () => {
@@ -309,8 +363,9 @@ Deno.test("non-medical results cannot smuggle terminology or taxonomy", () => {
       "network mesh router",
       "football glove",
       "kitchen glove",
+      "boxing glove",
       "best pizza",
-      "cheap flight",
+      "cheap flights",
       "weather",
     ]
   ) {
