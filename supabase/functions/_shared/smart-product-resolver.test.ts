@@ -508,20 +508,6 @@ Deno.test("one provider call uses forced structured tool output and stays below 
     "product_family",
     "reason_code",
   ]);
-  const condition = (schema.allOf as Array<Record<string, unknown>>)[0];
-  const medicalProperties = (condition.then as {
-    properties: Record<string, Record<string, unknown>>;
-  }).properties;
-  assert.equal(medicalProperties.canonical_concept.minLength, 3);
-  assert.equal(medicalProperties.canonical_concept.maxLength, 120);
-  assert.equal(medicalProperties.product_family.minLength, 3);
-  assert.equal(medicalProperties.product_family.maxLength, 100);
-  const nonMedicalProperties = (condition.else as {
-    properties: Record<string, Record<string, unknown>>;
-  }).properties;
-  assert.equal(nonMedicalProperties.canonical_concept.const, "");
-  assert.equal(nonMedicalProperties.product_family.const, "");
-  assert.equal(nonMedicalProperties.clarification_options.maxItems, 0);
   const properties = schema.properties as Record<
     string,
     Record<string, unknown>
@@ -536,6 +522,124 @@ Deno.test("one provider call uses forced structured tool output and stays below 
     "product_family",
   ]);
   assert.equal(estimateSmartResolverCost(320, 120), .00092);
+});
+
+Deno.test("Anthropic tool schema excludes conditional composition while retaining required bounded fields", () => {
+  const body = smartResolverProviderBody({
+    sourceText: "glove",
+    selectedLanguage: "en",
+    candidates: catalog,
+    model: "fixture-model",
+  });
+  const tool = (body.tools as Array<Record<string, unknown>>)[0];
+  const schema = tool.input_schema as Record<string, unknown>;
+  const forbiddenKeywords = new Set(["allOf", "if", "then", "else", "const"]);
+  const foundForbiddenKeywords: string[] = [];
+  const inspect = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(inspect);
+      return;
+    }
+    if (value == null || typeof value !== "object") return;
+    for (const [key, nested] of Object.entries(value)) {
+      if (forbiddenKeywords.has(key)) foundForbiddenKeywords.push(key);
+      inspect(nested);
+    }
+  };
+  inspect(schema);
+
+  assert.deepEqual(foundForbiddenKeywords, []);
+  assert.equal(schema.type, "object");
+  assert.equal(schema.additionalProperties, false);
+  const required = schema.required as string[];
+  assert(required.includes("canonical_concept"));
+  assert(required.includes("product_family"));
+  const properties = schema.properties as Record<
+    string,
+    Record<string, unknown>
+  >;
+  assert.equal(properties.canonical_concept.type, "string");
+  assert.equal(properties.canonical_concept.maxLength, 120);
+  assert.equal(properties.product_family.type, "string");
+  assert.equal(properties.product_family.maxLength, 100);
+  assert.equal(properties.clarification_options.type, "array");
+  assert.equal(properties.clarification_options.maxItems, 4);
+});
+
+Deno.test("server validation enforces medical and non-medical concept state after provider output", () => {
+  for (
+    const invalid of [
+      output({
+        canonical_concept: "",
+        product_family: "Medical gloves",
+        commercial_terms_en: ["Medical glove"],
+      }),
+      output({
+        canonical_concept: "Medical glove",
+        product_family: "",
+        commercial_terms_en: ["Medical glove"],
+      }),
+    ]
+  ) {
+    assert.throws(
+      () => validateSmartResolverOutput(invalid, catalog),
+      /INVALID_CANONICAL_CONCEPT|INVALID_PRODUCT_FAMILY/,
+    );
+  }
+  assert.throws(() =>
+    validateSmartResolverOutput({
+      is_medical_product: false,
+      confidence: "HIGH",
+      ambiguity: "NONE",
+      input_language: "en",
+      canonical_concept: "Medical glove",
+      product_family: "Medical gloves",
+      reason_code: "NON_MEDICAL_PRODUCT",
+    }, catalog), /INVALID_CANONICAL_CONCEPT|INVALID_PRODUCT_FAMILY/);
+
+  assert.equal(
+    validateSmartResolverOutput(
+      output({
+        canonical_concept: "Abdominal wall surgical mesh",
+        product_family: "Surgical mesh",
+      }),
+      catalog,
+    ).reason_code,
+    "TEMPORARY_MEDICAL_INTENT",
+  );
+  assert.equal(
+    validateSmartResolverOutput({
+      is_medical_product: true,
+      confidence: "MEDIUM",
+      ambiguity: "MATERIAL",
+      input_language: "en",
+      canonical_concept: "Medical glove",
+      product_family: "Medical gloves",
+      clarification_options: [{
+        label: "Surgical glove",
+        canonical_concept: "Surgical glove",
+        product_family: "Medical gloves",
+      }, {
+        label: "Examination glove",
+        canonical_concept: "Examination glove",
+        product_family: "Medical gloves",
+      }],
+      reason_code: "AMBIGUOUS_MEDICAL_PRODUCT",
+    }, catalog).ambiguity,
+    "MATERIAL",
+  );
+  assert.equal(
+    validateSmartResolverOutput({
+      is_medical_product: false,
+      confidence: "HIGH",
+      ambiguity: "NONE",
+      input_language: "en",
+      canonical_concept: "",
+      product_family: "",
+      reason_code: "NON_MEDICAL_PRODUCT",
+    }, catalog).is_medical_product,
+    false,
+  );
 });
 
 Deno.test("provider accepts production-shaped ambiguity and canonical non-medical tool states", async () => {

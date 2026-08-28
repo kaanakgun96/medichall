@@ -692,38 +692,6 @@ export function smartResolverProviderBody(input: {
           "product_family",
           "reason_code",
         ],
-        allOf: [{
-          if: {
-            properties: { is_medical_product: { const: true } },
-            required: ["is_medical_product"],
-          },
-          then: {
-            properties: {
-              canonical_concept: {
-                type: "string",
-                minLength: 3,
-                maxLength: 120,
-              },
-              product_family: {
-                type: "string",
-                minLength: 3,
-                maxLength: 100,
-              },
-            },
-          },
-          else: {
-            properties: {
-              ambiguity: { const: "NONE" },
-              canonical_concept: { const: "" },
-              product_family: { const: "" },
-              suggested_taxonomy_ids: { maxItems: 0 },
-              suggested_labels: { maxItems: 0 },
-              commercial_terms_en: { maxItems: 0 },
-              clarification_options: { maxItems: 0 },
-              reason_code: { const: "NON_MEDICAL_PRODUCT" },
-            },
-          },
-        }],
         properties: {
           is_medical_product: { type: "boolean" },
           confidence: { type: "string", enum: ["HIGH", "MEDIUM", "LOW"] },
