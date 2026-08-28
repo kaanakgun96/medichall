@@ -42,7 +42,10 @@ test("layered resolver uses deterministic first, one service-side AI fallback, c
   assert.match(resolver,/Explicit non-medical purpose or context overrides/);
   assert.match(resolver,/trusted_classification_context:[\s\S]*?medical_domain_prior:[\s\S]*?explicit_non_medical_context_overrides: true/);
   assert.doesNotMatch(resolver,/\b(?:glove|mesh|pump|drain|needle)\s*=/i);
-  assert.match(resolver,/NON_MEDICAL_PRODUCT[\s\S]*?omit all optional medical fields/);
+  assert.match(resolver,/Every medical result must include a non-empty top-level canonical_concept and product_family/);
+  assert.match(resolver,/NON_MEDICAL_PRODUCT[\s\S]*?canonical_concept=''[\s\S]*?product_family=''[\s\S]*?omit all optional medical arrays/);
+  assert.match(resolver,/required: \[[\s\S]*?"canonical_concept"[\s\S]*?"product_family"[\s\S]*?"reason_code"/);
+  assert.match(resolver,/canonical_concept: \{ const: "" \}[\s\S]*?product_family: \{ const: "" \}/);
   assert.doesNotMatch(edge,/body\.(?:provider|model|api_key)/i);
 });
 

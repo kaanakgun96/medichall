@@ -207,15 +207,6 @@ function normalizedEnum<T extends string>(
   return normalized;
 }
 
-function optionalBoundedString(
-  value: unknown,
-  field: string,
-  maximum: number,
-): string {
-  if (value == null) return "";
-  return boundedString(value, field, 0, maximum, true);
-}
-
 function tokenSet(value: unknown): Set<string> {
   return new Set(
     normalizeUnknownProductPhrase(value).split(" ").filter((token) =>
@@ -304,7 +295,7 @@ export function validateSmartResolverOutput(
     "CONFIDENCE",
     { HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW" },
   );
-  let ambiguity = normalizedEnum<SmartResolverAmbiguity>(
+  const ambiguity = normalizedEnum<SmartResolverAmbiguity>(
     input.ambiguity,
     "AMBIGUITY",
     {
@@ -380,19 +371,36 @@ export function validateSmartResolverOutput(
     if (reasonCode !== "NON_MEDICAL_PRODUCT") {
       throw new Error("INVALID_NON_MEDICAL_RESULT");
     }
-    optionalBoundedString(input.canonical_concept, "CANONICAL_CONCEPT", 120);
-    optionalBoundedString(input.product_family, "PRODUCT_FAMILY", 100);
-    if (taxonomyIds.length || rawClarificationOptions.length) {
+    const canonicalConcept = boundedString(
+      input.canonical_concept,
+      "CANONICAL_CONCEPT",
+      0,
+      0,
+      true,
+    );
+    const productFamily = boundedString(
+      input.product_family,
+      "PRODUCT_FAMILY",
+      0,
+      0,
+      true,
+    );
+    if (
+      ambiguity !== "NONE" ||
+      taxonomyIds.length ||
+      suggestedLabels.length ||
+      commercialTerms.length ||
+      rawClarificationOptions.length
+    ) {
       throw new Error("INVALID_NON_MEDICAL_RESULT");
     }
-    ambiguity = "NONE";
     return {
       is_medical_product: false,
       confidence,
       ambiguity,
       input_language: inputLanguage,
-      canonical_concept: "",
-      product_family: "",
+      canonical_concept: canonicalConcept,
+      product_family: productFamily,
       suggested_taxonomy_ids: [],
       suggested_labels: [],
       commercial_terms_en: [],
@@ -661,8 +669,9 @@ export function smartResolverProviderBody(input: {
       "Explicit non-medical purpose or context overrides the medical-domain prior. Return non-medical only when the phrase is clearly outside medical products after applying that rule.",
       "Use a taxonomy_id only when it appears in active_taxonomy_candidates. Otherwise return a temporary medical intent.",
       "Return the smallest valid tool object. Distinguish: resolved medical product, ambiguous medical product, temporary/unmapped medical intent, and clearly non-medical input.",
+      "Every medical result must include a non-empty top-level canonical_concept and product_family within the declared bounds.",
       "Materially ambiguous products require 2 to 4 concise clarification options; do not silently choose one. Omit optional option taxonomy IDs and commercial terms unless needed.",
-      "For clearly non-medical, unsafe, or generic web-search input, set is_medical_product=false, ambiguity=NONE, reason_code=NON_MEDICAL_PRODUCT, and omit all optional medical fields.",
+      "For clearly non-medical, unsafe, or generic web-search input, set is_medical_product=false, ambiguity=NONE, reason_code=NON_MEDICAL_PRODUCT, canonical_concept='', product_family='', and omit all optional medical arrays.",
       "Uncertainty about a legitimate medical phrase requires clarification; it is not non-medical and not a technical failure.",
       "Commercial terms must stay inside one product family and be English retrieval candidates only.",
       "Do not include URLs, contacts, secrets, explanations, citations, or prose outside the tool call.",
@@ -679,8 +688,42 @@ export function smartResolverProviderBody(input: {
           "confidence",
           "ambiguity",
           "input_language",
+          "canonical_concept",
+          "product_family",
           "reason_code",
         ],
+        allOf: [{
+          if: {
+            properties: { is_medical_product: { const: true } },
+            required: ["is_medical_product"],
+          },
+          then: {
+            properties: {
+              canonical_concept: {
+                type: "string",
+                minLength: 3,
+                maxLength: 120,
+              },
+              product_family: {
+                type: "string",
+                minLength: 3,
+                maxLength: 100,
+              },
+            },
+          },
+          else: {
+            properties: {
+              ambiguity: { const: "NONE" },
+              canonical_concept: { const: "" },
+              product_family: { const: "" },
+              suggested_taxonomy_ids: { maxItems: 0 },
+              suggested_labels: { maxItems: 0 },
+              commercial_terms_en: { maxItems: 0 },
+              clarification_options: { maxItems: 0 },
+              reason_code: { const: "NON_MEDICAL_PRODUCT" },
+            },
+          },
+        }],
         properties: {
           is_medical_product: { type: "boolean" },
           confidence: { type: "string", enum: ["HIGH", "MEDIUM", "LOW"] },

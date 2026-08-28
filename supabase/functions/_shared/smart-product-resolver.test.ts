@@ -74,6 +74,16 @@ Deno.test("known taxonomy and approved aliases remain deterministic with zero AI
   }
 });
 
+Deno.test("Arterial Venous Set remains a safe deterministic unmapped intent", () => {
+  const result = resolveProductIntentDeterministically(
+    "Arterial Venous Set",
+    catalog,
+  );
+  assert.equal(result.resolution, "unmapped");
+  assert.equal(result.provider_requests, 0);
+  assert.equal(result.semantic_provider_used, false);
+});
+
 Deno.test("underspecified medical forms reach AI fallback instead of a hard failure", () => {
   for (
     const phrase of [
@@ -386,23 +396,20 @@ Deno.test("non-medical results cannot smuggle terminology or taxonomy", () => {
   }
 });
 
-Deno.test("non-medical state discards bounded irrelevant labels without becoming a technical failure", () => {
-  const validated = validateSmartResolverOutput({
-    is_medical_product: false,
-    confidence: "high",
-    ambiguity: "uncertain",
-    input_language: "en",
-    canonical_concept: "Wire mesh fence",
-    product_family: "Fencing products",
-    suggested_labels: ["Wire mesh fence"],
-    commercial_terms_en: ["Wire mesh fence"],
-    reason_code: "non-medical",
-  }, catalog);
-  assert.equal(validated.is_medical_product, false);
-  assert.equal(validated.ambiguity, "NONE");
-  assert.equal(validated.reason_code, "NON_MEDICAL_PRODUCT");
-  assert.equal(validated.canonical_concept, "");
-  assert.deepEqual(validated.commercial_terms_en, []);
+Deno.test("non-medical state rejects non-canonical fields and medical terminology", () => {
+  assert.throws(() =>
+    validateSmartResolverOutput({
+      is_medical_product: false,
+      confidence: "high",
+      ambiguity: "uncertain",
+      input_language: "en",
+      canonical_concept: "Wire mesh fence",
+      product_family: "Fencing products",
+      suggested_labels: ["Wire mesh fence"],
+      commercial_terms_en: ["Wire mesh fence"],
+      clarification_options: [],
+      reason_code: "non-medical",
+    }, catalog), /INVALID_CANONICAL_CONCEPT|INVALID_NON_MEDICAL_RESULT/);
 });
 
 Deno.test("URL, code, SQL and prompt-injection input is rejected before provider use", () => {
@@ -497,8 +504,24 @@ Deno.test("one provider call uses forced structured tool output and stays below 
     "confidence",
     "ambiguity",
     "input_language",
+    "canonical_concept",
+    "product_family",
     "reason_code",
   ]);
+  const condition = (schema.allOf as Array<Record<string, unknown>>)[0];
+  const medicalProperties = (condition.then as {
+    properties: Record<string, Record<string, unknown>>;
+  }).properties;
+  assert.equal(medicalProperties.canonical_concept.minLength, 3);
+  assert.equal(medicalProperties.canonical_concept.maxLength, 120);
+  assert.equal(medicalProperties.product_family.minLength, 3);
+  assert.equal(medicalProperties.product_family.maxLength, 100);
+  const nonMedicalProperties = (condition.else as {
+    properties: Record<string, Record<string, unknown>>;
+  }).properties;
+  assert.equal(nonMedicalProperties.canonical_concept.const, "");
+  assert.equal(nonMedicalProperties.product_family.const, "");
+  assert.equal(nonMedicalProperties.clarification_options.maxItems, 0);
   const properties = schema.properties as Record<
     string,
     Record<string, unknown>
@@ -515,7 +538,7 @@ Deno.test("one provider call uses forced structured tool output and stays below 
   assert.equal(estimateSmartResolverCost(320, 120), .00092);
 });
 
-Deno.test("provider accepts compact ambiguity and non-medical tool states", async () => {
+Deno.test("provider accepts production-shaped ambiguity and canonical non-medical tool states", async () => {
   const fixtures = [{
     phrase: "glove",
     input: {
@@ -544,8 +567,8 @@ Deno.test("provider accepts compact ambiguity and non-medical tool states", asyn
       confidence: "HIGH",
       ambiguity: "NONE",
       input_language: "en",
-      canonical_concept: "Wire mesh fence",
-      product_family: "Fencing",
+      canonical_concept: "",
+      product_family: "",
       reason_code: "NON_MEDICAL",
     },
     expected: "NON_MEDICAL_PRODUCT",
@@ -574,6 +597,61 @@ Deno.test("provider accepts compact ambiguity and non-medical tool states", asyn
     });
     assert.equal(response.output.reason_code, fixture.expected, fixture.phrase);
   }
+});
+
+Deno.test("medical tool output missing canonical concept is rejected by both contracts", async () => {
+  const body = smartResolverProviderBody({
+    sourceText: "glove",
+    selectedLanguage: "en",
+    candidates: [],
+    model: "fixture-model",
+  });
+  const tool = (body.tools as Array<Record<string, unknown>>)[0];
+  const schema = tool.input_schema as { required: string[] };
+  assert(schema.required.includes("canonical_concept"));
+  assert(schema.required.includes("product_family"));
+
+  await assert.rejects(
+    () =>
+      callSmartProductResolver({
+        apiKey: "test-key-not-a-real-secret",
+        sourceText: "glove",
+        taxonomyCatalog: catalog,
+        fetcher: (() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: "fixture-request",
+                stop_reason: "tool_use",
+                usage: { input_tokens: 240, output_tokens: 80 },
+                content: [{
+                  type: "tool_use",
+                  name: "return_product_resolution",
+                  input: {
+                    is_medical_product: true,
+                    confidence: "MEDIUM",
+                    ambiguity: "MATERIAL",
+                    input_language: "en",
+                    product_family: "Medical gloves",
+                    clarification_options: [{
+                      label: "Surgical gloves",
+                      canonical_concept: "Surgical gloves",
+                      product_family: "Medical gloves",
+                    }, {
+                      label: "Examination gloves",
+                      canonical_concept: "Examination gloves",
+                      product_family: "Medical gloves",
+                    }],
+                    reason_code: "AMBIGUOUS_MEDICAL_PRODUCT",
+                  },
+                }],
+              }),
+              { status: 200 },
+            ),
+          )) as typeof fetch,
+      }),
+    /INVALID_CANONICAL_CONCEPT/,
+  );
 });
 
 Deno.test("true provider and schema failures remain technical failures for routing", async () => {
