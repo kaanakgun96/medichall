@@ -81,6 +81,30 @@ with inserted as (
 update smart_resolver_tenants fixture set company_id=inserted.id
 from inserted where inserted.owner_id=fixture.user_id;
 
+select set_config('request.jwt.claims',
+  jsonb_build_object('role','service_role')::text,true);
+set local role service_role;
+do $disabled_feature_gate$
+declare
+  v_company bigint := (select company_id from smart_resolver_tenants where ordinal=1);
+  v_user uuid := (select user_id from smart_resolver_tenants where ordinal=1);
+  v_reserved jsonb;
+begin
+  v_reserved := public.reserve_smart_product_resolution_v1(
+    v_company,v_user,'abdominal mesh','en','SMART_PRODUCT_RESOLVER_V1'
+  );
+  if v_reserved->>'decision' <> 'DISABLED'
+     or v_reserved->>'resolver_version' <> 'SMART_PRODUCT_RESOLVER_V1'
+     or exists (
+       select 1 from public.smart_product_resolution_cache
+       where company_id=v_company and normalized_phrase='abdominal mesh'
+     ) then
+    raise exception 'Disabled resolver created a reservation or cache row';
+  end if;
+end
+$disabled_feature_gate$;
+reset role;
+
 -- This update represents an explicit deployment/rollout action. It rolls back.
 update public.smart_product_resolver_feature_state
 set smart_resolver_enabled=true where singleton;

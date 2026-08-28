@@ -14,6 +14,7 @@ const compatibility=read("supabase/migrations/202608270003_smart_product_resolve
 const sql=read("supabase/tests/smart_product_resolver.sql");
 const portal=read("portal.html");
 const standalone=read("matchmaking.html");
+const migrationFiles=fs.readdirSync("supabase/migrations").filter(name=>/^\d+.*\.sql$/.test(name)).sort();
 
 new Function(ui);
 
@@ -28,7 +29,11 @@ test("layered resolver uses deterministic first, one service-side AI fallback, c
   assert.match(resolver,/maximumOutputTokens: 450/);
   assert.match(resolver,/timeoutMs: 8_000/);
   assert.match(resolver,/maximumEstimatedCostUsd: 0\.005/);
-  assert.match(resolver,/SMART_PRODUCT_RESOLVER_V1_1/);
+  assert.match(resolver,/SMART_PRODUCT_RESOLVER_VERSION = "SMART_PRODUCT_RESOLVER_V1"/);
+  assert.match(resolver,/SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION =[\s\S]*?"SMART_PRODUCT_RESOLVER_V1_1"/);
+  assert.match(edge,/p_resolver_version: SMART_PRODUCT_RESOLVER_VERSION/);
+  assert.doesNotMatch(edge,/p_resolver_version: SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION/);
+  assert.match(edge,/resolver_version: SMART_PRODUCT_RESOLVER_VERSION,[\s\S]*?implementation_version: SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION/);
   assert.match(resolver,/tool_choice:[\s\S]*?return_product_resolution/);
   assert.match(resolver,/Return the smallest valid tool object/);
   assert.match(resolver,/NON_MEDICAL_PRODUCT[\s\S]*?omit all optional medical fields/);
@@ -55,6 +60,8 @@ test("persistence is versioned, tenant scoped, service controlled and rollout-sa
   assert.match(sql,/Resolver event idempotency failed/);
   assert.match(sql,/Smart result auto-published a global alias/);
   assert.match(sql,/customer Fresh must remain disabled/i);
+  assert.match(sql,/Disabled resolver created a reservation or cache row/);
+  assert.equal(migrationFiles.at(-1),"202608270003_smart_product_resolver_deterministic_compatibility.sql");
 });
 
 test("deterministic resolver event writer remains compatible with required Smart Resolver metadata",()=>{

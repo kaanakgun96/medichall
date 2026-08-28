@@ -9,7 +9,11 @@ import {
 } from "./unknown-product-resolution.ts";
 import { validateProductSearchQuery } from "./website-product-discovery.ts";
 
-export const SMART_PRODUCT_RESOLVER_VERSION = "SMART_PRODUCT_RESOLVER_V1_1";
+// This identifier is persisted by the existing feature-state, reservation,
+// cache, usage and resolver-event contracts. Patch releases must not fork it.
+export const SMART_PRODUCT_RESOLVER_VERSION = "SMART_PRODUCT_RESOLVER_V1";
+export const SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION =
+  "SMART_PRODUCT_RESOLVER_V1_1";
 export const DEFAULT_SMART_PRODUCT_RESOLVER_MODEL = "claude-haiku-4-5";
 
 export const SMART_PRODUCT_RESOLVER_LIMITS = Object.freeze({

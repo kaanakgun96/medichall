@@ -72,6 +72,7 @@ import {
 import {
   callSmartProductResolver,
   DEFAULT_SMART_PRODUCT_RESOLVER_MODEL,
+  SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION,
   SMART_PRODUCT_RESOLVER_LIMITS,
   SMART_PRODUCT_RESOLVER_VERSION,
   smartResolutionFromOutput,
@@ -2717,6 +2718,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ok: true,
       ...smartResult,
       resolver_version: SMART_PRODUCT_RESOLVER_VERSION,
+      implementation_version: SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION,
       resolution_event_id: record(event.data).resolution_event_id || null,
       confirmation_required: [
         "smart_match",

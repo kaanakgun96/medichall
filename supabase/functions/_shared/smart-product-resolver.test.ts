@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   callSmartProductResolver,
   estimateSmartResolverCost,
+  SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION,
+  SMART_PRODUCT_RESOLVER_VERSION,
   smartResolutionFromOutput,
   smartResolverProviderBody,
   type ValidatedSmartResolverOutput,
@@ -14,6 +16,14 @@ import {
   resolveProductIntentDeterministically,
 } from "./unknown-product-resolution.ts";
 import { classifyEvidenceForProduct } from "./buyer-discovery-relevance-v2.ts";
+
+Deno.test("V1.1 implementation retains the production V1 feature identifier", () => {
+  assert.equal(SMART_PRODUCT_RESOLVER_VERSION, "SMART_PRODUCT_RESOLVER_V1");
+  assert.equal(
+    SMART_PRODUCT_RESOLVER_IMPLEMENTATION_VERSION,
+    "SMART_PRODUCT_RESOLVER_V1_1",
+  );
+});
 
 const catalog: ResolutionTaxonomyNode[] = [{
   id: 10,
