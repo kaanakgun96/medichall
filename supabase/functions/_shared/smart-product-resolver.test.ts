@@ -194,6 +194,64 @@ Deno.test("materially ambiguous glove, mesh, drain, pump and needle require 2-4 
   }
 });
 
+Deno.test("compact ambiguity variants normalize without optional repeated terminology", () => {
+  for (const phrase of ["glove", "needle", "pump", "drain"]) {
+    const validated = validateSmartResolverOutput({
+      is_medical_product: true,
+      confidence: "medium",
+      ambiguity: "ambiguous",
+      input_language: "en",
+      canonical_concept: `Medical ${phrase}`,
+      product_family: `Medical ${phrase} products`,
+      clarification_options: [{
+        label: `Surgical ${phrase}`,
+        canonical_concept: `Surgical ${phrase}`,
+        product_family: `Medical ${phrase} products`,
+      }, {
+        label: `Other medical ${phrase}`,
+        canonical_concept: `Medical ${phrase}`,
+        product_family: `Medical ${phrase} products`,
+      }],
+      reason_code: "ambiguous",
+    }, catalog);
+    assert.equal(validated.ambiguity, "MATERIAL", phrase);
+    assert.equal(validated.reason_code, "AMBIGUOUS_MEDICAL_PRODUCT", phrase);
+    assert.deepEqual(
+      validated.clarification_options.map((option) =>
+        option.commercial_terms_en
+      ),
+      [[`Surgical ${phrase}`], [`Medical ${phrase}`]],
+      phrase,
+    );
+  }
+});
+
+Deno.test("cached smart resolution reuses the validated state without another provider request", () => {
+  const validated = validateSmartResolverOutput(
+    output({
+      canonical_concept: "Electrocardiography electrode",
+      product_family: "Diagnostic electrodes",
+    }),
+    catalog,
+  );
+  const cached = smartResolutionFromOutput({
+    sourceText: "ECG Electrode",
+    output: validated,
+    taxonomyCatalog: catalog,
+    resolutionType: "CACHED_AI",
+    model: "fixture-model",
+    providerRequests: 0,
+    estimatedCostUsd: 0,
+    latencyMs: null,
+  });
+  assert.equal(cached.resolution, "temporary_intent");
+  assert.equal(cached.resolved_concept, "Electrocardiography electrode");
+  assert.equal(cached.cache_hit, true);
+  assert.equal(cached.semantic_provider_used, false);
+  assert.equal(cached.provider_requests, 0);
+  assert.equal(cached.estimated_cost_usd, 0);
+});
+
 Deno.test("typo, natural wording and multilingual inputs preserve source while normalizing concept", () => {
   const fixtures = [
     ["surgicl mesh", "en", "Surgical mesh"],
@@ -263,6 +321,25 @@ Deno.test("non-medical results cannot smuggle terminology or taxonomy", () => {
   }
 });
 
+Deno.test("non-medical state discards bounded irrelevant labels without becoming a technical failure", () => {
+  const validated = validateSmartResolverOutput({
+    is_medical_product: false,
+    confidence: "high",
+    ambiguity: "uncertain",
+    input_language: "en",
+    canonical_concept: "Wire mesh fence",
+    product_family: "Fencing products",
+    suggested_labels: ["Wire mesh fence"],
+    commercial_terms_en: ["Wire mesh fence"],
+    reason_code: "non-medical",
+  }, catalog);
+  assert.equal(validated.is_medical_product, false);
+  assert.equal(validated.ambiguity, "NONE");
+  assert.equal(validated.reason_code, "NON_MEDICAL_PRODUCT");
+  assert.equal(validated.canonical_concept, "");
+  assert.deepEqual(validated.commercial_terms_en, []);
+});
+
 Deno.test("URL, code, SQL and prompt-injection input is rejected before provider use", () => {
   for (
     const phrase of [
@@ -300,6 +377,7 @@ Deno.test("model output enforces active IDs, bounds, family consistency and unce
         product_family: "Medical gloves",
         confidence: "LOW",
         ambiguity: "UNCERTAIN",
+        reason_code: "AMBIGUOUS_MEDICAL_PRODUCT",
       }),
       catalog,
     ), /UNCERTAIN_RESULT_REQUIRES_OPTIONS/);
@@ -347,7 +425,153 @@ Deno.test("one provider call uses forced structured tool output and stays below 
   });
   assert.equal(body.temperature, 0);
   assert.equal((body.tool_choice as { type: string }).type, "tool");
+  const tool = (body.tools as Array<Record<string, unknown>>)[0];
+  const schema = tool.input_schema as Record<string, unknown>;
+  assert.deepEqual(schema.required, [
+    "is_medical_product",
+    "confidence",
+    "ambiguity",
+    "input_language",
+    "reason_code",
+  ]);
+  const properties = schema.properties as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const optionSchema = properties.clarification_options.items as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(optionSchema.required, [
+    "label",
+    "canonical_concept",
+    "product_family",
+  ]);
   assert.equal(estimateSmartResolverCost(320, 120), .00092);
+});
+
+Deno.test("provider accepts compact ambiguity and non-medical tool states", async () => {
+  const fixtures = [{
+    phrase: "glove",
+    input: {
+      is_medical_product: true,
+      confidence: "MEDIUM",
+      ambiguity: "AMBIGUOUS",
+      input_language: "en",
+      canonical_concept: "Medical glove",
+      product_family: "Medical glove products",
+      clarification_options: [{
+        label: "Surgical glove",
+        canonical_concept: "Surgical glove",
+        product_family: "Medical glove products",
+      }, {
+        label: "Examination glove",
+        canonical_concept: "Examination glove",
+        product_family: "Medical glove products",
+      }],
+      reason_code: "AMBIGUOUS",
+    },
+    expected: "AMBIGUOUS_MEDICAL_PRODUCT",
+  }, {
+    phrase: "wire mesh fence",
+    input: {
+      is_medical_product: false,
+      confidence: "HIGH",
+      ambiguity: "NONE",
+      input_language: "en",
+      canonical_concept: "Wire mesh fence",
+      product_family: "Fencing",
+      reason_code: "NON_MEDICAL",
+    },
+    expected: "NON_MEDICAL_PRODUCT",
+  }] as const;
+  for (const fixture of fixtures) {
+    const response = await callSmartProductResolver({
+      apiKey: "test-key-not-a-real-secret",
+      sourceText: fixture.phrase,
+      taxonomyCatalog: catalog,
+      fetcher: (() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: "fixture-request",
+              stop_reason: "tool_use",
+              usage: { input_tokens: 260, output_tokens: 90 },
+              content: [{
+                type: "tool_use",
+                name: "return_product_resolution",
+                input: fixture.input,
+              }],
+            }),
+            { status: 200 },
+          ),
+        )) as typeof fetch,
+    });
+    assert.equal(response.output.reason_code, fixture.expected, fixture.phrase);
+  }
+});
+
+Deno.test("true provider and schema failures remain technical failures for routing", async () => {
+  await assert.rejects(
+    () =>
+      callSmartProductResolver({
+        apiKey: "test-key-not-a-real-secret",
+        sourceText: "medical glove",
+        taxonomyCatalog: catalog,
+        fetcher: (() =>
+          Promise.reject(
+            new DOMException("timed out", "TimeoutError"),
+          )) as typeof fetch,
+      }),
+    /timed out/,
+  );
+  await assert.rejects(
+    () =>
+      callSmartProductResolver({
+        apiKey: "test-key-not-a-real-secret",
+        sourceText: "medical glove",
+        taxonomyCatalog: catalog,
+        fetcher: (() =>
+          Promise.resolve(
+            new Response("not-json", { status: 200 }),
+          )) as typeof fetch,
+      }),
+    /JSON|Unexpected token/i,
+  );
+  for (
+    const fixture of [{
+      stop_reason: "max_tokens",
+      content: [],
+    }, {
+      stop_reason: "tool_use",
+      content: [{
+        type: "tool_use",
+        name: "return_product_resolution",
+        input: { is_medical_product: true, confidence: "UNKNOWN" },
+      }],
+    }]
+  ) {
+    await assert.rejects(
+      () =>
+        callSmartProductResolver({
+          apiKey: "test-key-not-a-real-secret",
+          sourceText: "medical glove",
+          taxonomyCatalog: catalog,
+          fetcher: (() =>
+            Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  id: "fixture-request",
+                  usage: { input_tokens: 100, output_tokens: 30 },
+                  ...fixture,
+                }),
+                { status: 200 },
+              ),
+            )) as typeof fetch,
+        }),
+      /SMART_RESOLVER_TRUNCATED|INVALID_SMART_RESOLVER_SCHEMA|INVALID_CONFIDENCE/,
+    );
+  }
 });
 
 Deno.test("AI terminology creates retrieval candidates but never buyer evidence by itself", () => {

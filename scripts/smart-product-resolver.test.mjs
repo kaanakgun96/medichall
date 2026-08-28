@@ -28,7 +28,10 @@ test("layered resolver uses deterministic first, one service-side AI fallback, c
   assert.match(resolver,/maximumOutputTokens: 450/);
   assert.match(resolver,/timeoutMs: 8_000/);
   assert.match(resolver,/maximumEstimatedCostUsd: 0\.005/);
+  assert.match(resolver,/SMART_PRODUCT_RESOLVER_V1_1/);
   assert.match(resolver,/tool_choice:[\s\S]*?return_product_resolution/);
+  assert.match(resolver,/Return the smallest valid tool object/);
+  assert.match(resolver,/NON_MEDICAL_PRODUCT[\s\S]*?omit all optional medical fields/);
   assert.doesNotMatch(edge,/body\.(?:provider|model|api_key)/i);
 });
 
@@ -129,6 +132,18 @@ test("technical failure keeps results unchanged and provides explicit retry",asy
   assert.equal(h.calls.length,1);
 });
 
+test("non-medical state has a clear message and cannot expose clarification or Search Anyway",async()=>{
+  const h=harness({resolution:"non_medical",search_anyway_allowed:false,clarification_options:[]});
+  await h.component.load();
+  h.listeners.get("input")({target:{id:"mhxpProductQuery",value:"wire mesh fence"}});
+  h.listeners.get("submit")({target:{matches:()=>true},preventDefault(){}});
+  await flush();
+  assert.match(h.root.innerHTML,/This doesn’t appear to be a medical product or category/);
+  assert.doesNotMatch(h.root.innerHTML,/data-action="search-anyway"/);
+  assert.doesNotMatch(h.root.innerHTML,/data-action="clarify-product"/);
+  assert.equal(h.calls.length,1);
+});
+
 test("clarification choices preserve native button semantics and Enter cannot double-submit",async()=>{
   const h=harness({
     resolution:"ambiguous",resolution_event_id:"20000000-0000-4000-8000-000000000002",
@@ -149,4 +164,31 @@ test("clarification choices preserve native button semantics and Enter cannot do
   assert.equal(h.calls.filter(item=>item.operation==="confirm_product_resolution").length,1);
   assert.match(h.root.innerHTML,/Medical product recognized/);
   assert.doesNotMatch(h.root.innerHTML,/role="listitem"/);
+});
+
+test("Space activates one clarification request and exclusive busy state blocks double-submit",async()=>{
+  let complete;
+  const pending=new Promise(resolve=>{complete=resolve;});
+  const h=harness({
+    resolution:"ambiguous",resolution_event_id:"20000000-0000-4000-8000-000000000002",
+    clarification_options:[
+      {label:"Surgical gloves",canonical_concept:"Surgical glove",product_family:"Medical gloves"},
+      {label:"Examination gloves",canonical_concept:"Examination glove",product_family:"Medical gloves"}
+    ]
+  },pending);
+  await h.component.load();
+  h.listeners.get("input")({target:{id:"mhxpProductQuery",value:"glove"}});
+  h.listeners.get("submit")({target:{matches:()=>true},preventDefault(){}});
+  await flush();
+  const target={dataset:{option:"0"},closest:selector=>selector.includes("clarify-product")?target:null};
+  const event={target,key:" ",preventDefault(){}};
+  h.listeners.get("keydown")(event);
+  h.listeners.get("keydown")(event);
+  await flush();
+  assert.equal(h.calls.filter(item=>item.operation==="confirm_product_resolution").length,1);
+  assert.match(h.root.innerHTML,/Understanding your product…|Confirming/);
+  assert.doesNotMatch(h.root.innerHTML,/data-action="clarify-product"/);
+  complete({ok:true,resolution:"temporary_intent",resolved_concept:"Surgical glove",product_family:"Medical gloves",commercial_terms_en:["Surgical glove"],use_unmapped:true});
+  await flush();
+  assert.match(h.root.innerHTML,/Medical product recognized/);
 });
