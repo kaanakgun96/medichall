@@ -51,7 +51,6 @@ import {
   prioritizedWebsiteUrls,
   type ProductTaxonomyCandidate,
   sitemapProductUrls,
-  validateProductSearchQuery,
   WEBSITE_PRODUCT_SCAN_LIMITS,
   type WebsiteProductSignal,
 } from "../_shared/website-product-discovery.ts";
@@ -83,6 +82,7 @@ import {
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
 import {
   buildDiscoverySearchPlan,
+  buildPartitionPersistenceRows,
   classifyDiscoveryResultState,
   type DiscoveryResultState,
   type DiscoveryRunMode,
@@ -3146,19 +3146,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
     }).filter((item, index, values) =>
       values.findIndex((candidate) => candidate.query === item.query) === index
     ).slice(0, searchPlan.budget.maximumTedRequests);
-    const partitionRows = searchPlan.selectedPartitions.map((partition) => ({
-      search_space_id: searchSpaceId,
-      partition_key: partition.partitionKey,
-      provider_kind: partition.providerKind,
-      partition_type: partition.partitionType,
-      terminology: partition.terminology,
-      language_code: partition.language,
-      country_codes: partition.countryCodes,
-      market_region: partition.marketRegion,
-      buyer_archetype: partition.buyerArchetype,
-      retrieval_kind: partition.retrievalKind,
-      priority: partition.priority,
-    }));
+    const partitionRows = buildPartitionPersistenceRows(
+      searchSpaceId,
+      searchPlan.selectedPartitions,
+    );
     if (partitionRows.length) {
       const partitionSeed = await admin.from("buyer_discovery_partitions")
         .upsert(partitionRows, {

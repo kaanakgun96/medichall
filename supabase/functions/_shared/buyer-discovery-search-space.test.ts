@@ -4,7 +4,9 @@ const assertEquals: typeof assert.deepEqual = assert.deepEqual;
 const assertNotEquals: typeof assert.notEqual = assert.notEqual;
 import {
   adaptiveDiscoveryBudget,
+  assertValidPartitionPriorities,
   buildDiscoverySearchPlan,
+  buildPartitionPersistenceRows,
   classifyDiscoveryResultState,
   classifyProductMarketProfile,
   discoverySaturation,
@@ -59,6 +61,17 @@ const cameraCover = knownProfile({
 const arterialVenous = buildTemporaryProductFamilyProfile({
   phrase: "arterial venous set",
   intentHash: "a".repeat(64),
+});
+const productionGloveTemporaryIntent = buildTemporaryProductFamilyProfile({
+  phrase: "glove",
+  intentHash: "b".repeat(64),
+  smartResolution: {
+    resolvedConcept: "Latex or nitrile examination glove for clinical use",
+    productFamily: "Medical Examination Gloves",
+    commercialTermsEn: [
+      "Latex or nitrile examination glove for clinical use",
+    ],
+  },
 });
 
 Deno.test("A/B/L/M: known and unmapped products receive deterministic adaptive profiles", () => {
@@ -229,6 +242,88 @@ Deno.test("P/Z/AA/AB: profile expansion changes retrieval only and preserves can
   assertNotEquals(camera.productProfile, "BROAD");
 });
 
+Deno.test("temporary Smart Resolver intent produces finite persistence priorities", () => {
+  assertEquals(productionGloveTemporaryIntent.procedurePack, undefined);
+  const plan = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: productionGloveTemporaryIntent,
+    targetCountries: [],
+    cpvCodes: [],
+  });
+  assertEquals(plan.productProfile, "STANDARD");
+  assertEquals(plan.publicWebQueries.length, 6);
+  assertEquals(plan.tedPartitions.length, 4);
+  assertEquals(plan.selectedPartitions.length, 10);
+  assert(
+    plan.selectedPartitions.every((partition) =>
+      Number.isFinite(partition.priority) &&
+      Number.isInteger(partition.priority) &&
+      partition.priority >= 0 && partition.priority <= 200
+    ),
+  );
+
+  const rows = buildPartitionPersistenceRows(
+    "11111111-1111-4111-8111-111111111111",
+    plan.selectedPartitions,
+  );
+  assertEquals(rows.length, 10);
+  assert(
+    rows.every((row) => Number.isFinite(row.priority)),
+    "persistence payload priorities must remain finite",
+  );
+  assert.doesNotMatch(JSON.stringify(rows), /"priority":null/);
+});
+
+Deno.test("invalid partition priorities fail before persistence", () => {
+  const plan = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: cameraCover,
+    targetCountries: [],
+    cpvCodes: ["33140000"],
+  });
+  for (const priority of [Number.NaN, Infinity, null, -1, 201, 1.5]) {
+    const invalid = [{
+      ...plan.selectedPartitions[0],
+      priority: priority as number,
+    }];
+    assert.throws(
+      () => assertValidPartitionPriorities(invalid),
+      /DISCOVERY_PARTITION_PRIORITY_INVALID/,
+    );
+    assert.throws(
+      () => buildPartitionPersistenceRows("search-space", invalid),
+      /DISCOVERY_PARTITION_PRIORITY_INVALID/,
+    );
+  }
+});
+
+Deno.test("Camera Cover and UNMAPPED product planner priorities remain finite", () => {
+  assertEquals(cameraCover.procedurePack, false);
+  const camera = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: cameraCover,
+    targetCountries: [],
+    cpvCodes: ["33140000"],
+  });
+  assertEquals(camera.publicWebQueries.length, 4);
+  assertEquals(camera.tedPartitions.length, 4);
+  assert(
+    camera.selectedPartitions.every((item) => Number.isFinite(item.priority)),
+  );
+
+  assertEquals(arterialVenous.procedurePack, undefined);
+  const unmapped = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: arterialVenous,
+    targetCountries: [],
+    cpvCodes: [],
+  });
+  assert(unmapped.selectedPartitions.length > 0);
+  assert(
+    unmapped.selectedPartitions.every((item) => Number.isFinite(item.priority)),
+  );
+});
+
 Deno.test("search saturation is reported without claiming market exhaustion", () => {
   const plan = buildDiscoverySearchPlan({
     runMode: "ADMIN_QA_FRESH",
@@ -255,6 +350,10 @@ Deno.test("General Procedure Packs initial plan spans reviewed terms and commerc
     targetCountries: [],
     cpvCodes: ["33140000"],
   });
+  assertEquals(profile.procedurePack, true);
+  assert(
+    plan.selectedPartitions.every((item) => Number.isFinite(item.priority)),
+  );
   const terms = new Set(
     plan.selectedPartitions.flatMap((item) => item.terminology),
   );

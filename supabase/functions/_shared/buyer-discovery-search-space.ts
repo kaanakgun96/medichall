@@ -66,6 +66,20 @@ export type DiscoverySearchPlan = {
   saturation: "NONE" | "DECLINING_YIELD" | "ZERO_RECENT_YIELD";
 };
 
+export type PartitionPersistenceRow = {
+  search_space_id: string;
+  partition_key: string;
+  provider_kind: DiscoveryProviderKind;
+  partition_type: SearchSpacePartition["partitionType"];
+  terminology: string[];
+  language_code: string;
+  country_codes: string[];
+  market_region: string;
+  buyer_archetype: SearchSpacePartition["buyerArchetype"];
+  retrieval_kind: SearchSpacePartition["retrievalKind"];
+  priority: number;
+};
+
 export const BUYER_DISCOVERY_VNEXT_LIMITS = Object.freeze({
   maximumGeneratedPartitions: 240,
   maximumTrackedTerms: 24,
@@ -439,6 +453,7 @@ function buildUniverse(input: {
   const markets = marketsFor(input.targetCountries);
   const productProfile = classifyProductMarketProfile(input.productFamily);
   const archetypes = archetypesFor(productProfile, input.productFamily);
+  const isProcedurePack = Boolean(input.productFamily.procedurePack);
   const web: SearchSpacePartition[] = [];
   const seenWeb = new Set<string>();
   for (const term of terms) {
@@ -476,7 +491,7 @@ function buildUniverse(input: {
           Number(term.language === market.language) * 8 +
           Number(archetype === "DISTRIBUTOR" || archetype === "IMPORTER") * 6 +
           Number(
-              input.productFamily.procedurePack &&
+              isProcedurePack &&
                 [
                   "PROCEDURE_PACK_MANUFACTURER",
                   "KIT_ASSEMBLER",
@@ -655,6 +670,7 @@ export function buildDiscoverySearchPlan(input: {
     budget.maximumTedRequests,
   );
   const selectedPartitions = [...web, ...ted];
+  assertValidPartitionPriorities(selectedPartitions);
   const saturation = discoverySaturation(input.recentFreshYields || []);
   const selectedUnusedCount =
     selectedPartitions.filter((item) => !history.has(item.partitionKey)).length;
@@ -678,6 +694,41 @@ export function buildDiscoverySearchPlan(input: {
         .length,
     saturation,
   };
+}
+
+export function assertValidPartitionPriorities(
+  partitions: Array<Pick<SearchSpacePartition, "priority">>,
+): void {
+  if (
+    partitions.some((partition) =>
+      typeof partition.priority !== "number" ||
+      !Number.isFinite(partition.priority) ||
+      !Number.isInteger(partition.priority) ||
+      partition.priority < 0 || partition.priority > 200
+    )
+  ) {
+    throw new Error("DISCOVERY_PARTITION_PRIORITY_INVALID");
+  }
+}
+
+export function buildPartitionPersistenceRows(
+  searchSpaceId: string,
+  partitions: SearchSpacePartition[],
+): PartitionPersistenceRow[] {
+  assertValidPartitionPriorities(partitions);
+  return partitions.map((partition) => ({
+    search_space_id: searchSpaceId,
+    partition_key: partition.partitionKey,
+    provider_kind: partition.providerKind,
+    partition_type: partition.partitionType,
+    terminology: partition.terminology,
+    language_code: partition.language,
+    country_codes: partition.countryCodes,
+    market_region: partition.marketRegion,
+    buyer_archetype: partition.buyerArchetype,
+    retrieval_kind: partition.retrievalKind,
+    priority: partition.priority,
+  }));
 }
 
 export function discoverySaturation(
