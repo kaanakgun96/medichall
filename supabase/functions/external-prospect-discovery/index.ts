@@ -2187,6 +2187,8 @@ async function persistCandidate(
       product_family_key: productFamily.key,
       product_family_label: productFamily.label,
       commercial_fit: score.commercialFitClassification,
+      commercial_buyer_grade: score.commercialBuyerGrade,
+      buyer_role_confidence: score.buyerRoleConfidence,
       qualification_path: score.qualificationPath,
       company_identity_source: safeIdentitySource,
       company_identity_confidence: candidate.identityConfidence || "LOW",
@@ -3647,6 +3649,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
       candidates_by_source: ranking.diagnostics.candidatesBySource,
       evidence_by_class: ranking.diagnostics.evidenceByClass,
       buyer_archetypes: ranking.diagnostics.buyerArchetypes,
+      direct_buyers: ranking.diagnostics.directBuyers,
+      adjacent_buyers: ranking.diagnostics.adjacentBuyers,
+      product_relevant_not_buyer: ranking.diagnostics.productRelevantNotBuyer,
       generic_only_rejected: ranking.diagnostics.genericOnlyRejected,
       product_family_mismatch_rejected:
         ranking.diagnostics.productFamilyMismatchRejected,

@@ -460,7 +460,7 @@ Deno.test("request keys change by product/market but remain stable for retries",
   assert(one !== different, "legitimate product change must change cache key");
 });
 
-Deno.test("search hit alone never scores; verified official page can become DIRECT", () => {
+Deno.test("search hit alone never scores; verified product plus buyer role can become DIRECT", () => {
   const prospects = publicWebCandidatesToProspects({
     candidates: [{
       name: "QA Medical SRL",
@@ -489,6 +489,7 @@ Deno.test("search hit alone never scores; verified official page can become DIRE
     taxonomyIds: [336],
   };
   prospects[0].evidence.push(websiteEvidence);
+  prospects[0].companyType = "Distributor";
   prospects[0].organizationType = "COMMERCIAL_COMPANY";
   prospects[0].identityConfidence = "MEDIUM";
   prospects[0].commercialIdentityVerified = true;
@@ -499,7 +500,7 @@ Deno.test("search hit alone never scores; verified official page can become DIRE
   });
   assert(
     verified.accepted.length === 1,
-    "official exact product page must qualify through the V2.1 gate",
+    "official exact product page plus distributor role must qualify through the buyer gate",
   );
   assert(
     verified.accepted[0].score.directEvidenceCount === 1,
@@ -544,6 +545,7 @@ Deno.test("verified C-Arm and Microscope official pages remain DIRECT", () => {
       evidenceDate: "2026-08-24",
       taxonomyIds: [1],
     });
+    candidate.companyType = "Distributor";
     candidate.organizationType = "COMMERCIAL_COMPANY";
     candidate.identityConfidence = "MEDIUM";
     candidate.commercialIdentityVerified = true;
@@ -598,6 +600,7 @@ Deno.test("verified procedure-pack company can become ADJACENT without an exact 
   assert(
     ranked.accepted[0].score.commercialFitClassification ===
         "ADJACENT_COMMERCIAL_FIT" &&
+      ranked.accepted[0].score.commercialBuyerGrade === "ADJACENT_BUYER" &&
       ranked.accepted[0].score.reasonSummary.includes(
         "exact current product availability is not claimed",
       ),

@@ -136,10 +136,19 @@ Deno.test("golden benchmark: 16 European business patterns classify from evidenc
       score.commercialFitClassification === fixture.expectedClassification,
       `${fixture.company} ${fixture.product}: expected ${fixture.expectedClassification}, got ${score.commercialFitClassification}`,
     );
-    if ("minimumScore" in fixture) {
+    if (
+      "minimumScore" in fixture &&
+      score.commercialBuyerGrade !== "PRODUCT_RELEVANT_NOT_BUYER"
+    ) {
       assert(
         score.relevanceScore >= Number(fixture.minimumScore),
         `${fixture.company}: score ${score.relevanceScore} below ${fixture.minimumScore}`,
+      );
+    }
+    if (score.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER") {
+      assert(
+        !score.eligible && score.relevanceScore <= 54,
+        `${fixture.company}: product relevance without buyer intent must not qualify`,
       );
     }
     if ("maximumScore" in fixture) {
@@ -353,7 +362,9 @@ Deno.test("evidence and candidates deduplicate before relevance ranking", () => 
     now: new Date("2026-08-24T00:00:00Z"),
   });
   assert(
-    ranking.accepted.length === 1,
-    "one evidence-backed candidate must remain",
+    ranking.accepted.length === 0 && ranking.rejected.length === 1 &&
+      ranking.rejected[0].score.commercialBuyerGrade ===
+        "PRODUCT_RELEVANT_NOT_BUYER",
+    "deduplication must retain one product-relevant manufacturer without promoting it to buyer",
   );
 });

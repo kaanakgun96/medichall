@@ -5,6 +5,15 @@ import type {
 
 export type ProductEvidenceClass = "DIRECT" | "ADJACENT" | "GENERIC";
 
+export type CommercialBuyerGrade =
+  | "DIRECT_BUYER"
+  | "ADJACENT_BUYER"
+  | "PRODUCT_RELEVANT_NOT_BUYER"
+  | "GENERIC_SUPPORT"
+  | "REJECTED";
+
+export type BuyerRoleConfidence = "HIGH" | "MEDIUM" | "LOW" | "NONE";
+
 export type BuyerArchetype =
   | "DISTRIBUTOR"
   | "IMPORTER"
@@ -14,6 +23,7 @@ export type BuyerArchetype =
   | "OEM_PRIVATE_LABEL"
   | "MANUFACTURER"
   | "TENDER_SUPPLIER"
+  | "PROCUREMENT_ORGANIZATION"
   | "UNKNOWN";
 
 export type BuyerArchetypeSignal = {
@@ -223,12 +233,17 @@ export type CandidateCompatibility = {
   independentDirectSourceCount: number;
   independentAdjacentSourceCount: number;
   archetypes: BuyerArchetypeSignal[];
+  buyerRoleConfidence: BuyerRoleConfidence;
+  buyerRoleScore: number;
+  credibleBuyerRole: boolean;
   commercialReason: string;
-  classification:
+  productClassification:
     | "DIRECT_PRODUCT_FIT"
     | "ADJACENT_COMMERCIAL_FIT"
     | "GENERIC_ONLY"
     | "PRODUCT_FAMILY_MISMATCH";
+  classification: CommercialBuyerGrade;
+  negativeProductContext: boolean;
   mismatch: boolean;
 };
 
@@ -452,6 +467,150 @@ function evidenceText(evidence: ProspectEvidence): string {
   );
 }
 
+// Ambiguous product nouns require a medical context before a literal match can
+// become product evidence. These are domain controls, not product aliases: the
+// same rule protects every temporary or taxonomy-backed intent that contains
+// an otherwise ordinary commercial word.
+const AMBIGUOUS_PRODUCT_NOUNS = new Set([
+  "blanket",
+  "cover",
+  "drain",
+  "electrode",
+  "glove",
+  "gloves",
+  "mesh",
+  "needle",
+  "needles",
+  "pack",
+  "probe",
+  "pump",
+  "set",
+  "stapler",
+  "tube",
+  "tubing",
+]);
+
+const MEDICAL_CONTEXT_PATTERN = new RegExp(
+  [
+    "medical",
+    "clinical",
+    "surgical",
+    "hospital",
+    "healthcare",
+    "patient",
+    "diagnostic",
+    "examination",
+    "sterile",
+    "operating room",
+    "procedure pack",
+    "hernia",
+    "laparosc",
+    "arthroscop",
+    "endoscop",
+    "microscop",
+    "dialysis",
+    "hemodialysis",
+    "catheter",
+    "intravenous",
+    "ultrasound",
+    "fluoroscop",
+    "c arm",
+    "wound closure",
+    "implant",
+    "prosthes",
+    // Reviewed European medical stems observed in TED and official catalogues.
+    "chirurg",
+    "medicinsk",
+    "meditsiin",
+    "medizin",
+    "medycz",
+    "undersokning",
+    "diagnostycz",
+    "sanitar",
+    "spital",
+    "szpital",
+    "sante",
+    "clinique",
+    "ospedal",
+    "quirurg",
+    "cirurg",
+    "vard",
+    "sjukvard",
+    "health service",
+    "nhs",
+  ].join("|"),
+);
+
+const NON_MEDICAL_CONTEXT_PATTERN = new RegExp(
+  [
+    "white glove",
+    "combat glove",
+    "sports? glove",
+    "work glove",
+    "industrial glove",
+    "boxing glove",
+    "flame retardant glove",
+    "oven glove",
+    "gardening glove",
+    "mechanic glove",
+    "wire mesh",
+    "architectural mesh",
+    "network mesh",
+    "fence mesh",
+    "sports mesh",
+    "metal mesh",
+    "software mesh",
+    "office stapler",
+    "construction stapler",
+    "sewing needle",
+    "knitting needle",
+    "turntable needle",
+    "fuel pump",
+    "water pump",
+    "hydraulic pump",
+    "heat pump",
+    "storm drain",
+    "floor drain",
+    "wastewater drain",
+    "camera equipment logistics",
+  ].join("|"),
+);
+
+const PRODUCT_NOUN_PATTERN = new RegExp(
+  "\\b(gloves?|mesh|needles?|pumps?|drains?|staplers?|catheters?|guidewires?|" +
+    "packs?|covers?|probes?|syringes?|aprons?|gowns?|drapes?|sutures?|" +
+    "tubing|tubes?|trocars?|electrodes?|blankets?)\\b",
+  "g",
+);
+
+function meaningfulSpecificText(value: string): boolean {
+  return value.length >= 8 &&
+    !/^(?:n a|na|none|vv|see documents?)$/.test(value);
+}
+
+function ambiguousDirectMatch(terms: string[]): boolean {
+  return terms.some((term) =>
+    normalizeTerm(term).split(" ").some((token) =>
+      AMBIGUOUS_PRODUCT_NOUNS.has(token)
+    ) && !MEDICAL_CONTEXT_PATTERN.test(normalizeTerm(term))
+  );
+}
+
+function specificProductConflict(
+  specificText: string,
+  directTerms: string[],
+): boolean {
+  if (!meaningfulSpecificText(specificText)) return false;
+  const familyTokens = new Set(
+    directTerms.flatMap((term) => normalizeTerm(term).split(" ")),
+  );
+  const observed = [...specificText.matchAll(PRODUCT_NOUN_PATTERN)]
+    .map((match) => String(match[1] || "").replace(/s$/, ""));
+  return observed.some((token) =>
+    !familyTokens.has(token) && !familyTokens.has(`${token}s`)
+  );
+}
+
 function familyFlags(nodes: ProductFamilyTaxonomyNode[]): {
   gown: boolean;
   generalProcedurePack: boolean;
@@ -625,6 +784,10 @@ export function classifyEvidenceForProduct(
   evidence: ProspectEvidence,
   profile: ProductFamilyProfile,
 ): ProspectEvidence {
+  const titleText = normalizeTerm(evidence.title);
+  const specificText = normalizeTerm(
+    [evidence.lotContext, evidence.snippet].filter(Boolean).join(" "),
+  );
   const text = evidenceText(evidence);
   const direct = matchedTerms(text, profile.directTerms);
   const adjacent = matchedTerms(text, profile.adjacentTerms);
@@ -632,21 +795,46 @@ export function classifyEvidenceForProduct(
   let commercialReason = "General healthcare or company-activity context";
   const temporaryDirect = evidence.sourceType !== "PUBLIC_REGISTRY" &&
     temporaryPhraseMatches(text, profile);
+  const directSpecific = matchedTerms(specificText, profile.directTerms);
+  const directTitle = matchedTerms(titleText, profile.directTerms);
+  const ambiguousMatch = ambiguousDirectMatch(
+    direct.length ? direct : directTitle,
+  );
+  const medicalContext = MEDICAL_CONTEXT_PATTERN.test(text);
+  const nonMedicalContext = NON_MEDICAL_CONTEXT_PATTERN.test(text);
+  const nonMedicalSpecificContext = NON_MEDICAL_CONTEXT_PATTERN.test(
+    specificText,
+  );
+  const specificConflict = (direct.length > 0 || temporaryDirect) &&
+    !directSpecific.length &&
+    specificProductConflict(specificText, profile.directTerms);
+  const productContextRejected = nonMedicalSpecificContext ||
+    (nonMedicalContext && !medicalContext) ||
+    (ambiguousMatch && !medicalContext) || specificConflict;
   if (
     evidence.sourceType !== "PUBLIC_REGISTRY" &&
-    (direct.length || temporaryDirect)
+    (direct.length || temporaryDirect) && !productContextRejected
   ) {
     relevanceClass = "DIRECT";
     commercialReason = temporaryDirect
       ? "Direct verified phrase evidence for this temporary product intent"
       : `Direct product-family evidence: ${direct.slice(0, 3).join(", ")}`;
-  } else if (evidence.sourceType !== "PUBLIC_REGISTRY" && adjacent.length) {
+  } else if (
+    evidence.sourceType !== "PUBLIC_REGISTRY" && adjacent.length &&
+    !productContextRejected
+  ) {
     relevanceClass = "ADJACENT";
     commercialReason = `Adjacent commercial evidence: ${
       adjacent.slice(0, 3).join(", ")
     }`;
   } else if (evidence.sourceType === "PUBLIC_REGISTRY") {
     commercialReason = "Official activity evidence supports company type only";
+  } else if (productContextRejected) {
+    commercialReason = specificConflict
+      ? "Specific lot or page text describes a different product family"
+      : nonMedicalContext
+      ? "Explicit non-medical context overrides the literal product word"
+      : "Ambiguous product wording lacks verified medical context";
   }
   return {
     ...evidence,
@@ -715,11 +903,17 @@ function inferArchetypes(
   }
   const text = normalizeTerm(
     [
+      candidate.name,
       candidate.description,
       candidate.companyType,
       ...compatible.flatMap((
         item,
-      ) => [item.title, item.snippet, item.commercialReason]),
+      ) => [
+        item.title,
+        item.snippet,
+        item.commercialReason,
+        item.sourceUrl,
+      ]),
     ].filter(Boolean).join(" "),
   );
   const output: BuyerArchetypeSignal[] = [];
@@ -743,7 +937,8 @@ function inferArchetypes(
     );
   }
   if (
-    /surgical kit|kit assembler|surgical set|kit chirurgici|assemble/.test(text)
+    /surgical kit|medical kit|procedure kit|kit assembler|surgical set|kit chirurgici/
+      .test(text)
   ) {
     add("KIT_ASSEMBLER", "HIGH", "Potential surgical-kit component buyer");
   }
@@ -752,6 +947,16 @@ function inferArchetypes(
   }
   if (/hospital supplier|hospital supplies|clinical supply/.test(text)) {
     add("HOSPITAL_SUPPLIER", "MEDIUM", "Relevant hospital-supply activity");
+  }
+  if (
+    /procurement organi[sz]ation|procurement body|purchasing organi[sz]ation|hospital procurement|healthcare procurement|buying group|supply chain|contract launch|public purchasing/
+      .test(text)
+  ) {
+    add(
+      "PROCUREMENT_ORGANIZATION",
+      "HIGH",
+      "Product-specific healthcare procurement or purchasing activity",
+    );
   }
   if (
     candidate.companyType === "Importer" || /\bimport(?:er|ation)?\b/.test(text)
@@ -776,12 +981,12 @@ function inferArchetypes(
   ) {
     add(
       "MANUFACTURER",
-      "MEDIUM",
-      "Manufacturer with compatible product-family activity",
+      "LOW",
+      "Product manufacturer; purchasing or sourcing role is not established",
     );
   }
   if (compatible.some((item) => item.sourceType === "TED_AWARD")) {
-    add("TENDER_SUPPLIER", "MEDIUM", "Relevant public procurement supplier");
+    add("TENDER_SUPPLIER", "HIGH", "Relevant public procurement supplier");
   }
   if (!output.length) {
     add(
@@ -793,6 +998,26 @@ function inferArchetypes(
     );
   }
   return output;
+}
+
+function buyerRoleAssessment(archetypes: BuyerArchetypeSignal[]): {
+  confidence: BuyerRoleConfidence;
+  score: number;
+  credible: boolean;
+} {
+  const commercial = archetypes.filter((item) =>
+    item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER"
+  );
+  if (commercial.some((item) => item.strength === "HIGH")) {
+    return { confidence: "HIGH", score: 15, credible: true };
+  }
+  if (commercial.some((item) => item.strength === "MEDIUM")) {
+    return { confidence: "MEDIUM", score: 11, credible: true };
+  }
+  if (archetypes.some((item) => item.archetype === "MANUFACTURER")) {
+    return { confidence: "LOW", score: 2, credible: false };
+  }
+  return { confidence: "NONE", score: 0, credible: false };
 }
 
 export function evaluateCandidateCompatibility(
@@ -824,6 +1049,13 @@ export function evaluateCandidateCompatibility(
   const directSources = new Set(directEvidence.map(relevantSourceKey));
   const adjacentSources = new Set(adjacentEvidence.map(relevantSourceKey));
   const archetypes = inferArchetypes(enrichedCandidate, classified, profile);
+  const buyerRole = buyerRoleAssessment(archetypes);
+  const negativeProductContext = genericEvidence.some((item) =>
+    item.commercialReason ===
+      "Explicit non-medical context overrides the literal product word" ||
+    item.commercialReason ===
+      "Specific lot or page text describes a different product family"
+  );
   const mismatchText = normalizeTerm(
     [
       candidate.description,
@@ -831,21 +1063,35 @@ export function evaluateCandidateCompatibility(
     ].filter(Boolean).join(" "),
   );
   const mismatch = !directEvidence.length && !adjacentEvidence.length &&
-    profile.mismatchTerms.some((term) => containsTerm(mismatchText, term));
-  const classification = directEvidence.length
+    (negativeProductContext ||
+      profile.mismatchTerms.some((term) => containsTerm(mismatchText, term)));
+  const productClassification = directEvidence.length
     ? "DIRECT_PRODUCT_FIT"
     : adjacentEvidence.length
     ? "ADJACENT_COMMERCIAL_FIT"
     : mismatch
     ? "PRODUCT_FAMILY_MISMATCH"
     : "GENERIC_ONLY";
-  const bestArchetype = archetypes.find((item) => item.archetype !== "UNKNOWN");
-  const commercialReason = directEvidence.length
-    ? "Direct product-family buyer"
+  const classification: CommercialBuyerGrade = directEvidence.length
+    ? buyerRole.credible ? "DIRECT_BUYER" : "PRODUCT_RELEVANT_NOT_BUYER"
+    : adjacentEvidence.length && buyerRole.credible
+    ? "ADJACENT_BUYER"
+    : mismatch
+    ? "REJECTED"
+    : "GENERIC_SUPPORT";
+  const bestArchetype =
+    archetypes.find((item) =>
+      item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+      item.strength !== "LOW"
+    ) || archetypes.find((item) => item.archetype !== "UNKNOWN");
+  const commercialReason = classification === "DIRECT_BUYER"
+    ? "Direct buyer: product-specific evidence and commercial buyer-role evidence"
+    : classification === "ADJACENT_BUYER"
+    ? "Adjacent buyer: credible buyer role with product-family adjacency"
+    : classification === "PRODUCT_RELEVANT_NOT_BUYER"
+    ? "Product relevance is verified, but purchasing or sourcing intent is not"
     : bestArchetype?.reason ||
-      (mismatch
-        ? "Product-family mismatch"
-        : "Generic healthcare relevance only");
+      (mismatch ? "Product-family mismatch" : "Generic support only");
   return {
     candidate: enrichedCandidate,
     directEvidence,
@@ -856,8 +1102,13 @@ export function evaluateCandidateCompatibility(
     independentDirectSourceCount: directSources.size,
     independentAdjacentSourceCount: adjacentSources.size,
     archetypes,
+    buyerRoleConfidence: buyerRole.confidence,
+    buyerRoleScore: buyerRole.score,
+    credibleBuyerRole: buyerRole.credible,
     commercialReason,
+    productClassification,
     classification,
+    negativeProductContext,
     mismatch,
   };
 }
@@ -872,6 +1123,7 @@ export function archetypeLabel(value: BuyerArchetype): string {
     OEM_PRIVATE_LABEL: "OEM / private-label supplier",
     MANUFACTURER: "Manufacturer",
     TENDER_SUPPLIER: "Tender supplier",
+    PROCUREMENT_ORGANIZATION: "Procurement organization",
     UNKNOWN: "Potential business buyer",
   };
   return labels[value];
