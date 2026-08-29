@@ -18,7 +18,7 @@ function completedWorkspace(){
       id:"00000000-0000-4000-8000-000000000001",status:"COMPLETED",stage:"completed",
       intent_hash:"saved-intent",intent_source:"PROFILE_PRODUCT",created_at:"2026-08-24T15:37:36Z",
       started_at:"2026-08-24T15:37:36Z",completed_at:"2026-08-24T15:37:52Z",
-      intent_context:{normalized_product_label:"Ultrasound Probe Covers",target_countries:[],intent_source:"PROFILE_PRODUCT"},
+      intent_context:{normalized_product_label:"Ultrasound Probe Covers",taxonomy:[{taxonomy_id:101,canonical_name:"Ultrasound Probe Covers"}],target_countries:[],intent_source:"PROFILE_PRODUCT"},
       sources_checked:9,candidates_found:50,candidates_deduplicated:2,candidates_accepted:3
     }],
     prospects:[{
@@ -44,12 +44,15 @@ function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=fals
   };
   const document={
     hidden:false,
+    activeElement:null,
+    documentElement:{lang:"en"},
+    body:{classList:{toggle(){}}},
     addEventListener:(type,listener)=>documentListeners.set(type,listener),
     removeEventListener:(type)=>documentListeners.delete(type),
     createElement:()=>({className:"",textContent:""})
   };
   const context={
-    console,crypto:{randomUUID:()=>"10000000-0000-4000-8000-000000000001"},document,URL,
+    console,crypto:{randomUUID:()=>"10000000-0000-4000-8000-000000000001"},document,URL,navigator:{language:"en-GB"},
     setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},
     clearTimeout:id=>timers.delete(id),
     sessionStorage:{setItem(){}},
@@ -62,8 +65,11 @@ function createHarness({workspace=completedWorkspace(),edgeSteps=[],isAdmin=fals
     toast:()=>{},track:()=>{}
   });
   const click=(action,dataset={})=>rootListeners.get("click")({target:{dataset:{...dataset,action},matches(){return false;},closest(){return this;}}});
+  const inputProduct=value=>rootListeners.get("input")({target:{id:"mhxpProductQuery",value}});
+  const change=target=>rootListeners.get("change")({target});
+  const submitProduct=()=>rootListeners.get("submit")({target:{matches:selector=>selector==="[data-product-search]"},preventDefault(){}});
   const visibility=hidden=>{document.hidden=hidden;documentListeners.get("visibilitychange")?.();};
-  return {component,root,document,timers,click,visibility,rpcNames,edgeBodies,rpcCalls:()=>rpcCalls,edgeCalls:()=>edgeCalls};
+  return {component,root,document,timers,click,inputProduct,change,submitProduct,visibility,rpcNames,edgeBodies,rpcCalls:()=>rpcCalls,edgeCalls:()=>edgeCalls};
 }
 
 const flush=async()=>{for(let index=0;index<8;index+=1)await Promise.resolve();};
@@ -213,6 +219,46 @@ test("S: representative VNext product intents render through the same stable fro
   }
 });
 
+test("T: confirming Product B detaches Product A results until Product B discovery completes",async()=>{
+  const workspace=completedWorkspace();
+  const productBRun={
+    ...workspace.runs[0],id:"00000000-0000-4000-8000-000000000002",intent_hash:"glove-intent",intent_source:"UNMAPPED_PRODUCT",
+    intent_context:{normalized_product_label:"Latex or nitrile examination glove for clinical use",normalized_product_phrase:"glove",resolved_product_concept:"Latex or nitrile examination glove for clinical use",taxonomy:[],target_countries:[],intent_source:"UNMAPPED_PRODUCT",temporary_intent:true}
+  };
+  const harness=createHarness({workspace,edgeSteps:[
+    Promise.resolve({resolution:"temporary_intent",resolution_event_id:"20000000-0000-4000-8000-000000000002",normalized_source_text:"glove",resolved_concept:"Latex or nitrile examination glove for clinical use",product_family:"Medical gloves",commercial_terms_en:["Examination glove"]}),
+    ()=>{workspace.runs.unshift(productBRun);workspace.prospects.unshift({...workspace.prospects[0],match_id:2,intent_hash:"glove-intent",company_name:"Glove Buyer"});return Promise.resolve({run:{run_id:productBRun.id,status:"COMPLETED"}});}
+  ]});
+  await harness.component.load();
+  assert.match(harness.root.innerHTML,/Saved Buyer/);
+  harness.click("mode",{mode:"adhoc"});
+  harness.inputProduct("glove");harness.submitProduct();await flush();
+  assert.match(harness.root.innerHTML,/Medical product recognized/);
+  assert.doesNotMatch(harness.root.innerHTML,/Saved Buyer|General Procedure Packs/);
+  harness.click("search-anyway");
+  assert.match(harness.root.innerHTML,/Product confirmed\./);
+  assert.match(harness.root.innerHTML,/Start Buyer Discovery to find potential buyers/);
+  assert.doesNotMatch(harness.root.innerHTML,/Saved Buyer/);
+  harness.click("discover");await flush();
+  assert.match(harness.root.innerHTML,/Buyer Discovery for: Latex or nitrile examination glove for clinical use/);
+  assert.match(harness.root.innerHTML,/Glove Buyer/);
+  assert.doesNotMatch(harness.root.innerHTML,/Saved Buyer/);
+});
+
+test("U: a stale resolver response cannot overwrite a rapidly changed product intent",async()=>{
+  let finishResolver;
+  const pending=new Promise(resolve=>{finishResolver=resolve;});
+  const harness=createHarness({edgeSteps:[()=>pending]});
+  await harness.component.load();
+  harness.click("mode",{mode:"adhoc"});harness.inputProduct("glove");harness.submitProduct();
+  harness.click("mode",{mode:"profile"});
+  finishResolver({resolution:"temporary_intent",resolution_event_id:"20000000-0000-4000-8000-000000000002",normalized_source_text:"glove",resolved_concept:"Examination glove",product_family:"Medical gloves"});
+  await flush();
+  harness.click("mode",{mode:"adhoc"});
+  assert.doesNotMatch(harness.root.innerHTML,/Medical product recognized|Examination glove/);
+  assert.doesNotMatch(harness.root.innerHTML,/Saved Buyer/);
+});
+
 test("J: visibility changes replace rather than duplicate an active poll timer",async()=>{
   const running=completedWorkspace();
   const now=new Date().toISOString();
@@ -230,5 +276,5 @@ test("C and M: background matchmaking refresh preserves the mounted root and no 
   assert.match(workspaceSource,/setInterval\(\(\)=>\{if\(!document\.hidden\)loadWorkspace\(true\);\},30000\)/);
   assert.doesNotMatch(workspaceSource,/location\.reload/);
   assert.doesNotMatch(uiSource,/setInterval/);
-  assert.match(portalSource,/external-prospects\.js\?v=20260827smart1/);
+  assert.match(portalSource,/external-prospects\.js\?v=20260829state1/);
 });

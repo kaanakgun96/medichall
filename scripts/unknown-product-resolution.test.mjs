@@ -35,8 +35,8 @@ assert.match(css, /mhxp-suggestion-list/);
 assert.match(css, /max-width:430px/);
 assert.match(css, /:focus-visible/);
 assert.match(css, /prefers-reduced-motion/);
-assert.match(portal, /external-prospects\.js\?v=20260827smart1/);
-assert.match(standalone, /external-prospects\.js\?v=20260827smart1/);
+assert.match(portal, /external-prospects\.js\?v=20260829state1/);
+assert.match(standalone, /external-prospects\.js\?v=20260829state1/);
 
 for (const object of [
   "product_resolution_events",

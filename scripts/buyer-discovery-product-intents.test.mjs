@@ -31,8 +31,8 @@ assert.match(ui,/mh_buyer_discovery_product_draft_v1/);
 assert.match(portal,/openBuyerDiscoveryProductDraft/);
 assert.match(portal,/prefill:suggestion/);
 assert.match(portal,/PRODUCT_DRAFT_GUARD\.load/);
-assert.match(standalone,/external-prospects\.js\?v=20260827smart1/);
-assert.match(portal,/external-prospects\.js\?v=20260827smart1/);
+assert.match(standalone,/external-prospects\.js\?v=20260829state1/);
+assert.match(portal,/external-prospects\.js\?v=20260829state1/);
 assert.match(ui,/options\.productProfileUrl\|\|"portal\.html#products"/);
 assert.match(react,/productProfileUrl: `\$\{legacyPortalUrl\}#products`/);
 
@@ -80,6 +80,13 @@ assert.match(css,/prefers-reduced-motion/);
 assert.match(ui,/aria-pressed/);
 assert.match(ui,/aria-live="polite"/);
 assert.match(ui,/data-country-select/);
+assert.match(ui,/class="mhxp-country-option" for="mhxp-country-europe"/);
+assert.match(ui,/class="mhxp-country-option" for="mhxp-country-selected"/);
+assert.match(ui,/name="mhxp-country-mode" value="europe"/);
+assert.match(ui,/name="mhxp-country-mode" value="selected"/);
+assert.match(ui,/querySelector\('\[data-country-mode="'\+mode\+'"\]'\)\?\.focus\(\)/);
+assert.match(css,/\.mhxp-country-modes\{display:grid;grid-template-columns:repeat\(2,max-content\)/);
+assert.match(css,/\.mhxp-country-modes\{grid-template-columns:1fr;gap:4px\}/);
 assert.doesNotMatch(ui,/contact_email|contact_name|linkedin_url|Phone prospect|Email prospect/i);
 
 console.log("Buyer Discovery product-intent/website-scan contract: PASSED");

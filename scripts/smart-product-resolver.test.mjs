@@ -99,8 +99,8 @@ test("UI exposes exact, smart, ambiguous, temporary, nonmedical and failure stat
   assert.match(css,/\.mhxp-clarification-list/);
   assert.match(css,/@media\(max-width:430px\)/);
   assert.match(css,/prefers-reduced-motion:reduce/);
-  assert.match(portal,/external-prospects\.(?:css|js)\?v=20260827smart1/g);
-  assert.match(standalone,/external-prospects\.(?:css|js)\?v=20260827smart1/g);
+  assert.match(portal,/external-prospects\.(?:css|js)\?v=20260829state1/g);
+  assert.match(standalone,/external-prospects\.(?:css|js)\?v=20260829state1/g);
 });
 
 function harness(resolution,confirmation={ok:true,resolution:"temporary_intent",resolved_concept:"Surgical glove",product_family:"Medical gloves",commercial_terms_en:["Surgical glove"],use_unmapped:true}){
@@ -136,6 +136,22 @@ test("manual search sends one bounded resolver request and renders ambiguity wit
   assert.equal(h.calls[0].operation,"resolve_product_intent");
   assert.equal(h.calls[0].product_query,"glove");
   assert.match(h.root.innerHTML,/Which product do you mean\?/);
+  assert.doesNotMatch(h.calls.map(item=>item.operation).join(","),/discover/);
+});
+
+test("Camera Cover deterministic resolution remains ready without starting Buyer Discovery",async()=>{
+  const h=harness({
+    resolution:"high_confidence",provider_requests:0,
+    recommended:{canonical_taxonomy_id:101,canonical_name:"Camera Cover",slug:"camera-cover",reasoning:"Exact canonical name."}
+  });
+  await h.component.load();
+  h.listeners.get("input")({target:{id:"mhxpProductQuery",value:"Camera Cover"}});
+  h.listeners.get("submit")({target:{matches:()=>true},preventDefault(){}});
+  await flush();
+  assert.match(h.root.innerHTML,/Product matched/);
+  assert.match(h.root.innerHTML,/Camera Cover/);
+  assert.match(h.root.innerHTML,/Ready to search/);
+  assert.equal(h.calls.length,1);
   assert.doesNotMatch(h.calls.map(item=>item.operation).join(","),/discover/);
 });
 

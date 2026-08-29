@@ -108,7 +108,7 @@ function completedWorkspace(){
   return {
     product_context:{products:[{product_id:1,product_name:"Camera Cover",taxonomy_id:101,canonical_name:"Camera Cover",slug:"camera-cover"}],website_available:false},
     website_scans:[],search_spaces:[],
-    runs:[{id:"00000000-0000-4000-8000-000000000001",status:"COMPLETED",stage:"completed",run_mode:"NORMAL_DISCOVERY",intent_hash:"saved-intent",intent_source:"PROFILE_PRODUCT",created_at:"2026-08-26T08:00:00Z",completed_at:"2026-08-26T08:01:00Z",intent_context:{normalized_product_label:"Camera Cover",target_countries:["FR"],intent_source:"PROFILE_PRODUCT"},sources_checked:8,candidates_found:3,candidates_deduplicated:1,candidates_accepted:2}],
+    runs:[{id:"00000000-0000-4000-8000-000000000001",status:"COMPLETED",stage:"completed",run_mode:"NORMAL_DISCOVERY",intent_hash:"saved-intent",intent_source:"PROFILE_PRODUCT",created_at:"2026-08-26T08:00:00Z",completed_at:"2026-08-26T08:01:00Z",intent_context:{normalized_product_label:"Camera Cover",taxonomy:[{taxonomy_id:101,canonical_name:"Camera Cover"}],target_countries:["FR"],intent_source:"PROFILE_PRODUCT"},sources_checked:8,candidates_found:3,candidates_deduplicated:1,candidates_accepted:2}],
     prospects:[]
   };
 }
@@ -202,8 +202,8 @@ test("responsive/accessibility and cache-release contracts are present",()=>{
   assert.match(uiSource,/event\.key!=="Tab"/);
   assert.match(uiSource,/aria-live="polite"/);
   for(const page of [portalSource,standaloneSource]){
-    assert.match(page,/external-prospects\.css\?v=20260827smart1/);
-    assert.match(page,/external-prospects\.js\?v=20260827smart1/);
+    assert.match(page,/external-prospects\.css\?v=20260829state1/);
+    assert.match(page,/external-prospects\.js\?v=20260829state1/);
   }
 });
 
