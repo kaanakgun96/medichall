@@ -132,6 +132,7 @@ function judgment(
     commercial_fit: "HIGH",
     sales_actionability: "HIGH",
     contradiction: "NONE",
+    sales_prospect_classification: "DIRECT_COMMERCIAL_PROSPECT",
     recommended_grade: "DIRECT_BUYER",
     buyer_fit_score: 90,
     reason_codes: ["MEDICAL_DISTRIBUTOR_PRODUCT_MATCH"],
@@ -250,6 +251,16 @@ Deno.test("provider schema is conservative, bounded, and treats evidence as untr
     "hidden reasoning must be explicitly excluded",
   );
   assert(
+    serialized.includes(
+      "Is this company a realistic commercial account that the manufacturer can directly approach",
+    ),
+    "direct-sales-prospect question missing",
+  );
+  assert(
+    serialized.includes("END_BUYER_PROCUREMENT_SIGNAL"),
+    "end-buyer procurement classification missing",
+  );
+  assert(
     !serialized.includes("ANTHROPIC_API_KEY"),
     "secret names must not enter provider body",
   );
@@ -276,6 +287,22 @@ Deno.test("structured output validation isolates candidate identifiers and bound
     rejected = true;
   }
   assert(rejected, "unbounded reason codes must be rejected");
+  rejected = false;
+  try {
+    validateAiBuyerRelevanceJudgments({
+      judgments: [judgment("c".repeat(24), {
+        buyer_role: "PROCUREMENT_ORGANIZATION",
+        sales_prospect_classification: "END_BUYER_PROCUREMENT_SIGNAL",
+        recommended_grade: "DIRECT_BUYER",
+      })],
+    }, ["c".repeat(24)]);
+  } catch (_) {
+    rejected = true;
+  }
+  assert(
+    rejected,
+    "an end-buyer signal must not recommend a direct-buyer compatibility grade",
+  );
 });
 
 Deno.test("deterministic ceilings prevent AI from creating a buyer without verified role evidence", async () => {
@@ -354,16 +381,26 @@ Deno.test("AI failure falls back to the unchanged deterministic result", async (
   );
   const before = {
     grade: distributor.score.commercialBuyerGrade,
+    salesProspectClassification: distributor.score.salesProspectClassification,
     score: distributor.score.relevanceScore,
     eligible: distributor.score.eligible,
   };
+  const endBuyer = grade(
+    candidate({
+      name: "QA Hospital Procurement Body",
+      title: "Hospital glove procurement",
+      snippet:
+        "Public hospital procurement body purchasing nitrile examination gloves for clinical use.",
+    }),
+    glove,
+  );
   const calls = { count: 0 };
   const { cache } = memoryCache();
   const result = await runAiBuyerRelevanceJudge({
     enabled: true,
     productFamily: glove,
     accepted: [distributor],
-    rejected: [],
+    rejected: [endBuyer],
     apiKey: "qa-key-never-logged",
     cache,
     fetcher: (() => {
@@ -377,8 +414,11 @@ Deno.test("AI failure falls back to the unchanged deterministic result", async (
   });
   assertEquals(calls.count, 1);
   assertEquals(result.accepted.length, 1);
+  assertEquals(result.rejected.length, 1);
   assertEquals({
     grade: result.accepted[0].score.commercialBuyerGrade,
+    salesProspectClassification:
+      result.accepted[0].score.salesProspectClassification,
     score: result.accepted[0].score.relevanceScore,
     eligible: result.accepted[0].score.eligible,
   }, before);
@@ -386,6 +426,11 @@ Deno.test("AI failure falls back to the unchanged deterministic result", async (
     result.accepted[0].score.aiBuyerJudgeStatus,
     "AI_JUDGE_FAILED_FALLBACK",
   );
+  assertEquals(
+    result.rejected[0].score.salesProspectClassification,
+    "END_BUYER_PROCUREMENT_SIGNAL",
+  );
+  assertEquals(result.rejected[0].score.eligible, false);
 });
 
 Deno.test("feature off preserves deterministic acceptance and diversity ordering with zero cache or provider work", async () => {
@@ -408,6 +453,15 @@ Deno.test("feature off preserves deterministic acceptance and diversity ordering
     }),
     glove,
   );
+  const endBuyer = grade(
+    candidate({
+      name: "QA NHS-Style Procurement Body",
+      title: "Healthcare glove procurement",
+      snippet:
+        "Central healthcare procurement organization purchasing nitrile examination gloves.",
+    }),
+    glove,
+  );
   const cache: AiBuyerJudgeCache = {
     reserve: () => {
       throw new Error("disabled judge reached cache");
@@ -423,7 +477,7 @@ Deno.test("feature off preserves deterministic acceptance and diversity ordering
     enabled: false,
     productFamily: glove,
     accepted: [second, first],
-    rejected: [],
+    rejected: [endBuyer],
     apiKey: "",
     cache,
     fetcher: () => {
@@ -436,6 +490,11 @@ Deno.test("feature off preserves deterministic acceptance and diversity ordering
   );
   assertEquals(result.diagnostics.providerRequests, 0);
   assertEquals(result.diagnostics.judgedCandidates, 0);
+  assertEquals(
+    result.rejected[0].score.salesProspectClassification,
+    "END_BUYER_PROCUREMENT_SIGNAL",
+  );
+  assertEquals(result.rejected[0].score.eligible, false);
 });
 
 Deno.test("cache reuse makes no second provider call and evidence changes invalidate safely", async () => {
@@ -486,6 +545,28 @@ Deno.test("cache reuse makes no second provider call and evidence changes invali
     calls.count,
     2,
     "evidence fingerprint change must invalidate cache",
+  );
+  const product = await aiBuyerJudgeProductContext(glove);
+  const originalFingerprint = (await buildAiBuyerJudgeCandidate(
+    firstRanked,
+    product,
+  )).evidenceFingerprint;
+  const correctedSemantics: RankedProspect = {
+    ...firstRanked,
+    score: {
+      ...firstRanked.score,
+      commercialBuyerGrade: "PRODUCT_RELEVANT_NOT_BUYER",
+      salesProspectClassification: "END_BUYER_PROCUREMENT_SIGNAL",
+      eligible: false,
+    },
+  };
+  const correctedFingerprint = (await buildAiBuyerJudgeCandidate(
+    correctedSemantics,
+    product,
+  )).evidenceFingerprint;
+  assert(
+    originalFingerprint !== correctedFingerprint,
+    "commercial-prospect semantic changes must invalidate old AI judgments",
   );
 });
 
@@ -631,7 +712,7 @@ Deno.test("retained glove replay preserves ten audited strong buyers and rejects
   assertEquals(result.diagnostics.judgedCandidates, 11);
 });
 
-Deno.test("mesh replay preserves procurement buyer and manufacturer ceilings", async () => {
+Deno.test("mesh replay separates end-buyer demand from sales prospects and preserves manufacturer ceilings", async () => {
   const cases = [
     candidate({
       name: "BioCer",
@@ -659,11 +740,26 @@ Deno.test("mesh replay preserves procurement buyer and manufacturer ceilings", a
     nhs,
     judgment(builtNhs.candidateId, {
       buyer_role: "PROCUREMENT_ORGANIZATION",
-      reason_codes: ["EXACT_PRODUCT_PROCUREMENT"],
+      commercial_fit: "LOW",
+      sales_actionability: "LOW",
+      sales_prospect_classification: "END_BUYER_PROCUREMENT_SIGNAL",
+      recommended_grade: "PRODUCT_RELEVANT_NOT_BUYER",
+      buyer_fit_score: 48,
+      reason_codes: ["HOSPITAL_PROCUREMENT_PRODUCT_MATCH"],
+      short_explanation:
+        "Product demand is verified, but this end-buying procurement body is not evidenced as a directly approachable commercial channel.",
     }),
     "REVIEWED",
   );
-  assertEquals(reviewedNhs.score.commercialBuyerGrade, "DIRECT_BUYER");
+  assertEquals(
+    reviewedNhs.score.salesProspectClassification,
+    "END_BUYER_PROCUREMENT_SIGNAL",
+  );
+  assertEquals(
+    reviewedNhs.score.commercialBuyerGrade,
+    "PRODUCT_RELEVANT_NOT_BUYER",
+  );
+  assertEquals(reviewedNhs.score.eligible, false);
   for (const name of ["BioCer", "Medical Sutures"]) {
     const ranked = cases.find((item) => item.candidate.name === name)!;
     assertEquals(

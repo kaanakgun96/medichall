@@ -8,6 +8,7 @@ import {
   evaluateCandidateCompatibility,
   type ProductEvidenceClass,
   type ProductFamilyProfile,
+  type SalesProspectClassification,
 } from "./buyer-discovery-relevance-v2.ts";
 
 export const DISCOVERY_LIMITS = Object.freeze({
@@ -301,6 +302,7 @@ export type ProspectScore = {
   // frontend change.
   commercialFitClassification: CandidateCompatibility["productClassification"];
   commercialBuyerGrade: CommercialBuyerGrade;
+  salesProspectClassification: SalesProspectClassification;
   commercialReason: string;
   buyerArchetypes: BuyerArchetypeSignal[];
   genericOnlyCeilingApplied: boolean;
@@ -311,6 +313,7 @@ export type ProspectScore = {
   buyerFitGrade?: "HIGH" | "MEDIUM" | "LOW";
   aiBuyerJudgeStatus?: string;
   aiBuyerRecommendedGrade?: CommercialBuyerGrade | null;
+  aiBuyerSalesProspectClassification?: SalesProspectClassification | null;
   aiBuyerReasonCodes?: string[];
   aiBuyerShortExplanation?: string | null;
   reasonSummary: string;
@@ -337,6 +340,7 @@ export type ProspectRankingDiagnostics = {
   buyerArchetypes: Record<string, number>;
   directBuyers: number;
   adjacentBuyers: number;
+  endBuyerProcurementSignals: number;
   productRelevantNotBuyer: number;
   genericOnlyRejected: number;
   productFamilyMismatchRejected: number;
@@ -925,14 +929,22 @@ export function scoreProspect(
       buyerRoleConfidence:
         candidate.buyerArchetypes?.some((item) =>
             item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
             item.strength === "HIGH"
           )
           ? "HIGH"
           : candidate.buyerArchetypes?.some((item) =>
               item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" && item.strength === "MEDIUM"
+              item.archetype !== "MANUFACTURER" &&
+              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+              item.strength === "MEDIUM"
             )
           ? "MEDIUM"
+          : candidate.buyerArchetypes?.some((item) =>
+              item.archetype === "PROCUREMENT_ORGANIZATION" &&
+              item.strength !== "LOW"
+            )
+          ? "HIGH"
           : candidate.buyerArchetypes?.some((item) =>
               item.archetype === "MANUFACTURER"
             )
@@ -941,14 +953,22 @@ export function scoreProspect(
       buyerRoleScore:
         candidate.buyerArchetypes?.some((item) =>
             item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
             item.strength === "HIGH"
           )
           ? 15
           : candidate.buyerArchetypes?.some((item) =>
               item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" && item.strength === "MEDIUM"
+              item.archetype !== "MANUFACTURER" &&
+              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+              item.strength === "MEDIUM"
             )
           ? 11
+          : candidate.buyerArchetypes?.some((item) =>
+              item.archetype === "PROCUREMENT_ORGANIZATION" &&
+              item.strength !== "LOW"
+            )
+          ? 8
           : candidate.buyerArchetypes?.some((item) =>
               item.archetype === "MANUFACTURER"
             )
@@ -957,8 +977,32 @@ export function scoreProspect(
       credibleBuyerRole:
         candidate.buyerArchetypes?.some((item) =>
           item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+          item.archetype !== "PROCUREMENT_ORGANIZATION" &&
           item.strength !== "LOW"
         ) || false,
+      endBuyerProcurementRole:
+        candidate.buyerArchetypes?.some((item) =>
+          item.archetype === "PROCUREMENT_ORGANIZATION" &&
+          item.strength !== "LOW"
+        ) || false,
+      salesProspectClassification:
+        candidate.buyerArchetypes?.some((item) =>
+            item.archetype !== "UNKNOWN" &&
+            item.archetype !== "MANUFACTURER" &&
+            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+            item.strength !== "LOW"
+          )
+          ? "DIRECT_COMMERCIAL_PROSPECT"
+          : candidate.buyerArchetypes?.some((item) =>
+              item.archetype === "PROCUREMENT_ORGANIZATION" &&
+              item.strength !== "LOW"
+            )
+          ? "END_BUYER_PROCUREMENT_SIGNAL"
+          : candidate.evidence.some((item) =>
+              item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+            )
+          ? "PRODUCT_RELEVANT_NOT_BUYER"
+          : "REJECTED",
       commercialReason:
         candidate.evidence.some((item) =>
             item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
@@ -982,7 +1026,9 @@ export function scoreProspect(
           )
           ? candidate.buyerArchetypes?.some((item) =>
               item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" && item.strength !== "LOW"
+              item.archetype !== "MANUFACTURER" &&
+              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+              item.strength !== "LOW"
             )
             ? "DIRECT_BUYER"
             : "PRODUCT_RELEVANT_NOT_BUYER"
@@ -992,7 +1038,9 @@ export function scoreProspect(
             ) &&
               candidate.buyerArchetypes?.some((item) =>
                 item.archetype !== "UNKNOWN" &&
-                item.archetype !== "MANUFACTURER" && item.strength !== "LOW"
+                item.archetype !== "MANUFACTURER" &&
+                item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+                item.strength !== "LOW"
               )
           ? "ADJACENT_BUYER"
           : "GENERIC_SUPPORT",
@@ -1029,7 +1077,8 @@ export function scoreProspect(
     item.strength === "HIGH" && item.archetype !== "UNKNOWN"
   );
   const supportedAdjacentArchetype = compatibility.archetypes.some((item) =>
-    item.strength !== "LOW" && item.archetype !== "UNKNOWN"
+    item.strength !== "LOW" && item.archetype !== "UNKNOWN" &&
+    item.archetype !== "PROCUREMENT_ORGANIZATION"
   );
   const directWebsite = qualifiedDirect.some((item) =>
     item.sourceType === "COMPANY_WEBSITE" ||
@@ -1083,6 +1132,16 @@ export function scoreProspect(
         scoredCandidate.editorialContent
     ? "REJECTED"
     : "GENERIC_SUPPORT";
+  const salesProspectClassification: SalesProspectClassification =
+    compatibility.endBuyerProcurementRole &&
+      (qualifiedDirect.length > 0 || qualifiedAdjacent.length > 0)
+      ? "END_BUYER_PROCUREMENT_SIGNAL"
+      : finalBuyerGrade === "DIRECT_BUYER" ||
+          finalBuyerGrade === "ADJACENT_BUYER"
+      ? "DIRECT_COMMERCIAL_PROSPECT"
+      : finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
+      ? "PRODUCT_RELEVANT_NOT_BUYER"
+      : "REJECTED";
 
   let productTaxonomyScore = 0;
   if (qualifiedDirect.length) {
@@ -1219,8 +1278,20 @@ export function scoreProspect(
       evidenceClass: qualifiedDirect.length ? "DIRECT" : "GENERIC",
       buyerArchetype: bestArchetype?.archetype,
       text: finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
-        ? "Product relevance is verified, but independent purchasing, sourcing, procurement, import, distribution, resale, OEM, or assembly intent is not."
+        ? salesProspectClassification === "END_BUYER_PROCUREMENT_SIGNAL"
+          ? "Product demand and procurement are verified, but no directly approachable distribution, import, wholesale, tender-supply, resale, OEM/private-label, or other commercial-channel role is established."
+          : "Product relevance is verified, but independent purchasing, sourcing, procurement, import, distribution, resale, OEM, or assembly intent is not."
         : "No credible product-specific commercial buyer role is established.",
+    });
+  }
+  if (salesProspectClassification === "END_BUYER_PROCUREMENT_SIGNAL") {
+    reasons.push({
+      kind: "INDIRECT_COMMERCIAL_EVIDENCE",
+      code: "END_BUYER_PROCUREMENT_SIGNAL",
+      evidenceClass: qualifiedDirect.length ? "DIRECT" : "ADJACENT",
+      buyerArchetype: "PROCUREMENT_ORGANIZATION",
+      text:
+        "This organization verifies product demand or procurement activity, but the evidence does not establish it as a directly approachable distributor, importer, wholesaler, tender supplier, reseller, OEM/private-label partner, or other commercial channel.",
     });
   }
   if (relevantProcurementCount) {
@@ -1273,10 +1344,13 @@ export function scoreProspect(
       : eligible && relevanceScore >= 55
       ? "MEDIUM"
       : "LOW";
-  const finalCommercialReason = finalBuyerGrade === "DIRECT_BUYER"
-    ? "Direct buyer: product-specific evidence and credible commercial buyer-role evidence"
+  const finalCommercialReason = salesProspectClassification ===
+      "END_BUYER_PROCUREMENT_SIGNAL"
+    ? "End-buyer procurement signal: use the demand evidence to identify local distributors, tender suppliers, and commercial operators"
+    : finalBuyerGrade === "DIRECT_BUYER"
+    ? "Direct commercial prospect: product-specific evidence and credible commercial channel-role evidence"
     : finalBuyerGrade === "ADJACENT_BUYER"
-    ? "Adjacent buyer: credible buyer role with verified product-family adjacency"
+    ? "Adjacent commercial prospect: credible channel role with verified product-family adjacency"
     : finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
     ? "Product relevance is verified, but purchasing or sourcing intent is not"
     : compatibility.commercialReason;
@@ -1315,6 +1389,7 @@ export function scoreProspect(
     confidence,
     commercialFitClassification: compatibility.productClassification,
     commercialBuyerGrade: finalBuyerGrade,
+    salesProspectClassification,
     commercialReason: finalCommercialReason,
     buyerArchetypes: compatibility.archetypes,
     genericOnlyCeilingApplied,
@@ -1457,6 +1532,7 @@ export function rankProspects(
     buyerArchetypes: {},
     directBuyers: 0,
     adjacentBuyers: 0,
+    endBuyerProcurementSignals: 0,
     productRelevantNotBuyer: 0,
     genericOnlyRejected: 0,
     productFamilyMismatchRejected: 0,
@@ -1506,6 +1582,10 @@ export function rankProspects(
       diagnostics.directBuyers += 1;
     } else if (score.commercialBuyerGrade === "ADJACENT_BUYER") {
       diagnostics.adjacentBuyers += 1;
+    } else if (
+      score.salesProspectClassification === "END_BUYER_PROCUREMENT_SIGNAL"
+    ) {
+      diagnostics.endBuyerProcurementSignals += 1;
     } else if (
       score.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
     ) {

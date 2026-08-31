@@ -20,6 +20,7 @@ function candidate(input: {
   title: string;
   snippet: string;
   lotContext?: string;
+  contractingAuthority?: boolean;
 }): ProspectCandidate {
   const sourceType = input.sourceType || "COMPANY_WEBSITE";
   const sourceUrl = input.sourceUrl ||
@@ -46,7 +47,10 @@ function candidate(input: {
       confidence: 0.92,
       evidenceDate: "2026-08-29",
       noticeId: sourceType === "TED_AWARD" ? `qa-${input.name}` : null,
-      procurementRole: sourceType === "TED_AWARD" ? "WINNER" : undefined,
+      procurementRole: sourceType === "TED_AWARD" &&
+          !input.contractingAuthority
+        ? "WINNER"
+        : undefined,
       taxonomyIds: [991],
     }],
     activities: [],
@@ -141,7 +145,7 @@ Deno.test("product relevance and buyer role are independent final gates", () => 
   );
 });
 
-Deno.test("procurement organization remains a direct buyer", () => {
+Deno.test("procurement organization remains a demand signal, not a direct sales prospect", () => {
   const procurement = grade(
     candidate({
       name: "NHS Supply Chain",
@@ -154,9 +158,83 @@ Deno.test("procurement organization remains a direct buyer", () => {
     mesh,
   );
   assert(
+    procurement.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER" &&
+      procurement.salesProspectClassification ===
+        "END_BUYER_PROCUREMENT_SIGNAL" &&
+      procurement.buyerRoleConfidence === "HIGH" && !procurement.eligible,
+    "a product-specific procurement organization must remain a demand signal without becoming a direct sales account",
+  );
+});
+
+Deno.test("hospital end buyer is a demand signal without direct onboarding evidence", () => {
+  const hospital = grade(
+    candidate({
+      name: "QA University Hospital",
+      title: "Hospital surgical mesh procurement",
+      snippet:
+        "Public hospital procurement programme purchasing surgical mesh for clinical use.",
+    }),
+    mesh,
+  );
+  assert(
+    hospital.salesProspectClassification ===
+        "END_BUYER_PROCUREMENT_SIGNAL" &&
+      hospital.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER" &&
+      !hospital.eligible,
+    "a hospital purchaser is demand intelligence, not automatically a direct commercial account",
+  );
+});
+
+Deno.test("TED contracting authority and awarded economic operator remain distinct", () => {
+  const authority = grade(
+    candidate({
+      name: "QA Regional Hospital Authority",
+      sourceType: "TED_AWARD",
+      contractingAuthority: true,
+      title: "Contracting authority glove procurement",
+      snippet:
+        "Public hospital group purchasing nitrile examination gloves for clinical use.",
+    }),
+    glove,
+  );
+  const supplier = grade(
+    candidate({
+      name: "QA Awarded Medical Supplier",
+      sourceType: "TED_AWARD",
+      title: "Awarded economic operator for examination gloves",
+      snippet:
+        "Contract supplier awarded the nitrile examination glove lot for hospital delivery.",
+    }),
+    glove,
+  );
+  assert(
+    authority.salesProspectClassification ===
+        "END_BUYER_PROCUREMENT_SIGNAL" && !authority.eligible,
+    "the contracting authority must remain a demand signal",
+  );
+  assert(
+    supplier.salesProspectClassification === "DIRECT_COMMERCIAL_PROSPECT" &&
+      supplier.commercialBuyerGrade === "DIRECT_BUYER" && supplier.eligible,
+    "the awarded supplier/economic operator may be a direct commercial prospect",
+  );
+});
+
+Deno.test("explicit manufacturer onboarding can make a procurement body directly actionable", () => {
+  const procurement = grade(
+    candidate({
+      name: "QA Healthcare Procurement Channel",
+      title: "Surgical mesh supplier onboarding",
+      snippet:
+        "Healthcare procurement body with supplier registration and direct manufacturer onboarding for surgical mesh.",
+    }),
+    mesh,
+  );
+  assert(
     procurement.commercialBuyerGrade === "DIRECT_BUYER" &&
-      procurement.buyerRoleConfidence === "HIGH" && procurement.eligible,
-    "a product-specific procurement organization must remain eligible",
+      procurement.salesProspectClassification ===
+        "DIRECT_COMMERCIAL_PROSPECT" &&
+      procurement.eligible,
+    "specific direct manufacturer-onboarding evidence may establish a sales prospect",
   );
 });
 
@@ -334,8 +412,12 @@ Deno.test("retained mesh results separate buyer role from product relevance", ()
   }));
   assert(
     results.find((item) => item.name === "NHS Supply Chain")?.score
-      .commercialBuyerGrade === "DIRECT_BUYER",
-    "NHS Supply Chain must remain direct",
+          .salesProspectClassification === "END_BUYER_PROCUREMENT_SIGNAL" &&
+      results.find((item) => item.name === "NHS Supply Chain")?.score
+          .commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER" &&
+      !results.find((item) => item.name === "NHS Supply Chain")?.score
+        .eligible,
+    "NHS Supply Chain must remain a demand signal without ranking as a direct sales prospect",
   );
   for (const name of ["BioCer", "Medical Sutures"]) {
     const score = results.find((item) => item.name === name)?.score;

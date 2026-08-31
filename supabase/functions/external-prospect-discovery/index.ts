@@ -2208,10 +2208,13 @@ async function persistCandidate(
       product_family_label: productFamily.label,
       commercial_fit: score.commercialFitClassification,
       commercial_buyer_grade: score.commercialBuyerGrade,
+      sales_prospect_classification: score.salesProspectClassification,
       buyer_fit_score: score.buyerFitScore ?? score.relevanceScore,
       buyer_fit_grade: score.buyerFitGrade || score.confidence,
       ai_buyer_judge_status: score.aiBuyerJudgeStatus || "DISABLED",
       ai_buyer_recommended_grade: score.aiBuyerRecommendedGrade || null,
+      ai_sales_prospect_classification:
+        score.aiBuyerSalesProspectClassification || null,
       ai_buyer_reason_codes: (score.aiBuyerReasonCodes || []).slice(0, 6),
       ai_buyer_short_explanation: sanitizeEvidenceText(
         score.aiBuyerShortExplanation,
@@ -3842,6 +3845,29 @@ async function handleDiscovery(request: Request): Promise<Response> {
       buyer_archetypes: ranking.diagnostics.buyerArchetypes,
       direct_buyers: ranking.diagnostics.directBuyers,
       adjacent_buyers: ranking.diagnostics.adjacentBuyers,
+      end_buyer_procurement_signals:
+        ranking.diagnostics.endBuyerProcurementSignals,
+      end_buyer_procurement_signal_details: deterministicRanking.rejected
+        .filter((item) =>
+          item.score.salesProspectClassification ===
+            "END_BUYER_PROCUREMENT_SIGNAL"
+        ).slice(0, 6).map((item) => ({
+          candidate_name: sanitizeEvidenceText(item.candidate.name, 180),
+          country_code: item.candidate.countryCode,
+          procurement_demand_signal: true,
+          product_fit: item.score.commercialFitClassification,
+          direct_sales_actionability: "LOW",
+          evidence: item.candidate.evidence.filter((evidence) =>
+            evidence.relevanceClass === "DIRECT" ||
+            evidence.relevanceClass === "ADJACENT"
+          ).slice(0, 2).map((evidence) => ({
+            source_type: evidence.sourceType,
+            source_domain: evidence.sourceDomain,
+            source_title: sanitizeEvidenceText(evidence.title, 120),
+            notice_id: evidence.noticeId || null,
+            procurement_role: evidence.procurementRole || null,
+          })),
+        })),
       product_relevant_not_buyer: ranking.diagnostics.productRelevantNotBuyer,
       generic_only_rejected: ranking.diagnostics.genericOnlyRejected,
       product_family_mismatch_rejected:

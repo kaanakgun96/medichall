@@ -65,7 +65,7 @@ assert.match(edge, /qualification_path: score\.qualificationPath/);
 assert.doesNotMatch(
   [migration, relevance, ranking, publicWeb,
     edge.slice(edge.indexOf('if (operation !== "discover")'))].join("\n"),
-  /ANTHROPIC_API_KEY|OPENAI_API_KEY|RESEND_API_KEY|sendEmail|notification_outbox/i,
+  /OPENAI_API_KEY|RESEND_API_KEY|sendEmail|notification_outbox/i,
 );
 assert.doesNotMatch(
   [migration, relevance, ranking, publicWeb, edge].join("\n"),

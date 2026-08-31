@@ -12,6 +12,12 @@ export type CommercialBuyerGrade =
   | "GENERIC_SUPPORT"
   | "REJECTED";
 
+export type SalesProspectClassification =
+  | "DIRECT_COMMERCIAL_PROSPECT"
+  | "END_BUYER_PROCUREMENT_SIGNAL"
+  | "PRODUCT_RELEVANT_NOT_BUYER"
+  | "REJECTED";
+
 export type BuyerRoleConfidence = "HIGH" | "MEDIUM" | "LOW" | "NONE";
 
 export type BuyerArchetype =
@@ -24,6 +30,7 @@ export type BuyerArchetype =
   | "MANUFACTURER"
   | "TENDER_SUPPLIER"
   | "PROCUREMENT_ORGANIZATION"
+  | "DIRECT_MANUFACTURER_ONBOARDING"
   | "UNKNOWN";
 
 export type BuyerArchetypeSignal = {
@@ -236,6 +243,8 @@ export type CandidateCompatibility = {
   buyerRoleConfidence: BuyerRoleConfidence;
   buyerRoleScore: number;
   credibleBuyerRole: boolean;
+  endBuyerProcurementRole: boolean;
+  salesProspectClassification: SalesProspectClassification;
   commercialReason: string;
   productClassification:
     | "DIRECT_PRODUCT_FIT"
@@ -949,13 +958,36 @@ function inferArchetypes(
     add("HOSPITAL_SUPPLIER", "MEDIUM", "Relevant hospital-supply activity");
   }
   if (
-    /procurement organi[sz]ation|procurement body|purchasing organi[sz]ation|hospital procurement|healthcare procurement|buying group|supply chain|contract launch|public purchasing/
+    /contract supplier|framework supplier|commercial supplier to hospitals|local (?:commercial )?channel partner/
+      .test(text)
+  ) {
+    add(
+      "TENDER_SUPPLIER",
+      "HIGH",
+      "Verified commercial or contract-supplier channel role",
+    );
+  }
+  if (/sourcing partner|component sourcing partner/.test(text)) {
+    add("OEM_PRIVATE_LABEL", "HIGH", "Verified sourcing-partner relationship");
+  }
+  if (
+    /procurement organi[sz]ation|procurement body|purchasing organi[sz]ation|contracting authorit|hospital procurement|hospital purchasing|public hospital|hospital group|healthcare procurement|buying group|supply chain|contract launch|public purchasing/
       .test(text)
   ) {
     add(
       "PROCUREMENT_ORGANIZATION",
       "HIGH",
       "Product-specific healthcare procurement or purchasing activity",
+    );
+  }
+  if (
+    /supplier (?:registration|onboarding|application|portal)|become (?:a )?supplier|directly purchas(?:e|ing) from (?:foreign |international )?manufacturers|international manufacturer onboarding/
+      .test(text)
+  ) {
+    add(
+      "DIRECT_MANUFACTURER_ONBOARDING",
+      "HIGH",
+      "Specific evidence of a directly approachable manufacturer-supplier onboarding route",
     );
   }
   if (
@@ -985,7 +1017,13 @@ function inferArchetypes(
       "Product manufacturer; purchasing or sourcing role is not established",
     );
   }
-  if (compatible.some((item) => item.sourceType === "TED_AWARD")) {
+  if (
+    compatible.some((item) =>
+      item.sourceType === "TED_AWARD" &&
+      (item.procurementRole === "WINNER" ||
+        item.procurementRole === "TENDERER_FALLBACK")
+    )
+  ) {
     add("TENDER_SUPPLIER", "HIGH", "Relevant public procurement supplier");
   }
   if (!output.length) {
@@ -1004,20 +1042,54 @@ function buyerRoleAssessment(archetypes: BuyerArchetypeSignal[]): {
   confidence: BuyerRoleConfidence;
   score: number;
   credible: boolean;
+  endBuyerProcurementRole: boolean;
 } {
   const commercial = archetypes.filter((item) =>
-    item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER"
+    item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+    item.archetype !== "PROCUREMENT_ORGANIZATION"
   );
   if (commercial.some((item) => item.strength === "HIGH")) {
-    return { confidence: "HIGH", score: 15, credible: true };
+    return {
+      confidence: "HIGH",
+      score: 15,
+      credible: true,
+      endBuyerProcurementRole: false,
+    };
   }
   if (commercial.some((item) => item.strength === "MEDIUM")) {
-    return { confidence: "MEDIUM", score: 11, credible: true };
+    return {
+      confidence: "MEDIUM",
+      score: 11,
+      credible: true,
+      endBuyerProcurementRole: false,
+    };
+  }
+  if (
+    archetypes.some((item) =>
+      item.archetype === "PROCUREMENT_ORGANIZATION" && item.strength !== "LOW"
+    )
+  ) {
+    return {
+      confidence: "HIGH",
+      score: 8,
+      credible: false,
+      endBuyerProcurementRole: true,
+    };
   }
   if (archetypes.some((item) => item.archetype === "MANUFACTURER")) {
-    return { confidence: "LOW", score: 2, credible: false };
+    return {
+      confidence: "LOW",
+      score: 2,
+      credible: false,
+      endBuyerProcurementRole: false,
+    };
   }
-  return { confidence: "NONE", score: 0, credible: false };
+  return {
+    confidence: "NONE",
+    score: 0,
+    credible: false,
+    endBuyerProcurementRole: false,
+  };
 }
 
 export function evaluateCandidateCompatibility(
@@ -1079,15 +1151,27 @@ export function evaluateCandidateCompatibility(
     : mismatch
     ? "REJECTED"
     : "GENERIC_SUPPORT";
+  const salesProspectClassification: SalesProspectClassification =
+    buyerRole.endBuyerProcurementRole &&
+      (directEvidence.length > 0 || adjacentEvidence.length > 0)
+      ? "END_BUYER_PROCUREMENT_SIGNAL"
+      : classification === "DIRECT_BUYER" || classification === "ADJACENT_BUYER"
+      ? "DIRECT_COMMERCIAL_PROSPECT"
+      : classification === "PRODUCT_RELEVANT_NOT_BUYER"
+      ? "PRODUCT_RELEVANT_NOT_BUYER"
+      : "REJECTED";
   const bestArchetype =
     archetypes.find((item) =>
       item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
       item.strength !== "LOW"
     ) || archetypes.find((item) => item.archetype !== "UNKNOWN");
-  const commercialReason = classification === "DIRECT_BUYER"
-    ? "Direct buyer: product-specific evidence and commercial buyer-role evidence"
+  const commercialReason = salesProspectClassification ===
+      "END_BUYER_PROCUREMENT_SIGNAL"
+    ? "End-buyer procurement signal: product demand is verified, but a directly approachable commercial channel is not"
+    : classification === "DIRECT_BUYER"
+    ? "Direct commercial prospect: product-specific evidence and commercial channel-role evidence"
     : classification === "ADJACENT_BUYER"
-    ? "Adjacent buyer: credible buyer role with product-family adjacency"
+    ? "Adjacent commercial prospect: credible channel role with product-family adjacency"
     : classification === "PRODUCT_RELEVANT_NOT_BUYER"
     ? "Product relevance is verified, but purchasing or sourcing intent is not"
     : bestArchetype?.reason ||
@@ -1105,6 +1189,8 @@ export function evaluateCandidateCompatibility(
     buyerRoleConfidence: buyerRole.confidence,
     buyerRoleScore: buyerRole.score,
     credibleBuyerRole: buyerRole.credible,
+    endBuyerProcurementRole: buyerRole.endBuyerProcurementRole,
+    salesProspectClassification,
     commercialReason,
     productClassification,
     classification,
@@ -1124,6 +1210,7 @@ export function archetypeLabel(value: BuyerArchetype): string {
     MANUFACTURER: "Manufacturer",
     TENDER_SUPPLIER: "Tender supplier",
     PROCUREMENT_ORGANIZATION: "Procurement organization",
+    DIRECT_MANUFACTURER_ONBOARDING: "Direct manufacturer onboarding",
     UNKNOWN: "Potential business buyer",
   };
   return labels[value];
