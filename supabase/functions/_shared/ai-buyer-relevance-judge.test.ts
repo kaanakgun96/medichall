@@ -2,7 +2,10 @@ import {
   AI_BUYER_RELEVANCE_JUDGE_LIMITS,
   AI_BUYER_RELEVANCE_JUDGE_VERSION,
   type AiBuyerJudgeCache,
+  aiBuyerJudgeCacheId,
+  AiBuyerJudgeCacheOperationError,
   type AiBuyerJudgeCandidate,
+  aiBuyerJudgeCompletionMatches,
   type AiBuyerJudgeProductContext,
   aiBuyerJudgeProductContext,
   aiBuyerJudgeProviderBody,
@@ -19,6 +22,7 @@ import {
   type ProspectEvidence,
   type RankedProspect,
   rankProspects,
+  sanitizeEvidenceText,
 } from "./external-prospect-discovery.ts";
 import {
   buildProductFamilyProfile,
@@ -214,6 +218,19 @@ function mockFetcher(
     );
   }) as typeof fetch;
 }
+
+Deno.test("cache UUIDs remain structured and bypass free-text contact redaction", () => {
+  const numericRunId = "12345678-1234-4abc-8def-123456789012";
+  assertEquals(aiBuyerJudgeCacheId(numericRunId), numericRunId);
+  assertEquals(aiBuyerJudgeCacheId("[private contact]-4abc"), null);
+  assertEquals(aiBuyerJudgeCacheId("not-a-uuid"), null);
+  assertEquals(
+    sanitizeEvidenceText(
+      "Call +44 20 1234 5678 or email buyer@example.test about gloves.",
+    ),
+    "Call [private contact] or email [private contact] about gloves.",
+  );
+});
 
 Deno.test("provider schema is conservative, bounded, and treats evidence as untrusted data", async () => {
   const malicious = grade(
@@ -568,6 +585,354 @@ Deno.test("cache reuse makes no second provider call and evidence changes invali
     originalFingerprint !== correctedFingerprint,
     "commercial-prospect semantic changes must invalidate old AI judgments",
   );
+});
+
+Deno.test("five valid provider judgments persist independently", async () => {
+  const ranked = Array.from({ length: 5 }, (_, index) =>
+    grade(
+      candidate({
+        name: `QA Persistence Distributor ${index + 1}`,
+        companyType: "Distributor",
+        title: "Official examination glove catalogue",
+        snippet:
+          "Medical distributor of nitrile examination gloves for clinical use.",
+      }),
+      glove,
+    ));
+  const calls = { count: 0 };
+  let completions = 0;
+  const memory = memoryCache();
+  const cache: AiBuyerJudgeCache = {
+    ...memory.cache,
+    complete: async (built, result) => {
+      completions += 1;
+      await memory.cache.complete(built, result, {} as never, {} as never);
+    },
+  };
+  const result = await runAiBuyerRelevanceJudge({
+    enabled: true,
+    productFamily: glove,
+    accepted: ranked,
+    rejected: [],
+    apiKey: "qa-key-never-logged",
+    cache,
+    fetcher: mockFetcher(
+      (_candidate, candidateId) => judgment(candidateId),
+      calls,
+    ),
+  });
+  assertEquals(calls.count, 1);
+  assertEquals(completions, 5);
+  assertEquals(result.diagnostics.judgedCandidates, 5);
+  assertEquals(result.diagnostics.fallbackCount, 0);
+  assertEquals(result.diagnostics.failureCodeCounts, {});
+});
+
+Deno.test("saved 13-candidate shape completes with zero malformed cache UUIDs", async () => {
+  const names = [
+    "Abena AB",
+    "AST Medical AB",
+    "Mölnlycke Health Care AB",
+    "Onemed",
+    "Onemed Sverige AB",
+    "Fastus",
+    "L&B Medical AB",
+    "Medea AB",
+    "MEDOR",
+    "Mediplast AB",
+    "Salubrious AB",
+    "Rekstrarvörur",
+    "Mediplast AB",
+  ];
+  const cacheIds = [
+    "12345678-1234-4abc-8def-123456789012",
+    "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1",
+    "bbbbbbbb-cccc-4ddd-9eee-fffffffffff2",
+    "98765432-4321-4abc-8def-987654321098",
+    "cccccccc-dddd-4eee-afff-aaaaaaaaaaa3",
+    "dddddddd-eeee-4fff-baaa-bbbbbbbbbbb4",
+    "11111111-2222-4aaa-8bbb-333333333333",
+    "eeeeeeee-ffff-4aaa-8bbb-ccccccccccc5",
+    "ffffffff-aaaa-4bbb-9ccc-ddddddddddd6",
+    "aaaaaaab-bbbb-4ccc-addd-eeeeeeeeeee7",
+    "44444444-5555-4ccc-8ddd-666666666666",
+    "bbbbbbbc-cccc-4ddd-9eee-fffffffffff8",
+    "cccccccd-dddd-4eee-afff-aaaaaaaaaaa9",
+  ];
+  assertEquals(
+    cacheIds.filter((id) => sanitizeEvidenceText(id) !== id).length,
+    4,
+    "historical free-text path should reproduce four corrupted UUIDs",
+  );
+  const ranked = names.map((name, index) =>
+    grade(
+      candidate({
+        name,
+        companyType: "Distributor",
+        title: "Awarded medical examination glove supplier",
+        snippet:
+          "Verified supplier of nitrile examination gloves for clinical use.",
+        sourceUrl: `https://qa-glove-supplier-${index + 1}.example/products`,
+      }),
+      glove,
+    )
+  );
+  const calls = { count: 0 };
+  let validProviderOutputs = 0;
+  let persisted = 0;
+  let completed = 0;
+  let fallbacks = 0;
+  let malformedUuidCount = 0;
+  let reservation = 0;
+  const cache: AiBuyerJudgeCache = {
+    reserve: () => {
+      const cacheId = aiBuyerJudgeCacheId(cacheIds[reservation++]);
+      if (!cacheId) malformedUuidCount += 1;
+      return Promise.resolve({
+        decision: "PROCEED" as const,
+        cacheId,
+      });
+    },
+    complete: () => {
+      persisted += 1;
+      completed += 1;
+      return Promise.resolve();
+    },
+    fail: () => {
+      fallbacks += 1;
+      return Promise.resolve();
+    },
+  };
+  const result = await runAiBuyerRelevanceJudge({
+    enabled: true,
+    productFamily: glove,
+    accepted: ranked,
+    rejected: [],
+    apiKey: "qa-key-never-logged",
+    cache,
+    fetcher: mockFetcher((_candidate, candidateId) => {
+      validProviderOutputs += 1;
+      return judgment(candidateId, {
+        buyer_role: "TENDER_SUPPLIER",
+        reason_codes: ["TENDER_SUPPLIER_PRODUCT_MATCH"],
+      });
+    }, calls),
+  });
+  assertEquals(calls.count, 3);
+  assertEquals(validProviderOutputs, 13);
+  assertEquals(persisted, 13);
+  assertEquals(completed, 13);
+  assertEquals(fallbacks, 0);
+  assertEquals(malformedUuidCount, 0);
+  assertEquals(result.diagnostics.judgedCandidates, 13);
+  assertEquals(result.diagnostics.fallbackCount, 0);
+});
+
+Deno.test("one candidate persistence failure preserves four judgments and one exact fallback", async () => {
+  const ranked = Array.from({ length: 5 }, (_, index) =>
+    grade(
+      candidate({
+        name: `QA Isolated Distributor ${index + 1}`,
+        companyType: "Distributor",
+        title: "Official examination glove catalogue",
+        snippet:
+          "Medical distributor of nitrile examination gloves for clinical use.",
+      }),
+      glove,
+    ));
+  const calls = { count: 0 };
+  let completions = 0;
+  let failures = 0;
+  let reservations = 0;
+  const cache: AiBuyerJudgeCache = {
+    reserve: () =>
+      Promise.resolve({
+        decision: "PROCEED" as const,
+        cacheId: [
+          "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1",
+          "bbbbbbbb-cccc-4ddd-9eee-fffffffffff2",
+          "cccccccc-dddd-4eee-afff-aaaaaaaaaaa3",
+          "dddddddd-eeee-4fff-baaa-bbbbbbbbbbb4",
+          "eeeeeeee-ffff-4aaa-8bbb-ccccccccccc5",
+        ][reservations++],
+      }),
+    complete: (built) => {
+      if (built.candidateName.endsWith("3")) {
+        throw new AiBuyerJudgeCacheOperationError(
+          "AI_BUYER_JUDGE_COMPLETION_22023",
+        );
+      }
+      completions += 1;
+      return Promise.resolve();
+    },
+    fail: (built) => {
+      assert(
+        aiBuyerJudgeCacheId(built.cacheId) !== null,
+        "failure RPC must receive the same structurally valid UUID",
+      );
+      failures += 1;
+      return Promise.resolve();
+    },
+  };
+  const result = await runAiBuyerRelevanceJudge({
+    enabled: true,
+    productFamily: glove,
+    accepted: ranked,
+    rejected: [],
+    apiKey: "qa-key-never-logged",
+    cache,
+    fetcher: mockFetcher(
+      (_candidate, candidateId) => judgment(candidateId),
+      calls,
+    ),
+  });
+  assertEquals(calls.count, 1, "persistence failure must not repeat provider");
+  assertEquals(completions, 4);
+  assertEquals(failures, 1);
+  assertEquals(result.diagnostics.judgedCandidates, 4);
+  assertEquals(result.diagnostics.fallbackCount, 1);
+  assertEquals(
+    result.diagnostics.failureCodeCounts
+      .AI_BUYER_JUDGE_COMPLETION_22023,
+    1,
+  );
+  const fallback = result.accepted.find((item) =>
+    item.candidate.name.endsWith("3")
+  );
+  assertEquals(fallback?.score.aiBuyerJudgeStatus, "AI_JUDGE_FAILED_FALLBACK");
+});
+
+Deno.test("one transient completion retry reuses provider output and duplicate completion reconciles idempotently", async () => {
+  const ranked = grade(
+    candidate({
+      name: "QA Retry Distributor",
+      companyType: "Distributor",
+      title: "Official examination glove catalogue",
+      snippet:
+        "Medical distributor of nitrile examination gloves for clinical use.",
+    }),
+    glove,
+  );
+  const calls = { count: 0 };
+  let completionAttempts = 0;
+  const memory = memoryCache();
+  const persisted: {
+    value: {
+      built: AiBuyerJudgeCandidate;
+      result: AiBuyerRelevanceJudgment;
+    } | null;
+  } = { value: null };
+  const cache: AiBuyerJudgeCache = {
+    ...memory.cache,
+    complete: async (built, result) => {
+      completionAttempts += 1;
+      if (completionAttempts === 1) {
+        throw new AiBuyerJudgeCacheOperationError(
+          "AI_BUYER_JUDGE_COMPLETION_57014",
+          true,
+        );
+      }
+      persisted.value = { built, result };
+      await memory.cache.complete(built, result, {} as never, {} as never);
+    },
+  };
+  const run = await runAiBuyerRelevanceJudge({
+    enabled: true,
+    productFamily: glove,
+    accepted: [ranked],
+    rejected: [],
+    apiKey: "qa-key-never-logged",
+    cache,
+    fetcher: mockFetcher(
+      (_candidate, candidateId) => judgment(candidateId),
+      calls,
+    ),
+  });
+  assertEquals(calls.count, 1);
+  assertEquals(completionAttempts, 2);
+  assertEquals(run.diagnostics.judgedCandidates, 1);
+  const saved = persisted.value;
+  assert(saved, "validated judgment was not persisted on retry");
+  const reviewed = applyAiBuyerJudgment(ranked, saved.result, "REVIEWED");
+  assert(
+    aiBuyerJudgeCompletionMatches({
+      row: {
+        status: "COMPLETED",
+        candidate_key: saved.built.candidateKey,
+        product_intent_key: saved.built.productIntentKey,
+        evidence_fingerprint: saved.built.evidenceFingerprint,
+        model_name: "claude-haiku-4-5",
+        structured_result: saved.result,
+        final_grade: reviewed.score.commercialBuyerGrade,
+        buyer_fit_score: reviewed.score.buyerFitScore,
+      },
+      candidate: saved.built,
+      judgment: saved.result,
+      finalScore: reviewed.score,
+      provider: {
+        judgments: [saved.result],
+        model: "claude-haiku-4-5",
+        providerRequestId: "qa-provider-id",
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150,
+        estimatedCostUsd: 0.00035,
+        latencyMs: 100,
+      },
+    }),
+    "an already-completed identical judgment must reconcile as success",
+  );
+});
+
+Deno.test("failed cache entry is never reused as a completed judgment", async () => {
+  const ranked = grade(
+    candidate({
+      name: "QA Failed Cache Distributor",
+      companyType: "Distributor",
+      title: "Official examination glove catalogue",
+      snippet:
+        "Medical distributor of nitrile examination gloves for clinical use.",
+    }),
+    glove,
+  );
+  const calls = { count: 0 };
+  let failed = false;
+  const cache: AiBuyerJudgeCache = {
+    reserve: () =>
+      Promise.resolve(
+        failed
+          ? { decision: "RECENT_FAILURE" as const, cacheId: "cache-failed" }
+          : { decision: "PROCEED" as const, cacheId: "cache-failed" },
+      ),
+    complete: () => {
+      throw new AiBuyerJudgeCacheOperationError(
+        "AI_BUYER_JUDGE_COMPLETION_22023",
+      );
+    },
+    fail: () => {
+      failed = true;
+      return Promise.resolve();
+    },
+  };
+  const execute = () =>
+    runAiBuyerRelevanceJudge({
+      enabled: true,
+      productFamily: glove,
+      accepted: [ranked],
+      rejected: [],
+      apiKey: "qa-key-never-logged",
+      cache,
+      fetcher: mockFetcher(
+        (_candidate, candidateId) => judgment(candidateId),
+        calls,
+      ),
+    });
+  const first = await execute();
+  const second = await execute();
+  assertEquals(calls.count, 1);
+  assertEquals(first.diagnostics.statusCounts.AI_JUDGE_FAILED_FALLBACK, 1);
+  assertEquals(second.diagnostics.statusCounts.RECENT_FAILURE_FALLBACK, 1);
+  assertEquals(second.diagnostics.cacheHits, 0);
 });
 
 Deno.test("retained glove replay preserves ten audited strong buyers and rejects non-medical candidates before AI", async () => {

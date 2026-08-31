@@ -158,6 +158,60 @@ export type AiBuyerJudgeProviderResult = {
   latencyMs: number;
 };
 
+const CACHE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// Database identifiers are structured values, not evidence text. In
+// particular, UUIDs with long numeric runs must never pass through the phone
+// redactor used for untrusted human-readable content.
+export function aiBuyerJudgeCacheId(value: unknown): string | null {
+  const candidate = String(value ?? "").trim().toLowerCase();
+  return CACHE_ID_PATTERN.test(candidate) ? candidate : null;
+}
+
+export class AiBuyerJudgeCacheOperationError extends Error {
+  constructor(
+    code: string,
+    readonly retryable = false,
+  ) {
+    super(code);
+    this.name = "AiBuyerJudgeCacheOperationError";
+  }
+}
+
+export function aiBuyerJudgeCompletionMatches(input: {
+  row: unknown;
+  candidate: AiBuyerJudgeCandidate;
+  judgment: AiBuyerRelevanceJudgment;
+  finalScore: AiBuyerReviewedScore;
+  provider: AiBuyerJudgeProviderResult;
+}): boolean {
+  if (!input.row || typeof input.row !== "object" || Array.isArray(input.row)) {
+    return false;
+  }
+  const row = input.row as Record<string, unknown>;
+  const structured = row.structured_result &&
+      typeof row.structured_result === "object" &&
+      !Array.isArray(row.structured_result)
+    ? row.structured_result as Record<string, unknown>
+    : {};
+  return String(row.status || "") === "COMPLETED" &&
+    String(row.candidate_key || "") === input.candidate.candidateKey &&
+    String(row.product_intent_key || "") ===
+      input.candidate.productIntentKey &&
+    String(row.evidence_fingerprint || "") ===
+      input.candidate.evidenceFingerprint &&
+    String(row.model_name || "") === input.provider.model &&
+    String(row.final_grade || "") ===
+      input.finalScore.commercialBuyerGrade &&
+    Number(row.buyer_fit_score) === input.finalScore.buyerFitScore &&
+    String(structured.candidate_id || "") === input.judgment.candidate_id &&
+    String(structured.recommended_grade || "") ===
+      input.judgment.recommended_grade &&
+    String(structured.sales_prospect_classification || "") ===
+      input.judgment.sales_prospect_classification;
+}
+
 export type AiBuyerJudgeReservation = {
   decision:
     | "DISABLED"
@@ -206,6 +260,7 @@ export type AiBuyerJudgeRunResult = {
     maximumCandidatesPerBatch: number;
     maximumCostUsdPerRun: number;
     statusCounts: Record<AiBuyerJudgeStatus, number>;
+    failureCodeCounts: Record<string, number>;
   };
 };
 
@@ -929,7 +984,11 @@ function defaultReviewedProspect(
 
 function errorCode(error: unknown): string {
   return String(
-    error instanceof Error ? error.message : "AI_BUYER_JUDGE_FAILED",
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : "AI_BUYER_JUDGE_FAILED",
   )
     .toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 100) ||
     "AI_BUYER_JUDGE_FAILED";
@@ -946,6 +1005,46 @@ function statusCounts(): Record<AiBuyerJudgeStatus, number> {
     RECENT_FAILURE_FALLBACK: 0,
     AI_JUDGE_FAILED_FALLBACK: 0,
   };
+}
+
+function addFailure(
+  failures: Record<string, number>,
+  error: unknown,
+  fallback: string,
+): string {
+  const code = errorCode(error) || fallback;
+  failures[code] = (failures[code] || 0) + 1;
+  return code;
+}
+
+async function completeJudgmentWithBoundedRetry(input: {
+  cache: AiBuyerJudgeCache;
+  candidate: AiBuyerJudgeCandidate;
+  judgment: AiBuyerRelevanceJudgment;
+  finalScore: AiBuyerReviewedScore;
+  provider: AiBuyerJudgeProviderResult;
+}): Promise<void> {
+  try {
+    await input.cache.complete(
+      input.candidate,
+      input.judgment,
+      input.finalScore,
+      input.provider,
+    );
+  } catch (error) {
+    if (
+      !(error instanceof AiBuyerJudgeCacheOperationError) ||
+      !error.retryable
+    ) throw error;
+    // A persistence retry reuses the already validated provider judgment. It
+    // must never issue another paid provider request.
+    await input.cache.complete(
+      input.candidate,
+      input.judgment,
+      input.finalScore,
+      input.provider,
+    );
+  }
 }
 
 export async function runAiBuyerRelevanceJudge(input: {
@@ -967,6 +1066,7 @@ export async function runAiBuyerRelevanceJudge(input: {
     input.model || DEFAULT_AI_BUYER_RELEVANCE_JUDGE_MODEL,
   ).trim().slice(0, 100);
   const counts = statusCounts();
+  const failureCodeCounts: Record<string, number> = {};
   const maximumCandidatesPerRun = Math.max(
     1,
     Math.min(
@@ -1043,6 +1143,7 @@ export async function runAiBuyerRelevanceJudge(input: {
         maximumCandidatesPerBatch,
         maximumCostUsdPerRun,
         statusCounts: counts,
+        failureCodeCounts,
       },
     };
   }
@@ -1090,7 +1191,12 @@ export async function runAiBuyerRelevanceJudge(input: {
         counts[status] += 1;
         fallbackCount += status === "DISABLED" ? 0 : 1;
       }
-    } catch (_) {
+    } catch (error) {
+      addFailure(
+        failureCodeCounts,
+        error,
+        "AI_BUYER_JUDGE_RESERVATION_FAILED",
+      );
       reviewedByIdentity.set(
         candidate.ranked,
         defaultReviewedProspect(candidate.ranked, "AI_JUDGE_FAILED_FALLBACK"),
@@ -1120,7 +1226,18 @@ export async function runAiBuyerRelevanceJudge(input: {
     ) {
       for (const candidate of batch) {
         await input.cache.fail(candidate, "AI_BUYER_JUDGE_RUN_COST_CAP").catch(
-          () => undefined,
+          (error) => {
+            addFailure(
+              failureCodeCounts,
+              error,
+              "AI_BUYER_JUDGE_FAILURE_WRITE_FAILED",
+            );
+          },
+        );
+        addFailure(
+          failureCodeCounts,
+          "AI_BUYER_JUDGE_RUN_COST_CAP",
+          "AI_BUYER_JUDGE_RUN_COST_CAP",
         );
         reviewedByIdentity.set(
           candidate.ranked,
@@ -1164,20 +1281,32 @@ export async function runAiBuyerRelevanceJudge(input: {
           "REVIEWED",
         );
         try {
-          await input.cache.complete(
+          await completeJudgmentWithBoundedRetry({
+            cache: input.cache,
             candidate,
             judgment,
-            reviewed.score,
+            finalScore: reviewed.score,
             provider,
-          );
+          });
           reviewedByIdentity.set(candidate.ranked, reviewed);
           counts.REVIEWED += 1;
           judgedCandidates += 1;
-        } catch (_) {
+        } catch (error) {
+          const code = addFailure(
+            failureCodeCounts,
+            error,
+            "AI_BUYER_JUDGE_COMPLETION_FAILED",
+          );
           await input.cache.fail(
             candidate,
-            "AI_BUYER_JUDGE_CACHE_WRITE_FAILED",
-          ).catch(() => undefined);
+            code,
+          ).catch((failureError) => {
+            addFailure(
+              failureCodeCounts,
+              failureError,
+              "AI_BUYER_JUDGE_FAILURE_WRITE_FAILED",
+            );
+          });
           reviewedByIdentity.set(
             candidate.ranked,
             defaultReviewedProspect(
@@ -1192,7 +1321,14 @@ export async function runAiBuyerRelevanceJudge(input: {
     } catch (error) {
       const code = errorCode(error);
       for (const candidate of batch) {
-        await input.cache.fail(candidate, code).catch(() => undefined);
+        addFailure(failureCodeCounts, code, "AI_BUYER_JUDGE_PROVIDER_FAILED");
+        await input.cache.fail(candidate, code).catch((failureError) => {
+          addFailure(
+            failureCodeCounts,
+            failureError,
+            "AI_BUYER_JUDGE_FAILURE_WRITE_FAILED",
+          );
+        });
         reviewedByIdentity.set(
           candidate.ranked,
           defaultReviewedProspect(
@@ -1223,6 +1359,7 @@ export async function runAiBuyerRelevanceJudge(input: {
     maximumCandidatesPerRun,
     maximumCandidatesPerBatch,
     maximumCostUsdPerRun,
+    failureCodeCounts,
   });
 }
 

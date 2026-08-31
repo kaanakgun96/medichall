@@ -82,7 +82,10 @@ import {
 import {
   AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
   AI_BUYER_RELEVANCE_JUDGE_VERSION,
+  aiBuyerJudgeCacheId,
+  AiBuyerJudgeCacheOperationError,
   type AiBuyerJudgeCandidate,
+  aiBuyerJudgeCompletionMatches,
   type AiBuyerJudgeProductContext,
   type AiBuyerJudgeProviderResult,
   type AiBuyerRelevanceJudgment,
@@ -233,6 +236,22 @@ function structuredFirst(value: unknown, maximum = 1000): string {
 
 function first(value: unknown): string {
   return texts(value)[0] || "";
+}
+
+function aiBuyerJudgeRpcError(
+  operation: "RESERVATION" | "COMPLETION" | "FAILURE_WRITE",
+  value: unknown,
+): AiBuyerJudgeCacheOperationError {
+  const rawCode = structuredFirst(record(value).code, 32).toUpperCase();
+  const sqlState = rawCode.replace(/[^A-Z0-9]/g, "_").slice(0, 32) ||
+    "UNKNOWN";
+  const retryable = /^(?:08|53|57P0)/.test(rawCode) ||
+    ["55P03", "57014", "PGRST000", "PGRST001", "PGRST002", "PGRST003"]
+      .includes(rawCode);
+  return new AiBuyerJudgeCacheOperationError(
+    `AI_BUYER_JUDGE_${operation}_${sqlState}`,
+    retryable,
+  );
 }
 
 function countryCode(value: unknown): string | null {
@@ -3570,7 +3589,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
             },
           );
           if (reservation.error) {
-            throw new Error("AI_BUYER_JUDGE_RESERVATION_FAILED");
+            throw aiBuyerJudgeRpcError("RESERVATION", reservation.error);
           }
           const value = record(reservation.data);
           const decision = String(value.decision || "RECENT_FAILURE") as
@@ -3579,9 +3598,21 @@ async function handleDiscovery(request: Request): Promise<Response> {
             | "PROCEED"
             | "IN_PROGRESS"
             | "RECENT_FAILURE";
+          const cacheId = value.cache_id == null
+            ? null
+            : aiBuyerJudgeCacheId(value.cache_id);
+          if (
+            value.cache_id != null && !cacheId &&
+            (decision === "PROCEED" || decision === "CACHED" ||
+              decision === "IN_PROGRESS" || decision === "RECENT_FAILURE")
+          ) {
+            throw new AiBuyerJudgeCacheOperationError(
+              "AI_BUYER_JUDGE_CACHE_ID_INVALID",
+            );
+          }
           return {
             decision,
-            cacheId: first(value.cache_id) || null,
+            cacheId,
             structuredResult: value.structured_result,
           };
         },
@@ -3592,7 +3623,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
           provider: AiBuyerJudgeProviderResult,
         ) => {
           if (!candidate.cacheId) {
-            throw new Error("AI_BUYER_JUDGE_CACHE_ID_MISSING");
+            throw new AiBuyerJudgeCacheOperationError(
+              "AI_BUYER_JUDGE_CACHE_ID_MISSING",
+            );
           }
           const allocation = Math.max(1, provider.judgments.length);
           const allocatedInputTokens = Math.ceil(
@@ -3621,7 +3654,24 @@ async function handleDiscovery(request: Request): Promise<Response> {
             },
           );
           if (completion.error) {
-            throw new Error("AI_BUYER_JUDGE_CACHE_WRITE_FAILED");
+            // If the write committed but its response was lost, the bounded
+            // retry must behave as a successful duplicate completion rather
+            // than degrading a paid provider result to fallback.
+            const existingResult = await admin.from(
+              "buyer_relevance_judgments",
+            ).select(
+              "status,candidate_key,product_intent_key,evidence_fingerprint,model_name,structured_result,final_grade,buyer_fit_score",
+            ).eq("id", candidate.cacheId).maybeSingle();
+            if (
+              !existingResult.error && aiBuyerJudgeCompletionMatches({
+                row: existingResult.data,
+                candidate,
+                judgment,
+                finalScore,
+                provider,
+              })
+            ) return;
+            throw aiBuyerJudgeRpcError("COMPLETION", completion.error);
           }
         },
         fail: async (candidate: AiBuyerJudgeCandidate, errorCode: string) => {
@@ -3634,7 +3684,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
             },
           );
           if (failure.error) {
-            throw new Error("AI_BUYER_JUDGE_FAILURE_WRITE_FAILED");
+            throw aiBuyerJudgeRpcError("FAILURE_WRITE", failure.error);
           }
         },
       },
@@ -3894,6 +3944,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
         total_latency_ms: aiBuyerJudgeLatencyMs,
         deterministic_fallbacks: aiBuyerJudgeFallbacks,
         status_counts: aiBuyerJudge.diagnostics.statusCounts,
+        failure_code_counts: aiBuyerJudge.diagnostics.failureCodeCounts,
         maximum_candidates_per_run:
           aiBuyerJudge.diagnostics.maximumCandidatesPerRun,
         maximum_candidates_per_batch:
