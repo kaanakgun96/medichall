@@ -79,6 +79,17 @@ import {
   validateSmartResolverInput,
   validateSmartResolverOutput,
 } from "../_shared/smart-product-resolver.ts";
+import {
+  AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
+  AI_BUYER_RELEVANCE_JUDGE_VERSION,
+  type AiBuyerJudgeCandidate,
+  type AiBuyerJudgeProductContext,
+  type AiBuyerJudgeProviderResult,
+  type AiBuyerRelevanceJudgment,
+  type AiBuyerReviewedScore,
+  DEFAULT_AI_BUYER_RELEVANCE_JUDGE_MODEL,
+  runAiBuyerRelevanceJudge,
+} from "../_shared/ai-buyer-relevance-judge.ts";
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
 import {
   buildDiscoverySearchPlan,
@@ -2138,6 +2149,15 @@ async function persistCandidate(
     evidence_fingerprint: evidenceFingerprint,
     intent_hash: intentHash,
     relevance_score: score.relevanceScore,
+    buyer_fit_score: score.buyerFitScore ?? score.relevanceScore,
+    buyer_fit_grade: score.buyerFitGrade || score.confidence,
+    ai_buyer_judge_status: score.aiBuyerJudgeStatus || "DISABLED",
+    ai_buyer_recommended_grade: score.aiBuyerRecommendedGrade || null,
+    ai_buyer_reason_codes: (score.aiBuyerReasonCodes || []).slice(0, 6),
+    ai_buyer_short_explanation: sanitizeEvidenceText(
+      score.aiBuyerShortExplanation,
+      320,
+    ) || null,
     product_taxonomy_score: score.productTaxonomyScore,
     geography_score: score.geographyScore,
     company_type_score: score.companyTypeScore,
@@ -2188,6 +2208,15 @@ async function persistCandidate(
       product_family_label: productFamily.label,
       commercial_fit: score.commercialFitClassification,
       commercial_buyer_grade: score.commercialBuyerGrade,
+      buyer_fit_score: score.buyerFitScore ?? score.relevanceScore,
+      buyer_fit_grade: score.buyerFitGrade || score.confidence,
+      ai_buyer_judge_status: score.aiBuyerJudgeStatus || "DISABLED",
+      ai_buyer_recommended_grade: score.aiBuyerRecommendedGrade || null,
+      ai_buyer_reason_codes: (score.aiBuyerReasonCodes || []).slice(0, 6),
+      ai_buyer_short_explanation: sanitizeEvidenceText(
+        score.aiBuyerShortExplanation,
+        320,
+      ) || null,
       buyer_role_confidence: score.buyerRoleConfidence,
       qualification_path: score.qualificationPath,
       company_identity_source: safeIdentitySource,
@@ -2948,6 +2977,12 @@ async function handleDiscovery(request: Request): Promise<Response> {
   });
   let publicWebProviderRequests = 0;
   let publicWebProviderCostUsd = 0;
+  let aiBuyerJudgeProviderRequests = 0;
+  let aiBuyerJudgeCostUsd = 0;
+  let aiBuyerJudgeClassifications = 0;
+  let aiBuyerJudgeCacheHits = 0;
+  let aiBuyerJudgeFallbacks = 0;
+  let aiBuyerJudgeLatencyMs = 0;
   let providerExecutionStarted = false;
   try {
     const [profileResult, matchProfileResult, companiesResult] = await Promise
@@ -3455,9 +3490,163 @@ async function handleDiscovery(request: Request): Promise<Response> {
         deduped.registeredDuplicates + deduped.externalDuplicates,
       ),
     });
-    const ranking = rankProspects(deduped.candidates, productFamily, {
-      europeWide: targetCountries.length === 0,
+    const deterministicRanking = rankProspects(
+      deduped.candidates,
+      productFamily,
+      {
+        europeWide: targetCountries.length === 0,
+      },
+    );
+    const judgeFeatureResult = await admin.from(
+      "ai_buyer_relevance_judge_feature_state",
+    ).select(
+      "ai_buyer_judge_enabled,judge_version,implementation_version,model_name,maximum_candidates_per_run,maximum_candidates_per_batch,maximum_cost_usd_per_run",
+    ).eq("singleton", true).maybeSingle();
+    const judgeFeature = record(judgeFeatureResult.data);
+    const aiBuyerJudgeEnabled = !judgeFeatureResult.error &&
+      judgeFeature.ai_buyer_judge_enabled === true &&
+      first(judgeFeature.judge_version) ===
+        AI_BUYER_RELEVANCE_JUDGE_VERSION &&
+      first(judgeFeature.implementation_version) ===
+        AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION;
+    const aiBuyerJudgeModel = first(judgeFeature.model_name) ||
+      DEFAULT_AI_BUYER_RELEVANCE_JUDGE_MODEL;
+    const aiBuyerJudge = await runAiBuyerRelevanceJudge({
+      enabled: aiBuyerJudgeEnabled,
+      productFamily,
+      accepted: deterministicRanking.accepted,
+      rejected: deterministicRanking.rejected,
+      apiKey: aiBuyerJudgeEnabled
+        ? String(Deno.env.get("ANTHROPIC_API_KEY") || "")
+        : "",
+      model: aiBuyerJudgeModel,
+      inputUsdPerMillion: boundedEnvironmentNumber(
+        Deno.env.get("AI_BUYER_JUDGE_INPUT_COST_PER_MILLION_TOKENS"),
+        1,
+        0.01,
+        100,
+      ),
+      outputUsdPerMillion: boundedEnvironmentNumber(
+        Deno.env.get("AI_BUYER_JUDGE_OUTPUT_COST_PER_MILLION_TOKENS"),
+        5,
+        0.01,
+        100,
+      ),
+      maximumCandidatesPerRun: Number(
+        judgeFeature.maximum_candidates_per_run,
+      ),
+      maximumCandidatesPerBatch: Number(
+        judgeFeature.maximum_candidates_per_batch,
+      ),
+      maximumCostUsdPerRun: Number(
+        judgeFeature.maximum_cost_usd_per_run,
+      ),
+      cache: {
+        reserve: async (
+          candidate: AiBuyerJudgeCandidate,
+          product: AiBuyerJudgeProductContext,
+        ) => {
+          const reservation = await admin.rpc(
+            "reserve_ai_buyer_relevance_judgment_v1",
+            {
+              p_company_id: companyId,
+              p_requested_by: user.id,
+              p_discovery_run_id: runId,
+              p_candidate_key: candidate.candidateKey,
+              p_candidate_name: candidate.candidateName,
+              p_candidate_domain: candidate.candidateDomain,
+              p_product_intent_key: product.productIntentKey,
+              p_product_label: product.canonicalConcept,
+              p_evidence_fingerprint: candidate.evidenceFingerprint,
+              p_judge_version: AI_BUYER_RELEVANCE_JUDGE_VERSION,
+              p_implementation_version:
+                AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
+              p_model_name: aiBuyerJudgeModel,
+              p_deterministic_grade: candidate.deterministicGrade,
+              p_deterministic_score: candidate.deterministicScore,
+            },
+          );
+          if (reservation.error) {
+            throw new Error("AI_BUYER_JUDGE_RESERVATION_FAILED");
+          }
+          const value = record(reservation.data);
+          const decision = String(value.decision || "RECENT_FAILURE") as
+            | "DISABLED"
+            | "CACHED"
+            | "PROCEED"
+            | "IN_PROGRESS"
+            | "RECENT_FAILURE";
+          return {
+            decision,
+            cacheId: first(value.cache_id) || null,
+            structuredResult: value.structured_result,
+          };
+        },
+        complete: async (
+          candidate: AiBuyerJudgeCandidate,
+          judgment: AiBuyerRelevanceJudgment,
+          finalScore: AiBuyerReviewedScore,
+          provider: AiBuyerJudgeProviderResult,
+        ) => {
+          if (!candidate.cacheId) {
+            throw new Error("AI_BUYER_JUDGE_CACHE_ID_MISSING");
+          }
+          const allocation = Math.max(1, provider.judgments.length);
+          const allocatedInputTokens = Math.ceil(
+            provider.inputTokens / allocation,
+          );
+          const allocatedOutputTokens = Math.ceil(
+            provider.outputTokens / allocation,
+          );
+          const completion = await admin.rpc(
+            "complete_ai_buyer_relevance_judgment_v1",
+            {
+              p_cache_id: candidate.cacheId,
+              p_structured_result: judgment,
+              p_ai_recommended_grade: judgment.recommended_grade,
+              p_final_grade: finalScore.commercialBuyerGrade,
+              p_buyer_fit_score: finalScore.buyerFitScore,
+              p_model_name: provider.model,
+              p_provider_request_id: provider.providerRequestId,
+              p_input_tokens: allocatedInputTokens,
+              p_output_tokens: allocatedOutputTokens,
+              p_total_tokens: allocatedInputTokens + allocatedOutputTokens,
+              p_estimated_cost_usd: Number(
+                (provider.estimatedCostUsd / allocation).toFixed(6),
+              ),
+              p_latency_ms: provider.latencyMs,
+            },
+          );
+          if (completion.error) {
+            throw new Error("AI_BUYER_JUDGE_CACHE_WRITE_FAILED");
+          }
+        },
+        fail: async (candidate: AiBuyerJudgeCandidate, errorCode: string) => {
+          if (!candidate.cacheId) return;
+          const failure = await admin.rpc(
+            "fail_ai_buyer_relevance_judgment_v1",
+            {
+              p_cache_id: candidate.cacheId,
+              p_error_code: errorCode,
+            },
+          );
+          if (failure.error) {
+            throw new Error("AI_BUYER_JUDGE_FAILURE_WRITE_FAILED");
+          }
+        },
+      },
     });
+    aiBuyerJudgeProviderRequests = aiBuyerJudge.diagnostics.providerRequests;
+    aiBuyerJudgeCostUsd = aiBuyerJudge.diagnostics.estimatedCostUsd;
+    aiBuyerJudgeClassifications = aiBuyerJudge.diagnostics.judgedCandidates;
+    aiBuyerJudgeCacheHits = aiBuyerJudge.diagnostics.cacheHits;
+    aiBuyerJudgeFallbacks = aiBuyerJudge.diagnostics.fallbackCount;
+    aiBuyerJudgeLatencyMs = aiBuyerJudge.diagnostics.totalLatencyMs;
+    const ranking = {
+      accepted: aiBuyerJudge.accepted,
+      rejected: aiBuyerJudge.rejected,
+      diagnostics: deterministicRanking.diagnostics,
+    };
     const acceptedWithNovelty = await Promise.all(ranking.accepted.map(
       async (ranked) => {
         const currentFingerprint = await candidateEvidenceFingerprint(
@@ -3484,7 +3673,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
       acceptedWithNovelty.sort((left, right) =>
         noveltyPriority[left.discoveryState] -
           noveltyPriority[right.discoveryState] ||
-        right.ranked.score.relevanceScore - left.ranked.score.relevanceScore
+        (right.ranked.score.buyerFitScore ??
+            right.ranked.score.relevanceScore) -
+          (left.ranked.score.buyerFitScore ?? left.ranked.score.relevanceScore)
       );
     }
     const retrievalTermOutcomes = unmappedRetrievalTerms.map((term) => {
@@ -3660,6 +3851,30 @@ async function handleDiscovery(request: Request): Promise<Response> {
       product_family: {
         key: productFamily.key,
         label: productFamily.label,
+      },
+      ai_buyer_relevance_judge: {
+        feature_state_available: !judgeFeatureResult.error,
+        enabled: aiBuyerJudgeEnabled,
+        judge_version: AI_BUYER_RELEVANCE_JUDGE_VERSION,
+        implementation_version: AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
+        model: aiBuyerJudgeModel,
+        eligible_candidates: aiBuyerJudge.diagnostics.eligibleCandidates,
+        judged_candidates: aiBuyerJudgeClassifications,
+        cache_hits: aiBuyerJudgeCacheHits,
+        provider_requests: aiBuyerJudgeProviderRequests,
+        input_tokens: aiBuyerJudge.diagnostics.inputTokens,
+        output_tokens: aiBuyerJudge.diagnostics.outputTokens,
+        estimated_cost_usd: aiBuyerJudgeCostUsd,
+        total_latency_ms: aiBuyerJudgeLatencyMs,
+        deterministic_fallbacks: aiBuyerJudgeFallbacks,
+        status_counts: aiBuyerJudge.diagnostics.statusCounts,
+        maximum_candidates_per_run:
+          aiBuyerJudge.diagnostics.maximumCandidatesPerRun,
+        maximum_candidates_per_batch:
+          aiBuyerJudge.diagnostics.maximumCandidatesPerBatch,
+        maximum_cost_usd_per_run: aiBuyerJudge.diagnostics.maximumCostUsdPerRun,
+        contacts_collected: 0,
+        fresh_credit_debits: 0,
       },
       ted_requests_planned: tedSearchPlan.length,
       ted_requests_actual: ted.checked,
@@ -3928,9 +4143,12 @@ async function handleDiscovery(request: Request): Promise<Response> {
         previously_discovered_buyers: stateCounts.PREVIOUSLY_DISCOVERED,
         cumulative_verified_buyers: cumulativeVerifiedBuyers,
         taxonomy_mapped: Math.min(100, accepted * taxonomyIds.length),
-        ai_classifications: 0,
-        provider_requests: publicWebProviderRequests,
-        estimated_cost_usd: publicWebProviderCostUsd,
+        ai_classifications: aiBuyerJudgeClassifications,
+        provider_requests: publicWebProviderRequests +
+          aiBuyerJudgeProviderRequests,
+        estimated_cost_usd: Number(
+          (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+        ),
         fresh_request_state: runMode === "NORMAL_DISCOVERY"
           ? "NOT_FRESH"
           : partial
@@ -3986,9 +4204,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
           previousBuyers: stateCounts.PREVIOUSLY_DISCOVERED,
           cumulativeBuyers: cumulativeVerifiedBuyers,
         }),
-      provider_requests: publicWebProviderRequests,
-      ai_classifications: 0,
-      estimated_cost_usd: publicWebProviderCostUsd,
+      provider_requests: publicWebProviderRequests +
+        aiBuyerJudgeProviderRequests,
+      public_web_provider_requests: publicWebProviderRequests,
+      ai_buyer_judge_provider_requests: aiBuyerJudgeProviderRequests,
+      ai_classifications: aiBuyerJudgeClassifications,
+      ai_buyer_judge_cache_hits: aiBuyerJudgeCacheHits,
+      ai_buyer_judge_fallbacks: aiBuyerJudgeFallbacks,
+      ai_buyer_judge_estimated_cost_usd: aiBuyerJudgeCostUsd,
+      estimated_cost_usd: Number(
+        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+      ),
       credit_balance: Number(creditAccount?.data?.balance || 0),
       credit_disposition: runMode === "FRESH_DISCOVERY"
         ? "DEBIT_CONSUMED"
@@ -4015,9 +4241,12 @@ async function handleDiscovery(request: Request): Promise<Response> {
       status: "FAILED",
       stage: "failed",
       error_code: errorCode,
-      ai_classifications: 0,
-      provider_requests: publicWebProviderRequests,
-      estimated_cost_usd: publicWebProviderCostUsd,
+      ai_classifications: aiBuyerJudgeClassifications,
+      provider_requests: publicWebProviderRequests +
+        aiBuyerJudgeProviderRequests,
+      estimated_cost_usd: Number(
+        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+      ),
       fresh_request_state: runMode === "NORMAL_DISCOVERY"
         ? "NOT_FRESH"
         : providerExecutionStarted

@@ -304,6 +304,15 @@ export type ProspectScore = {
   commercialReason: string;
   buyerArchetypes: BuyerArchetypeSignal[];
   genericOnlyCeilingApplied: boolean;
+  // Optional second-stage Buyer Fit fields. Deterministic ranking remains
+  // authoritative; these are populated only by the separately feature-gated
+  // AI Buyer Relevance Judge and are safe for older callers to ignore.
+  buyerFitScore?: number;
+  buyerFitGrade?: "HIGH" | "MEDIUM" | "LOW";
+  aiBuyerJudgeStatus?: string;
+  aiBuyerRecommendedGrade?: CommercialBuyerGrade | null;
+  aiBuyerReasonCodes?: string[];
+  aiBuyerShortExplanation?: string | null;
   reasonSummary: string;
   reasons: Array<{
     kind: EvidenceKind;
