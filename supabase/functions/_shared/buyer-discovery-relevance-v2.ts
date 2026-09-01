@@ -971,6 +971,7 @@ function inferArchetypes(
     add("OEM_PRIVATE_LABEL", "HIGH", "Verified sourcing-partner relationship");
   }
   if (
+    candidate.organizationType === "HEALTHCARE_PROVIDER" ||
     /procurement organi[sz]ation|procurement body|purchasing organi[sz]ation|contracting authorit|hospital procurement|hospital purchasing|public hospital|hospital group|healthcare procurement|buying group|supply chain|contract launch|public purchasing/
       .test(text)
   ) {

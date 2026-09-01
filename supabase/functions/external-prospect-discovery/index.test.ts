@@ -3,13 +3,16 @@ import {
   handleExternalProspectDiscoveryRequest,
   legacyQueryProgressCount,
   mergeSignals,
+  rankWebsiteVerificationCandidates,
   structuredFirst,
   structuredTexts,
   verifyWebsites,
+  websiteEvidenceUrlScore,
 } from "./index.ts";
 import {
   normalizeActivitySignal,
   type ProspectCandidate,
+  rankProspects,
 } from "../_shared/external-prospect-discovery.ts";
 import { buildProductFamilyProfile } from "../_shared/buyer-discovery-relevance-v2.ts";
 
@@ -251,9 +254,257 @@ Deno.test("PUBLIC_WEB exact returned page enters the canonical safe website veri
   );
   assertEquals(result.publicWebChecked, 1);
   assertEquals(result.publicWebVerified, 1);
-  assertEquals(candidate.evidence.length, 1);
-  assertEquals(candidate.evidence[0].sourceType, "COMPANY_WEBSITE");
-  assertEquals(candidate.evidence[0].relevanceClass, "DIRECT");
+  assertEquals(
+    candidate.evidence.some((item) =>
+      item.sourceType === "COMPANY_WEBSITE" &&
+      item.relevanceClass === "DIRECT"
+    ),
+    true,
+  );
+});
+
+Deno.test("official product/company domains outrank directories and marketplaces before the fixed six-slot verifier", async () => {
+  const candidate = (
+    domain: string,
+    score: number,
+    domainClass: NonNullable<
+      ProspectCandidate["websiteCandidateSignals"]
+    >["domainClass"] = "LIKELY_OFFICIAL",
+  ): ProspectCandidate => ({
+    name: domain,
+    countryCode: "GB",
+    countryName: "United Kingdom",
+    cityRegion: null,
+    companyType: "Unknown",
+    websiteUrl: `https://${domain}/products/sterile-surgical-gowns`,
+    registryIdentifier: null,
+    description: null,
+    evidence: [],
+    activities: [],
+    taxonomyIds: [990002],
+    taxonomyRelation: "none",
+    targetCountry: true,
+    preferredCompanyType: false,
+    relatedAwardCount: 0,
+    lastEvidenceAt: null,
+    discoverySources: ["PUBLIC_WEB"],
+    websiteVerificationUrls: [
+      `https://${domain}/products/sterile-surgical-gowns`,
+    ],
+    websiteCandidateSignals: {
+      verificationScore: score,
+      domainClass,
+      medicalContext: score >= 50,
+      commercialRoleContext: score >= 50,
+      productPageContext: score >= 50,
+    },
+  });
+  const official = candidate("official-medical.co.uk", 96);
+  const values = [
+    candidate("wlw.de", 1, "DIRECTORY"),
+    candidate("ebay.co.uk", 1, "MARKETPLACE"),
+    candidate("generic-1.co.uk", 10),
+    candidate("generic-2.co.uk", 11),
+    candidate("generic-3.co.uk", 12),
+    candidate("generic-4.co.uk", 13),
+    candidate("generic-5.co.uk", 14),
+    official,
+  ];
+  assertEquals(rankWebsiteVerificationCandidates(values)[0], official);
+  assertEquals(
+    websiteEvidenceUrlScore(
+      "https://official-medical.co.uk/products/sterile-surgical-gowns",
+    ) >
+      websiteEvidenceUrlScore(
+        "https://official-medical.co.uk/news/sterile-surgical-gowns",
+      ),
+    true,
+  );
+  const visited: string[] = [];
+  const profile = buildProductFamilyProfile([{
+    taxonomyId: 990002,
+    canonicalName: "Sterile Surgical Gowns",
+    slug: "sterile-surgical-gowns",
+    aliases: ["Sterile Surgical Gown", "Surgical Gown"],
+  }]);
+  const result = await verifyWebsites(values, profile, {
+    resolver: () => Promise.resolve(["93.184.216.34"]),
+    fetcher: (request) => {
+      const url = String(request);
+      visited.push(url);
+      return Promise.resolve(
+        url.endsWith("/robots.txt")
+          ? new Response("User-agent: *\nAllow: /")
+          : new Response(
+            `<script type="application/ld+json">{"@type":"Organization","name":"QA Medical Distribution"}</script><p>Medical device distributor product catalogue: sterile surgical gown.</p>`,
+            { headers: { "Content-Type": "text/html" } },
+          ),
+      );
+    },
+  });
+  assertEquals(result.verificationSlots, 6);
+  assertEquals(result.verificationAttempted, 6);
+  assertEquals(result.directoryDomainsSkipped, 1);
+  assertEquals(result.marketplaceDomainsSkipped, 1);
+  assertEquals(
+    visited.some((url) => url.includes("official-medical.co.uk")),
+    true,
+  );
+  assertEquals(visited.some((url) => url.includes("wlw.de")), false);
+  assertEquals(visited.some((url) => url.includes("ebay.co.uk")), false);
+});
+
+Deno.test("same official domain combines product-page and commercial-role evidence without weakening GENERIC_ONLY", async () => {
+  const profile = buildProductFamilyProfile([{
+    taxonomyId: 990002,
+    canonicalName: "Sterile Surgical Gowns",
+    slug: "sterile-surgical-gowns",
+    aliases: ["Sterile Surgical Gown", "Surgical Gown"],
+  }]);
+  const buildCandidate = (domain: string): ProspectCandidate => ({
+    name: domain,
+    countryCode: "GB",
+    countryName: "United Kingdom",
+    cityRegion: null,
+    companyType: "Unknown",
+    websiteUrl: `https://${domain}/products/sterile-surgical-gowns`,
+    registryIdentifier: null,
+    description: null,
+    evidence: [],
+    activities: [],
+    taxonomyIds: [990002],
+    taxonomyRelation: "none",
+    targetCountry: true,
+    preferredCompanyType: false,
+    relatedAwardCount: 0,
+    lastEvidenceAt: null,
+    discoverySources: ["PUBLIC_WEB"],
+    websiteVerificationUrls: [
+      `https://${domain}/products/sterile-surgical-gowns`,
+      `https://${domain}/about/distribution`,
+    ],
+    websiteCandidateSignals: {
+      verificationScore: 90,
+      domainClass: "LIKELY_OFFICIAL",
+      medicalContext: true,
+      commercialRoleContext: true,
+      productPageContext: true,
+    },
+  });
+  const distributor = buildCandidate("qa-gown-distributor.example");
+  const verification = await verifyWebsites([distributor], profile, {
+    resolver: () => Promise.resolve(["93.184.216.34"]),
+    fetcher: (request) => {
+      const url = String(request);
+      if (url.endsWith("/robots.txt")) {
+        return Promise.resolve(new Response("User-agent: *\nAllow: /"));
+      }
+      if (url.endsWith("/about/distribution")) {
+        return Promise.resolve(
+          new Response(
+            `<script type="application/ld+json">{"@type":"Organization","name":"QA Gown Distribution Ltd"}</script><p>Medical device distributor, importer and hospital supplier.</p>`,
+            { headers: { "Content-Type": "text/html" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          `<h1>Sterile Surgical Gowns</h1><p>Disposable sterile surgical gown product range for operating rooms.</p>`,
+          { headers: { "Content-Type": "text/html" } },
+        ),
+      );
+    },
+  });
+  assertEquals(verification.publicWebVerified, 1);
+  assertEquals(verification.productPagesFound >= 1, true);
+  assertEquals(verification.commercialRolePagesFound >= 1, true);
+  assertEquals(verification.combinedDomainEvidenceCount, 1);
+  assertEquals(rankProspects([distributor], profile).accepted.length, 1);
+
+  for (
+    const channel of ["Importer", "Wholesaler", "Hospital supplier"] as const
+  ) {
+    const commercialChannel = structuredClone(distributor);
+    commercialChannel.name = `QA ${channel}`;
+    commercialChannel.companyType = channel;
+    assertEquals(
+      rankProspects([commercialChannel], profile).accepted.length,
+      1,
+    );
+  }
+  const manufacturerOnly = structuredClone(distributor);
+  manufacturerOnly.name = "QA Gown Manufacturer";
+  manufacturerOnly.companyType = "Manufacturer";
+  manufacturerOnly.websiteUrl =
+    "https://qa-gown-manufacturer.example/products/sterile-surgical-gowns";
+  manufacturerOnly.websiteVerificationUrls = [manufacturerOnly.websiteUrl];
+  manufacturerOnly.evidence = manufacturerOnly.evidence.map((item) => ({
+    ...item,
+    title: "QA Gown Manufacturing Ltd official website",
+    sourceUrl:
+      "https://qa-gown-manufacturer.example/products/sterile-surgical-gowns",
+    sourceDomain: "qa-gown-manufacturer.example",
+  }));
+  assertEquals(rankProspects([manufacturerOnly], profile).accepted.length, 0);
+  assertEquals(
+    rankProspects([manufacturerOnly], profile).rejected[0]?.score
+      .salesProspectClassification,
+    "PRODUCT_RELEVANT_NOT_BUYER",
+  );
+  const hospital = structuredClone(distributor);
+  hospital.name = "QA Public Hospital";
+  hospital.companyType = "Unknown";
+  hospital.organizationType = "HEALTHCARE_PROVIDER";
+  hospital.websiteUrl =
+    "https://qa-public-hospital.example/products/sterile-surgical-gowns";
+  hospital.websiteVerificationUrls = [hospital.websiteUrl];
+  hospital.evidence = hospital.evidence.map((item) => ({
+    ...item,
+    title: "QA Public Hospital product page",
+    sourceUrl:
+      "https://qa-public-hospital.example/products/sterile-surgical-gowns",
+    sourceDomain: "qa-public-hospital.example",
+  }));
+  assertEquals(rankProspects([hospital], profile).accepted.length, 0);
+  assertEquals(
+    rankProspects([hospital], profile).rejected[0]?.score
+      .salesProspectClassification,
+    "END_BUYER_PROCUREMENT_SIGNAL",
+  );
+
+  const generic = buildCandidate("qa-generic-medical.example");
+  generic.websiteVerificationUrls = [generic.websiteUrl!];
+  const genericResult = await verifyWebsites([generic], profile, {
+    resolver: () => Promise.resolve(["93.184.216.34"]),
+    fetcher: (request) =>
+      Promise.resolve(
+        String(request).endsWith("/robots.txt")
+          ? new Response("User-agent: *\nAllow: /")
+          : new Response(
+            `<script type="application/ld+json">{"@type":"Organization","name":"QA Generic Medical Ltd"}</script><p>Medical device distributor and healthcare supplier.</p>`,
+            { headers: { "Content-Type": "text/html" } },
+          ),
+      ),
+  });
+  assertEquals(genericResult.generic, 1);
+  assertEquals(rankProspects([generic], profile).accepted.length, 0);
+  const fashion = buildCandidate("qa-fashion-gowns.example");
+  fashion.companyType = "Reseller";
+  fashion.commercialIdentityVerified = true;
+  fashion.organizationType = "COMMERCIAL_COMPANY";
+  fashion.evidence = [{
+    sourceType: "COMPANY_WEBSITE",
+    sourceUrl: "https://qa-fashion-gowns.example/products/fashion-gown",
+    sourceDomain: "qa-fashion-gowns.example",
+    title: "Fashion gown retailer",
+    snippet: "Consumer fashion and graduation gown retail store",
+    evidenceKind: "WEAK_CONTEXT",
+    relevanceClass: "GENERIC",
+    confidence: 0.8,
+    evidenceDate: "2026-09-01",
+    taxonomyIds: [],
+  }];
+  assertEquals(rankProspects([fashion], profile).accepted.length, 0);
 });
 
 Deno.test("vNext combined retrieval fits the expanded production progress constraint", () => {

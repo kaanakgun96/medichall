@@ -267,6 +267,18 @@ export type ProspectCandidate = {
   // page may add COMPANY_WEBSITE evidence.
   discoverySources?: CandidateSourcePartition[];
   websiteVerificationUrls?: string[];
+  websiteCandidateSignals?: {
+    verificationScore: number;
+    domainClass:
+      | "LIKELY_OFFICIAL"
+      | "DIRECTORY"
+      | "MARKETPLACE"
+      | "EDITORIAL"
+      | "UNKNOWN";
+    medicalContext: boolean;
+    commercialRoleContext: boolean;
+    productPageContext: boolean;
+  };
   // Transient organization-level validation. Product/page relevance and
   // company identity are deliberately separate gates.
   organizationType?: OrganizationType;
@@ -570,6 +582,14 @@ export function mergeProspectCandidate(
         ],
     ),
   ];
+  if (
+    incoming.websiteCandidateSignals &&
+    (!target.websiteCandidateSignals ||
+      incoming.websiteCandidateSignals.verificationScore >
+        target.websiteCandidateSignals.verificationScore)
+  ) {
+    target.websiteCandidateSignals = incoming.websiteCandidateSignals;
+  }
   const confidencePriority: Record<CompanyIdentityConfidence, number> = {
     LOW: 1,
     MEDIUM: 2,

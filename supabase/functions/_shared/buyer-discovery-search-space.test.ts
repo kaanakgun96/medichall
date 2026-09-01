@@ -182,7 +182,9 @@ Deno.test("H/I/N/O: request plans are bounded, deterministic and retry-stable", 
   assert(left.budget.maximumPublicWebCostUsd <= 0.05);
   assertEquals(left.budget.approximateWorstCaseProviderCostUsd, 0.05);
   const semanticQueries = left.publicWebQueries.map((item) =>
-    item.query.toLowerCase().replace(/\bsyringes\b/g, "syringe")
+    `${item.country}:${item.language}:${
+      item.query.toLowerCase().replace(/\bsyringes\b/g, "syringe")
+    }`
   );
   assertEquals(new Set(semanticQueries).size, semanticQueries.length);
 });
@@ -252,8 +254,8 @@ Deno.test("temporary Smart Resolver intent produces finite persistence prioritie
   });
   assertEquals(plan.productProfile, "STANDARD");
   assertEquals(plan.publicWebQueries.length, 6);
-  assertEquals(plan.tedPartitions.length, 4);
-  assertEquals(plan.selectedPartitions.length, 10);
+  assertEquals(plan.tedPartitions.length, 2);
+  assertEquals(plan.selectedPartitions.length, 8);
   assert(
     plan.selectedPartitions.every((partition) =>
       Number.isFinite(partition.priority) &&
@@ -266,7 +268,7 @@ Deno.test("temporary Smart Resolver intent produces finite persistence prioritie
     "11111111-1111-4111-8111-111111111111",
     plan.selectedPartitions,
   );
-  assertEquals(rows.length, 10);
+  assertEquals(rows.length, 8);
   assert(
     rows.every((row) => Number.isFinite(row.priority)),
     "persistence payload priorities must remain finite",
@@ -370,5 +372,25 @@ Deno.test("General Procedure Packs initial plan spans reviewed terms and commerc
       archetypes.has("KIT_ASSEMBLER") &&
       archetypes.has("HOSPITAL_SUPPLIER"),
     "procedure-pack commercial archetypes must be represented",
+  );
+});
+
+Deno.test("unsupported or UNKNOWN localized terminology is not routed into arbitrary markets", () => {
+  const profile = knownProfile({
+    canonicalName: "Sterile Surgical Gown",
+    slug: "sterile-surgical-gowns",
+    aliases: ["Surgical Gown"],
+    localizedAliases: [{ term: "unclassified alpha unit", language: "zz" }],
+  });
+  const plan = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: profile,
+    targetCountries: [],
+    cpvCodes: [],
+  });
+  assert(
+    plan.selectedPartitions.every((partition) =>
+      !partition.terminology.includes("unclassified alpha unit")
+    ),
   );
 });

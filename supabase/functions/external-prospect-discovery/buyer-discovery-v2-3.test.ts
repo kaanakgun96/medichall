@@ -70,7 +70,7 @@ function evidence(
       : sourceType === "PUBLIC_REGISTRY"
       ? "registry.example"
       : "qa-medical.example",
-    title: "Synthetic public business evidence",
+    title: "Synthetic public medical-device business evidence",
     snippet,
     evidenceKind: "WEAK_CONTEXT",
     confidence: sourceType === "TED_AWARD" ? 0.9 : 0.85,

@@ -222,6 +222,25 @@ const REGION_COUNTRIES: Readonly<Record<string, readonly string[]>> = Object
     ],
   });
 
+const COUNTRY_LANGUAGE: Readonly<Record<string, string>> = Object.freeze({
+  AT: "de",
+  BE: "fr",
+  CH: "de",
+  IE: "en",
+});
+const LANGUAGE_MARKET_CONTEXT: Readonly<Record<string, string>> = Object.freeze(
+  {
+    de: "medizin",
+    en: "medical",
+    es: "médico",
+    fr: "médical",
+    it: "medicale",
+    nl: "medisch",
+    pl: "medyczny",
+    pt: "médico",
+  },
+);
+
 const ARCHETYPE_TERMS: Readonly<
   Record<
     string,
@@ -314,10 +333,19 @@ function termLanguage(
   term: string,
   profile: ProductFamilyProfile,
 ): string {
+  const supported = new Set(["en", "it", "fr", "de", "es", "nl", "pt", "pl"]);
+  const reviewed = profile.reviewedRetrievalTerms?.find((item) =>
+    semanticTerm(item.term) === semanticTerm(term)
+  );
+  if (reviewed?.language) {
+    return supported.has(reviewed.language) ? reviewed.language : "unknown";
+  }
   const temporary = profile.temporaryIntent?.retrievalTerms.find((item) =>
     semanticTerm(item.term) === semanticTerm(term)
   );
-  if (temporary) return temporary.language;
+  if (temporary) {
+    return supported.has(temporary.language) ? temporary.language : "unknown";
+  }
   if (profile.equipmentCoverKind) {
     for (const language of ["it", "fr", "de", "es", "nl"]) {
       if (
@@ -327,7 +355,43 @@ function termLanguage(
       ) return language;
     }
   }
-  return "en";
+  return detectDeterministicTermLanguage(term);
+}
+
+export function detectDeterministicTermLanguage(term: string): string {
+  const value = ` ${normalized(term)} `;
+  const signals: Array<[string, RegExp]> = [
+    [
+      "pl",
+      /\b(?:chirurgiczny|chirurgiczne|dostawca|medyczny)\b/,
+    ],
+    [
+      "de",
+      /\b(?:medizinproduktehandler|ausschreibung|lieferant|steriler|medizinisch)\b/,
+    ],
+    [
+      "it",
+      /\b(?:chirurgico|chirurgici|distributore|importatore|medicale)\b/,
+    ],
+    ["pt", /\b(?:cirurgica|cirurgicas|fornecedor|contratacao)\b/],
+    [
+      "es",
+      /\b(?:quirurgica|quirurgicas|distribuidor|importador|licitaciones|medico)\b/,
+    ],
+    [
+      "fr",
+      /\b(?:chirurgicale|distributeur|importateur|fournisseur|medical)\b/,
+    ],
+    [
+      "nl",
+      /\b(?:steriele|distributeur|importeur|leverancier|medisch)\b/,
+    ],
+    [
+      "en",
+      /\b(?:sterile|surgical|medical|supplier|distributor|importer|wholesaler|reseller|disposable|operating|hospital|clinical|diagnostic)\b/,
+    ],
+  ];
+  return signals.find(([, pattern]) => pattern.test(value))?.[0] || "unknown";
 }
 
 function trustedTerms(profile: ProductFamilyProfile): ProductRetrievalTerm[] {
@@ -437,7 +501,11 @@ function archetypesFor(
     values.push("OEM_PRIVATE_LABEL", "MANUFACTURER");
   }
   if (profile.componentFitLabel) {
-    values.push("PROCEDURE_PACK_MANUFACTURER", "KIT_ASSEMBLER");
+    values.push(
+      "HOSPITAL_SUPPLIER",
+      "PROCEDURE_PACK_MANUFACTURER",
+      "KIT_ASSEMBLER",
+    );
   }
   if (profile.procedurePack) {
     values.push(
@@ -461,12 +529,13 @@ function marketsFor(targetCountries: string[]): Market[] {
     const region = Object.entries(REGION_COUNTRIES).find(([, countries]) =>
       countries.includes(country)
     )?.[0] || "OTHER_EUROPE";
+    const language = COUNTRY_LANGUAGE[country] || "en";
     selected.push({
       region,
       country,
-      language: "en",
-      uiLanguage: "en-GB",
-      medicalContext: "medical",
+      language,
+      uiLanguage: `${language}-${country}`,
+      medicalContext: LANGUAGE_MARKET_CONTEXT[language] || "medical",
     });
   }
   return selected.slice(
@@ -517,7 +586,11 @@ export function buildAdaptiveSearchUniverse(input: {
   );
   const channelValues = channels.length ? channels : ["medical distributor"];
   const localized = intelligence.localized_terms.filter((term) =>
-    markets.some((market) => market.language === term.language)
+    term.language !== "unknown" &&
+    markets.some((market) =>
+      market.language === term.language &&
+      (!term.countries.length || term.countries.includes(market.country))
+    )
   );
   const negativeFilter = intelligence.negative_contexts.slice(0, 2).map((
     term,
@@ -531,11 +604,15 @@ export function buildAdaptiveSearchUniverse(input: {
     confidence: "HIGH" | "MEDIUM";
     channel: string;
     priority: number;
+    countries?: string[];
   }) => {
+    if (options.language === "unknown") return;
     const matchingMarkets = markets.filter((market) =>
-      options.language === "en" || market.language === options.language
+      (options.language === "en" || market.language === options.language) &&
+      (!options.countries?.length || options.countries.includes(market.country))
     );
-    for (const market of matchingMarkets.length ? matchingMarkets : markets) {
+    if (!matchingMarkets.length) return;
+    for (const market of matchingMarkets) {
       const archetype = adaptiveArchetype(options.channel);
       const semanticKey = [
         "web",
@@ -582,7 +659,7 @@ export function buildAdaptiveSearchUniverse(input: {
             : "LOCALIZED",
           query: `"${boundedTerm(options.term)}" ${
             boundedTerm(options.channel)
-          } ${negativeFilter}`
+          } (products OR catalog OR distribution) ${negativeFilter}`
             .slice(0, 240),
           country: market.country,
           language: options.language,
@@ -610,9 +687,16 @@ export function buildAdaptiveSearchUniverse(input: {
       | "TENDER_SUPPLIER";
     confidence: "HIGH" | "MEDIUM";
     priority: number;
+    countries?: string[];
   }) => {
+    if (options.language === "unknown") return;
     for (const market of markets) {
       if (options.language !== "en" && options.language !== market.language) {
+        continue;
+      }
+      if (
+        options.countries?.length && !options.countries.includes(market.country)
+      ) {
         continue;
       }
       const semanticKey = [
@@ -639,6 +723,8 @@ export function buildAdaptiveSearchUniverse(input: {
         language: options.language,
         countryCodes: input.targetCountries.length
           ? [market.country]
+          : options.countries?.length
+          ? [...options.countries]
           : [...(REGION_COUNTRIES[market.region] || [market.country])],
         marketRegion: market.region,
         buyerArchetype: "PUBLIC_PROCUREMENT_SUPPLIER",
@@ -654,17 +740,25 @@ export function buildAdaptiveSearchUniverse(input: {
   };
 
   const directTerms = [
-    intelligence.canonical_product,
-    ...intelligence.commercial_synonyms,
-    ...localized.map((item) => item.term),
-  ].filter((term, index, values) =>
+    {
+      term: intelligence.canonical_product,
+      language: "en",
+      countries: [] as string[],
+    },
+    ...intelligence.commercial_synonyms.map((term) => ({
+      term,
+      language: "en",
+      countries: [] as string[],
+    })),
+    ...localized,
+  ].filter((entry, index, values) =>
     values.findIndex((candidate) =>
-      semanticTerm(candidate) === semanticTerm(term)
+      semanticTerm(candidate.term) === semanticTerm(entry.term) &&
+      candidate.language === entry.language
     ) === index
   );
-  directTerms.forEach((term, index) => {
-    const language = localized.find((item) => item.term === term)?.language ||
-      "en";
+  directTerms.forEach((entry, index) => {
+    const { term, language, countries } = entry;
     const channel = channelValues[index % channelValues.length];
     addWeb({
       stage: 1,
@@ -674,6 +768,7 @@ export function buildAdaptiveSearchUniverse(input: {
       confidence: intelligence.search_confidence,
       channel,
       priority: 150 - index,
+      countries,
     });
     addTed({
       stage: 1,
@@ -682,6 +777,7 @@ export function buildAdaptiveSearchUniverse(input: {
       queryType: index === 0 ? "EXACT_PRODUCT" : "COMMERCIAL_SYNONYM",
       confidence: intelligence.search_confidence,
       priority: 130 - index,
+      countries,
     });
   });
 
@@ -776,10 +872,7 @@ export function buildAdaptiveSearchUniverse(input: {
     ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumGeneratedPartitions / 4,
   );
   return ([1, 2, 3, 4] as const).flatMap((stage) =>
-    stages[stage].sort((left, right) =>
-      right.priority - left.priority ||
-      left.partitionKey.localeCompare(right.partitionKey)
-    ).slice(0, perStage)
+    chooseDiverse(stages[stage], perStage)
   ).slice(0, ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumGeneratedPartitions);
 }
 
@@ -803,12 +896,12 @@ function buildUniverse(input: {
   const web: SearchSpacePartition[] = [];
   const seenWeb = new Set<string>();
   for (const term of terms) {
+    if (term.language === "unknown") continue;
     const termMarkets = markets.filter((market) =>
-      term.language === "en" || market.language === term.language
+      (term.language === "en" || market.language === term.language) &&
+      (!term.countries.length || term.countries.includes(market.country))
     );
-    for (
-      const market of termMarkets.length ? termMarkets : markets.slice(0, 1)
-    ) {
+    for (const market of termMarkets) {
       for (const archetype of archetypes) {
         const archetypeTerm = ARCHETYPE_TERMS[market.language]?.[archetype] ||
           ARCHETYPE_TERMS.en[archetype] || "medical supplier";
@@ -867,7 +960,7 @@ function buildUniverse(input: {
               : "LOCALIZED",
             query: `"${
               boundedTerm(term.term)
-            }" ${market.medicalContext} ${archetypeTerm}`
+            }" ${market.medicalContext} ${archetypeTerm} (products OR catalog OR distribution)`
               .slice(0, 240),
             country: market.country,
             language: term.language,
@@ -886,8 +979,12 @@ function buildUniverse(input: {
   }
   const ted: SearchSpacePartition[] = [];
   for (const term of terms) {
+    if (term.language === "unknown") continue;
     for (const market of markets) {
       if (term.language !== "en" && term.language !== market.language) continue;
+      if (term.countries.length && !term.countries.includes(market.country)) {
+        continue;
+      }
       const key = partitionKey([
         "ted",
         "product",
@@ -904,6 +1001,8 @@ function buildUniverse(input: {
         language: term.language,
         countryCodes: input.targetCountries.length
           ? [market.country]
+          : term.countries.length
+          ? [...term.countries]
           : [...(REGION_COUNTRIES[market.region] || [market.country])],
         marketRegion: market.region,
         buyerArchetype: "PUBLIC_PROCUREMENT_SUPPLIER",
@@ -950,6 +1049,7 @@ function chooseDiverse(
 ): SearchSpacePartition[] {
   const selected: SearchSpacePartition[] = [];
   const dimensions = {
+    providers: new Set<DiscoveryProviderKind>(),
     languages: new Set<string>(),
     regions: new Set<string>(),
     archetypes: new Set<string>(),
@@ -959,9 +1059,10 @@ function chooseDiverse(
   while (remaining.length && selected.length < maximum) {
     remaining.sort((left, right) => {
       const diversity = (item: SearchSpacePartition) =>
-        Number(!dimensions.languages.has(item.language)) * 12 +
+        Number(!dimensions.providers.has(item.providerKind)) * 20 +
+        Number(!dimensions.languages.has(item.language)) * 22 +
         Number(!dimensions.regions.has(item.marketRegion)) * 10 +
-        Number(!dimensions.archetypes.has(item.buyerArchetype)) * 6 +
+        Number(!dimensions.archetypes.has(item.buyerArchetype)) * 16 +
         Number(!dimensions.terms.has(semanticTerm(item.terminology[0] || ""))) *
           8;
       return right.priority + diversity(right) - left.priority -
@@ -970,6 +1071,7 @@ function chooseDiverse(
     });
     const next = remaining.shift()!;
     selected.push(next);
+    dimensions.providers.add(next.providerKind);
     dimensions.languages.add(next.language);
     dimensions.regions.add(next.marketRegion);
     dimensions.archetypes.add(next.buyerArchetype);

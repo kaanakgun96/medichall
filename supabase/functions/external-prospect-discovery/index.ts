@@ -1583,6 +1583,89 @@ export function extractOfficialWebsiteIdentity(
   return extractWebsiteIdentity(html, domain);
 }
 
+const COMMERCIAL_EVIDENCE_PATH =
+  /\/(?:about|company|distribution|distributor|import|wholesale|partners?|brands?|supplier|solutions?)(?:\/|$)/i;
+const PRODUCT_EVIDENCE_PATH =
+  /\/(?:products?|product-categories?|catalog(?:ue)?|portfolio|surgical|operating-room|infection-control|medical-disposables?)(?:\/|$)/i;
+const LOW_VALUE_EVIDENCE_PATH =
+  /\/(?:blog|news|article|press|patient|education|shop|cart|search)(?:\/|$)/i;
+
+export function websiteEvidenceUrlScore(
+  value: string,
+  productFamily?: ProductFamilyProfile,
+): number {
+  const normalized = normalizeHttpsUrl(value);
+  if (!normalized) return -1000;
+  const url = new URL(normalized);
+  const searchable = decodeURIComponent(url.pathname).toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ");
+  const productMatch = productFamily?.directTerms.slice(0, 12).some((term) => {
+    const tokens = term.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return tokens.length >= 4 && searchable.includes(tokens);
+  });
+  return Number(PRODUCT_EVIDENCE_PATH.test(url.pathname)) * 45 +
+    Number(COMMERCIAL_EVIDENCE_PATH.test(url.pathname)) * 35 +
+    Number(Boolean(productMatch)) * 30 -
+    Number(LOW_VALUE_EVIDENCE_PATH.test(url.pathname)) * 55 -
+    Number(/\.pdf$/i.test(url.pathname)) * 100 +
+    Number(url.pathname === "/") * 8;
+}
+
+export function rankWebsiteVerificationCandidates(
+  candidates: ProspectCandidate[],
+): ProspectCandidate[] {
+  const sourceScore = (candidate: ProspectCandidate) =>
+    candidate.evidence.some((item) => item.relevanceClass === "DIRECT")
+      ? 70
+      : candidate.evidence.some((item) => item.relevanceClass === "ADJACENT")
+      ? 55
+      : candidate.discoverySources?.includes("PUBLIC_WEB")
+      ? 15
+      : 10;
+  return [...candidates].sort((left, right) => {
+    const score = (candidate: ProspectCandidate) =>
+      sourceScore(candidate) +
+      (candidate.websiteCandidateSignals?.verificationScore || 0) +
+      Number(Boolean(candidate.commercialIdentityVerified)) * 30 +
+      Number(Boolean(candidate.websiteCandidateSignals?.productPageContext)) *
+        12 +
+      Number(Boolean(
+          candidate.websiteCandidateSignals?.commercialRoleContext,
+        )) * 10;
+    return score(right) - score(left) ||
+      String(left.websiteUrl || "").localeCompare(
+        String(right.websiteUrl || ""),
+      );
+  });
+}
+
+function sameDomainEvidenceLinks(
+  html: string,
+  baseUrl: string,
+  domain: string,
+  productFamily: ProductFamilyProfile,
+): string[] {
+  const output: string[] = [];
+  for (const tag of html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>/gi) || []) {
+    const href = htmlAttribute(tag, "href");
+    try {
+      const url = new URL(href, baseUrl);
+      url.hash = "";
+      if (
+        url.protocol !== "https:" || normalizeDomain(url.href) !== domain ||
+        websiteEvidenceUrlScore(url.href, productFamily) <= 0
+      ) continue;
+      output.push(url.href.slice(0, 1000));
+    } catch (_) {
+      // Ignore malformed or non-HTTPS navigation.
+    }
+  }
+  return [...new Set(output)].sort((left, right) =>
+    websiteEvidenceUrlScore(right, productFamily) -
+    websiteEvidenceUrlScore(left, productFamily)
+  ).slice(0, 8);
+}
+
 export async function verifyWebsites(
   candidates: ProspectCandidate[],
   productFamily: ProductFamilyProfile,
@@ -1605,32 +1688,43 @@ export async function verifyWebsites(
   organizationVerified: number;
   editorialRejected: number;
   domainFallbackUsed: number;
+  candidateDomainsTotal: number;
+  candidateDomainsRanked: number;
+  verificationSlots: number;
+  verificationAttempted: number;
+  verificationSuccess: number;
+  officialCompanyDomains: number;
+  directoryDomainsSkipped: number;
+  marketplaceDomainsSkipped: number;
+  productPagesFound: number;
+  commercialRolePagesFound: number;
+  combinedDomainEvidenceCount: number;
 }> {
-  const withWebsites = candidates.filter((item) => item.websiteUrl).sort(
-    (left, right) => {
-      const priority = (candidate: ProspectCandidate) =>
-        candidate.discoverySources?.includes("PUBLIC_WEB")
-          ? 0
-          : candidate.evidence.some((item) => item.relevanceClass === "DIRECT")
-          ? 1
-          : candidate.evidence.some((item) =>
-              item.relevanceClass === "ADJACENT"
-            )
-          ? 2
-          : 3;
-      return priority(left) - priority(right);
-    },
-  );
+  const withWebsites = candidates.filter((item) => item.websiteUrl);
+  const directoryDomainsSkipped =
+    withWebsites.filter((candidate) =>
+      candidate.websiteCandidateSignals?.domainClass === "DIRECTORY"
+    ).length;
+  const marketplaceDomainsSkipped =
+    withWebsites.filter((candidate) =>
+      candidate.websiteCandidateSignals?.domainClass === "MARKETPLACE"
+    ).length;
+  const ranked = rankWebsiteVerificationCandidates(withWebsites.filter(
+    (candidate) =>
+      !["DIRECTORY", "MARKETPLACE"].includes(
+        candidate.websiteCandidateSignals?.domainClass || "UNKNOWN",
+      ),
+  ));
   const selected: ProspectCandidate[] = [];
   const countryCounts = new Map<string, number>();
-  for (const candidate of withWebsites) {
+  for (const candidate of ranked) {
     const country = candidate.countryCode || "UNKNOWN";
     if ((countryCounts.get(country) || 0) > 0) continue;
     selected.push(candidate);
     countryCounts.set(country, 1);
     if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
   }
-  for (const candidate of withWebsites) {
+  for (const candidate of ranked) {
     if (selected.includes(candidate)) continue;
     selected.push(candidate);
     if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
@@ -1647,6 +1741,11 @@ export async function verifyWebsites(
       organizationVerified: boolean;
       editorialRejected: boolean;
       domainFallbackUsed: boolean;
+      verificationSuccess: boolean;
+      officialCompanyDomain: boolean;
+      productPagesFound: number;
+      commercialRolePagesFound: number;
+      combinedDomainEvidence: boolean;
     };
     const outcome = (
       status: WebsiteResult["status"],
@@ -1657,11 +1756,22 @@ export async function verifyWebsites(
       organizationVerified: Boolean(candidate.commercialIdentityVerified),
       editorialRejected: false,
       domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+      verificationSuccess: false,
+      officialCompanyDomain: false,
+      productPagesFound: 0,
+      commercialRolePagesFound: 0,
+      combinedDomainEvidence: false,
       ...overrides,
     });
-    const website = normalizeHttpsUrl(
-      candidate.websiteVerificationUrls?.[0] || candidate.websiteUrl,
-    );
+    const website = [
+      ...(candidate.websiteVerificationUrls || []),
+      candidate.websiteUrl,
+    ].map((value) => normalizeHttpsUrl(value)).filter((
+      value,
+    ): value is string => Boolean(value)).sort((left, right) =>
+      websiteEvidenceUrlScore(right, productFamily) -
+      websiteEvidenceUrlScore(left, productFamily)
+    )[0];
     if (!website) return outcome("SKIPPED");
     try {
       const siteUrl = new URL(website);
@@ -1729,53 +1839,107 @@ export async function verifyWebsites(
         candidate.name = resolvedDomain;
         candidate.nameSource = "DOMAIN_FALLBACK";
       }
-      const pageAnalysis = analyzeOfficialWebsitePage(html, resolvedDomain);
-      const analyses = [pageAnalysis];
+      type VerifiedPage = {
+        url: string;
+        html: string;
+        text: string;
+        analysis: WebsiteOrganizationAnalysis;
+      };
+      const asVerifiedPage = (url: string, value: string): VerifiedPage => ({
+        url,
+        html: value,
+        text: sanitizeEvidenceText(
+          value.replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, " "),
+          4000,
+        ),
+        analysis: analyzeOfficialWebsitePage(value, resolvedDomain),
+      });
+      const pages: VerifiedPage[] = [asVerifiedPage(result.resolvedUrl, html)];
       let organizationRequests = 0;
-      if (
-        isPublicWeb &&
-        (!pageAnalysis.commercialIdentityVerified ||
-          !pageAnalysis.identity || pageAnalysis.editorialContent) &&
-        (!robotsText ||
-          isPathAllowedByRobots(
-            robotsText,
-            "/",
-            "medichall-external-prospect-discovery",
-          ))
-      ) {
-        organizationRequests += 1;
-        try {
-          const homepage = await safeFetchWithRedirects(siteUrl.origin + "/", {
-            headers: {
-              "Accept": "text/html,application/xhtml+xml",
-              "User-Agent": "MedicHall-External-Prospect-Discovery/1.0",
-            },
-          }, {
-            maximumAttempts: 1,
-            maximumRedirects: 3,
-            resolver: dependencies.resolver,
-            fetcher: dependencies.fetcher,
-          });
+      if (isPublicWeb) {
+        const knownUrls = [
+          ...(candidate.websiteVerificationUrls || []),
+          ...sameDomainEvidenceLinks(
+            html,
+            result.resolvedUrl,
+            resolvedDomain,
+            productFamily,
+          ),
+          siteUrl.origin + "/",
+        ].map((value) => normalizeHttpsUrl(value)).filter(
+          (value): value is string => Boolean(value),
+        ).filter((value) => normalizeDomain(value) === resolvedDomain);
+        const uniqueUrls = [...new Set(knownUrls)].filter((value) =>
+          !pages.some((page) => page.url === value)
+        );
+        const byScore = (left: string, right: string) =>
+          websiteEvidenceUrlScore(right, productFamily) -
+          websiteEvidenceUrlScore(left, productFamily);
+        const productUrl = uniqueUrls.filter((value) =>
+          PRODUCT_EVIDENCE_PATH.test(new URL(value).pathname)
+        ).sort(byScore)[0];
+        const commercialUrl = uniqueUrls.filter((value) =>
+          COMMERCIAL_EVIDENCE_PATH.test(new URL(value).pathname)
+        ).sort(byScore)[0];
+        const additionalUrls = [
+          ...new Set([
+            productUrl,
+            commercialUrl,
+            siteUrl.origin + "/",
+            ...uniqueUrls.sort(byScore),
+          ].filter((value): value is string =>
+            Boolean(value)
+          )),
+        ];
+        for (const pageUrl of additionalUrls) {
+          if (pages.length >= 3) {
+            break;
+          }
+          const pagePath = new URL(pageUrl).pathname;
           if (
-            homepage.response.ok &&
-            (homepage.response.headers.get("content-type") || "").includes(
-              "html",
-            ) && normalizeDomain(homepage.resolvedUrl) === resolvedDomain
-          ) {
-            const homepageBody = await readBoundedResponseBody(
-              homepage.response,
-              512_000,
-            );
-            analyses.push(analyzeOfficialWebsitePage(
-              new TextDecoder().decode(homepageBody.bytes),
-              resolvedDomain,
-            ));
-          } else await homepage.response.body?.cancel();
-        } catch (_) {
-          // Product evidence remains usable; organization validation fails
-          // closed when the bounded homepage check is unavailable.
+            robotsText && !isPathAllowedByRobots(
+              robotsText,
+              pagePath,
+              "medichall-external-prospect-discovery",
+            )
+          ) continue;
+          organizationRequests += 1;
+          try {
+            const extra = await safeFetchWithRedirects(pageUrl, {
+              headers: {
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "MedicHall-External-Prospect-Discovery/1.0",
+              },
+            }, {
+              maximumAttempts: 1,
+              maximumRedirects: 3,
+              resolver: dependencies.resolver,
+              fetcher: dependencies.fetcher,
+            });
+            if (
+              extra.response.ok &&
+              (extra.response.headers.get("content-type") || "").includes(
+                "html",
+              ) && normalizeDomain(extra.resolvedUrl) === resolvedDomain
+            ) {
+              const extraBody = await readBoundedResponseBody(
+                extra.response,
+                512_000,
+              );
+              pages.push(asVerifiedPage(
+                extra.resolvedUrl,
+                new TextDecoder().decode(extraBody.bytes),
+              ));
+            } else await extra.response.body?.cancel();
+          } catch (_) {
+            // Keep independently verified pages when a bounded companion-page
+            // request is unavailable.
+          }
         }
       }
+      const analyses = pages.map((page) => page.analysis);
       for (const analysis of analyses) {
         if (!analysis.identity) continue;
         const selectedIdentity = chooseTrustedCompanyIdentity({
@@ -1812,88 +1976,112 @@ export async function verifyWebsites(
       }
       candidate.editorialContent = analyses.some((item) =>
         item.editorialContent
-      );
+      ) && !candidate.commercialIdentityVerified;
       if (isPublicWeb && candidate.nameSource === "PAGE_METADATA") {
         candidate.name = resolvedDomain;
         candidate.nameSource = "DOMAIN_FALLBACK";
         candidate.identityConfidence = "LOW";
       }
-      const text = sanitizeEvidenceText(
-        html.replace(
-          /<script[\s\S]*?<\/script>/gi,
-          " ",
-        )
-          .replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "),
-        4000,
-      );
-      const classified = classifyEvidenceForProduct({
-        sourceType: "COMPANY_WEBSITE",
-        sourceUrl: result.resolvedUrl,
-        sourceDomain: normalizeDomain(result.resolvedUrl) || siteUrl.hostname,
-        title: `${candidate.name} official website`,
-        snippet: text,
-        evidenceKind: "WEAK_CONTEXT",
-        confidence: 0.85,
-        evidenceDate: (dependencies.now || new Date()).toISOString().slice(
-          0,
-          10,
-        ),
-        taxonomyIds: candidate.taxonomyIds,
-      }, productFamily);
-      candidate.evidence.push({
-        ...classified,
-        snippet: classified.relevanceClass === "DIRECT"
-          ? `Official website contains direct product-family evidence: ${
-            (classified.matchedTerms || []).slice(0, 4).join(", ")
-          }.`
-          : classified.relevanceClass === "ADJACENT"
-          ? `Official website contains adjacent commercial evidence: ${
-            (classified.matchedTerms || []).slice(0, 4).join(", ")
-          }.`
-          : "Official website was reachable, but no supported target-product or adjacent commercial claim was found.",
-        confidence: classified.relevanceClass === "DIRECT"
-          ? 0.9
-          : classified.relevanceClass === "ADJACENT"
-          ? 0.78
-          : 0.4,
-      });
+      const commercialDomainContext = pages.filter((page) =>
+        page.analysis.commercialIdentityVerified
+      ).map((page) => page.text).join(" ");
+      const classifiedPages = pages.map((page) => ({
+        page,
+        evidence: classifyEvidenceForProduct({
+          sourceType: "COMPANY_WEBSITE",
+          sourceUrl: page.url,
+          sourceDomain: normalizeDomain(page.url) || siteUrl.hostname,
+          title: `${candidate.name} official website`,
+          // Product relevance and commercial identity may live on separate
+          // pages of the same verified official domain. Add only the bounded
+          // commercial-page context; never provider snippets or another host.
+          snippet: [page.text, commercialDomainContext].filter(Boolean).join(
+            " ",
+          ),
+          evidenceKind: "WEAK_CONTEXT",
+          confidence: 0.85,
+          evidenceDate: (dependencies.now || new Date()).toISOString().slice(
+            0,
+            10,
+          ),
+          taxonomyIds: candidate.taxonomyIds,
+        }, productFamily),
+      }));
+      for (const { evidence } of classifiedPages) {
+        candidate.evidence.push({
+          ...evidence,
+          snippet: evidence.relevanceClass === "DIRECT"
+            ? `Verified official medical-device supplier website contains direct product-family evidence: ${
+              (evidence.matchedTerms || []).slice(0, 4).join(", ")
+            }.`
+            : evidence.relevanceClass === "ADJACENT"
+            ? `Verified official medical-device supplier website contains adjacent commercial evidence: ${
+              (evidence.matchedTerms || []).slice(0, 4).join(", ")
+            }.`
+            : "Official website was reachable, but no supported target-product or adjacent commercial claim was found.",
+          confidence: evidence.relevanceClass === "DIRECT"
+            ? 0.9
+            : evidence.relevanceClass === "ADJACENT"
+            ? 0.78
+            : 0.4,
+        });
+      }
+      const text = pages.map((page) => page.text).join(" ");
       if (candidate.companyType === "Unknown") {
         candidate.companyType = companyType(text);
       }
+      const relevantPages = classifiedPages.filter(({ evidence }) =>
+        evidence.relevanceClass !== "GENERIC"
+      );
+      const strongest = relevantPages.find(({ evidence }) =>
+        evidence.relevanceClass === "DIRECT"
+      )?.evidence || relevantPages[0]?.evidence;
+      const productPagesFound = relevantPages.length;
+      const commercialRolePagesFound = pages.filter((page) =>
+        page.analysis.commercialIdentityVerified
+      ).length;
+      const combinedDomainEvidence = productPagesFound > 0 &&
+        commercialRolePagesFound > 0;
       if (
-        classified.relevanceClass === "DIRECT" &&
+        strongest?.relevanceClass === "DIRECT" &&
         candidate.taxonomyRelation === "none"
       ) {
         candidate.taxonomyRelation = "exact";
       } else if (
-        classified.relevanceClass === "ADJACENT" &&
+        strongest?.relevanceClass === "ADJACENT" &&
         candidate.taxonomyRelation === "none"
       ) {
         candidate.taxonomyRelation = "family";
       }
-      if (classified.relevanceClass !== "GENERIC") {
+      if (strongest) {
         candidate.lastEvidenceAt = (dependencies.now || new Date())
           .toISOString().slice(0, 10);
       }
-      if (classified.relevanceClass === "GENERIC") {
+      const resultDiagnostics = {
+        organizationRequests,
+        organizationVerified: Boolean(candidate.commercialIdentityVerified),
+        domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+        verificationSuccess: true,
+        officialCompanyDomain: Boolean(candidate.commercialIdentityVerified),
+        productPagesFound,
+        commercialRolePagesFound,
+        combinedDomainEvidence,
+      };
+      if (!strongest) {
         return outcome("GENERIC", {
-          organizationRequests,
-          organizationVerified: Boolean(candidate.commercialIdentityVerified),
-          domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+          ...resultDiagnostics,
         });
       }
       if (isPublicWeb && !candidate.commercialIdentityVerified) {
         return outcome("REJECTED_IDENTITY", {
-          organizationRequests,
+          ...resultDiagnostics,
           organizationVerified: false,
+          officialCompanyDomain: false,
           editorialRejected: Boolean(candidate.editorialContent),
-          domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
         });
       }
       return outcome("RELEVANT", {
-        organizationRequests,
-        organizationVerified: Boolean(candidate.commercialIdentityVerified),
-        domainFallbackUsed: candidate.nameSource === "DOMAIN_FALLBACK",
+        ...resultDiagnostics,
       });
     } catch (_) {
       return outcome("UNAVAILABLE");
@@ -1928,6 +2116,26 @@ export async function verifyWebsites(
       .length,
     domainFallbackUsed: results.filter((value) => value.domainFallbackUsed)
       .length,
+    candidateDomainsTotal: withWebsites.length,
+    candidateDomainsRanked: ranked.length,
+    verificationSlots: DISCOVERY_LIMITS.maximumWebsiteChecks,
+    verificationAttempted: selected.length,
+    verificationSuccess: results.filter((value) => value.verificationSuccess)
+      .length,
+    officialCompanyDomains:
+      results.filter((value) => value.officialCompanyDomain).length,
+    directoryDomainsSkipped,
+    marketplaceDomainsSkipped,
+    productPagesFound: results.reduce(
+      (total, value) => total + value.productPagesFound,
+      0,
+    ),
+    commercialRolePagesFound: results.reduce(
+      (total, value) => total + value.commercialRolePagesFound,
+      0,
+    ),
+    combinedDomainEvidenceCount:
+      results.filter((value) => value.combinedDomainEvidence).length,
   };
 }
 
@@ -4213,6 +4421,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
       public_web_organization_verified: website.organizationVerified,
       public_web_editorial_rejected: website.editorialRejected,
       public_web_domain_fallback_used: website.domainFallbackUsed,
+      candidate_domains_total: website.candidateDomainsTotal,
+      candidate_domains_ranked: website.candidateDomainsRanked,
+      verification_slots: website.verificationSlots,
+      verification_attempted: website.verificationAttempted,
+      verification_success: website.verificationSuccess,
+      official_company_domains: website.officialCompanyDomains,
+      directory_domains_skipped: website.directoryDomainsSkipped,
+      marketplace_domains_skipped: website.marketplaceDomainsSkipped,
+      product_pages_found: website.productPagesFound,
+      commercial_role_pages_found: website.commercialRolePagesFound,
+      combined_domain_evidence_count: website.combinedDomainEvidenceCount,
       public_web_candidates_accepted: ranking.accepted.filter((item) =>
         item.candidate.discoverySources?.includes("PUBLIC_WEB")
       ).length,

@@ -3,7 +3,7 @@ import { normalizeUnknownProductPhrase } from "./unknown-product-resolution.ts";
 export const ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION =
   "ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1";
 export const ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION =
-  "ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1_0";
+  "ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1_1";
 export const DEFAULT_ADAPTIVE_MEDICAL_RETRIEVAL_MODEL = "claude-haiku-4-5";
 
 export const ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS = Object.freeze({
@@ -26,6 +26,9 @@ export type AdaptiveRetrievalSource = "AI" | "CACHED_AI";
 export type AdaptiveLocalizedTerm = {
   term: string;
   language: string;
+  countries: string[];
+  source: "ADAPTIVE_INTELLIGENCE";
+  termType: "PRODUCT_TERM" | "COMMERCIAL_TERM" | "PROCUREMENT_TERM";
 };
 
 export type AdaptiveMedicalRetrievalIntelligence = {
@@ -42,13 +45,25 @@ export type AdaptiveMedicalRetrievalIntelligence = {
 };
 
 export type AdaptiveRetrievalValidationField =
+  | "canonical_product"
+  | "product_family"
   | "commercial_synonyms"
   | "clinical_contexts"
   | "procurement_terms"
   | "channel_archetypes"
   | "adjacent_commercial_terms"
   | "negative_contexts"
-  | "localized_terms";
+  | "localized_terms"
+  | "search_confidence";
+
+export type AdaptiveRetrievalFieldDiagnostic = {
+  field: AdaptiveRetrievalValidationField;
+  receivedCount: number;
+  acceptedCount: number;
+  prunedCount: number;
+  shapeErrorCount: number;
+  reasonCodes: string[];
+};
 
 export type AdaptiveRetrievalValidationDiagnostics = {
   status: "VALID" | "VALID_WITH_PRUNING" | "REJECTED";
@@ -57,6 +72,9 @@ export type AdaptiveRetrievalValidationDiagnostics = {
   termsPruned: number;
   pruneReasonCounts: Record<string, number>;
   acceptedTerms: Partial<Record<AdaptiveRetrievalValidationField, string[]>>;
+  fieldDiagnostics: Partial<
+    Record<AdaptiveRetrievalValidationField, AdaptiveRetrievalFieldDiagnostic>
+  >;
   prunedTerms: Array<{
     field: AdaptiveRetrievalValidationField;
     term: string;
@@ -141,7 +159,36 @@ const ALLOWED_KEYS = new Set([
   "localized_terms",
   "search_confidence",
 ]);
-const ALLOWED_LOCALIZED_KEYS = new Set(["term", "language"]);
+const ALLOWED_LOCALIZED_KEYS = new Set([
+  "term",
+  "language",
+  "countries",
+  "type",
+]);
+const SUPPORTED_LANGUAGES = new Set([
+  "en",
+  "it",
+  "fr",
+  "de",
+  "es",
+  "nl",
+  "pt",
+  "pl",
+]);
+const SUPPORTED_COUNTRIES = new Set([
+  "GB",
+  "IE",
+  "IT",
+  "FR",
+  "BE",
+  "DE",
+  "AT",
+  "CH",
+  "ES",
+  "NL",
+  "PT",
+  "PL",
+]);
 const FORBIDDEN_TEXT =
   /(?:https?:\/\/|www\.|@[a-z0-9.-]+\.[a-z]{2,}|api[_ -]?key|password|secret|system prompt|ignore (?:all )?(?:prior|previous) instructions)/i;
 const CHANNEL_ROLE =
@@ -149,7 +196,7 @@ const CHANNEL_ROLE =
 const GENERIC_ONLY =
   /^(?:medical|clinical|healthcare|hospital|device|devices|equipment|product|products|system|systems|supplier|distributor)$/i;
 const MEDICAL_CONTEXT =
-  /(?:medical|clinical|surgical|hospital|diagnos|radiolog|imag|tomograph|therapy|patient|procedure|operating room|steril|laparoscop|endoscop|biops|respirat|aerosol|nebul|cardi|orthop|dialysis|catheter|tender|procurement)/i;
+  /(?:medical|clinical|surgical|hospital|diagnos|radiolog|imag|tomograph|therapy|patient|procedure|operating room|infection control|steril|laparoscop|endoscop|biops|respirat|aerosol|nebul|cardi|orthop|dialysis|catheter|tender|procurement)/i;
 const EXPLICIT_FAMILY_DRIFT =
   /(?:automotive|vehicle|fuel|industrial chemical|agricultur|construction|cosmetic|software|network|electrical|printer|food processing)/i;
 const SEMANTIC_STOP_WORDS = new Set([
@@ -234,23 +281,87 @@ function safeString(
   return normalized;
 }
 
-function safeStrings(
+function fieldDiagnostic(
+  diagnostics: AdaptiveRetrievalValidationDiagnostics,
+  field: AdaptiveRetrievalValidationField,
+): AdaptiveRetrievalFieldDiagnostic {
+  return diagnostics.fieldDiagnostics[field] ||= {
+    field,
+    receivedCount: 0,
+    acceptedCount: 0,
+    prunedCount: 0,
+    shapeErrorCount: 0,
+    reasonCodes: [],
+  };
+}
+
+function noteStructuralPrune(
+  diagnostics: AdaptiveRetrievalValidationDiagnostics,
+  field: AdaptiveRetrievalValidationField,
+  reason: string,
+  shapeError = false,
+): void {
+  const summary = fieldDiagnostic(diagnostics, field);
+  summary.prunedCount += 1;
+  if (shapeError) summary.shapeErrorCount += 1;
+  if (!summary.reasonCodes.includes(reason)) summary.reasonCodes.push(reason);
+  diagnostics.prunedTerms.push({
+    field,
+    term: "[pruned optional item]",
+    reason,
+  });
+  diagnostics.pruneReasonCounts[reason] =
+    (diagnostics.pruneReasonCounts[reason] || 0) + 1;
+}
+
+function safeOptionalStrings(
   value: unknown,
-  field: string,
+  field: AdaptiveRetrievalValidationField,
   maximumItems: number,
+  diagnostics: AdaptiveRetrievalValidationDiagnostics,
   maximumLength = 120,
 ): string[] {
-  if (!Array.isArray(value) || value.length > maximumItems) {
-    throw new Error(`INVALID_${field}`);
+  const summary = fieldDiagnostic(diagnostics, field);
+  if (!Array.isArray(value)) {
+    summary.receivedCount = value == null ? 0 : 1;
+    noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+    if (!summary.reasonCodes.includes("EMPTY_AFTER_NORMALIZATION")) {
+      summary.reasonCodes.push("EMPTY_AFTER_NORMALIZATION");
+    }
+    return [];
   }
+  summary.receivedCount = value.length;
   const seen = new Set<string>();
   const output: string[] = [];
   for (const item of value) {
-    const safe = safeString(item, field, 3, maximumLength);
+    if (output.length >= maximumItems) {
+      noteStructuralPrune(diagnostics, field, "CARDINALITY_EXCEEDED");
+      continue;
+    }
+    let safe: string;
+    try {
+      safe = safeString(item, field.toUpperCase(), 3, maximumLength);
+    } catch (_) {
+      noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+      continue;
+    }
     const normalized = normalizeUnknownProductPhrase(safe);
-    if (!normalized || seen.has(normalized)) continue;
+    if (!normalized) {
+      noteStructuralPrune(diagnostics, field, "EMPTY_AFTER_NORMALIZATION");
+      continue;
+    }
+    if (seen.has(normalized)) {
+      noteStructuralPrune(diagnostics, field, "DUPLICATE_NORMALIZED");
+      continue;
+    }
     seen.add(normalized);
     output.push(safe);
+  }
+  summary.acceptedCount = output.length;
+  if (summary.receivedCount > 0 && output.length === 0) {
+    if (!summary.reasonCodes.includes("EMPTY_AFTER_NORMALIZATION")) {
+      summary.reasonCodes.push("EMPTY_AFTER_NORMALIZATION");
+    }
   }
   return output;
 }
@@ -357,28 +468,113 @@ function compatibleFamily(
         normalizeUnknownProductPhrase(expectedFamily));
 }
 
-function validateLocalizedTerms(value: unknown): AdaptiveLocalizedTerm[] {
-  if (
-    !Array.isArray(value) ||
-    value.length > ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumLocalizedTerms
-  ) throw new Error("INVALID_LOCALIZED_TERMS");
+function languageCountries(language: string): string[] {
+  const values: Record<string, string[]> = {
+    en: ["GB", "IE"],
+    it: ["IT"],
+    fr: ["FR", "BE"],
+    de: ["DE", "AT", "CH"],
+    es: ["ES"],
+    nl: ["NL", "BE"],
+    pt: ["PT"],
+    pl: ["PL"],
+  };
+  return values[language] || [];
+}
+
+function validateLocalizedTerms(
+  value: unknown,
+  diagnostics: AdaptiveRetrievalValidationDiagnostics,
+): AdaptiveLocalizedTerm[] {
+  const field = "localized_terms" as const;
+  const summary = fieldDiagnostic(diagnostics, field);
+  if (!Array.isArray(value)) {
+    summary.receivedCount = value == null ? 0 : 1;
+    noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+    return [];
+  }
+  summary.receivedCount = value.length;
   const seen = new Set<string>();
-  return value.flatMap((item, index) => {
-    const row = record(item);
-    if (Object.keys(row).some((key) => !ALLOWED_LOCALIZED_KEYS.has(key))) {
-      throw new Error(`INVALID_LOCALIZED_TERM_${index}`);
+  const output: AdaptiveLocalizedTerm[] = [];
+  for (const item of value) {
+    if (
+      output.length >= ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumLocalizedTerms
+    ) {
+      noteStructuralPrune(diagnostics, field, "CARDINALITY_EXCEEDED");
+      continue;
     }
-    const term = safeString(row.term, "LOCALIZED_TERM", 3, 120);
-    const language = safeString(row.language, "LOCALIZED_LANGUAGE", 2, 5)
-      .toLowerCase();
-    if (!/^[a-z]{2,3}$/.test(language)) {
-      throw new Error("INVALID_LOCALIZED_LANGUAGE");
+    const row = record(item);
+    if (
+      !Object.keys(row).length ||
+      Object.keys(row).some((key) => !ALLOWED_LOCALIZED_KEYS.has(key))
+    ) {
+      noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+      continue;
+    }
+    let term: string;
+    let language: string;
+    try {
+      term = safeString(row.term, "LOCALIZED_TERM", 3, 120);
+      language = safeString(row.language, "LOCALIZED_LANGUAGE", 2, 5)
+        .toLowerCase();
+    } catch (_) {
+      noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+      continue;
+    }
+    if (!SUPPORTED_LANGUAGES.has(language)) {
+      noteStructuralPrune(diagnostics, field, "UNSUPPORTED_LANGUAGE", true);
+      continue;
     }
     const key = `${language}:${normalizeUnknownProductPhrase(term)}`;
-    if (seen.has(key)) return [];
+    if (seen.has(key)) {
+      noteStructuralPrune(diagnostics, field, "DUPLICATE_NORMALIZED");
+      continue;
+    }
     seen.add(key);
-    return [{ term, language }];
-  });
+    if (row.countries != null && !Array.isArray(row.countries)) {
+      noteStructuralPrune(diagnostics, field, "INVALID_ITEM_SHAPE", true);
+    }
+    const rawCountries = Array.isArray(row.countries) ? row.countries : [];
+    const requestedCountries = rawCountries.map((country) =>
+      String(country).trim().toUpperCase()
+    ).filter((country) => SUPPORTED_COUNTRIES.has(country));
+    if (requestedCountries.length !== rawCountries.length) {
+      noteStructuralPrune(diagnostics, field, "UNSUPPORTED_COUNTRY", true);
+    }
+    const countries = [
+      ...new Set(
+        requestedCountries.length
+          ? requestedCountries
+          : languageCountries(language),
+      ),
+    ].slice(0, 4);
+    const requestedType = String(row.type || "PRODUCT_TERM").toUpperCase();
+    const supportedTypes = [
+      "PRODUCT_TERM",
+      "COMMERCIAL_TERM",
+      "PROCUREMENT_TERM",
+    ] as const;
+    if (
+      row.type != null &&
+      !supportedTypes.includes(
+        requestedType as AdaptiveLocalizedTerm["termType"],
+      )
+    ) noteStructuralPrune(diagnostics, field, "INVALID_TERM_TYPE", true);
+    const termType = supportedTypes.includes(
+        requestedType as AdaptiveLocalizedTerm["termType"],
+      )
+      ? requestedType as AdaptiveLocalizedTerm["termType"]
+      : "PRODUCT_TERM";
+    output.push({
+      term,
+      language,
+      countries,
+      source: "ADAPTIVE_INTELLIGENCE",
+      termType,
+    });
+  }
+  summary.acceptedCount = output.length;
+  return output;
 }
 
 function emptyValidationDiagnostics(): AdaptiveRetrievalValidationDiagnostics {
@@ -389,6 +585,7 @@ function emptyValidationDiagnostics(): AdaptiveRetrievalValidationDiagnostics {
     termsPruned: 0,
     pruneReasonCounts: {},
     acceptedTerms: {},
+    fieldDiagnostics: {},
     prunedTerms: [],
   };
 }
@@ -418,14 +615,36 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
   if (
     !Object.keys(input).length ||
     Object.keys(input).some((key) => !ALLOWED_KEYS.has(key))
-  ) throw new Error("INVALID_ADAPTIVE_RETRIEVAL_SCHEMA");
-  const canonical = safeString(
-    input.canonical_product,
-    "CANONICAL_PRODUCT",
-    3,
-    120,
-  );
-  const family = safeString(input.product_family, "PRODUCT_FAMILY", 3, 120);
+  ) rejectValidation("INVALID_ADAPTIVE_RETRIEVAL_SCHEMA", diagnostics);
+  let canonical: string;
+  let family: string;
+  try {
+    canonical = safeString(
+      input.canonical_product,
+      "CANONICAL_PRODUCT",
+      3,
+      120,
+    );
+    fieldDiagnostic(diagnostics, "canonical_product").receivedCount = 1;
+    fieldDiagnostic(diagnostics, "canonical_product").acceptedCount = 1;
+  } catch (_) {
+    const field = fieldDiagnostic(diagnostics, "canonical_product");
+    field.receivedCount = input.canonical_product == null ? 0 : 1;
+    field.shapeErrorCount = 1;
+    field.reasonCodes.push("STRUCTURAL_FATAL");
+    rejectValidation("INVALID_CANONICAL_PRODUCT", diagnostics);
+  }
+  try {
+    family = safeString(input.product_family, "PRODUCT_FAMILY", 3, 120);
+    fieldDiagnostic(diagnostics, "product_family").receivedCount = 1;
+    fieldDiagnostic(diagnostics, "product_family").acceptedCount = 1;
+  } catch (_) {
+    const field = fieldDiagnostic(diagnostics, "product_family");
+    field.receivedCount = input.product_family == null ? 0 : 1;
+    field.shapeErrorCount = 1;
+    field.reasonCodes.push("STRUCTURAL_FATAL");
+    rejectValidation("INVALID_PRODUCT_FAMILY", diagnostics);
+  }
   const expectedCanonical = context?.canonicalConcept || canonical;
   const expectedFamily = context?.productFamily || family;
   if (!compatibleCanonical(canonical, expectedCanonical, expectedFamily)) {
@@ -436,30 +655,35 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
   }
 
   const generated = {
-    commercial_synonyms: safeStrings(
+    commercial_synonyms: safeOptionalStrings(
       input.commercial_synonyms,
-      "COMMERCIAL_SYNONYMS",
+      "commercial_synonyms",
       ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumCommercialSynonyms,
+      diagnostics,
     ),
-    clinical_contexts: safeStrings(
+    clinical_contexts: safeOptionalStrings(
       input.clinical_contexts,
-      "CLINICAL_CONTEXTS",
+      "clinical_contexts",
       ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumClinicalContexts,
+      diagnostics,
     ),
-    procurement_terms: safeStrings(
+    procurement_terms: safeOptionalStrings(
       input.procurement_terms,
-      "PROCUREMENT_TERMS",
+      "procurement_terms",
       ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumProcurementTerms,
+      diagnostics,
     ),
-    channel_archetypes: safeStrings(
+    channel_archetypes: safeOptionalStrings(
       input.channel_archetypes,
-      "CHANNEL_ARCHETYPES",
+      "channel_archetypes",
       ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumChannelArchetypes,
+      diagnostics,
     ),
-    adjacent_commercial_terms: safeStrings(
+    adjacent_commercial_terms: safeOptionalStrings(
       input.adjacent_commercial_terms,
-      "ADJACENT_COMMERCIAL_TERMS",
+      "adjacent_commercial_terms",
       ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumAdjacentCommercialTerms,
+      diagnostics,
     ),
   };
   const accepted: typeof generated = {
@@ -469,12 +693,20 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
     channel_archetypes: [],
     adjacent_commercial_terms: [],
   };
+  const structurallyAcceptedCoreVocabulary =
+    generated.commercial_synonyms.length;
   const prune = (
     field: AdaptiveRetrievalValidationField,
     term: string,
     reason: string,
   ) => {
     diagnostics.prunedTerms.push({ field, term, reason });
+    const fieldSummary = fieldDiagnostic(diagnostics, field);
+    fieldSummary.acceptedCount = Math.max(0, fieldSummary.acceptedCount - 1);
+    fieldSummary.prunedCount += 1;
+    if (!fieldSummary.reasonCodes.includes(reason)) {
+      fieldSummary.reasonCodes.push(reason);
+    }
     diagnostics.pruneReasonCounts[reason] =
       (diagnostics.pruneReasonCounts[reason] || 0) + 1;
   };
@@ -523,12 +755,13 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
       else accepted[field].push(term);
     }
   }
-  const negative = safeStrings(
+  const negative = safeOptionalStrings(
     input.negative_contexts,
-    "NEGATIVE_CONTEXTS",
+    "negative_contexts",
     ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumNegativeContexts,
+    diagnostics,
   );
-  const localized = validateLocalizedTerms(input.localized_terms);
+  const localized = validateLocalizedTerms(input.localized_terms, diagnostics);
   const acceptedLocalized = localized.filter((item) => {
     if (item.language !== "en" || !EXPLICIT_FAMILY_DRIFT.test(item.term)) {
       return true;
@@ -539,13 +772,28 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
   const finalizeDiagnostics = (
     status?: AdaptiveRetrievalValidationDiagnostics["status"],
   ) => {
-    diagnostics.termsGenerated = Object.values(generated).reduce(
-      (count, terms) => count + terms.length,
+    diagnostics.termsGenerated = ([
+      "commercial_synonyms",
+      "clinical_contexts",
+      "procurement_terms",
+      "channel_archetypes",
+      "adjacent_commercial_terms",
+      "negative_contexts",
+      "localized_terms",
+    ] as const).reduce(
+      (count, field) =>
+        count + (diagnostics.fieldDiagnostics[field]?.receivedCount || 0),
       0,
-    ) + negative.length + localized.length;
-    diagnostics.termsPruned = diagnostics.prunedTerms.length;
-    diagnostics.termsAccepted = diagnostics.termsGenerated -
-      diagnostics.termsPruned;
+    );
+    diagnostics.termsAccepted = accepted.commercial_synonyms.length +
+      accepted.clinical_contexts.length + accepted.procurement_terms.length +
+      accepted.channel_archetypes.length +
+      accepted.adjacent_commercial_terms.length + negative.length +
+      acceptedLocalized.length;
+    diagnostics.termsPruned = Math.max(
+      diagnostics.prunedTerms.length,
+      diagnostics.termsGenerated - diagnostics.termsAccepted,
+    );
     diagnostics.status = status ||
       (diagnostics.termsPruned > 0 ? "VALID_WITH_PRUNING" : "VALID");
     diagnostics.acceptedTerms = {
@@ -561,7 +809,12 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
       ).length > accepted.commercial_synonyms.length
   ) {
     finalizeDiagnostics("REJECTED");
-    rejectValidation("ADAPTIVE_PRODUCT_FAMILY_DRIFT", diagnostics);
+    rejectValidation(
+      structurallyAcceptedCoreVocabulary === 0
+        ? "ADAPTIVE_CORE_VOCABULARY_EMPTY"
+        : "ADAPTIVE_PRODUCT_FAMILY_DRIFT",
+      diagnostics,
+    );
   }
   if (!accepted.channel_archetypes.length) {
     finalizeDiagnostics("REJECTED");
@@ -570,8 +823,14 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
 
   const confidence = String(input.search_confidence || "").toUpperCase();
   if (!(["HIGH", "MEDIUM"] as string[]).includes(confidence)) {
-    throw new Error("INVALID_SEARCH_CONFIDENCE");
+    const field = fieldDiagnostic(diagnostics, "search_confidence");
+    field.receivedCount = input.search_confidence == null ? 0 : 1;
+    field.shapeErrorCount = 1;
+    field.reasonCodes.push("STRUCTURAL_FATAL");
+    rejectValidation("INVALID_SEARCH_CONFIDENCE", diagnostics);
   }
+  fieldDiagnostic(diagnostics, "search_confidence").receivedCount = 1;
+  fieldDiagnostic(diagnostics, "search_confidence").acceptedCount = 1;
   const positive = new Set([
     canonical,
     family,
@@ -709,6 +968,22 @@ export function adaptiveRetrievalProviderBody(input: {
                 language: {
                   type: "string",
                   enum: ["en", "it", "fr", "de", "es", "nl", "pt", "pl"],
+                },
+                countries: {
+                  type: "array",
+                  maxItems: 4,
+                  items: {
+                    type: "string",
+                    enum: [...SUPPORTED_COUNTRIES],
+                  },
+                },
+                type: {
+                  type: "string",
+                  enum: [
+                    "PRODUCT_TERM",
+                    "COMMERCIAL_TERM",
+                    "PROCUREMENT_TERM",
+                  ],
                 },
               },
             },

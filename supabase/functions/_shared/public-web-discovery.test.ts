@@ -218,6 +218,52 @@ Deno.test("directory, marketplace, social, PDF, and non-HTTPS results are reject
   }
 });
 
+Deno.test("verification signals downrank directory/marketplace pages and prioritize official commercial product pages", () => {
+  const directory = normalizePublicWebResult({
+    title: "Medical suppliers directory",
+    description: "Directory listing",
+    url: "https://wlw.de/en/search/sterile-gowns",
+  });
+  const marketplace = normalizePublicWebResult({
+    title: "Buy sterile gown",
+    description: "Marketplace product listing",
+    url: "https://ebay.co.uk/itm/sterile-gown",
+  });
+  const official = normalizePublicWebResult({
+    title: "Sterile Surgical Gowns | QA Medical",
+    description: "Medical consumables distributor product catalogue",
+    url: "https://qa-medical.co.uk/products/sterile-surgical-gowns",
+  });
+  assert(
+    directory?.verificationSignals?.domainClass === "DIRECTORY",
+    "directory domain must be classified before verification",
+  );
+  assert(
+    marketplace?.verificationSignals?.domainClass === "MARKETPLACE",
+    "marketplace domain must be classified before verification",
+  );
+  assert(
+    official?.verificationSignals?.domainClass === "LIKELY_OFFICIAL",
+    "official company domain must retain priority",
+  );
+  assert(
+    official!.verificationSignals!.score >
+      directory!.verificationSignals!.score,
+    "official company page must outrank a directory",
+  );
+  assert(
+    official!.verificationSignals!.score >
+      marketplace!.verificationSignals!.score,
+    "official company page must outrank a marketplace",
+  );
+  assert(
+    official?.verificationSignals?.medicalContext === true &&
+      official.verificationSignals.commercialRoleContext === true &&
+      official.verificationSignals.productPageContext === true,
+    "official product page must retain medical, role, and product signals",
+  );
+});
+
 Deno.test("provider timeout fails closed without retry", async () => {
   const provider = createBraveSearchProvider({
     apiKey: "fixture",

@@ -262,8 +262,9 @@ Deno.test("J-L: editorial hospital content is rejected, exact procurement surviv
   assert(
     rankProspects([hospitalProcurement], foley, {
       now: new Date("2026-08-25T00:00:00Z"),
-    }).accepted[0]?.score.qualificationPath === "PUBLIC_PROCUREMENT",
-    "exact TED procurement must qualify a healthcare provider without relying on editorial evidence",
+    }).rejected[0]?.score.salesProspectClassification ===
+      "END_BUYER_PROCUREMENT_SIGNAL",
+    "exact TED procurement must preserve a hospital as an end-buyer signal, not a direct sales prospect",
   );
 
   const manufacturer = publicCandidate("Foley Catheter");
@@ -309,9 +310,10 @@ Deno.test("M-R: direct product evidence and commercial identity are separate gat
   );
   unverified.commercialIdentityVerified = true;
   unverified.organizationType = "COMMERCIAL_COMPANY";
+  unverified.companyType = "Distributor";
   assert(
     rankProspects([unverified], foley).accepted.length === 1,
-    "the same product evidence may qualify only after commercial identity verification",
+    "the same product evidence may qualify only after commercial identity and channel-role verification",
   );
 
   const registry = publicCandidate("Foley Catheter");

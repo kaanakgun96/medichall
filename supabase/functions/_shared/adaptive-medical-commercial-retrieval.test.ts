@@ -51,6 +51,9 @@ const preservedCtFailureShape = {
   clinical_contexts: [
     "computed tomography contrast administration",
     "radiology workflow",
+    "diagnostic imaging contrast procedure",
+    "CT imaging contrast workflow",
+    "radiology contrast patient procedure",
   ],
   procurement_terms: [
     "contrast injection system",
@@ -88,6 +91,95 @@ Deno.test("adaptive retrieval schema accepts bounded search intelligence and rej
       ...validIntelligence,
       unexpected: true,
     }), /INVALID_ADAPTIVE_RETRIEVAL_SCHEMA/);
+});
+
+Deno.test("optional cardinality and malformed items are pruned with safe field diagnostics", () => {
+  const { intelligence, diagnostics } =
+    validateAdaptiveRetrievalIntelligenceWithDiagnostics({
+      ...validIntelligence,
+      clinical_contexts: [
+        "computed tomography contrast administration",
+        { invalid: true },
+        "radiology contrast imaging workflow",
+        "diagnostic imaging contrast procedure",
+        "clinical CT contrast delivery",
+        "CT contrast injection protocol",
+      ],
+      localized_terms: [
+        {
+          term: "injecteur de produit de contraste",
+          language: "fr",
+          countries: ["FR", "BE"],
+          type: "PRODUCT_TERM",
+        },
+        { term: "injecteur de produit de contraste", language: "fr" },
+        { term: null, language: "de" },
+      ],
+    });
+  assert.equal(intelligence.clinical_contexts.length, 4);
+  assert.deepEqual(intelligence.localized_terms[0], {
+    term: "injecteur de produit de contraste",
+    language: "fr",
+    countries: ["FR", "BE"],
+    source: "ADAPTIVE_INTELLIGENCE",
+    termType: "PRODUCT_TERM",
+  });
+  assert.equal(diagnostics.status, "VALID_WITH_PRUNING");
+  assert.equal(
+    diagnostics.fieldDiagnostics.clinical_contexts?.receivedCount,
+    6,
+  );
+  assert.equal(
+    diagnostics.fieldDiagnostics.clinical_contexts?.acceptedCount,
+    4,
+  );
+  assert.equal(
+    diagnostics.fieldDiagnostics.clinical_contexts?.shapeErrorCount,
+    1,
+  );
+  assert(
+    diagnostics.fieldDiagnostics.clinical_contexts?.reasonCodes.includes(
+      "CARDINALITY_EXCEEDED",
+    ),
+  );
+  assert(
+    diagnostics.fieldDiagnostics.localized_terms?.reasonCodes.includes(
+      "DUPLICATE_NORMALIZED",
+    ),
+  );
+  assert(
+    diagnostics.fieldDiagnostics.localized_terms?.reasonCodes.includes(
+      "INVALID_ITEM_SHAPE",
+    ),
+  );
+});
+
+Deno.test("malformed core schema remains fatal while optional arrays remain prunable", () => {
+  assert.throws(
+    () =>
+      validateAdaptiveRetrievalIntelligenceWithDiagnostics({
+        ...validIntelligence,
+        canonical_product: null,
+      }),
+    /INVALID_CANONICAL_PRODUCT/,
+  );
+  assert.throws(
+    () =>
+      validateAdaptiveRetrievalIntelligenceWithDiagnostics({
+        ...validIntelligence,
+        commercial_synonyms: [{ invalid: true }],
+      }),
+    /ADAPTIVE_CORE_VOCABULARY_EMPTY/,
+  );
+  const result = validateAdaptiveRetrievalIntelligenceWithDiagnostics({
+    ...validIntelligence,
+    procurement_terms: { malformed: true },
+  });
+  assert.deepEqual(result.intelligence.procurement_terms, []);
+  assert.equal(
+    result.diagnostics.fieldDiagnostics.procurement_terms?.shapeErrorCount,
+    1,
+  );
 });
 
 Deno.test("provider contract treats product text as data and exposes no arbitrary tool or URL", () => {
@@ -135,6 +227,8 @@ Deno.test("CT temporary intent uses its specific canonical anchor and prunes iso
   assert.deepEqual(result.intelligence.clinical_contexts, [
     "computed tomography contrast administration",
     "radiology workflow",
+    "diagnostic imaging contrast procedure",
+    "CT imaging contrast workflow",
   ]);
   assert.deepEqual(result.intelligence.procurement_terms, [
     "contrast injection system",
@@ -149,11 +243,22 @@ Deno.test("CT temporary intent uses its specific canonical anchor and prunes iso
   ]);
   assert.deepEqual(
     result.diagnostics.prunedTerms.map((item) => item.term),
-    ["MRI coil", "fuel injector", "automotive parts distributor", "MRI coil"],
+    [
+      "[pruned optional item]",
+      "MRI coil",
+      "fuel injector",
+      "automotive parts distributor",
+      "MRI coil",
+    ],
   );
-  assert.equal(result.diagnostics.termsGenerated, 18);
-  assert.equal(result.diagnostics.termsAccepted, 14);
-  assert.equal(result.diagnostics.termsPruned, 4);
+  assert.equal(result.diagnostics.termsGenerated, 21);
+  assert.equal(result.diagnostics.termsAccepted, 16);
+  assert.equal(result.diagnostics.termsPruned, 5);
+  assert(
+    result.diagnostics.fieldDiagnostics.clinical_contexts?.reasonCodes.includes(
+      "CARDINALITY_EXCEEDED",
+    ),
+  );
 });
 
 Deno.test("field-aware validation keeps broad medical contexts and rejects core contradiction", () => {

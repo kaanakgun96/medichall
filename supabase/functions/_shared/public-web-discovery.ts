@@ -53,6 +53,19 @@ export type PublicWebCandidate = {
   pageUrl: string;
   canonicalDomain: string;
   countryCode: string | null;
+  pageUrls?: string[];
+  verificationSignals?: {
+    score: number;
+    domainClass:
+      | "LIKELY_OFFICIAL"
+      | "DIRECTORY"
+      | "MARKETPLACE"
+      | "EDITORIAL"
+      | "UNKNOWN";
+    medicalContext: boolean;
+    commercialRoleContext: boolean;
+    productPageContext: boolean;
+  };
 };
 
 export type PublicWebQueryBatch = {
@@ -161,6 +174,66 @@ const REJECTED_DOMAINS = [
   "x.com",
   "youtube.com",
 ];
+
+const DIRECTORY_DOMAIN =
+  /(?:^|\.)(?:europages|kompass|wlw|tradekey|accio|yellowpages|business-directory|linguee)\./i;
+const MARKETPLACE_DOMAIN =
+  /(?:^|\.)(?:amazon|alibaba|ebay|indiamart|made-in-china|medicalexpo)\./i;
+const EDITORIAL_DOMAIN =
+  /(?:^|\.)(?:shutterstock|researchgate|sciencedirect|springer|wikipedia)\./i;
+const MEDICAL_DISCOVERY_TEXT =
+  /\b(?:medical|clinical|surgical|hospital|healthcare|sterile|operating room|infection control|diagnostic)\b/i;
+const COMMERCIAL_DISCOVERY_TEXT =
+  /\b(?:distribut|import|wholesal|supplier|resell|dealer|oem|private label|catalog|products?|brands?|solutions?)\b/i;
+const EDITORIAL_DISCOVERY_TEXT =
+  /\b(?:news|article|guide|how to|what is|definition|stock photo|research paper)\b/i;
+const PRODUCT_PAGE_PATH =
+  /\/(?:products?|product-categories?|catalog(?:ue)?|portfolio|brands?|solutions?|medical-disposables?|surgical|operating-room|infection-control)(?:\/|$)/i;
+
+function discoverySignals(
+  domain: string,
+  pageUrl: string,
+  title: unknown,
+  description: unknown,
+): NonNullable<PublicWebCandidate["verificationSignals"]> {
+  const text = sanitizeEvidenceText(
+    `${String(title || "")} ${String(description || "")}`,
+    600,
+  );
+  const domainClass = DIRECTORY_DOMAIN.test(domain)
+    ? "DIRECTORY" as const
+    : MARKETPLACE_DOMAIN.test(domain)
+    ? "MARKETPLACE" as const
+    : EDITORIAL_DOMAIN.test(domain) || EDITORIAL_DISCOVERY_TEXT.test(text)
+    ? "EDITORIAL" as const
+    : "LIKELY_OFFICIAL" as const;
+  const medicalContext = MEDICAL_DISCOVERY_TEXT.test(text);
+  const commercialRoleContext = COMMERCIAL_DISCOVERY_TEXT.test(text);
+  const productPageContext =
+    PRODUCT_PAGE_PATH.test(new URL(pageUrl).pathname) ||
+    /\b(?:product|catalog|portfolio|range)\b/i.test(text);
+  const penalty = domainClass === "DIRECTORY" || domainClass === "MARKETPLACE"
+    ? 80
+    : domainClass === "EDITORIAL"
+    ? 55
+    : 0;
+  return {
+    score: Math.max(
+      0,
+      Math.min(
+        100,
+        35 +
+          Number(medicalContext) * 22 +
+          Number(commercialRoleContext) * 24 +
+          Number(productPageContext) * 19 - penalty,
+      ),
+    ),
+    domainClass,
+    medicalContext,
+    commercialRoleContext,
+    productPageContext,
+  };
+}
 
 function normalizeProductText(value: unknown): string {
   return String(value ?? "").normalize("NFKD").toLowerCase()
@@ -455,6 +528,12 @@ export function normalizePublicWebResult(
   const pageUrl = url.href.slice(0, 1000);
   const canonicalDomain = normalizeDomain(pageUrl);
   if (!canonicalDomain || isRejectedDomain(canonicalDomain)) return null;
+  const signals = discoverySignals(
+    canonicalDomain,
+    pageUrl,
+    row.title,
+    row.description,
+  );
   return {
     // Search-provider result titles describe pages, products, or articles.
     // They are discovery metadata only and never become company identity.
@@ -463,7 +542,30 @@ export function normalizePublicWebResult(
     pageUrl,
     canonicalDomain,
     countryCode: inferCountryFromDomain(canonicalDomain),
+    pageUrls: [pageUrl],
+    verificationSignals: signals,
   };
+}
+
+function mergePublicWebCandidate(
+  target: PublicWebCandidate,
+  incoming: PublicWebCandidate,
+): PublicWebCandidate {
+  target.pageUrls = [
+    ...new Set([
+      ...(target.pageUrls || [target.pageUrl]),
+      ...(incoming.pageUrls || [incoming.pageUrl]),
+    ]),
+  ].slice(0, 6);
+  if (
+    (incoming.verificationSignals?.score || 0) >
+      (target.verificationSignals?.score || 0)
+  ) {
+    target.pageUrl = incoming.pageUrl;
+    target.verificationSignals = incoming.verificationSignals;
+  }
+  target.countryCode ||= incoming.countryCode;
+  return target;
 }
 
 function normalizedCandidates(values: unknown[], maximum: number): {
@@ -480,6 +582,11 @@ function normalizedCandidates(values: unknown[], maximum: number): {
     }
     if (!byDomain.has(candidate.canonicalDomain)) {
       byDomain.set(candidate.canonicalDomain, candidate);
+    } else {
+      mergePublicWebCandidate(
+        byDomain.get(candidate.canonicalDomain)!,
+        candidate,
+      );
     }
     if (byDomain.size >= maximum) break;
   }
@@ -724,6 +831,11 @@ function deduplicatePublicWebCandidates(
   for (const candidate of candidates) {
     if (!byDomain.has(candidate.canonicalDomain)) {
       byDomain.set(candidate.canonicalDomain, candidate);
+    } else {
+      mergePublicWebCandidate(
+        byDomain.get(candidate.canonicalDomain)!,
+        candidate,
+      );
     }
     if (byDomain.size >= PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates) break;
   }
@@ -972,7 +1084,18 @@ export function publicWebCandidatesToProspects(input: {
       relatedAwardCount: 0,
       lastEvidenceAt: null,
       discoverySources: ["PUBLIC_WEB" as const],
-      websiteVerificationUrls: [candidate.pageUrl],
+      websiteVerificationUrls: candidate.pageUrls || [candidate.pageUrl],
+      websiteCandidateSignals: {
+        verificationScore: candidate.verificationSignals?.score || 25,
+        domainClass: candidate.verificationSignals?.domainClass || "UNKNOWN",
+        medicalContext: Boolean(candidate.verificationSignals?.medicalContext),
+        commercialRoleContext: Boolean(
+          candidate.verificationSignals?.commercialRoleContext,
+        ),
+        productPageContext: Boolean(
+          candidate.verificationSignals?.productPageContext,
+        ),
+      },
       organizationType: "UNKNOWN" as const,
       identityConfidence: "LOW" as const,
       commercialIdentityVerified: false,

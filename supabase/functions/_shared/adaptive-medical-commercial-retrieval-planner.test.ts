@@ -7,6 +7,7 @@ import {
 import {
   buildAdaptiveSearchUniverse,
   buildDiscoverySearchPlan,
+  detectDeterministicTermLanguage,
   type SearchPartitionHistory,
 } from "./buyer-discovery-search-space.ts";
 import { buildTemporaryProductFamilyProfile } from "./unknown-product-resolution.ts";
@@ -354,6 +355,100 @@ Deno.test("multilingual terms are market-bound and adaptive identity prevents st
     france.selectedPartitions.every((partition) =>
       partition.partitionKey.includes("adaptive") &&
       partition.partitionKey.includes("1")
+    ),
+  );
+});
+
+Deno.test("explicit and deterministic languages route only to compatible Web and TED markets", () => {
+  assert.equal(detectDeterministicTermLanguage("Bata quirúrgica"), "es");
+  assert.equal(detectDeterministicTermLanguage("Camice chirurgico"), "it");
+  assert.equal(
+    detectDeterministicTermLanguage("unclassified alpha unit"),
+    "unknown",
+  );
+  const profile = temporaryProfile(
+    "sterile surgical gown",
+    "sterile surgical gown",
+    "sterile operating room apparel",
+    ["sterile surgical gown"],
+  );
+  const gownIntelligence = intelligence({
+    canonical: "sterile surgical gown",
+    family: "sterile operating room apparel",
+    commercial: ["sterile surgical gown", "disposable surgical gown"],
+    clinical: ["sterile operating room procedure apparel"],
+    procurement: ["sterile surgical gown procurement"],
+    channels: [
+      "medical consumables distributor",
+      "hospital supplier",
+      "operating room supplier",
+      "infection control supplier",
+      "tender supplier",
+    ],
+    localized: [
+      { term: "Bata quirúrgica estéril", language: "es" },
+      { term: "Camice chirurgico sterile", language: "it" },
+      { term: "Blouse chirurgicale stérile", language: "fr" },
+      { term: "Steriler Operationsmantel", language: "de" },
+    ],
+  });
+  const universe = buildAdaptiveSearchUniverse({
+    productFamily: profile,
+    targetCountries: [],
+    cpvCodes: [],
+    adaptiveIntelligence: gownIntelligence,
+  });
+  const spanish = universe.filter((partition) =>
+    partition.terminology[0] === "Bata quirúrgica estéril"
+  );
+  assert(spanish.length > 0);
+  assert(spanish.every((partition) =>
+    partition.language === "es" &&
+    partition.countryCodes.every((country) => country === "ES")
+  ));
+  const italian = universe.filter((partition) =>
+    partition.terminology[0] === "Camice chirurgico sterile"
+  );
+  assert(italian.length > 0);
+  assert(italian.every((partition) =>
+    partition.language === "it" &&
+    partition.countryCodes.every((country) => country === "IT")
+  ));
+  const selected = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: profile,
+    targetCountries: [],
+    cpvCodes: [],
+    adaptiveIntelligence: gownIntelligence,
+  });
+  assert(
+    new Set(selected.publicWebQueries.map((query) => query.language)).size >= 3,
+  );
+  assert(
+    new Set(selected.publicWebQueries.map((query) => query.buyerArchetype))
+      .size >= 3,
+  );
+  assert.equal(
+    new Set(
+      selected.selectedPartitions.map((partition) => partition.partitionKey),
+    ).size,
+    selected.selectedPartitions.length,
+  );
+  const belgium = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: profile,
+    targetCountries: ["BE"],
+    cpvCodes: [],
+    adaptiveIntelligence: gownIntelligence,
+  });
+  assert(
+    belgium.publicWebQueries.some((query) =>
+      query.language === "fr" && query.country === "BE"
+    ),
+  );
+  assert(
+    belgium.tedPartitions.every((partition) =>
+      partition.countryCodes.length === 1 && partition.countryCodes[0] === "BE"
     ),
   );
 });
