@@ -95,6 +95,14 @@ import {
 } from "../_shared/ai-buyer-relevance-judge.ts";
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
 import {
+  ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
+  ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
+  type AdaptiveMedicalRetrievalIntelligence,
+  callAdaptiveRetrievalIntelligence,
+  DEFAULT_ADAPTIVE_MEDICAL_RETRIEVAL_MODEL,
+  validateAdaptiveRetrievalIntelligence,
+} from "../_shared/adaptive-medical-commercial-retrieval.ts";
+import {
   buildDiscoverySearchPlan,
   buildPartitionPersistenceRows,
   classifyDiscoveryResultState,
@@ -314,6 +322,245 @@ function sha256(value: string): Promise<string> {
         (item) => item.toString(16).padStart(2, "0"),
       ).join("")
     );
+}
+
+type AdaptiveRetrievalRuntime = {
+  intelligence: AdaptiveMedicalRetrievalIntelligence | null;
+  diagnostics: {
+    enabled: boolean;
+    source: "DISABLED" | "AI" | "CACHED_AI" | "ADAPTIVE_RETRIEVAL_FALLBACK";
+    version: string;
+    implementationVersion: string;
+    model: string | null;
+    providerRequests: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+    latencyMs: number;
+    cacheHit: boolean;
+    fallbackReason: string | null;
+  };
+};
+
+async function resolveAdaptiveRetrievalRuntime(input: {
+  // deno-lint-ignore no-explicit-any -- this Edge client has no generated DB schema.
+  admin: any;
+  sourceText: string;
+  canonicalConcept: string;
+  productFamily: string;
+  commercialTerms: string[];
+  resolverVersion: string;
+  inputLanguage: string;
+}): Promise<AdaptiveRetrievalRuntime> {
+  const base: AdaptiveRetrievalRuntime["diagnostics"] = {
+    enabled: false,
+    source: "DISABLED",
+    version: ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
+    implementationVersion:
+      ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
+    model: null,
+    providerRequests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    estimatedCostUsd: 0,
+    latencyMs: 0,
+    cacheHit: false,
+    fallbackReason: null,
+  };
+  const feature = await input.admin.from(
+    "adaptive_medical_retrieval_feature_state",
+  ).select(
+    "adaptive_medical_commercial_retrieval_enabled,retrieval_version,implementation_version,model_name,maximum_cost_usd",
+  ).eq("singleton", true).maybeSingle();
+  if (feature.error) {
+    return {
+      intelligence: null,
+      diagnostics: {
+        ...base,
+        source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+        fallbackReason: "ADAPTIVE_FEATURE_STATE_UNAVAILABLE",
+      },
+    };
+  }
+  const state = record(feature.data);
+  if (
+    state.adaptive_medical_commercial_retrieval_enabled !== true ||
+    first(state.retrieval_version) !==
+      ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION
+  ) return { intelligence: null, diagnostics: base };
+
+  const model = first(state.model_name) ||
+    DEFAULT_ADAPTIVE_MEDICAL_RETRIEVAL_MODEL;
+  const maximumCostUsd = Math.min(
+    0.005,
+    Math.max(0, Number(state.maximum_cost_usd) || 0.005),
+  );
+  const retrievalKeyHash = await sha256([
+    normalizeRetrievalTerm(input.sourceText),
+    normalizeRetrievalTerm(input.canonicalConcept),
+    normalizeRetrievalTerm(input.productFamily),
+    input.resolverVersion,
+    ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
+    ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
+    model,
+  ].join("|"));
+  const reserved = await input.admin.rpc(
+    "reserve_adaptive_medical_retrieval_v1",
+    {
+      p_retrieval_key_hash: retrievalKeyHash,
+      p_canonical_concept: input.canonicalConcept,
+      p_product_family: input.productFamily,
+      p_resolver_version: input.resolverVersion,
+      p_retrieval_version: ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
+    },
+  );
+  if (reserved.error) {
+    return {
+      intelligence: null,
+      diagnostics: {
+        ...base,
+        enabled: true,
+        source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+        model,
+        fallbackReason: "ADAPTIVE_RESERVATION_FAILED",
+      },
+    };
+  }
+  const reservation = record(reserved.data);
+  const decision = first(reservation.decision);
+  if (decision === "CACHED") {
+    try {
+      return {
+        intelligence: validateAdaptiveRetrievalIntelligence(
+          reservation.structured_result,
+        ),
+        diagnostics: {
+          ...base,
+          enabled: true,
+          source: "CACHED_AI",
+          model: first(reservation.model_name) || model,
+          cacheHit: true,
+        },
+      };
+    } catch {
+      return {
+        intelligence: null,
+        diagnostics: {
+          ...base,
+          enabled: true,
+          source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+          model,
+          fallbackReason: "ADAPTIVE_CACHE_INVALID",
+        },
+      };
+    }
+  }
+  if (decision !== "PROCEED") {
+    return {
+      intelligence: null,
+      diagnostics: {
+        ...base,
+        enabled: true,
+        source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+        model,
+        fallbackReason: decision === "DISABLED"
+          ? "ADAPTIVE_DISABLED_DURING_RESERVATION"
+          : `ADAPTIVE_${decision || "RESERVATION_UNAVAILABLE"}`,
+      },
+    };
+  }
+
+  const cacheId = first(reservation.cache_id);
+  let providerRequests = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let estimatedCostUsd = 0;
+  let latencyMs = 0;
+  try {
+    if ((Deno.env.get("ANTHROPIC_API_KEY") || "").trim()) {
+      providerRequests = 1;
+    }
+    const result = await callAdaptiveRetrievalIntelligence({
+      apiKey: Deno.env.get("ANTHROPIC_API_KEY") || "",
+      sourceText: input.sourceText,
+      canonicalConcept: input.canonicalConcept,
+      productFamily: input.productFamily,
+      commercialTerms: input.commercialTerms,
+      inputLanguage: input.inputLanguage,
+      model,
+      maximumCostUsd,
+      inputUsdPerMillion: boundedEnvironmentNumber(
+        Deno.env.get("ANTHROPIC_INPUT_USD_PER_MILLION"),
+        1,
+        0,
+        100,
+      ),
+      outputUsdPerMillion: boundedEnvironmentNumber(
+        Deno.env.get("ANTHROPIC_OUTPUT_USD_PER_MILLION"),
+        5,
+        0,
+        100,
+      ),
+    });
+    inputTokens = result.inputTokens;
+    outputTokens = result.outputTokens;
+    estimatedCostUsd = result.estimatedCostUsd;
+    latencyMs = result.latencyMs;
+    const completed = await input.admin.rpc(
+      "complete_adaptive_medical_retrieval_v1",
+      {
+        p_cache_id: cacheId,
+        p_structured_result: result.intelligence,
+        p_model_name: result.model,
+        p_provider_request_id: result.providerRequestId,
+        p_input_tokens: result.inputTokens,
+        p_output_tokens: result.outputTokens,
+        p_total_tokens: result.totalTokens,
+        p_estimated_cost_usd: result.estimatedCostUsd,
+        p_latency_ms: result.latencyMs,
+      },
+    );
+    if (completed.error) throw new Error("ADAPTIVE_CACHE_COMPLETION_FAILED");
+    return {
+      intelligence: result.intelligence,
+      diagnostics: {
+        ...base,
+        enabled: true,
+        source: "AI",
+        model: result.model,
+        providerRequests,
+        inputTokens,
+        outputTokens,
+        estimatedCostUsd,
+        latencyMs,
+      },
+    };
+  } catch (error) {
+    const code = String(
+      error instanceof Error ? error.message : "ADAPTIVE_RETRIEVAL_FAILED",
+    ).toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 100);
+    if (cacheId) {
+      await input.admin.rpc("fail_adaptive_medical_retrieval_v1", {
+        p_cache_id: cacheId,
+        p_error_code: code,
+      });
+    }
+    return {
+      intelligence: null,
+      diagnostics: {
+        ...base,
+        enabled: true,
+        source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+        model,
+        providerRequests,
+        inputTokens,
+        outputTokens,
+        estimatedCostUsd,
+        latencyMs,
+        fallbackReason: code,
+      },
+    };
+  }
 }
 
 async function boundedJson(
@@ -3005,6 +3252,26 @@ async function handleDiscovery(request: Request): Promise<Response> {
   let aiBuyerJudgeCacheHits = 0;
   let aiBuyerJudgeFallbacks = 0;
   let aiBuyerJudgeLatencyMs = 0;
+  let adaptiveRetrievalProviderRequests = 0;
+  let adaptiveRetrievalCostUsd = 0;
+  let adaptiveRetrievalRuntime: AdaptiveRetrievalRuntime = {
+    intelligence: null,
+    diagnostics: {
+      enabled: false,
+      source: "DISABLED",
+      version: ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
+      implementationVersion:
+        ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
+      model: null,
+      providerRequests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+      cacheHit: false,
+      fallbackReason: null,
+    },
+  };
   let providerExecutionStarted = false;
   try {
     const [profileResult, matchProfileResult, companiesResult] = await Promise
@@ -3106,6 +3373,25 @@ async function handleDiscovery(request: Request): Promise<Response> {
       : cpvCodesFromIntent.length
       ? cpvCodesFromIntent
       : ["33100000", "33140000", "33190000"];
+    adaptiveRetrievalRuntime = await resolveAdaptiveRetrievalRuntime({
+      admin,
+      sourceText: first(intentContext.normalized_product_phrase) ||
+        productFamily.label,
+      canonicalConcept: first(intentContext.resolved_product_concept) ||
+        productFamily.label,
+      productFamily: first(intentContext.product_family) || productFamily.label,
+      commercialTerms: [
+        ...texts(intentContext.commercial_terms_en),
+        ...productFamily.directTerms,
+      ].slice(0, 6),
+      resolverVersion: first(intentContext.resolver_version) ||
+        "DETERMINISTIC_V2",
+      inputLanguage: first(intentContext.input_language) || "en",
+    });
+    adaptiveRetrievalProviderRequests =
+      adaptiveRetrievalRuntime.diagnostics.providerRequests;
+    adaptiveRetrievalCostUsd =
+      adaptiveRetrievalRuntime.diagnostics.estimatedCostUsd;
     const [partitionHistoryResult, freshYieldResult, seenCompanyResult] =
       await Promise.all([
         admin.from("buyer_discovery_partitions").select(
@@ -3165,6 +3451,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       lastExploredAt: first(item.last_explored_at),
       executions: Math.max(0, Number(item.executions) || 0),
       newBuyerYield: Math.max(0, Number(item.new_buyer_yield) || 0),
+      directVerifiedYield: Math.max(
+        0,
+        Number(item.direct_verified_yield) || 0,
+      ),
     }));
     const partitionHistoryRecordByKey = new Map(
       array(partitionHistoryResult.data).map(record).map((item) => [
@@ -3182,6 +3472,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       cpvCodes: fallbackCpv,
       history: partitionHistory,
       recentFreshYields,
+      adaptiveIntelligence: adaptiveRetrievalRuntime.intelligence,
     });
     const tedSearchPlan = searchPlan.tedPartitions.flatMap((partition) => {
       const plan = boundedTedSearchPlan({
@@ -3307,6 +3598,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
         stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
         saturation: searchPlan.saturation,
         provider_budget: searchPlan.budget,
+        adaptive: searchPlan.adaptive || null,
       },
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
@@ -3337,7 +3629,27 @@ async function handleDiscovery(request: Request): Promise<Response> {
           market_region: item.marketRegion,
           buyer_archetype: item.buyerArchetype,
           retrieval_kind: item.retrievalKind,
+          adaptive_stage: item.adaptiveStage || null,
+          adaptive_query_type: item.adaptiveQueryType || null,
+          commercial_intent: item.commercialIntent || null,
+          retrieval_confidence: item.retrievalConfidence || null,
+          expected_buyer_channel_value: item.expectedBuyerChannelValue || null,
         })),
+        adaptive_medical_retrieval: {
+          ...adaptiveRetrievalRuntime.diagnostics,
+          product_understanding_source: first(intentContext.resolver_type) ||
+            "DETERMINISTIC",
+          generated_term_counts: searchPlan.adaptive?.generatedTermCounts || {},
+          channel_archetypes:
+            adaptiveRetrievalRuntime.intelligence?.channel_archetypes || [],
+          negative_context_count:
+            adaptiveRetrievalRuntime.intelligence?.negative_contexts.length ||
+            0,
+          active_stage: searchPlan.adaptive?.activeStage || null,
+          stage_stop_reason: searchPlan.adaptive?.stageStopReason || null,
+          queries_planned: searchPlan.publicWebQueries.length,
+          ted_partitions_planned: searchPlan.tedPartitions.length,
+        },
         unused_partitions_remaining: searchPlan.unusedPartitionsRemaining,
         stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
         search_saturation: searchPlan.saturation,
@@ -3928,6 +4240,40 @@ async function handleDiscovery(request: Request): Promise<Response> {
         key: productFamily.key,
         label: productFamily.label,
       },
+      adaptive_medical_retrieval: {
+        ...adaptiveRetrievalRuntime.diagnostics,
+        product_understanding_source: first(intentContext.resolver_type) ||
+          "DETERMINISTIC",
+        canonical_product:
+          adaptiveRetrievalRuntime.intelligence?.canonical_product || null,
+        product_family: adaptiveRetrievalRuntime.intelligence?.product_family ||
+          null,
+        generated_term_counts: searchPlan.adaptive?.generatedTermCounts || {},
+        channel_archetypes:
+          adaptiveRetrievalRuntime.intelligence?.channel_archetypes || [],
+        negative_context_count:
+          adaptiveRetrievalRuntime.intelligence?.negative_contexts.length || 0,
+        active_stage: searchPlan.adaptive?.activeStage || null,
+        stage_stop_reason: searchPlan.adaptive?.stageStopReason || null,
+        partition_stages_planned: searchPlan.selectedPartitions.reduce(
+          (counts, partition) => {
+            const stage = String(partition.adaptiveStage || "LEGACY");
+            counts[stage] = (counts[stage] || 0) + 1;
+            return counts;
+          },
+          {} as Record<string, number>,
+        ),
+        public_web_queries_planned: searchPlan.publicWebQueries.length,
+        public_web_queries_executed: publicWeb.queriesUsed,
+        ted_partitions_planned: searchPlan.tedPartitions.length,
+        ted_requests_executed: ted.checked,
+        candidates_observed: merged.length,
+        direct_commercial_prospects_accepted: ranking.diagnostics.directBuyers,
+        end_buyer_procurement_signals:
+          ranking.diagnostics.endBuyerProcurementSignals,
+        product_relevant_not_buyer: ranking.diagnostics.productRelevantNotBuyer,
+        rejected_or_noisy: rejected,
+      },
       ai_buyer_relevance_judge: {
         feature_state_available: !judgeFeatureResult.error,
         enabled: aiBuyerJudgeEnabled,
@@ -4222,9 +4568,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
         taxonomy_mapped: Math.min(100, accepted * taxonomyIds.length),
         ai_classifications: aiBuyerJudgeClassifications,
         provider_requests: publicWebProviderRequests +
-          aiBuyerJudgeProviderRequests,
+          aiBuyerJudgeProviderRequests + adaptiveRetrievalProviderRequests,
         estimated_cost_usd: Number(
-          (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+          (publicWebProviderCostUsd + aiBuyerJudgeCostUsd +
+            adaptiveRetrievalCostUsd).toFixed(6),
         ),
         fresh_request_state: runMode === "NORMAL_DISCOVERY"
           ? "NOT_FRESH"
@@ -4282,15 +4629,22 @@ async function handleDiscovery(request: Request): Promise<Response> {
           cumulativeBuyers: cumulativeVerifiedBuyers,
         }),
       provider_requests: publicWebProviderRequests +
-        aiBuyerJudgeProviderRequests,
+        aiBuyerJudgeProviderRequests + adaptiveRetrievalProviderRequests,
       public_web_provider_requests: publicWebProviderRequests,
+      adaptive_retrieval_provider_requests: adaptiveRetrievalProviderRequests,
+      adaptive_retrieval_cache_hit:
+        adaptiveRetrievalRuntime.diagnostics.cacheHit,
+      adaptive_retrieval_fallback:
+        adaptiveRetrievalRuntime.diagnostics.fallbackReason,
+      adaptive_retrieval_estimated_cost_usd: adaptiveRetrievalCostUsd,
       ai_buyer_judge_provider_requests: aiBuyerJudgeProviderRequests,
       ai_classifications: aiBuyerJudgeClassifications,
       ai_buyer_judge_cache_hits: aiBuyerJudgeCacheHits,
       ai_buyer_judge_fallbacks: aiBuyerJudgeFallbacks,
       ai_buyer_judge_estimated_cost_usd: aiBuyerJudgeCostUsd,
       estimated_cost_usd: Number(
-        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd +
+          adaptiveRetrievalCostUsd).toFixed(6),
       ),
       credit_balance: Number(creditAccount?.data?.balance || 0),
       credit_disposition: runMode === "FRESH_DISCOVERY"
@@ -4320,9 +4674,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       error_code: errorCode,
       ai_classifications: aiBuyerJudgeClassifications,
       provider_requests: publicWebProviderRequests +
-        aiBuyerJudgeProviderRequests,
+        aiBuyerJudgeProviderRequests + adaptiveRetrievalProviderRequests,
       estimated_cost_usd: Number(
-        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd).toFixed(6),
+        (publicWebProviderCostUsd + aiBuyerJudgeCostUsd +
+          adaptiveRetrievalCostUsd).toFixed(6),
       ),
       fresh_request_state: runMode === "NORMAL_DISCOVERY"
         ? "NOT_FRESH"

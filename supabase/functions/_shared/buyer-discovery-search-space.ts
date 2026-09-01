@@ -5,6 +5,10 @@ import {
   reviewedEquipmentCoverTerms,
 } from "./buyer-discovery-relevance-v2.ts";
 import type { PublicWebSearchQuery } from "./public-web-discovery.ts";
+import {
+  ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS,
+  type AdaptiveMedicalRetrievalIntelligence,
+} from "./adaptive-medical-commercial-retrieval.ts";
 
 export type DiscoveryRunMode =
   | "NORMAL_DISCOVERY"
@@ -32,6 +36,19 @@ export type SearchSpacePartition = {
   buyerArchetype: BuyerArchetype | "PUBLIC_PROCUREMENT_SUPPLIER";
   retrievalKind: "DIRECT_TERMS" | "ADJACENT_TERMS" | "RELATED_CPV";
   priority: number;
+  adaptiveStage?: 1 | 2 | 3 | 4;
+  adaptiveQueryType?:
+    | "EXACT_PRODUCT"
+    | "COMMERCIAL_SYNONYM"
+    | "PRODUCT_FAMILY"
+    | "CLINICAL_CONTEXT"
+    | "CHANNEL_PRODUCT"
+    | "PROCUREMENT_PRODUCT"
+    | "TENDER_SUPPLIER"
+    | "ADJACENT_COMMERCIAL";
+  commercialIntent?: "HIGH" | "MEDIUM";
+  retrievalConfidence?: "HIGH" | "MEDIUM";
+  expectedBuyerChannelValue?: number;
   publicWebQuery?: PublicWebSearchQuery;
 };
 
@@ -40,6 +57,7 @@ export type SearchPartitionHistory = {
   lastExploredAt: string;
   executions: number;
   newBuyerYield: number;
+  directVerifiedYield?: number;
 };
 
 export type AdaptiveDiscoveryBudget = {
@@ -54,7 +72,7 @@ export type AdaptiveDiscoveryBudget = {
 };
 
 export type DiscoverySearchPlan = {
-  version: "BUYER_DISCOVERY_VNEXT_1";
+  version: "BUYER_DISCOVERY_VNEXT_1" | "ADAPTIVE_MEDICAL_RETRIEVAL_V1";
   runMode: DiscoveryRunMode;
   productProfile: ProductMarketProfile;
   budget: AdaptiveDiscoveryBudget;
@@ -64,6 +82,18 @@ export type DiscoverySearchPlan = {
   unusedPartitionsRemaining: number;
   stalePartitionsRevisited: number;
   saturation: "NONE" | "DECLINING_YIELD" | "ZERO_RECENT_YIELD";
+  adaptive?: {
+    enabled: true;
+    activeStage: 1 | 2 | 3 | 4;
+    stageStopReason:
+      | "COLD_STAGE_1"
+      | "SUFFICIENT_DIRECT_HISTORY"
+      | "ZERO_RESULT_ESCALATION"
+      | "MAX_STAGE";
+    sufficientDirectProspects: number;
+    generatedTermCounts: Record<string, number>;
+    negativeContexts: string[];
+  };
 };
 
 export type PartitionPersistenceRow = {
@@ -93,6 +123,7 @@ export const BUYER_DISCOVERY_VNEXT_LIMITS = Object.freeze({
   maximumRawPublicWebObservations: 60,
   maximumCandidatePool: 180,
   maximumDisplayedBuyers: 30,
+  adaptiveSufficientDirectProspects: 3,
 });
 
 type Market = {
@@ -444,11 +475,326 @@ function marketsFor(targetCountries: string[]): Market[] {
   );
 }
 
+function adaptiveArchetype(
+  value: string,
+): BuyerArchetype | "PUBLIC_PROCUREMENT_SUPPLIER" {
+  const term = normalized(value);
+  if (/(?:oem|private label|sourcing partner)/.test(term)) {
+    return "OEM_PRIVATE_LABEL";
+  }
+  if (/(?:assembler|kit pack|procedure pack)/.test(term)) {
+    return "KIT_ASSEMBLER";
+  }
+  if (/(?:import)/.test(term)) return "IMPORTER";
+  if (/(?:tender|contract|procurement)/.test(term)) return "TENDER_SUPPLIER";
+  if (/(?:hospital supplier|hospital supply)/.test(term)) {
+    return "HOSPITAL_SUPPLIER";
+  }
+  return "DISTRIBUTOR";
+}
+
+export function buildAdaptiveSearchUniverse(input: {
+  productFamily: ProductFamilyProfile;
+  targetCountries: string[];
+  cpvCodes: string[];
+  adaptiveIntelligence: AdaptiveMedicalRetrievalIntelligence;
+}): SearchSpacePartition[] {
+  const intelligence = input.adaptiveIntelligence;
+  const markets = marketsFor(input.targetCountries);
+  const familySignature =
+    input.productFamily.temporaryIntent?.familySignature ||
+    input.productFamily.key;
+  const stages: Record<1 | 2 | 3 | 4, SearchSpacePartition[]> = {
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+  };
+  const seen = new Set<string>();
+  const channels = intelligence.channel_archetypes.slice(
+    0,
+    ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumChannelArchetypes,
+  );
+  const channelValues = channels.length ? channels : ["medical distributor"];
+  const localized = intelligence.localized_terms.filter((term) =>
+    markets.some((market) => market.language === term.language)
+  );
+  const negativeFilter = intelligence.negative_contexts.slice(0, 2).map((
+    term,
+  ) => `-"${boundedTerm(term)}"`).join(" ");
+
+  const addWeb = (options: {
+    stage: 1 | 2 | 3 | 4;
+    term: string;
+    language: string;
+    queryType: NonNullable<SearchSpacePartition["adaptiveQueryType"]>;
+    confidence: "HIGH" | "MEDIUM";
+    channel: string;
+    priority: number;
+  }) => {
+    const matchingMarkets = markets.filter((market) =>
+      options.language === "en" || market.language === options.language
+    );
+    for (const market of matchingMarkets.length ? matchingMarkets : markets) {
+      const archetype = adaptiveArchetype(options.channel);
+      const semanticKey = [
+        "web",
+        options.stage,
+        semanticTerm(options.term),
+        market.country,
+        normalized(options.channel),
+      ].join("|");
+      if (seen.has(semanticKey)) continue;
+      seen.add(semanticKey);
+      const key = partitionKey([
+        "adaptive",
+        "web",
+        String(options.stage),
+        familySignature,
+        options.term,
+        market.country,
+        options.channel,
+      ]);
+      stages[options.stage].push({
+        partitionKey: key,
+        providerKind: "PUBLIC_WEB",
+        partitionType: "COMMERCIAL_WEB",
+        terminology: [options.term],
+        language: options.language,
+        countryCodes: [market.country],
+        marketRegion: market.region,
+        buyerArchetype: archetype,
+        retrievalKind: options.stage <= 2 ? "DIRECT_TERMS" : "ADJACENT_TERMS",
+        priority: Math.min(200, Math.max(0, options.priority)),
+        adaptiveStage: options.stage,
+        adaptiveQueryType: options.queryType,
+        commercialIntent: options.stage <= 2 ? "HIGH" : "MEDIUM",
+        retrievalConfidence: options.confidence,
+        expectedBuyerChannelValue: Math.max(1, 100 - options.stage * 15),
+        publicWebQuery: {
+          variant: 0,
+          strategy: options.language === "en"
+            ? options.queryType === "EXACT_PRODUCT"
+              ? "EXACT"
+              : options.stage === 4
+              ? "ADJACENT"
+              : "SYNONYM"
+            : "LOCALIZED",
+          query: `"${boundedTerm(options.term)}" ${
+            boundedTerm(options.channel)
+          } ${negativeFilter}`
+            .slice(0, 240),
+          country: market.country,
+          language: options.language,
+          uiLanguage: market.uiLanguage,
+          retrievalTerm: options.term,
+          retrievalTermConfidence: options.confidence,
+          retrievalTermSource: "SMART_RESOLVER_CANDIDATE",
+          familySignature,
+          partitionKey: key,
+          marketRegion: market.region,
+          buyerArchetype: archetype,
+        },
+      });
+    }
+  };
+
+  const addTed = (options: {
+    stage: 1 | 2 | 3;
+    term: string;
+    language: string;
+    queryType:
+      | "EXACT_PRODUCT"
+      | "COMMERCIAL_SYNONYM"
+      | "PROCUREMENT_PRODUCT"
+      | "TENDER_SUPPLIER";
+    confidence: "HIGH" | "MEDIUM";
+    priority: number;
+  }) => {
+    for (const market of markets) {
+      if (options.language !== "en" && options.language !== market.language) {
+        continue;
+      }
+      const semanticKey = [
+        "ted",
+        options.stage,
+        semanticTerm(options.term),
+        market.region,
+      ].join("|");
+      if (seen.has(semanticKey)) continue;
+      seen.add(semanticKey);
+      const key = partitionKey([
+        "adaptive",
+        "ted",
+        String(options.stage),
+        familySignature,
+        options.term,
+        market.region,
+      ]);
+      stages[options.stage].push({
+        partitionKey: key,
+        providerKind: "TED",
+        partitionType: "TED_PRODUCT_TERMS",
+        terminology: [options.term],
+        language: options.language,
+        countryCodes: input.targetCountries.length
+          ? [market.country]
+          : [...(REGION_COUNTRIES[market.region] || [market.country])],
+        marketRegion: market.region,
+        buyerArchetype: "PUBLIC_PROCUREMENT_SUPPLIER",
+        retrievalKind: options.stage === 1 ? "DIRECT_TERMS" : "ADJACENT_TERMS",
+        priority: Math.min(200, Math.max(0, options.priority)),
+        adaptiveStage: options.stage,
+        adaptiveQueryType: options.queryType,
+        commercialIntent: options.stage <= 2 ? "HIGH" : "MEDIUM",
+        retrievalConfidence: options.confidence,
+        expectedBuyerChannelValue: options.stage === 1 ? 85 : 65,
+      });
+    }
+  };
+
+  const directTerms = [
+    intelligence.canonical_product,
+    ...intelligence.commercial_synonyms,
+    ...localized.map((item) => item.term),
+  ].filter((term, index, values) =>
+    values.findIndex((candidate) =>
+      semanticTerm(candidate) === semanticTerm(term)
+    ) === index
+  );
+  directTerms.forEach((term, index) => {
+    const language = localized.find((item) => item.term === term)?.language ||
+      "en";
+    const channel = channelValues[index % channelValues.length];
+    addWeb({
+      stage: 1,
+      term,
+      language,
+      queryType: index === 0 ? "EXACT_PRODUCT" : "COMMERCIAL_SYNONYM",
+      confidence: intelligence.search_confidence,
+      channel,
+      priority: 150 - index,
+    });
+    addTed({
+      stage: 1,
+      term,
+      language,
+      queryType: index === 0 ? "EXACT_PRODUCT" : "COMMERCIAL_SYNONYM",
+      confidence: intelligence.search_confidence,
+      priority: 130 - index,
+    });
+  });
+
+  channelValues.forEach((channel, index) =>
+    addWeb({
+      stage: 2,
+      term: intelligence.product_family,
+      language: "en",
+      queryType: "CHANNEL_PRODUCT",
+      confidence: intelligence.search_confidence,
+      channel,
+      priority: 120 - index,
+    })
+  );
+
+  intelligence.clinical_contexts.forEach((term, index) =>
+    addWeb({
+      stage: 3,
+      term,
+      language: "en",
+      queryType: "CLINICAL_CONTEXT",
+      confidence: "MEDIUM",
+      channel: channelValues[index % channelValues.length],
+      priority: 90 - index,
+    })
+  );
+  intelligence.procurement_terms.forEach((term, index) => {
+    addWeb({
+      stage: 3,
+      term,
+      language: "en",
+      queryType: "PROCUREMENT_PRODUCT",
+      confidence: "MEDIUM",
+      channel: channelValues.find((item) =>
+        /(?:tender|contract|supplier)/i.test(item)
+      ) || "tender supplier",
+      priority: 100 - index,
+    });
+    addTed({
+      stage: 3,
+      term,
+      language: "en",
+      queryType: "TENDER_SUPPLIER",
+      confidence: "MEDIUM",
+      priority: 105 - index,
+    });
+  });
+  if (input.cpvCodes.length) {
+    for (const market of markets) {
+      const key = partitionKey([
+        "adaptive",
+        "ted",
+        "3",
+        familySignature,
+        input.cpvCodes.join("-"),
+        market.region,
+      ]);
+      stages[3].push({
+        partitionKey: key,
+        providerKind: "TED",
+        partitionType: "TED_RELATED_CPV",
+        terminology: input.cpvCodes.slice(0, 3),
+        language: market.language,
+        countryCodes: input.targetCountries.length
+          ? [market.country]
+          : [...(REGION_COUNTRIES[market.region] || [market.country])],
+        marketRegion: market.region,
+        buyerArchetype: "PUBLIC_PROCUREMENT_SUPPLIER",
+        retrievalKind: "RELATED_CPV",
+        priority: 72,
+        adaptiveStage: 3,
+        adaptiveQueryType: "PROCUREMENT_PRODUCT",
+        commercialIntent: "MEDIUM",
+        retrievalConfidence: "MEDIUM",
+        expectedBuyerChannelValue: 55,
+      });
+    }
+  }
+  intelligence.adjacent_commercial_terms.forEach((term, index) =>
+    addWeb({
+      stage: 4,
+      term,
+      language: "en",
+      queryType: "ADJACENT_COMMERCIAL",
+      confidence: "MEDIUM",
+      channel: channelValues[index % channelValues.length],
+      priority: 60 - index,
+    })
+  );
+
+  const perStage = Math.floor(
+    ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumGeneratedPartitions / 4,
+  );
+  return ([1, 2, 3, 4] as const).flatMap((stage) =>
+    stages[stage].sort((left, right) =>
+      right.priority - left.priority ||
+      left.partitionKey.localeCompare(right.partitionKey)
+    ).slice(0, perStage)
+  ).slice(0, ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS.maximumGeneratedPartitions);
+}
+
 function buildUniverse(input: {
   productFamily: ProductFamilyProfile;
   targetCountries: string[];
   cpvCodes: string[];
+  adaptiveIntelligence?: AdaptiveMedicalRetrievalIntelligence | null;
 }): SearchSpacePartition[] {
+  if (input.adaptiveIntelligence) {
+    return buildAdaptiveSearchUniverse({
+      ...input,
+      adaptiveIntelligence: input.adaptiveIntelligence,
+    });
+  }
   const terms = trustedTerms(input.productFamily);
   const markets = marketsFor(input.targetCountries);
   const productProfile = classifyProductMarketProfile(input.productFamily);
@@ -640,6 +986,7 @@ export function buildDiscoverySearchPlan(input: {
   history?: SearchPartitionHistory[];
   recentFreshYields?: number[];
   now?: Date;
+  adaptiveIntelligence?: AdaptiveMedicalRetrievalIntelligence | null;
 }): DiscoverySearchPlan {
   const productProfile = classifyProductMarketProfile(input.productFamily);
   const budget = adaptiveDiscoveryBudget(productProfile, input.runMode);
@@ -660,7 +1007,54 @@ export function buildDiscoverySearchPlan(input: {
     return leftHistory.newBuyerYield - rightHistory.newBuyerYield ||
       leftHistory.lastExploredAt.localeCompare(rightHistory.lastExploredAt);
   });
-  const source = fresh ? [...unused, ...stale] : universe;
+  let activeStage: 1 | 2 | 3 | 4 = 1;
+  let stageStopReason: NonNullable<
+    DiscoverySearchPlan["adaptive"]
+  >["stageStopReason"] = "COLD_STAGE_1";
+  if (input.adaptiveIntelligence) {
+    const exploredAdaptive = universe.filter((item) =>
+      item.adaptiveStage && history.has(item.partitionKey)
+    );
+    const directYield = exploredAdaptive.reduce((sum, item) =>
+      sum + Math.max(
+        0,
+        history.get(item.partitionKey)?.directVerifiedYield || 0,
+      ), 0);
+    if (
+      directYield >=
+        BUYER_DISCOVERY_VNEXT_LIMITS.adaptiveSufficientDirectProspects
+    ) {
+      activeStage = Math.max(
+        1,
+        ...exploredAdaptive.map((item) => item.adaptiveStage || 1),
+      ) as 1 | 2 | 3 | 4;
+      stageStopReason = "SUFFICIENT_DIRECT_HISTORY";
+    } else if (exploredAdaptive.length) {
+      const highestExploredStage = Math.max(
+        ...exploredAdaptive.map((item) => item.adaptiveStage || 1),
+      );
+      activeStage = Math.min(4, highestExploredStage + 1) as 1 | 2 | 3 | 4;
+      stageStopReason = activeStage === 4
+        ? "MAX_STAGE"
+        : "ZERO_RESULT_ESCALATION";
+    }
+  }
+  const stageUniverse = input.adaptiveIntelligence
+    ? universe.filter((item) => item.adaptiveStage === activeStage)
+    : universe;
+  const stageUnused = stageUniverse.filter((item) =>
+    !history.has(item.partitionKey)
+  );
+  const stageStale = stale.filter((item) => item.adaptiveStage === activeStage);
+  const source = input.adaptiveIntelligence
+    ? stageStopReason === "SUFFICIENT_DIRECT_HISTORY" && fresh
+      ? []
+      : fresh
+      ? [...stageUnused, ...stageStale]
+      : stageUniverse
+    : fresh
+    ? [...unused, ...stale]
+    : universe;
   const web = chooseDiverse(
     source.filter((item) => item.providerKind === "PUBLIC_WEB"),
     budget.maximumPublicWebQueries,
@@ -675,7 +1069,9 @@ export function buildDiscoverySearchPlan(input: {
   const selectedUnusedCount =
     selectedPartitions.filter((item) => !history.has(item.partitionKey)).length;
   return {
-    version: "BUYER_DISCOVERY_VNEXT_1",
+    version: input.adaptiveIntelligence
+      ? "ADAPTIVE_MEDICAL_RETRIEVAL_V1"
+      : "BUYER_DISCOVERY_VNEXT_1",
     runMode: input.runMode,
     productProfile,
     budget,
@@ -693,6 +1089,29 @@ export function buildDiscoverySearchPlan(input: {
       selectedPartitions.filter((item) => history.has(item.partitionKey))
         .length,
     saturation,
+    adaptive: input.adaptiveIntelligence
+      ? {
+        enabled: true,
+        activeStage,
+        stageStopReason,
+        sufficientDirectProspects:
+          BUYER_DISCOVERY_VNEXT_LIMITS.adaptiveSufficientDirectProspects,
+        generatedTermCounts: {
+          commercial_synonyms:
+            input.adaptiveIntelligence.commercial_synonyms.length,
+          clinical_contexts:
+            input.adaptiveIntelligence.clinical_contexts.length,
+          procurement_terms:
+            input.adaptiveIntelligence.procurement_terms.length,
+          channel_archetypes:
+            input.adaptiveIntelligence.channel_archetypes.length,
+          adjacent_commercial_terms:
+            input.adaptiveIntelligence.adjacent_commercial_terms.length,
+          localized_terms: input.adaptiveIntelligence.localized_terms.length,
+        },
+        negativeContexts: input.adaptiveIntelligence.negative_contexts,
+      }
+      : undefined,
   };
 }
 
