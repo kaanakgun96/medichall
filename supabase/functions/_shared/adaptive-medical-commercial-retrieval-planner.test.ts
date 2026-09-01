@@ -298,9 +298,17 @@ const generalizationFixtures = [
     procurement: ["nebulizer therapy chamber"],
     channels: ["respiratory equipment distributor", "medical device importer"],
   }),
+  intelligence({
+    canonical: "Camera Cover",
+    family: "sterile equipment cover",
+    commercial: ["sterile camera cover", "surgical camera drape"],
+    clinical: ["endoscopic camera protection"],
+    procurement: ["sterile camera cover procurement"],
+    channels: ["operating room supplier", "medical consumables distributor"],
+  }),
 ];
 
-Deno.test("stapler, biopsy, trocar, warming blanket, procedure pack and blind product generalize", () => {
+Deno.test("stapler, biopsy, trocar, nebulizer, Camera Cover and procedure pack generalize", () => {
   for (const fixture of generalizationFixtures) {
     const profile = temporaryProfile(
       fixture.canonical_product,

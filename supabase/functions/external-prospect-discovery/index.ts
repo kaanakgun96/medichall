@@ -98,9 +98,12 @@ import {
   ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
   ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
   type AdaptiveMedicalRetrievalIntelligence,
+  adaptiveRetrievalCacheId,
+  AdaptiveRetrievalProviderError,
+  type AdaptiveRetrievalValidationDiagnostics,
   callAdaptiveRetrievalIntelligence,
   DEFAULT_ADAPTIVE_MEDICAL_RETRIEVAL_MODEL,
-  validateAdaptiveRetrievalIntelligence,
+  validateAdaptiveRetrievalIntelligenceWithDiagnostics,
 } from "../_shared/adaptive-medical-commercial-retrieval.ts";
 import {
   buildDiscoverySearchPlan,
@@ -339,8 +342,28 @@ type AdaptiveRetrievalRuntime = {
     latencyMs: number;
     cacheHit: boolean;
     fallbackReason: string | null;
+    validation: AdaptiveRetrievalValidationDiagnostics | null;
+    cacheFailureRecorded: boolean | null;
   };
 };
+
+export async function failAdaptiveRetrievalCacheLease(
+  // deno-lint-ignore no-explicit-any -- Edge client has no generated DB schema.
+  admin: any,
+  cacheId: unknown,
+  errorCode: string,
+): Promise<{ terminal: boolean; attempts: number }> {
+  const opaqueCacheId = adaptiveRetrievalCacheId(cacheId);
+  if (!opaqueCacheId) return { terminal: false, attempts: 0 };
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const result = await admin.rpc("fail_adaptive_medical_retrieval_v1", {
+      p_cache_id: opaqueCacheId,
+      p_error_code: errorCode,
+    });
+    if (!result.error) return { terminal: true, attempts: attempt };
+  }
+  return { terminal: false, attempts: 2 };
+}
 
 async function resolveAdaptiveRetrievalRuntime(input: {
   // deno-lint-ignore no-explicit-any -- this Edge client has no generated DB schema.
@@ -366,6 +389,8 @@ async function resolveAdaptiveRetrievalRuntime(input: {
     latencyMs: 0,
     cacheHit: false,
     fallbackReason: null,
+    validation: null,
+    cacheFailureRecorded: null,
   };
   const feature = await input.admin.from(
     "adaptive_medical_retrieval_feature_state",
@@ -430,16 +455,23 @@ async function resolveAdaptiveRetrievalRuntime(input: {
   const decision = first(reservation.decision);
   if (decision === "CACHED") {
     try {
+      const validated = validateAdaptiveRetrievalIntelligenceWithDiagnostics(
+        reservation.structured_result,
+        {
+          canonicalConcept: input.canonicalConcept,
+          productFamily: input.productFamily,
+          commercialTerms: input.commercialTerms,
+        },
+      );
       return {
-        intelligence: validateAdaptiveRetrievalIntelligence(
-          reservation.structured_result,
-        ),
+        intelligence: validated.intelligence,
         diagnostics: {
           ...base,
           enabled: true,
           source: "CACHED_AI",
           model: first(reservation.model_name) || model,
           cacheHit: true,
+          validation: validated.diagnostics,
         },
       };
     } catch {
@@ -470,7 +502,19 @@ async function resolveAdaptiveRetrievalRuntime(input: {
     };
   }
 
-  const cacheId = first(reservation.cache_id);
+  const cacheId = adaptiveRetrievalCacheId(reservation.cache_id);
+  if (!cacheId) {
+    return {
+      intelligence: null,
+      diagnostics: {
+        ...base,
+        enabled: true,
+        source: "ADAPTIVE_RETRIEVAL_FALLBACK",
+        model,
+        fallbackReason: "ADAPTIVE_CACHE_ID_INVALID",
+      },
+    };
+  }
   let providerRequests = 0;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -533,18 +577,24 @@ async function resolveAdaptiveRetrievalRuntime(input: {
         outputTokens,
         estimatedCostUsd,
         latencyMs,
+        validation: result.validationDiagnostics,
       },
     };
   } catch (error) {
+    if (error instanceof AdaptiveRetrievalProviderError) {
+      inputTokens = error.telemetry.inputTokens;
+      outputTokens = error.telemetry.outputTokens;
+      estimatedCostUsd = error.telemetry.estimatedCostUsd;
+      latencyMs = error.telemetry.latencyMs;
+    }
     const code = String(
       error instanceof Error ? error.message : "ADAPTIVE_RETRIEVAL_FAILED",
     ).toUpperCase().replace(/[^A-Z0-9_]/g, "_").slice(0, 100);
-    if (cacheId) {
-      await input.admin.rpc("fail_adaptive_medical_retrieval_v1", {
-        p_cache_id: cacheId,
-        p_error_code: code,
-      });
-    }
+    const failure = await failAdaptiveRetrievalCacheLease(
+      input.admin,
+      cacheId,
+      code,
+    );
     return {
       intelligence: null,
       diagnostics: {
@@ -558,6 +608,10 @@ async function resolveAdaptiveRetrievalRuntime(input: {
         estimatedCostUsd,
         latencyMs,
         fallbackReason: code,
+        validation: error instanceof AdaptiveRetrievalProviderError
+          ? error.validationDiagnostics
+          : null,
+        cacheFailureRecorded: failure.terminal,
       },
     };
   }
@@ -3270,6 +3324,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
       latencyMs: 0,
       cacheHit: false,
       fallbackReason: null,
+      validation: null,
+      cacheFailureRecorded: null,
     },
   };
   let providerExecutionStarted = false;

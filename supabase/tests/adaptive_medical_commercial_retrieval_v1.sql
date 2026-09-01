@@ -109,6 +109,9 @@ declare
   v_reserved jsonb;
   v_completed jsonb;
   v_cached jsonb;
+  v_failed_reserved jsonb;
+  v_failed_repeat jsonb;
+  v_stale_reserved jsonb;
   v_invalid_failed boolean := false;
   v_result jsonb := jsonb_build_object(
     'canonical_product','diagnostic imaging injector',
@@ -160,8 +163,70 @@ begin
   if not v_invalid_failed then
     raise exception 'Retrieval-version cache invalidation contract failed';
   end if;
+  v_failed_reserved := public.reserve_adaptive_medical_retrieval_v1(
+    repeat('c',64),'diagnostic imaging injector','diagnostic imaging equipment',
+    'SMART_PRODUCT_RESOLVER_V1',
+    'ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1'
+  );
+  perform public.fail_adaptive_medical_retrieval_v1(
+    (v_failed_reserved->>'cache_id')::uuid,
+    'ADAPTIVE_PRODUCT_FAMILY_DRIFT'
+  );
+  if not exists (
+    select 1 from public.adaptive_medical_retrieval_cache
+    where id=(v_failed_reserved->>'cache_id')::uuid
+      and status='FAILED'
+      and last_error_code='ADAPTIVE_PRODUCT_FAMILY_DRIFT'
+  ) then
+    raise exception 'Validation failure did not reach terminal FAILED state';
+  end if;
+  v_failed_repeat := public.reserve_adaptive_medical_retrieval_v1(
+    repeat('c',64),'diagnostic imaging injector','diagnostic imaging equipment',
+    'SMART_PRODUCT_RESOLVER_V1',
+    'ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1'
+  );
+  if v_failed_repeat->>'decision' <> 'RECENT_FAILURE' then
+    raise exception 'Five-minute failed retry window regressed: %',v_failed_repeat;
+  end if;
+  v_stale_reserved := public.reserve_adaptive_medical_retrieval_v1(
+    repeat('d',64),'diagnostic imaging injector','diagnostic imaging equipment',
+    'SMART_PRODUCT_RESOLVER_V1',
+    'ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1'
+  );
+  if v_stale_reserved->>'decision' <> 'PROCEED' then
+    raise exception 'Stale-lease fixture reservation failed';
+  end if;
 end
 $cache$;
+
+reset role;
+
+alter table public.adaptive_medical_retrieval_cache
+  disable trigger adaptive_medical_retrieval_cache_set_updated_at;
+update public.adaptive_medical_retrieval_cache
+set updated_at=clock_timestamp()-interval '31 seconds'
+where retrieval_key_hash=repeat('d',64);
+alter table public.adaptive_medical_retrieval_cache
+  enable trigger adaptive_medical_retrieval_cache_set_updated_at;
+
+set local role service_role;
+
+do $stale_reclaim$
+declare
+  v_reclaimed jsonb;
+begin
+  v_reclaimed := public.reserve_adaptive_medical_retrieval_v1(
+    repeat('d',64),'diagnostic imaging injector','diagnostic imaging equipment',
+    'SMART_PRODUCT_RESOLVER_V1',
+    'ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_V1'
+  );
+  if v_reclaimed->>'decision' <> 'PROCEED'
+     or (select attempt_count from public.adaptive_medical_retrieval_cache
+         where id=(v_reclaimed->>'cache_id')::uuid) <> 2 then
+    raise exception 'Thirty-second stale RESOLVING reclaim regressed: %',v_reclaimed;
+  end if;
+end
+$stale_reclaim$;
 
 reset role;
 
