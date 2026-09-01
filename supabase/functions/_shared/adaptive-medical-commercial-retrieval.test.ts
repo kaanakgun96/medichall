@@ -296,6 +296,8 @@ Deno.test("paid provider telemetry survives semantic validation rejection", asyn
   assert.equal(failure.telemetry.estimatedCostUsd, 0.0021);
   assert(failure.telemetry.latencyMs >= 0);
   assert.equal(failure.validationDiagnostics?.status, "REJECTED");
+  assert.equal(failure.validationDiagnostics?.termsGenerated, 11);
+  assert.equal(failure.validationDiagnostics?.termsPruned, 2);
 });
 
 Deno.test("provider failure and cost ceiling fail closed for planner fallback", async () => {

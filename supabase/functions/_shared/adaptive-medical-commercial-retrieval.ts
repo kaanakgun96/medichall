@@ -523,16 +523,6 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
       else accepted[field].push(term);
     }
   }
-  if (
-    !accepted.commercial_synonyms.length ||
-    diagnostics.prunedTerms.filter((item) =>
-        item.field === "commercial_synonyms"
-      ).length > accepted.commercial_synonyms.length
-  ) rejectValidation("ADAPTIVE_PRODUCT_FAMILY_DRIFT", diagnostics);
-  if (!accepted.channel_archetypes.length) {
-    rejectValidation("INVALID_CHANNEL_ARCHETYPES", diagnostics);
-  }
-
   const negative = safeStrings(
     input.negative_contexts,
     "NEGATIVE_CONTEXTS",
@@ -546,6 +536,38 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
     prune("localized_terms", item.term, "EXPLICIT_NON_PRODUCT_DRIFT");
     return false;
   });
+  const finalizeDiagnostics = (
+    status?: AdaptiveRetrievalValidationDiagnostics["status"],
+  ) => {
+    diagnostics.termsGenerated = Object.values(generated).reduce(
+      (count, terms) => count + terms.length,
+      0,
+    ) + negative.length + localized.length;
+    diagnostics.termsPruned = diagnostics.prunedTerms.length;
+    diagnostics.termsAccepted = diagnostics.termsGenerated -
+      diagnostics.termsPruned;
+    diagnostics.status = status ||
+      (diagnostics.termsPruned > 0 ? "VALID_WITH_PRUNING" : "VALID");
+    diagnostics.acceptedTerms = {
+      ...accepted,
+      negative_contexts: negative,
+      localized_terms: acceptedLocalized.map((item) => item.term),
+    };
+  };
+  if (
+    !accepted.commercial_synonyms.length ||
+    diagnostics.prunedTerms.filter((item) =>
+        item.field === "commercial_synonyms"
+      ).length > accepted.commercial_synonyms.length
+  ) {
+    finalizeDiagnostics("REJECTED");
+    rejectValidation("ADAPTIVE_PRODUCT_FAMILY_DRIFT", diagnostics);
+  }
+  if (!accepted.channel_archetypes.length) {
+    finalizeDiagnostics("REJECTED");
+    rejectValidation("INVALID_CHANNEL_ARCHETYPES", diagnostics);
+  }
+
   const confidence = String(input.search_confidence || "").toUpperCase();
   if (!(["HIGH", "MEDIUM"] as string[]).includes(confidence)) {
     throw new Error("INVALID_SEARCH_CONFIDENCE");
@@ -564,21 +586,7 @@ export function validateAdaptiveRetrievalIntelligenceWithDiagnostics(
   ) {
     throw new Error("CONFLICTING_NEGATIVE_CONTEXT");
   }
-  diagnostics.termsGenerated = Object.values(generated).reduce(
-    (count, terms) => count + terms.length,
-    0,
-  ) + negative.length + localized.length;
-  diagnostics.termsPruned = diagnostics.prunedTerms.length;
-  diagnostics.termsAccepted = diagnostics.termsGenerated -
-    diagnostics.termsPruned;
-  diagnostics.status = diagnostics.termsPruned > 0
-    ? "VALID_WITH_PRUNING"
-    : "VALID";
-  diagnostics.acceptedTerms = {
-    ...accepted,
-    negative_contexts: negative,
-    localized_terms: acceptedLocalized.map((item) => item.term),
-  };
+  finalizeDiagnostics();
   return {
     intelligence: {
       canonical_product: canonical,
