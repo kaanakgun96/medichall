@@ -6,8 +6,12 @@ import {
   type CommercialBuyerGrade,
   diversityRerank,
   evaluateCandidateCompatibility,
+  type EvidenceLevel,
+  type GenericSemanticClass,
   type ProductEvidenceClass,
   type ProductFamilyProfile,
+  type ProspectEvidenceFacets,
+  type ProspectTier,
   type SalesProspectClassification,
 } from "./buyer-discovery-relevance-v2.ts";
 
@@ -18,11 +22,11 @@ export const DISCOVERY_LIMITS = Object.freeze({
   maximumTedResultsPerQuery: 25,
   maximumTedDirectTerms: 12,
   maximumTedAdjacentTerms: 8,
-  maximumCandidatePool: 180,
+  maximumCandidatePool: 300,
   maximumProductTedCandidates: 100,
   maximumCpvTedCandidates: 40,
   maximumRegistryCandidates: 40,
-  maximumCandidates: 30,
+  maximumCandidates: 100,
   maximumWebsiteChecks: 6,
   maximumRegistryChecks: 10,
   requestTimeoutMs: 12_000,
@@ -284,6 +288,7 @@ export type ProspectCandidate = {
   organizationType?: OrganizationType;
   identityConfidence?: CompanyIdentityConfidence;
   commercialIdentityVerified?: boolean;
+  medicalCommercialIdentityVerified?: boolean;
   editorialContent?: boolean;
 };
 
@@ -316,6 +321,17 @@ export type ProspectScore = {
   commercialBuyerGrade: CommercialBuyerGrade;
   salesProspectClassification: SalesProspectClassification;
   commercialReason: string;
+  prospectTier: ProspectTier;
+  genericSemanticClass: GenericSemanticClass;
+  evidenceFacets: ProspectEvidenceFacets;
+  evidenceLevel: EvidenceLevel;
+  evidenceConfidenceScore: number;
+  evidenceConfidenceGrade: "HIGH" | "MEDIUM" | "LOW";
+  salesActionabilityScore: number;
+  salesActionabilityGrade: "HIGH" | "MEDIUM" | "LOW";
+  finalRankScore: number;
+  rankingVersion: "UNIVERSAL_HIGH_RECALL_V2";
+  displayable: boolean;
   buyerArchetypes: BuyerArchetypeSignal[];
   genericOnlyCeilingApplied: boolean;
   // Optional second-stage Buyer Fit fields. Deterministic ranking remains
@@ -357,6 +373,11 @@ export type ProspectRankingDiagnostics = {
   genericOnlyRejected: number;
   productFamilyMismatchRejected: number;
   diversityTieBreaksApplied: number;
+  prospectTiers: Record<ProspectTier, number>;
+  genericSemanticClasses: Record<GenericSemanticClass, number>;
+  displayableProspects: number;
+  lowConfidence: number;
+  hardRejects: number;
 };
 
 const EMAIL_PATTERN = /[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/g;
@@ -908,6 +929,44 @@ export function scoreProspect(
   now = new Date(),
   productFamily?: ProductFamilyProfile,
 ): ProspectScore {
+  const legacyArchetypes: BuyerArchetypeSignal[] =
+    candidate.buyerArchetypes?.length
+      ? candidate.buyerArchetypes
+      : /import/i.test(candidate.companyType)
+      ? [{
+        archetype: "IMPORTER",
+        strength: "MEDIUM",
+        reason: "Structured company type identifies an importer",
+      }]
+      : /distribut|wholesal|resell|supplier/i.test(candidate.companyType)
+      ? [{
+        archetype: "DISTRIBUTOR",
+        strength: "MEDIUM",
+        reason: "Structured company type identifies a commercial channel",
+      }]
+      : /hospital|procurement|contracting authorit/i.test(candidate.companyType)
+      ? [{
+        archetype: "PROCUREMENT_ORGANIZATION",
+        strength: "HIGH",
+        reason: "Structured company type identifies an end buyer",
+      }]
+      : /manufactur/i.test(candidate.companyType)
+      ? [{
+        archetype: "MANUFACTURER",
+        strength: "LOW",
+        reason: "Manufacturer role without independent sourcing evidence",
+      }]
+      : [];
+  const legacyCommercialRole = legacyArchetypes.some((item) =>
+    item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
+    item.archetype !== "PROCUREMENT_ORGANIZATION" && item.strength !== "LOW"
+  );
+  const legacyEndBuyer = legacyArchetypes.some((item) =>
+    item.archetype === "PROCUREMENT_ORGANIZATION" && item.strength !== "LOW"
+  );
+  const legacyManufacturer = legacyArchetypes.some((item) =>
+    item.archetype === "MANUFACTURER"
+  );
   const compatibility: CandidateCompatibility = productFamily
     ? evaluateCandidateCompatibility(candidate, productFamily)
     : {
@@ -924,6 +983,8 @@ export function scoreProspect(
         item.evidenceKind === "WEAK_CONTEXT" ||
         item.sourceType === "PUBLIC_REGISTRY"
       ).map((item) => ({ ...item, relevanceClass: "GENERIC" })),
+      categoryEvidence: [],
+      commercialChannelEvidence: [],
       directConceptCount:
         candidate.evidence.filter((item) =>
           item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE" &&
@@ -945,90 +1006,69 @@ export function scoreProspect(
           item.sourceType !== "PUBLIC_REGISTRY"
         ).map((item) => `${item.sourceType}:${item.sourceDomain}`),
       ).size,
-      archetypes: candidate.buyerArchetypes || [],
-      buyerRoleConfidence:
-        candidate.buyerArchetypes?.some((item) =>
-            item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
-            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-            item.strength === "HIGH"
-          )
+      archetypes: legacyArchetypes,
+      buyerRoleConfidence: legacyCommercialRole
+        ? legacyArchetypes.some((item) => item.strength === "HIGH")
           ? "HIGH"
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" &&
-              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-              item.strength === "MEDIUM"
-            )
-          ? "MEDIUM"
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype === "PROCUREMENT_ORGANIZATION" &&
-              item.strength !== "LOW"
-            )
-          ? "HIGH"
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype === "MANUFACTURER"
-            )
-          ? "LOW"
-          : "NONE",
-      buyerRoleScore:
-        candidate.buyerArchetypes?.some((item) =>
-            item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
-            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-            item.strength === "HIGH"
+          : "MEDIUM"
+        : legacyEndBuyer
+        ? "HIGH"
+        : legacyManufacturer
+        ? "LOW"
+        : "NONE",
+      buyerRoleScore: legacyCommercialRole
+        ? candidate.preferredCompanyType ? 8 : 6
+        : legacyEndBuyer
+        ? 8
+        : legacyManufacturer
+        ? 2
+        : 0,
+      credibleBuyerRole: legacyCommercialRole,
+      endBuyerProcurementRole: legacyEndBuyer,
+      salesProspectClassification: legacyCommercialRole
+        ? "DIRECT_COMMERCIAL_PROSPECT"
+        : legacyEndBuyer
+        ? "END_BUYER_PROCUREMENT_SIGNAL"
+        : candidate.evidence.some((item) =>
+            item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
           )
-          ? 15
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" &&
-              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-              item.strength === "MEDIUM"
-            )
-          ? 11
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype === "PROCUREMENT_ORGANIZATION" &&
-              item.strength !== "LOW"
-            )
-          ? 8
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype === "MANUFACTURER"
-            )
-          ? 2
-          : 0,
-      credibleBuyerRole:
-        candidate.buyerArchetypes?.some((item) =>
-          item.archetype !== "UNKNOWN" && item.archetype !== "MANUFACTURER" &&
-          item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-          item.strength !== "LOW"
-        ) || false,
-      endBuyerProcurementRole:
-        candidate.buyerArchetypes?.some((item) =>
-          item.archetype === "PROCUREMENT_ORGANIZATION" &&
-          item.strength !== "LOW"
-        ) || false,
-      salesProspectClassification:
-        candidate.buyerArchetypes?.some((item) =>
-            item.archetype !== "UNKNOWN" &&
-            item.archetype !== "MANUFACTURER" &&
-            item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-            item.strength !== "LOW"
-          )
-          ? "DIRECT_COMMERCIAL_PROSPECT"
-          : candidate.buyerArchetypes?.some((item) =>
-              item.archetype === "PROCUREMENT_ORGANIZATION" &&
-              item.strength !== "LOW"
-            )
-          ? "END_BUYER_PROCUREMENT_SIGNAL"
-          : candidate.evidence.some((item) =>
-              item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
-            )
-          ? "PRODUCT_RELEVANT_NOT_BUYER"
-          : "REJECTED",
+        ? "PRODUCT_RELEVANT_NOT_BUYER"
+        : "REJECTED",
       commercialReason:
         candidate.evidence.some((item) =>
             item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
           )
           ? "Direct product-family buyer"
           : "Adjacent commercial fit",
+      genericSemanticClass:
+        candidate.evidence.some((item) =>
+            item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+          )
+          ? "EXACT_PRODUCT_COMMERCIAL_MATCH"
+          : "GENERIC_NONCOMMERCIAL",
+      evidenceFacets: {
+        company: Boolean(candidate.websiteUrl || candidate.registryIdentifier),
+        category: candidate.evidence.some((item) =>
+          item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE"
+        ),
+        product: candidate.evidence.some((item) =>
+          item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+        ),
+        commercial: legacyCommercialRole,
+      },
+      evidenceLevel:
+        candidate.evidence.some((item) =>
+            item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
+          )
+          ? 3
+          : candidate.evidence.some((item) =>
+              item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE"
+            )
+          ? 2
+          : candidate.websiteUrl || candidate.registryIdentifier
+          ? 1
+          : 0,
+      hardReject: false,
       productClassification:
         candidate.evidence.some((item) =>
             item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
@@ -1044,24 +1084,12 @@ export function scoreProspect(
         candidate.evidence.some((item) =>
             item.evidenceKind === "DIRECT_PRODUCT_EVIDENCE"
           )
-          ? candidate.buyerArchetypes?.some((item) =>
-              item.archetype !== "UNKNOWN" &&
-              item.archetype !== "MANUFACTURER" &&
-              item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-              item.strength !== "LOW"
-            )
-            ? "DIRECT_BUYER"
-            : "PRODUCT_RELEVANT_NOT_BUYER"
+          ? legacyCommercialRole ? "DIRECT_BUYER" : "PRODUCT_RELEVANT_NOT_BUYER"
           : candidate.evidence.some((item) =>
               item.evidenceKind === "INDIRECT_COMMERCIAL_EVIDENCE" &&
               item.sourceType !== "PUBLIC_REGISTRY"
             ) &&
-              candidate.buyerArchetypes?.some((item) =>
-                item.archetype !== "UNKNOWN" &&
-                item.archetype !== "MANUFACTURER" &&
-                item.archetype !== "PROCUREMENT_ORGANIZATION" &&
-                item.strength !== "LOW"
-              )
+              legacyCommercialRole
           ? "ADJACENT_BUYER"
           : "GENERIC_SUPPORT",
       negativeProductContext: false,
@@ -1093,9 +1121,6 @@ export function scoreProspect(
   const indirectSources = new Set(
     qualifiedAdjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
   );
-  const strongAdjacentArchetype = compatibility.archetypes.some((item) =>
-    item.strength === "HIGH" && item.archetype !== "UNKNOWN"
-  );
   const supportedAdjacentArchetype = compatibility.archetypes.some((item) =>
     item.strength !== "LOW" && item.archetype !== "UNKNOWN" &&
     item.archetype !== "PROCUREMENT_ORGANIZATION"
@@ -1121,23 +1146,48 @@ export function scoreProspect(
     qualifiedAdjacent.map((item) => `${item.sourceType}:${item.sourceDomain}`),
   ).size;
   const commercialAdjacencyQualifies = compatibility.credibleBuyerRole &&
-    (qualifiedIndependentAdjacentSourceCount >= 2 ||
-      (qualifiedAdjacentConceptCount >= 2 && strongAdjacentArchetype) ||
-      (qualifiedAdjacent.some((item) => item.confidence >= 0.85) &&
-        strongAdjacentArchetype));
+    (qualifiedAdjacent.length > 0 || compatibility.categoryEvidence.length > 0);
   const combinedSupportQualifies = adjacentProcurement &&
     strongActivities.length >= 1 && supportedAdjacentArchetype;
   const directBuyerQualifies = qualifiedDirect.length >= 1 &&
     compatibility.credibleBuyerRole;
-  const eligible = directBuyerQualifies ||
-    commercialAdjacencyQualifies ||
-    combinedSupportQualifies;
+  const potentialCommercialQualifies = compatibility.genericSemanticClass ===
+      "MEDICAL_COMMERCIAL_CHANNEL_MATCH" &&
+    compatibility.credibleBuyerRole &&
+    scoredCandidate.medicalCommercialIdentityVerified === true;
+  const manufacturerOnly =
+    compatibility.archetypes.some((item) =>
+      item.archetype === "MANUFACTURER"
+    ) && !compatibility.archetypes.some((item) =>
+      item.archetype !== "MANUFACTURER" && item.archetype !== "UNKNOWN" &&
+      item.archetype !== "PROCUREMENT_ORGANIZATION" &&
+      item.strength !== "LOW"
+    );
+  const prospectTier: ProspectTier = compatibility.hardReject
+    ? "HARD_REJECT"
+    : compatibility.endBuyerProcurementRole || manufacturerOnly
+    ? "LOW_CONFIDENCE"
+    : directBuyerQualifies
+    ? "STRONG_COMMERCIAL_PROSPECT"
+    : commercialAdjacencyQualifies || combinedSupportQualifies ||
+        compatibility.genericSemanticClass ===
+          "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+    ? "LIKELY_COMMERCIAL_PROSPECT"
+    : potentialCommercialQualifies
+    ? "POTENTIAL_COMMERCIAL_PROSPECT"
+    : "LOW_CONFIDENCE";
+  const displayable = [
+    "STRONG_COMMERCIAL_PROSPECT",
+    "LIKELY_COMMERCIAL_PROSPECT",
+    "POTENTIAL_COMMERCIAL_PROSPECT",
+  ].includes(prospectTier);
+  const eligible = displayable;
   const qualificationPath: ProspectScore["qualificationPath"] =
     directBuyerQualifies && directWebsite
       ? "OFFICIAL_WEBSITE"
       : directBuyerQualifies && directProcurement
       ? "PUBLIC_PROCUREMENT"
-      : commercialAdjacencyQualifies
+      : commercialAdjacencyQualifies || potentialCommercialQualifies
       ? "COMMERCIAL_ADJACENCY"
       : combinedSupportQualifies
       ? "COMBINED_SUPPORT"
@@ -1148,16 +1198,14 @@ export function scoreProspect(
       : "PRODUCT_RELEVANT_NOT_BUYER"
     : qualifiedAdjacent.length && compatibility.credibleBuyerRole
     ? "ADJACENT_BUYER"
-    : compatibility.mismatch || compatibility.negativeProductContext ||
-        scoredCandidate.editorialContent
+    : compatibility.hardReject
     ? "REJECTED"
     : "GENERIC_SUPPORT";
   const salesProspectClassification: SalesProspectClassification =
     compatibility.endBuyerProcurementRole &&
       (qualifiedDirect.length > 0 || qualifiedAdjacent.length > 0)
       ? "END_BUYER_PROCUREMENT_SIGNAL"
-      : finalBuyerGrade === "DIRECT_BUYER" ||
-          finalBuyerGrade === "ADJACENT_BUYER"
+      : displayable
       ? "DIRECT_COMMERCIAL_PROSPECT"
       : finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
       ? "PRODUCT_RELEVANT_NOT_BUYER"
@@ -1175,6 +1223,8 @@ export function scoreProspect(
   } else if (qualifiedAdjacentConceptCount >= 2) {
     productTaxonomyScore = 28;
   } else if (qualifiedAdjacent.length) productTaxonomyScore = 22;
+  else if (compatibility.categoryEvidence.length) productTaxonomyScore = 20;
+  else if (potentialCommercialQualifies) productTaxonomyScore = 12;
 
   const geographyScore = scoredCandidate.targetCountry
     ? 10
@@ -1212,6 +1262,10 @@ export function scoreProspect(
     ? 7
     : qualifiedAdjacent.length
     ? 5
+    : compatibility.categoryEvidence.length
+    ? 5
+    : potentialCommercialQualifies
+    ? 3
     : strongActivities.length
     ? 2
     : 0;
@@ -1228,12 +1282,123 @@ export function scoreProspect(
   let relevanceScore = productTaxonomyScore + geographyScore +
     companyTypeScore + procurementSignalScore + evidenceQualityScore +
     recencyScore;
-  const genericOnlyCeilingApplied = finalBuyerGrade === "GENERIC_SUPPORT" ||
-    finalBuyerGrade === "REJECTED";
+  const genericOnlyCeilingApplied = !displayable &&
+    (finalBuyerGrade === "GENERIC_SUPPORT" || finalBuyerGrade === "REJECTED");
   if (genericOnlyCeilingApplied) relevanceScore = Math.min(42, relevanceScore);
   if (finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER") {
     relevanceScore = Math.min(54, relevanceScore);
   }
+
+  const evidenceConfidenceScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Number(compatibility.evidenceFacets.company) * 20 +
+        Number(compatibility.evidenceFacets.category) * 20 +
+        Number(compatibility.evidenceFacets.product) * 30 +
+        Number(compatibility.evidenceFacets.commercial) * 30 +
+        Math.min(10, independentCount * 3) -
+        Number(compatibility.hardReject) * 100,
+    ),
+  );
+  const evidenceConfidenceGrade = evidenceConfidenceScore >= 75
+    ? "HIGH" as const
+    : evidenceConfidenceScore >= 45
+    ? "MEDIUM" as const
+    : "LOW" as const;
+  const candidateText = sanitizeEvidenceText(
+    [
+      scoredCandidate.description,
+      scoredCandidate.companyType,
+      ...scoredCandidate.evidence.flatMap((item) => [item.title, item.snippet]),
+    ].filter(Boolean).join(" "),
+    6000,
+  ).toLowerCase();
+  const actionableRoleScore = compatibility.buyerRoleConfidence === "HIGH"
+    ? 25
+    : compatibility.buyerRoleConfidence === "MEDIUM"
+    ? 20
+    : compatibility.buyerRoleConfidence === "LOW"
+    ? 6
+    : 0;
+  const portfolioScore =
+    /\b(?:multi[- ]brand|portfolio|catalog|catalogue|product range|speciali[sz]ed|focused)\b/i
+        .test(candidateText)
+      ? 20
+      : compatibility.evidenceFacets.category
+      ? 12
+      : 4;
+  const sourcingScore =
+    /\b(?:oem|private label|sourc|partner program|become (?:a )?supplier|distribution agreement|dealer network)\b/i
+        .test(candidateText)
+      ? 20
+      : 0;
+  const salesActionabilityScore = Math.max(
+    0,
+    Math.min(
+      100,
+      actionableRoleScore + (scoredCandidate.targetCountry ? 20 : 10) +
+        portfolioScore + sourcingScore +
+        (relevantProcurementCount ? 10 : 0) + recencyScore -
+        (compatibility.endBuyerProcurementRole || manufacturerOnly ? 35 : 0) -
+        (compatibility.hardReject ? 100 : 0),
+    ),
+  );
+  const salesActionabilityGrade = salesActionabilityScore >= 70
+    ? "HIGH" as const
+    : salesActionabilityScore >= 40
+    ? "MEDIUM" as const
+    : "LOW" as const;
+  const productFitPoints = qualifiedDirect.length
+    ? 35
+    : qualifiedAdjacent.length || compatibility.categoryEvidence.length
+    ? 27
+    : potentialCommercialQualifies
+    ? 16
+    : 0;
+  const buyerFitScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        productFitPoints +
+          Number(
+              scoredCandidate.medicalCommercialIdentityVerified ||
+                qualifiedDirect.length > 0 || qualifiedAdjacent.length > 0,
+            ) * 15 +
+          (compatibility.buyerRoleConfidence === "HIGH"
+            ? 25
+            : compatibility.buyerRoleConfidence === "MEDIUM"
+            ? 20
+            : compatibility.buyerRoleConfidence === "LOW"
+            ? 5
+            : 0) +
+          (scoredCandidate.targetCountry
+            ? 10
+            : scoredCandidate.countryCode
+            ? 4
+            : 0) +
+          Math.round(evidenceConfidenceScore * 0.15) -
+          (compatibility.endBuyerProcurementRole || manufacturerOnly ? 30 : 0) -
+          (compatibility.hardReject ? 100 : 0),
+      ),
+    ),
+  );
+  const buyerFitGrade = buyerFitScore >= 75
+    ? "HIGH" as const
+    : buyerFitScore >= 50
+    ? "MEDIUM" as const
+    : "LOW" as const;
+  const finalRankScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        buyerFitScore * 0.55 + salesActionabilityScore * 0.25 +
+          evidenceConfidenceScore * 0.15 + geographyScore * 0.5,
+      ),
+    ),
+  );
 
   const reasons: ProspectScore["reasons"] = [];
   if (qualifiedDirect.length) {
@@ -1271,6 +1436,19 @@ export function scoreProspect(
       text:
         `${compatibility.commercialReason}. This is commercial-fit evidence; exact current product availability is not claimed.`,
     });
+  } else if (
+    prospectTier === "LIKELY_COMMERCIAL_PROSPECT" ||
+    prospectTier === "POTENTIAL_COMMERCIAL_PROSPECT"
+  ) {
+    reasons.push({
+      kind: "INDIRECT_COMMERCIAL_EVIDENCE",
+      code: compatibility.genericSemanticClass,
+      evidenceClass: "GENERIC",
+      text: compatibility.genericSemanticClass ===
+          "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+        ? "The verified company operates in a compatible medical product family or clinical category; exact target-product availability is not claimed."
+        : "The verified medical-commercial channel is a plausible account for this product family; exact target-product availability is not claimed.",
+    });
   }
   const bestArchetype =
     compatibility.archetypes.find((item) =>
@@ -1290,7 +1468,8 @@ export function scoreProspect(
   }
   if (
     finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER" ||
-    finalBuyerGrade === "GENERIC_SUPPORT" || finalBuyerGrade === "REJECTED"
+    (finalBuyerGrade === "GENERIC_SUPPORT" && !displayable) ||
+    finalBuyerGrade === "REJECTED"
   ) {
     reasons.push({
       kind: "WEAK_CONTEXT",
@@ -1359,9 +1538,9 @@ export function scoreProspect(
     });
   }
   const confidence: ProspectScore["confidence"] =
-    eligible && relevanceScore >= 75
+    displayable && evidenceConfidenceScore >= 75
       ? "HIGH"
-      : eligible && relevanceScore >= 55
+      : displayable && evidenceConfidenceScore >= 45
       ? "MEDIUM"
       : "LOW";
   const finalCommercialReason = salesProspectClassification ===
@@ -1373,6 +1552,9 @@ export function scoreProspect(
     ? "Adjacent commercial prospect: credible channel role with verified product-family adjacency"
     : finalBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
     ? "Product relevance is verified, but purchasing or sourcing intent is not"
+    : prospectTier === "LIKELY_COMMERCIAL_PROSPECT" ||
+        prospectTier === "POTENTIAL_COMMERCIAL_PROSPECT"
+    ? compatibility.commercialReason
     : compatibility.commercialReason;
   reasons.unshift({
     kind: qualifiedDirect.length
@@ -1411,6 +1593,19 @@ export function scoreProspect(
     commercialBuyerGrade: finalBuyerGrade,
     salesProspectClassification,
     commercialReason: finalCommercialReason,
+    prospectTier,
+    genericSemanticClass: compatibility.genericSemanticClass,
+    evidenceFacets: compatibility.evidenceFacets,
+    evidenceLevel: compatibility.evidenceLevel,
+    evidenceConfidenceScore,
+    evidenceConfidenceGrade,
+    salesActionabilityScore,
+    salesActionabilityGrade,
+    finalRankScore,
+    rankingVersion: "UNIVERSAL_HIGH_RECALL_V2",
+    displayable,
+    buyerFitScore,
+    buyerFitGrade,
     buyerArchetypes: compatibility.archetypes,
     genericOnlyCeilingApplied,
     reasonSummary: reasons.map((item) => item.text).join(" ").slice(0, 1200) ||
@@ -1557,6 +1752,23 @@ export function rankProspects(
     genericOnlyRejected: 0,
     productFamilyMismatchRejected: 0,
     diversityTieBreaksApplied: 0,
+    prospectTiers: {
+      STRONG_COMMERCIAL_PROSPECT: 0,
+      LIKELY_COMMERCIAL_PROSPECT: 0,
+      POTENTIAL_COMMERCIAL_PROSPECT: 0,
+      LOW_CONFIDENCE: 0,
+      HARD_REJECT: 0,
+    },
+    genericSemanticClasses: {
+      EXACT_PRODUCT_COMMERCIAL_MATCH: 0,
+      MEDICAL_COMMERCIAL_FAMILY_MATCH: 0,
+      MEDICAL_COMMERCIAL_CHANNEL_MATCH: 0,
+      GENERIC_UNRELATED_MEDICAL: 0,
+      GENERIC_NONCOMMERCIAL: 0,
+    },
+    displayableProspects: 0,
+    lowConfidence: 0,
+    hardRejects: 0,
   };
   const ranked = candidates.map((candidate) => {
     const compatibility = evaluateCandidateCompatibility(
@@ -1598,6 +1810,11 @@ export function rankProspects(
       options.now || new Date(),
       productFamily,
     );
+    diagnostics.prospectTiers[score.prospectTier] += 1;
+    diagnostics.genericSemanticClasses[score.genericSemanticClass] += 1;
+    if (score.displayable) diagnostics.displayableProspects += 1;
+    if (score.prospectTier === "LOW_CONFIDENCE") diagnostics.lowConfidence += 1;
+    if (score.prospectTier === "HARD_REJECT") diagnostics.hardRejects += 1;
     if (score.commercialBuyerGrade === "DIRECT_BUYER") {
       diagnostics.directBuyers += 1;
     } else if (score.commercialBuyerGrade === "ADJACENT_BUYER") {
@@ -1610,26 +1827,31 @@ export function rankProspects(
       score.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER"
     ) {
       diagnostics.productRelevantNotBuyer += 1;
-    } else if (score.commercialBuyerGrade === "GENERIC_SUPPORT") {
+    } else if (
+      score.commercialBuyerGrade === "GENERIC_SUPPORT" && !score.displayable
+    ) {
       diagnostics.genericOnlyRejected += 1;
     } else if (score.commercialBuyerGrade === "REJECTED") {
       diagnostics.productFamilyMismatchRejected += 1;
     }
     return { candidate: enriched, score };
   }).sort((left, right) =>
+    right.score.finalRankScore - left.score.finalRankScore ||
+    right.score.buyerFitScore! - left.score.buyerFitScore! ||
+    right.score.salesActionabilityScore - left.score.salesActionabilityScore ||
     right.score.relevanceScore - left.score.relevanceScore ||
     left.candidate.name.localeCompare(right.candidate.name)
   );
   const eligible = ranked.filter((item) =>
-    item.score.eligible && item.score.relevanceScore >= 55
+    item.score.eligible && item.score.displayable
   );
   const rejected = ranked.filter((item) =>
-    !item.score.eligible || item.score.relevanceScore < 55
+    !item.score.eligible || !item.score.displayable
   );
   const accepted = options.europeWide
     ? diversityRerank(eligible.map((item) => ({
       value: item,
-      score: item.score.relevanceScore,
+      score: item.score.finalRankScore,
       countryCode: item.candidate.countryCode,
     }))).map((item) => item.value)
     : eligible;

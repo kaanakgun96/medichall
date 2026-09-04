@@ -4,7 +4,7 @@ import {
   type ProductRetrievalTerm,
   reviewedEquipmentCoverTerms,
 } from "./buyer-discovery-relevance-v2.ts";
-import type { PublicWebSearchQuery } from "./public-web-discovery.ts";
+import { type PublicWebSearchQuery } from "./public-web-discovery.ts";
 import {
   ADAPTIVE_MEDICAL_RETRIEVAL_LIMITS,
   type AdaptiveMedicalRetrievalIntelligence,
@@ -71,8 +71,87 @@ export type AdaptiveDiscoveryBudget = {
   approximateWorstCaseProviderCostUsd: number;
 };
 
+export type HighRecallCoverageFloor = {
+  minimumCountries: number;
+  minimumRegions: number;
+  minimumLanguages: number;
+  minimumArchetypes: number;
+};
+
+export type HighRecallCoverageSnapshot = {
+  countries: string[];
+  regions: string[];
+  languages: string[];
+  archetypes: string[];
+};
+
+export type HighRecallProductPolicy = {
+  productProfile: ProductMarketProfile;
+  europeWide: boolean;
+  targetDisplayableProspects: number;
+  targetRawCandidates: number;
+  targetWebCandidateDomains: number;
+  recommendedPublicWebCeiling: 15 | 20 | 25;
+  hardTedCeiling: 6;
+  shallowWebsiteDomainCeiling: number;
+  deepWebsiteDomainCeiling: number;
+  coverageFloor: HighRecallCoverageFloor;
+};
+
+export type HighRecallWave = {
+  wave: 1 | 2 | 3;
+  purpose:
+    | "EXACT_AND_CHANNEL"
+    | "LOCALIZED_AND_FAMILY"
+    | "CLINICAL_PROCUREMENT_AND_ADJACENT";
+  publicWebCheckpoint: 6 | 8 | 10 | 15 | 20 | 25;
+  publicWebQueryIncrement: number;
+  cumulativePublicWebQueries: number;
+  tedRequestIncrement: number;
+  cumulativeTedRequests: number;
+  selectedPartitions: SearchSpacePartition[];
+  publicWebQueries: PublicWebSearchQuery[];
+  tedPartitions: SearchSpacePartition[];
+  plannedCoverage: HighRecallCoverageSnapshot;
+};
+
+export type HighRecallWavePlan = {
+  version: "UNIVERSAL_HIGH_RECALL_WAVE_PLAN_V2";
+  policy: HighRecallProductPolicy;
+  waves: HighRecallWave[];
+  selectedPartitionCount: number;
+  unusedPartitionCount: number;
+};
+
+export type HighRecallWaveYield = {
+  publicWebQueries: number;
+  newDisplayableProspects: number;
+  newCountries: number;
+  newRegions: number;
+  newArchetypes: number;
+};
+
+export type HighRecallEarlyStopReason =
+  | "CONTINUE"
+  | "TARGET_AND_COVERAGE_REACHED"
+  | "HARD_EXECUTION_CEILING"
+  | "SEARCH_SPACE_EXHAUSTED"
+  | "MARGINAL_YIELD_SATURATED"
+  | "ALL_PROVIDERS_UNAVAILABLE";
+
+export type HighRecallEarlyStopDecision = {
+  shouldStop: boolean;
+  reason: HighRecallEarlyStopReason;
+  targetReached: boolean;
+  coverageReached: boolean;
+  nextPublicWebCheckpoint: 6 | 8 | 10 | 15 | 20 | 25 | null;
+};
+
 export type DiscoverySearchPlan = {
-  version: "BUYER_DISCOVERY_VNEXT_1" | "ADAPTIVE_MEDICAL_RETRIEVAL_V1";
+  version:
+    | "BUYER_DISCOVERY_VNEXT_1"
+    | "ADAPTIVE_MEDICAL_RETRIEVAL_V1"
+    | "UNIVERSAL_HIGH_RECALL_V2";
   runMode: DiscoveryRunMode;
   productProfile: ProductMarketProfile;
   budget: AdaptiveDiscoveryBudget;
@@ -94,6 +173,7 @@ export type DiscoverySearchPlan = {
     generatedTermCounts: Record<string, number>;
     negativeContexts: string[];
   };
+  highRecall?: HighRecallWavePlan;
 };
 
 export type PartitionPersistenceRow = {
@@ -111,7 +191,7 @@ export type PartitionPersistenceRow = {
 };
 
 export const BUYER_DISCOVERY_VNEXT_LIMITS = Object.freeze({
-  maximumGeneratedPartitions: 240,
+  maximumGeneratedPartitions: 480,
   maximumTrackedTerms: 24,
   maximumTrackedCountries: 32,
   partitionStaleDays: 14,
@@ -121,8 +201,11 @@ export const BUYER_DISCOVERY_VNEXT_LIMITS = Object.freeze({
   maximumTedRequests: 6,
   maximumWebsiteVerificationRequests: 6,
   maximumRawPublicWebObservations: 60,
-  maximumCandidatePool: 180,
-  maximumDisplayedBuyers: 30,
+  // These are in-memory/persistence capacity bounds, not provider budgets.
+  // Active provider requests remain bounded below and are increased only by
+  // the separately gated Universal High-Recall coordinator.
+  maximumCandidatePool: 300,
+  maximumDisplayedBuyers: 100,
   adaptiveSufficientDirectProspects: 3,
 });
 
@@ -418,9 +501,14 @@ function trustedTerms(profile: ProductFamilyProfile): ProductRetrievalTerm[] {
       term: clean,
       normalizedTerm: signature,
       language,
-      countries: MARKETS.filter((market) => market.language === language).map(
-        (market) => market.country,
-      ),
+      // English commercial terminology is routinely published across Europe;
+      // leave it market-neutral so geographic coverage is not constrained to
+      // English-speaking countries. Reviewed localized terms stay scoped.
+      countries: language === "en"
+        ? []
+        : MARKETS.filter((market) => market.language === language).map(
+          (market) => market.country,
+        ),
       confidence: index < Math.max(2, profile.directTerms.length + 1)
         ? "HIGH" as const
         : "MEDIUM" as const,
@@ -1080,6 +1168,261 @@ function chooseDiverse(
   return selected;
 }
 
+function coverageFor(
+  partitions: readonly SearchSpacePartition[],
+): HighRecallCoverageSnapshot {
+  return {
+    countries: [...new Set(partitions.flatMap((item) => item.countryCodes))]
+      .sort(),
+    regions: [...new Set(partitions.map((item) => item.marketRegion))].sort(),
+    languages: [...new Set(partitions.map((item) => item.language))].sort(),
+    archetypes: [...new Set(partitions.map((item) => item.buyerArchetype))]
+      .sort(),
+  };
+}
+
+export function highRecallProductPolicy(input: {
+  productProfile: ProductMarketProfile;
+  targetCountries: string[];
+}): HighRecallProductPolicy {
+  const europeWide = input.targetCountries.length === 0;
+  const base = input.productProfile === "BROAD"
+    ? {
+      displayable: 50,
+      raw: 120,
+      webDomains: 60,
+      web: 25 as const,
+      shallow: 50,
+      deep: 12,
+      floor: [8, 6, 5, 4] as const,
+    }
+    : input.productProfile === "STANDARD"
+    ? {
+      displayable: 35,
+      raw: 90,
+      webDomains: 50,
+      web: 20 as const,
+      shallow: 35,
+      deep: 10,
+      floor: [6, 5, 4, 4] as const,
+    }
+    : {
+      displayable: 20,
+      raw: 60,
+      webDomains: 35,
+      web: 15 as const,
+      shallow: 20,
+      deep: 8,
+      floor: [4, 4, 3, 3] as const,
+    };
+  const targetMarketCount = Math.max(1, input.targetCountries.length);
+  return {
+    productProfile: input.productProfile,
+    europeWide,
+    targetDisplayableProspects: europeWide
+      ? base.displayable
+      : Math.min(base.displayable, Math.max(12, targetMarketCount * 8)),
+    targetRawCandidates: europeWide
+      ? base.raw
+      : Math.min(base.raw, Math.max(30, targetMarketCount * 16)),
+    targetWebCandidateDomains: europeWide
+      ? base.webDomains
+      : Math.min(base.webDomains, Math.max(18, targetMarketCount * 10)),
+    recommendedPublicWebCeiling: base.web,
+    hardTedCeiling: 6,
+    shallowWebsiteDomainCeiling: base.shallow,
+    deepWebsiteDomainCeiling: base.deep,
+    coverageFloor: {
+      minimumCountries: europeWide
+        ? base.floor[0]
+        : Math.min(targetMarketCount, base.floor[0]),
+      minimumRegions: europeWide ? base.floor[1] : 1,
+      minimumLanguages: europeWide
+        ? base.floor[2]
+        : Math.min(targetMarketCount, base.floor[2]),
+      minimumArchetypes: base.floor[3],
+    },
+  };
+}
+
+function waveNumberFor(partition: SearchSpacePartition): 1 | 2 | 3 {
+  if (partition.adaptiveStage) {
+    return partition.adaptiveStage === 1
+      ? 1
+      : partition.adaptiveStage === 2
+      ? 2
+      : 3;
+  }
+  const direct = partition.retrievalKind === "DIRECT_TERMS";
+  const primaryChannel = [
+    "DISTRIBUTOR",
+    "IMPORTER",
+    "TENDER_SUPPLIER",
+  ].includes(partition.buyerArchetype);
+  if (direct && partition.language === "en" && primaryChannel) return 1;
+  if (
+    partition.language !== "en" ||
+    (direct && partition.providerKind === "PUBLIC_WEB")
+  ) return 2;
+  return 3;
+}
+
+/**
+ * Plans three incremental, server-generated waves. This is intentionally pure:
+ * callers can persist the plan, execute each bounded increment, checkpoint its
+ * yield and stop without ever accepting arbitrary client-supplied queries.
+ */
+export function buildHighRecallWavePlan(input: {
+  productFamily: ProductFamilyProfile;
+  targetCountries: string[];
+  cpvCodes: string[];
+  history?: SearchPartitionHistory[];
+  runMode?: DiscoveryRunMode;
+  adaptiveIntelligence?: AdaptiveMedicalRetrievalIntelligence | null;
+}): HighRecallWavePlan {
+  const productProfile = classifyProductMarketProfile(input.productFamily);
+  const policy = highRecallProductPolicy({
+    productProfile,
+    targetCountries: input.targetCountries,
+  });
+  const history = new Map(
+    (input.history || []).map((item) => [item.partitionKey, item]),
+  );
+  const universe = buildUniverse(input);
+  const fresh = input.runMode && input.runMode !== "NORMAL_DISCOVERY";
+  const eligibleUniverse = fresh
+    ? universe.filter((item) => !history.has(item.partitionKey))
+    : universe;
+  const checkpoints = productProfile === "BROAD"
+    ? [10, 15, 25] as const
+    : productProfile === "STANDARD"
+    ? [8, 15, 20] as const
+    : [6, 10, 15] as const;
+  const purposes = [
+    "EXACT_AND_CHANNEL",
+    "LOCALIZED_AND_FAMILY",
+    "CLINICAL_PROCUREMENT_AND_ADJACENT",
+  ] as const;
+  const selectedKeys = new Set<string>();
+  const cumulative: SearchSpacePartition[] = [];
+  let priorWebCheckpoint = 0;
+  let priorTedCheckpoint = 0;
+  let globalVariant = 0;
+  const waves: HighRecallWave[] = ([1, 2, 3] as const).map((wave, index) => {
+    const webCheckpoint = checkpoints[index];
+    const tedCheckpoint = Math.min(policy.hardTedCeiling, (index + 1) * 2);
+    const available = eligibleUniverse.filter((item) =>
+      !selectedKeys.has(item.partitionKey) && waveNumberFor(item) === wave
+    );
+    const selectedWeb = chooseDiverse(
+      available.filter((item) => item.providerKind === "PUBLIC_WEB"),
+      Math.max(0, webCheckpoint - priorWebCheckpoint),
+    );
+    const selectedTed = chooseDiverse(
+      available.filter((item) => item.providerKind === "TED"),
+      Math.max(0, tedCheckpoint - priorTedCheckpoint),
+    );
+    const selectedPartitions = [...selectedWeb, ...selectedTed];
+    for (const item of selectedPartitions) selectedKeys.add(item.partitionKey);
+    cumulative.push(...selectedPartitions);
+    const publicWebQueries = selectedWeb.map((item) => ({
+      ...item.publicWebQuery!,
+      variant: globalVariant++,
+    }));
+    const result: HighRecallWave = {
+      wave,
+      purpose: purposes[index],
+      publicWebCheckpoint: webCheckpoint,
+      publicWebQueryIncrement: publicWebQueries.length,
+      cumulativePublicWebQueries: priorWebCheckpoint + publicWebQueries.length,
+      tedRequestIncrement: selectedTed.length,
+      cumulativeTedRequests: priorTedCheckpoint + selectedTed.length,
+      selectedPartitions,
+      publicWebQueries,
+      tedPartitions: selectedTed,
+      plannedCoverage: coverageFor(cumulative),
+    };
+    priorWebCheckpoint = result.cumulativePublicWebQueries;
+    priorTedCheckpoint = result.cumulativeTedRequests;
+    return result;
+  });
+  return {
+    version: "UNIVERSAL_HIGH_RECALL_WAVE_PLAN_V2",
+    policy,
+    waves,
+    selectedPartitionCount: selectedKeys.size,
+    unusedPartitionCount: Math.max(
+      0,
+      eligibleUniverse.length - selectedKeys.size,
+    ),
+  };
+}
+
+function coverageReached(
+  coverage: HighRecallCoverageSnapshot,
+  floor: HighRecallCoverageFloor,
+): boolean {
+  return coverage.countries.length >= floor.minimumCountries &&
+    coverage.regions.length >= floor.minimumRegions &&
+    coverage.languages.length >= floor.minimumLanguages &&
+    coverage.archetypes.length >= floor.minimumArchetypes;
+}
+
+export function evaluateHighRecallEarlyStop(input: {
+  plan: HighRecallWavePlan;
+  displayableProspects: number;
+  coverage: HighRecallCoverageSnapshot;
+  completedPublicWebQueries: number;
+  completedTedRequests: number;
+  waveYields?: HighRecallWaveYield[];
+  searchSpaceExhausted?: boolean;
+  publicWebUnavailable?: boolean;
+  tedUnavailable?: boolean;
+}): HighRecallEarlyStopDecision {
+  const targetReached = input.displayableProspects >=
+    input.plan.policy.targetDisplayableProspects;
+  const hasCoverage = coverageReached(
+    input.coverage,
+    input.plan.policy.coverageFloor,
+  );
+  const next =
+    input.plan.waves.find((wave) =>
+      wave.publicWebCheckpoint > input.completedPublicWebQueries
+    )?.publicWebCheckpoint || null;
+  const finish = (
+    reason: HighRecallEarlyStopReason,
+  ): HighRecallEarlyStopDecision => ({
+    shouldStop: reason !== "CONTINUE",
+    reason,
+    targetReached,
+    coverageReached: hasCoverage,
+    nextPublicWebCheckpoint: reason === "CONTINUE" ? next : null,
+  });
+  if (targetReached && hasCoverage) {
+    return finish("TARGET_AND_COVERAGE_REACHED");
+  }
+  if (input.publicWebUnavailable && input.tedUnavailable) {
+    return finish("ALL_PROVIDERS_UNAVAILABLE");
+  }
+  if (
+    input.completedPublicWebQueries >=
+      input.plan.policy.recommendedPublicWebCeiling &&
+    input.completedTedRequests >= input.plan.policy.hardTedCeiling
+  ) return finish("HARD_EXECUTION_CEILING");
+  if (input.searchSpaceExhausted || next === null) {
+    return finish("SEARCH_SPACE_EXHAUSTED");
+  }
+  const recent = (input.waveYields || []).slice(-2);
+  if (
+    recent.length === 2 &&
+    recent.every((item) =>
+      item.newDisplayableProspects === 0 && item.newCountries === 0 &&
+      item.newRegions === 0 && item.newArchetypes === 0
+    )
+  ) return finish("MARGINAL_YIELD_SATURATED");
+  return finish("CONTINUE");
+}
+
 export function buildDiscoverySearchPlan(input: {
   runMode: DiscoveryRunMode;
   productFamily: ProductFamilyProfile;
@@ -1089,6 +1432,7 @@ export function buildDiscoverySearchPlan(input: {
   recentFreshYields?: number[];
   now?: Date;
   adaptiveIntelligence?: AdaptiveMedicalRetrievalIntelligence | null;
+  highRecallEnabled?: boolean;
 }): DiscoverySearchPlan {
   const productProfile = classifyProductMarketProfile(input.productFamily);
   const budget = adaptiveDiscoveryBudget(productProfile, input.runMode);
@@ -1157,31 +1501,56 @@ export function buildDiscoverySearchPlan(input: {
     : fresh
     ? [...unused, ...stale]
     : universe;
-  const web = chooseDiverse(
-    source.filter((item) => item.providerKind === "PUBLIC_WEB"),
-    budget.maximumPublicWebQueries,
+  const highRecall = input.highRecallEnabled
+    ? buildHighRecallWavePlan({
+      productFamily: input.productFamily,
+      targetCountries: input.targetCountries,
+      cpvCodes: input.cpvCodes,
+      history: input.history,
+      runMode: input.runMode,
+      adaptiveIntelligence: input.adaptiveIntelligence,
+    })
+    : undefined;
+  const highRecallPartitions = highRecall?.waves.flatMap((wave) =>
+    wave.selectedPartitions
   );
-  const ted = chooseDiverse(
-    source.filter((item) => item.providerKind === "TED"),
-    budget.maximumTedRequests,
-  );
+  const web = highRecall
+    ? highRecall.waves.flatMap((wave) => wave.publicWebQueries).map((query) =>
+      highRecallPartitions!.find((partition) =>
+        partition.partitionKey === query.partitionKey
+      )!
+    ).filter(Boolean)
+    : chooseDiverse(
+      source.filter((item) => item.providerKind === "PUBLIC_WEB"),
+      budget.maximumPublicWebQueries,
+    );
+  const ted = highRecall
+    ? highRecall.waves.flatMap((wave) => wave.tedPartitions)
+    : chooseDiverse(
+      source.filter((item) => item.providerKind === "TED"),
+      budget.maximumTedRequests,
+    );
   const selectedPartitions = [...web, ...ted];
   assertValidPartitionPriorities(selectedPartitions);
   const saturation = discoverySaturation(input.recentFreshYields || []);
   const selectedUnusedCount =
     selectedPartitions.filter((item) => !history.has(item.partitionKey)).length;
   return {
-    version: input.adaptiveIntelligence
+    version: highRecall
+      ? "UNIVERSAL_HIGH_RECALL_V2"
+      : input.adaptiveIntelligence
       ? "ADAPTIVE_MEDICAL_RETRIEVAL_V1"
       : "BUYER_DISCOVERY_VNEXT_1",
     runMode: input.runMode,
     productProfile,
     budget,
     selectedPartitions,
-    publicWebQueries: web.map((item, index) => ({
-      ...item.publicWebQuery!,
-      variant: index,
-    })),
+    publicWebQueries: highRecall
+      ? highRecall.waves.flatMap((wave) => wave.publicWebQueries)
+      : web.map((item, index) => ({
+        ...item.publicWebQuery!,
+        variant: index,
+      })),
     tedPartitions: ted,
     unusedPartitionsRemaining: Math.max(
       0,
@@ -1214,6 +1583,7 @@ export function buildDiscoverySearchPlan(input: {
         negativeContexts: input.adaptiveIntelligence.negative_contexts,
       }
       : undefined,
+    highRecall,
   };
 }
 

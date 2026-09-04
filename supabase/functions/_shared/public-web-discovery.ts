@@ -26,6 +26,51 @@ export const PUBLIC_WEB_DISCOVERY_LIMITS = Object.freeze({
   maximumCostUsdPerRun: 0.05,
 });
 
+/**
+ * Dormant capacity contract for a future wave coordinator.
+ *
+ * The active provider boundary above intentionally remains at ten requests and
+ * $0.05 per invocation.  A coordinator can execute several independently
+ * bounded batches, checkpointing after each one, and use this cumulative
+ * contract without weakening the existing per-call guardrails.
+ */
+export const PUBLIC_WEB_HIGH_RECALL_CAPACITY = Object.freeze({
+  queryCheckpoints: Object.freeze([10, 15, 20, 25] as const),
+  absoluteMaximumQueries: 25,
+  absoluteMaximumRawResults: 150,
+  absoluteMaximumCandidates: 100,
+  absoluteMaximumCostUsd: 0.125,
+});
+
+export type PublicWebCapacityModel = {
+  queries: 10 | 15 | 20 | 25;
+  maximumRawResults: number;
+  maximumUniqueDomains: number;
+  maximumProviderCostUsd: number;
+};
+
+export function publicWebCapacityModel(
+  queries: PublicWebCapacityModel["queries"],
+): PublicWebCapacityModel {
+  if (!PUBLIC_WEB_HIGH_RECALL_CAPACITY.queryCheckpoints.includes(queries)) {
+    throw new Error("PUBLIC_WEB_QUERY_CHECKPOINT_INVALID");
+  }
+  return {
+    queries,
+    maximumRawResults: Math.min(
+      PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumRawResults,
+      queries * PUBLIC_WEB_DISCOVERY_LIMITS.maximumResultsPerQuery,
+    ),
+    maximumUniqueDomains: Math.min(
+      PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCandidates,
+      queries * PUBLIC_WEB_DISCOVERY_LIMITS.maximumResultsPerQuery,
+    ),
+    maximumProviderCostUsd: Number(
+      (queries * PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd).toFixed(3),
+    ),
+  };
+}
+
 export type PublicWebSearchQuery = {
   variant: number;
   strategy?: "EXACT" | "SYNONYM" | "LOCALIZED" | "ADJACENT";
@@ -139,6 +184,34 @@ export type PublicWebDiscoveryResult = {
   rejectionReasons: Record<string, number>;
   unavailable: boolean;
   circuitOpen: boolean;
+};
+
+export type HighRecallPublicWebWave = {
+  wave: 1 | 2 | 3;
+  publicWebQueries: PublicWebSearchQuery[];
+};
+
+export type HighRecallPublicWebResult = PublicWebDiscoveryResult & {
+  highRecall: {
+    version: "UNIVERSAL_HIGH_RECALL_PUBLIC_WEB_V2";
+    wavesExecuted: number;
+    waveDiagnostics: Array<{
+      wave: 1 | 2 | 3;
+      queriesPlanned: number;
+      queriesUsed: number;
+      providerRequests: number;
+      cacheHits: number;
+      newCandidateDomains: number;
+      cumulativeCandidateDomains: number;
+      providerCostEstimateUsd: number;
+    }>;
+    duplicateDomainsCollapsed: number;
+    stopReason:
+      | "TARGET_CANDIDATE_AND_COVERAGE"
+      | "HARD_EXECUTION_CEILING"
+      | "SEARCH_SPACE_EXHAUSTED"
+      | "PROVIDER_UNAVAILABLE";
+  };
 };
 
 const MARKET_LOCALES = Object.freeze([
@@ -566,6 +639,73 @@ function mergePublicWebCandidate(
   }
   target.countryCode ||= incoming.countryCode;
   return target;
+}
+
+export type PublicWebWaveAccumulation = {
+  candidates: PublicWebCandidate[];
+  rawObservations: number;
+  duplicateDomains: number;
+  truncatedRawObservations: number;
+  truncatedCandidateDomains: number;
+};
+
+/**
+ * Combines independently bounded/cached wave results without making a provider
+ * request. Domain identity is stable across query order, so a retry or a later
+ * localized wave enriches the existing candidate instead of manufacturing a
+ * second company.
+ */
+export function accumulatePublicWebCandidateWaves(
+  waves: readonly (readonly PublicWebCandidate[])[],
+): PublicWebWaveAccumulation {
+  const byDomain = new Map<string, PublicWebCandidate>();
+  let rawObservations = 0;
+  let duplicateDomains = 0;
+  let truncatedRawObservations = 0;
+  let truncatedCandidateDomains = 0;
+  for (const wave of waves) {
+    for (const candidate of wave) {
+      if (
+        rawObservations >=
+          PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumRawResults
+      ) {
+        truncatedRawObservations += 1;
+        continue;
+      }
+      rawObservations += 1;
+      const domain = normalizeDomain(candidate.canonicalDomain) ||
+        normalizeDomain(candidate.pageUrl);
+      if (!domain || isRejectedDomain(domain)) continue;
+      const previous = byDomain.get(domain);
+      if (previous) {
+        duplicateDomains += 1;
+        mergePublicWebCandidate(previous, candidate);
+        continue;
+      }
+      if (
+        byDomain.size >=
+          PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCandidates
+      ) {
+        truncatedCandidateDomains += 1;
+        continue;
+      }
+      byDomain.set(domain, {
+        ...candidate,
+        canonicalDomain: domain,
+        pageUrls: [...(candidate.pageUrls || [candidate.pageUrl])],
+        verificationSignals: candidate.verificationSignals
+          ? { ...candidate.verificationSignals }
+          : undefined,
+      });
+    }
+  }
+  return {
+    candidates: [...byDomain.values()],
+    rawObservations,
+    duplicateDomains,
+    truncatedRawObservations,
+    truncatedCandidateDomains,
+  };
 }
 
 function normalizedCandidates(values: unknown[], maximum: number): {
@@ -1045,16 +1185,211 @@ export async function runPublicWebDiscovery(input: {
   };
 }
 
+function addCountMaps(
+  target: Record<string, number>,
+  incoming: Record<string, number>,
+): void {
+  for (const [key, value] of Object.entries(incoming)) {
+    target[key] = (target[key] || 0) + value;
+  }
+}
+
+/**
+ * Executes server-authored high-recall query waves while retaining the
+ * existing ten-query/$0.05 boundary for every provider invocation. The outer
+ * coordinator additionally enforces the cumulative 25-query/$0.125 ceiling.
+ */
+export async function runHighRecallPublicWebDiscovery(input: {
+  enabled: boolean;
+  provider: PublicWebDiscoveryProvider | null;
+  cache: PublicWebDiscoveryCache;
+  productFamily: ProductFamilyProfile;
+  targetCountries: string[];
+  waves: HighRecallPublicWebWave[];
+  maximumCumulativeQueries: number;
+  maximumCumulativeCostUsd: number;
+  targetCandidateDomains: number;
+  minimumCoverage: {
+    countries: number;
+    regions: number;
+    languages: number;
+    archetypes: number;
+  };
+  now?: Date;
+}): Promise<HighRecallPublicWebResult> {
+  const waveResults: PublicWebDiscoveryResult[] = [];
+  const candidateWaves: PublicWebCandidate[][] = [];
+  const diagnostics:
+    HighRecallPublicWebResult["highRecall"]["waveDiagnostics"] = [];
+  let queriesConsumed = 0;
+  let providerCost = 0;
+  let stopReason: HighRecallPublicWebResult["highRecall"]["stopReason"] =
+    "SEARCH_SPACE_EXHAUSTED";
+  const executedQueries: PublicWebSearchQuery[] = [];
+  const boundedQueryCeiling = Math.min(
+    PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumQueries,
+    Math.max(0, Math.trunc(input.maximumCumulativeQueries)),
+  );
+  const boundedCostCeiling = Math.min(
+    PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCostUsd,
+    Math.max(0, input.maximumCumulativeCostUsd),
+  );
+  for (const wave of input.waves.slice(0, 3)) {
+    const remainingQueries = boundedQueryCeiling - queriesConsumed;
+    const remainingCost = boundedCostCeiling - providerCost;
+    if (
+      remainingQueries <= 0 ||
+      remainingCost < PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd
+    ) {
+      stopReason = "HARD_EXECUTION_CEILING";
+      break;
+    }
+    const queryPlan = wave.publicWebQueries.slice(
+      0,
+      Math.min(PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries, remainingQueries),
+    );
+    if (!queryPlan.length) continue;
+    const before = accumulatePublicWebCandidateWaves(candidateWaves).candidates
+      .length;
+    const result = await runPublicWebDiscovery({
+      enabled: input.enabled,
+      provider: input.provider,
+      cache: input.cache,
+      productFamily: input.productFamily,
+      targetCountries: input.targetCountries,
+      maximumQueries: queryPlan.length,
+      maximumCostUsd: Math.min(
+        PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
+        remainingCost,
+      ),
+      queryPlan,
+      now: input.now,
+    });
+    waveResults.push(result);
+    candidateWaves.push(result.candidates);
+    executedQueries.push(...result.queryPlan);
+    queriesConsumed += result.queryPlan.length;
+    providerCost = Number(
+      (providerCost + result.providerCostEstimateUsd).toFixed(6),
+    );
+    const cumulative = accumulatePublicWebCandidateWaves(candidateWaves);
+    diagnostics.push({
+      wave: wave.wave,
+      queriesPlanned: queryPlan.length,
+      queriesUsed: result.queriesUsed,
+      providerRequests: result.providerRequests,
+      cacheHits: result.cacheHits,
+      newCandidateDomains: Math.max(0, cumulative.candidates.length - before),
+      cumulativeCandidateDomains: cumulative.candidates.length,
+      providerCostEstimateUsd: result.providerCostEstimateUsd,
+    });
+    const countries = new Set([
+      ...cumulative.candidates.map((item) => item.countryCode).filter(Boolean),
+      ...executedQueries.map((item) => item.country).filter(Boolean),
+    ]);
+    const regions = new Set(
+      executedQueries.map((item) => item.marketRegion).filter(Boolean),
+    );
+    const languages = new Set(
+      executedQueries.map((item) => item.language).filter(Boolean),
+    );
+    const archetypes = new Set(
+      executedQueries.map((item) => item.buyerArchetype).filter(Boolean),
+    );
+    const coverageReached = countries.size >= input.minimumCoverage.countries &&
+      regions.size >= input.minimumCoverage.regions &&
+      languages.size >= input.minimumCoverage.languages &&
+      archetypes.size >= input.minimumCoverage.archetypes;
+    if (
+      cumulative.candidates.length >= input.targetCandidateDomains &&
+      coverageReached
+    ) {
+      stopReason = "TARGET_CANDIDATE_AND_COVERAGE";
+      break;
+    }
+    if (
+      result.circuitOpen || (result.unavailable && !result.candidates.length)
+    ) {
+      stopReason = "PROVIDER_UNAVAILABLE";
+      break;
+    }
+    if (
+      queriesConsumed >= boundedQueryCeiling ||
+      providerCost + PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd >
+        boundedCostCeiling
+    ) stopReason = "HARD_EXECUTION_CEILING";
+  }
+  const accumulation = accumulatePublicWebCandidateWaves(candidateWaves);
+  const queryStrategies: Record<string, number> = {};
+  const providerStatusCodes: Record<string, number> = {};
+  const rejectionReasons: Record<string, number> = {};
+  for (const result of waveResults) {
+    addCountMaps(queryStrategies, result.queryStrategies);
+    addCountMaps(providerStatusCodes, result.providerStatusCodes);
+    addCountMaps(rejectionReasons, result.rejectionReasons);
+  }
+  const first = waveResults[0];
+  const unavailable = waveResults.some((item) => item.unavailable);
+  return {
+    enabled: input.enabled,
+    providerCode: first?.providerCode || input.provider?.code || null,
+    status: !input.enabled
+      ? "DISABLED"
+      : !input.provider
+      ? "CONFIGURATION_UNAVAILABLE"
+      : unavailable
+      ? "LIMITED"
+      : "ACTIVE",
+    candidates: accumulation.candidates,
+    queriesPlanned: executedQueries.length,
+    queriesUsed: waveResults.reduce((sum, item) => sum + item.queriesUsed, 0),
+    queryPlan: executedQueries,
+    queryStrategies,
+    resultsReceived: waveResults.reduce(
+      (sum, item) => sum + item.resultsReceived,
+      0,
+    ),
+    candidatesCreated: accumulation.candidates.length,
+    cacheHits: waveResults.reduce((sum, item) => sum + item.cacheHits, 0),
+    cacheMisses: waveResults.reduce((sum, item) => sum + item.cacheMisses, 0),
+    providerRequests: waveResults.reduce(
+      (sum, item) => sum + item.providerRequests,
+      0,
+    ),
+    providerCostEstimateUsd: providerCost,
+    providerLatencyMs: waveResults.flatMap((item) => item.providerLatencyMs),
+    providerStatusCodes,
+    rejectionReasons,
+    unavailable,
+    circuitOpen: waveResults.some((item) => item.circuitOpen),
+    highRecall: {
+      version: "UNIVERSAL_HIGH_RECALL_PUBLIC_WEB_V2",
+      wavesExecuted: diagnostics.length,
+      waveDiagnostics: diagnostics,
+      duplicateDomainsCollapsed: accumulation.duplicateDomains,
+      stopReason,
+    },
+  };
+}
+
 export function publicWebCandidatesToProspects(input: {
   candidates: PublicWebCandidate[];
   taxonomyIds: number[];
   targetCountries: string[];
   partnerTypes: string[];
+  maximumCandidates?: number;
 }): ProspectCandidate[] {
   const wantedTypes = input.partnerTypes.map((item) => item.toLowerCase());
   return input.candidates.slice(
     0,
-    PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
+    Math.max(
+      1,
+      Math.min(
+        PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCandidates,
+        input.maximumCandidates ??
+          PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
+      ),
+    ),
   )
     .map((candidate) => ({
       // Sanitize pre-hotfix cached PAGE_METADATA candidates as well as new

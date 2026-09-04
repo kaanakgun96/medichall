@@ -5,6 +5,29 @@ import type {
 
 export type ProductEvidenceClass = "DIRECT" | "ADJACENT" | "GENERIC";
 
+export type ProspectTier =
+  | "STRONG_COMMERCIAL_PROSPECT"
+  | "LIKELY_COMMERCIAL_PROSPECT"
+  | "POTENTIAL_COMMERCIAL_PROSPECT"
+  | "LOW_CONFIDENCE"
+  | "HARD_REJECT";
+
+export type GenericSemanticClass =
+  | "EXACT_PRODUCT_COMMERCIAL_MATCH"
+  | "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+  | "MEDICAL_COMMERCIAL_CHANNEL_MATCH"
+  | "GENERIC_UNRELATED_MEDICAL"
+  | "GENERIC_NONCOMMERCIAL";
+
+export type EvidenceLevel = 0 | 1 | 2 | 3 | 4;
+
+export type ProspectEvidenceFacets = {
+  company: boolean;
+  category: boolean;
+  product: boolean;
+  commercial: boolean;
+};
+
 export type CommercialBuyerGrade =
   | "DIRECT_BUYER"
   | "ADJACENT_BUYER"
@@ -74,6 +97,10 @@ export type ProductFamilyProfile = {
   adjacentTerms: string[];
   genericTerms: string[];
   mismatchTerms: string[];
+  categoryTerms?: string[];
+  clinicalContextTerms?: string[];
+  commercialChannelTerms?: string[];
+  adaptiveNegativeTerms?: string[];
   componentFitLabel: string | null;
   reviewedRetrievalTerms?: ProductRetrievalTerm[];
   temporaryIntent?: {
@@ -235,6 +262,8 @@ export type CandidateCompatibility = {
   directEvidence: ProspectEvidence[];
   adjacentEvidence: ProspectEvidence[];
   genericEvidence: ProspectEvidence[];
+  categoryEvidence: ProspectEvidence[];
+  commercialChannelEvidence: ProspectEvidence[];
   directConceptCount: number;
   adjacentConceptCount: number;
   independentDirectSourceCount: number;
@@ -246,6 +275,10 @@ export type CandidateCompatibility = {
   endBuyerProcurementRole: boolean;
   salesProspectClassification: SalesProspectClassification;
   commercialReason: string;
+  genericSemanticClass: GenericSemanticClass;
+  evidenceFacets: ProspectEvidenceFacets;
+  evidenceLevel: EvidenceLevel;
+  hardReject: boolean;
   productClassification:
     | "DIRECT_PRODUCT_FIT"
     | "ADJACENT_COMMERCIAL_FIT"
@@ -562,6 +595,10 @@ const NON_MEDICAL_CONTEXT_PATTERN = new RegExp(
     "oven glove",
     "gardening glove",
     "mechanic glove",
+    "fashion gown",
+    "graduation gown",
+    "evening gown",
+    "bridal gown",
     "wire mesh",
     "architectural mesh",
     "network mesh",
@@ -768,6 +805,10 @@ export function buildProductFamilyProfile(
     adjacentTerms: uniqueTerms(adjacent),
     genericTerms: uniqueTerms(COMMON_GENERIC_TERMS),
     mismatchTerms: uniqueTerms(mismatch),
+    categoryTerms: uniqueTerms(familyLabels),
+    clinicalContextTerms: [],
+    commercialChannelTerms: [],
+    adaptiveNegativeTerms: [],
     componentFitLabel,
     reviewedRetrievalTerms: [
       ...(flags.generalProcedurePack
@@ -789,6 +830,69 @@ export function buildProductFamilyProfile(
   };
 }
 
+/**
+ * Adds product-independent, validated Adaptive Retrieval context to the
+ * evidence profile. These terms may establish category/channel compatibility;
+ * they never become exact-product evidence or permanent taxonomy aliases.
+ */
+export function withAdaptiveCommercialIntelligence(
+  profile: ProductFamilyProfile,
+  intelligence:
+    | {
+      product_family?: unknown;
+      clinical_contexts?: unknown;
+      channel_archetypes?: unknown;
+      adjacent_commercial_terms?: unknown;
+      negative_contexts?: unknown;
+      localized_terms?: unknown;
+    }
+    | null
+    | undefined,
+): ProductFamilyProfile {
+  if (!intelligence) return profile;
+  const stringArray = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  const localizedTerms = Array.isArray(intelligence.localized_terms)
+    ? intelligence.localized_terms.flatMap((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return [];
+      }
+      const item = value as Record<string, unknown>;
+      return typeof item.term === "string"
+        ? [{ term: item.term, type: item.termType || item.type }]
+        : [];
+    })
+    : [];
+  return {
+    ...profile,
+    categoryTerms: uniqueTerms([
+      ...(profile.categoryTerms || []),
+      intelligence.product_family,
+      ...stringArray(intelligence.adjacent_commercial_terms),
+      ...localizedTerms.filter((item) => item.type === "PRODUCT_TERM").map((
+        item,
+      ) => item.term),
+    ]),
+    clinicalContextTerms: uniqueTerms([
+      ...(profile.clinicalContextTerms || []),
+      ...stringArray(intelligence.clinical_contexts),
+    ]),
+    commercialChannelTerms: uniqueTerms([
+      ...(profile.commercialChannelTerms || []),
+      ...stringArray(intelligence.channel_archetypes),
+      ...localizedTerms.filter((item) =>
+        item.type === "COMMERCIAL_TERM" || item.type === "PROCUREMENT_TERM"
+      ).map((item) => item.term),
+    ]),
+    adaptiveNegativeTerms: uniqueTerms([
+      ...(profile.adaptiveNegativeTerms || []),
+      ...stringArray(intelligence.negative_contexts),
+    ]),
+  };
+}
+
 export function classifyEvidenceForProduct(
   evidence: ProspectEvidence,
   profile: ProductFamilyProfile,
@@ -800,6 +904,11 @@ export function classifyEvidenceForProduct(
   const text = evidenceText(evidence);
   const direct = matchedTerms(text, profile.directTerms);
   const adjacent = matchedTerms(text, profile.adjacentTerms);
+  const category = matchedTerms(text, [
+    ...(profile.categoryTerms || []),
+    ...(profile.clinicalContextTerms || []),
+  ]);
+  const channel = matchedTerms(text, profile.commercialChannelTerms || []);
   let relevanceClass: ProductEvidenceClass = "GENERIC";
   let commercialReason = "General healthcare or company-activity context";
   const temporaryDirect = evidence.sourceType !== "PUBLIC_REGISTRY" &&
@@ -838,6 +947,12 @@ export function classifyEvidenceForProduct(
     }`;
   } else if (evidence.sourceType === "PUBLIC_REGISTRY") {
     commercialReason = "Official activity evidence supports company type only";
+  } else if (category.length || channel.length) {
+    commercialReason = category.length
+      ? `Medical-commercial category context: ${
+        category.slice(0, 3).join(", ")
+      }`
+      : `Medical-commercial channel context: ${channel.slice(0, 3).join(", ")}`;
   } else if (productContextRejected) {
     commercialReason = specificConflict
       ? "Specific lot or page text describes a different product family"
@@ -857,7 +972,9 @@ export function classifyEvidenceForProduct(
       ? (direct.length
         ? direct
         : [profile.temporaryIntent?.normalizedPhrase || ""])
-      : adjacent,
+      : relevanceClass === "ADJACENT"
+      ? adjacent
+      : uniqueTerms([...category, ...channel]),
     commercialReason,
     taxonomyIds: relevanceClass === "GENERIC" ? [] : evidence.taxonomyIds,
   };
@@ -902,12 +1019,24 @@ function inferArchetypes(
   const compatible = evidence.filter((item) =>
     item.relevanceClass === "DIRECT" || item.relevanceClass === "ADJACENT"
   );
-  if (!compatible.length) {
+  const verifiedGenericCommercial = evidence.filter((item) =>
+    item.relevanceClass === "GENERIC" &&
+    item.sourceType !== "PUBLIC_REGISTRY" &&
+    item.sourceType !== "OTHER_PUBLIC_SOURCE"
+  );
+  const roleEvidence = deduplicateEvidence([
+    ...compatible,
+    ...(candidate.commercialIdentityVerified === true ||
+        candidate.medicalCommercialIdentityVerified === true
+      ? verifiedGenericCommercial
+      : []),
+  ]);
+  if (!roleEvidence.length) {
     return [{
       archetype: "UNKNOWN",
       strength: "LOW",
       reason:
-        "No product-family buying model is supported by the available evidence.",
+        "No verified medical-commercial buying model is supported by the available evidence.",
     }];
   }
   const text = normalizeTerm(
@@ -915,7 +1044,7 @@ function inferArchetypes(
       candidate.name,
       candidate.description,
       candidate.companyType,
-      ...compatible.flatMap((
+      ...roleEvidence.flatMap((
         item,
       ) => [
         item.title,
@@ -935,9 +1064,19 @@ function inferArchetypes(
       output.push({ archetype, strength, reason });
     }
   };
-  if (
+  const procedurePackPortfolio =
     /procedure pack|procedure tray|surgical pack|custom pack|set procedurali|kit procedurali|op sets/
-      .test(text)
+      .test(text);
+  const verifiedPackProductionRole = candidate.companyType === "Manufacturer" ||
+    /(?:procedure pack|custom pack|surgical kit|procedure kit).{0,80}(?:manufactur|assembl|produc)|(?:manufactur|assembl|produc).{0,80}(?:procedure pack|custom pack|surgical kit|procedure kit)|contract pack|oem|private label|produzione (?:di )?(?:kit|set)|fabri(?:cant|cation).{0,40}(?:pack|kit|set)/
+      .test(text);
+  const explicitPackSourcingOrChannelRole =
+    /sourc|oem|private label|contract pack|distribut|import|wholesal|resell|tender supplier/
+      .test(text);
+  const packMakerCanBeBuyer = !profile.procedurePack ||
+    explicitPackSourcingOrChannelRole;
+  if (
+    procedurePackPortfolio && verifiedPackProductionRole && packMakerCanBeBuyer
   ) {
     add(
       "PROCEDURE_PACK_MANUFACTURER",
@@ -947,7 +1086,7 @@ function inferArchetypes(
   }
   if (
     /surgical kit|medical kit|procedure kit|kit assembler|surgical set|kit chirurgici/
-      .test(text)
+      .test(text) && verifiedPackProductionRole && packMakerCanBeBuyer
   ) {
     add("KIT_ASSEMBLER", "HIGH", "Potential surgical-kit component buyer");
   }
@@ -1031,8 +1170,10 @@ function inferArchetypes(
     add(
       "UNKNOWN",
       "LOW",
-      compatible.some((item) => item.relevanceClass === "DIRECT")
+      roleEvidence.some((item) => item.relevanceClass === "DIRECT")
         ? "Direct product-family seller or supplier"
+        : candidate.medicalCommercialIdentityVerified
+        ? "Verified medical-commercial company; exact product availability is not yet proven"
         : "Strong adjacent commercial fit",
     );
   }
@@ -1100,10 +1241,6 @@ export function evaluateCandidateCompatibility(
   const classified = deduplicateEvidence(
     candidate.evidence.map((item) => classifyEvidenceForProduct(item, profile)),
   );
-  const enrichedCandidate: ProspectCandidate = {
-    ...candidate,
-    evidence: classified,
-  };
   const directEvidence = classified.filter((item) =>
     item.relevanceClass === "DIRECT"
   );
@@ -1112,6 +1249,50 @@ export function evaluateCandidateCompatibility(
   );
   const genericEvidence = classified.filter((item) =>
     item.relevanceClass === "GENERIC"
+  );
+  const genericText = normalizeTerm(
+    genericEvidence.flatMap((item) => [
+      item.title,
+      item.snippet,
+      item.lotContext,
+      item.commercialReason,
+    ]).filter(Boolean).join(" "),
+  );
+  const verifiedNonRegistryGeneric = genericEvidence.filter((item) =>
+    item.sourceType !== "PUBLIC_REGISTRY" &&
+    item.sourceType !== "OTHER_PUBLIC_SOURCE"
+  );
+  const medicalCommercialIdentityVerified = Boolean(
+    candidate.medicalCommercialIdentityVerified ||
+      (candidate.commercialIdentityVerified &&
+        verifiedNonRegistryGeneric.length > 0 &&
+        MEDICAL_CONTEXT_PATTERN.test(genericText)),
+  );
+  const enrichedCandidate: ProspectCandidate = {
+    ...candidate,
+    evidence: classified,
+    medicalCommercialIdentityVerified,
+  };
+  const categoryTerms = new Set(uniqueTerms([
+    ...(profile.categoryTerms || []),
+    ...(profile.clinicalContextTerms || []),
+  ]));
+  const channelTerms = new Set(uniqueTerms([
+    ...(profile.commercialChannelTerms || []),
+  ]));
+  const categoryEvidence = genericEvidence.filter((item) =>
+    (item.matchedTerms || []).some((term) =>
+      categoryTerms.has(normalizeTerm(term))
+    )
+  );
+  const commercialChannelEvidence = genericEvidence.filter((item) =>
+    (item.matchedTerms || []).some((term) =>
+      channelTerms.has(normalizeTerm(term))
+    ) ||
+    /\b(?:distribut|import|wholesal|resell|dealer|hospital supplier|tender supplier|contract supplier|oem|private label|sourcing partner|kit assembler|procedure pack manufacturer)\b/i
+      .test(
+        [item.title, item.snippet, item.lotContext].filter(Boolean).join(" "),
+      )
   );
   const directConcepts = new Set(
     directEvidence.flatMap((item) => item.matchedTerms || []),
@@ -1137,7 +1318,16 @@ export function evaluateCandidateCompatibility(
   );
   const mismatch = !directEvidence.length && !adjacentEvidence.length &&
     (negativeProductContext ||
-      profile.mismatchTerms.some((term) => containsTerm(mismatchText, term)));
+      [...profile.mismatchTerms, ...(profile.adaptiveNegativeTerms || [])]
+        .some((term) => containsTerm(mismatchText, term)));
+  const untrustedDomainClass = ["DIRECTORY", "MARKETPLACE", "EDITORIAL"]
+    .includes(candidate.websiteCandidateSignals?.domainClass || "");
+  const hardReject = Boolean(
+    mismatch || negativeProductContext || candidate.editorialContent ||
+      untrustedDomainClass ||
+      candidate.organizationType === "EDITORIAL_PUBLISHER" ||
+      candidate.organizationType === "EDUCATION_RESEARCH",
+  );
   const productClassification = directEvidence.length
     ? "DIRECT_PRODUCT_FIT"
     : adjacentEvidence.length
@@ -1149,14 +1339,32 @@ export function evaluateCandidateCompatibility(
     ? buyerRole.credible ? "DIRECT_BUYER" : "PRODUCT_RELEVANT_NOT_BUYER"
     : adjacentEvidence.length && buyerRole.credible
     ? "ADJACENT_BUYER"
-    : mismatch
+    : hardReject
     ? "REJECTED"
     : "GENERIC_SUPPORT";
+  const genericSemanticClass: GenericSemanticClass =
+    directEvidence.length && buyerRole.credible
+      ? "EXACT_PRODUCT_COMMERCIAL_MATCH"
+      : !hardReject && medicalCommercialIdentityVerified &&
+          buyerRole.credible &&
+          (adjacentEvidence.length > 0 || categoryEvidence.length > 0)
+      ? "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+      : !hardReject && medicalCommercialIdentityVerified &&
+          buyerRole.credible
+      ? "MEDICAL_COMMERCIAL_CHANNEL_MATCH"
+      : !hardReject &&
+          (medicalCommercialIdentityVerified ||
+            candidate.organizationType === "COMMERCIAL_COMPANY")
+      ? "GENERIC_UNRELATED_MEDICAL"
+      : "GENERIC_NONCOMMERCIAL";
   const salesProspectClassification: SalesProspectClassification =
     buyerRole.endBuyerProcurementRole &&
       (directEvidence.length > 0 || adjacentEvidence.length > 0)
       ? "END_BUYER_PROCUREMENT_SIGNAL"
       : classification === "DIRECT_BUYER" || classification === "ADJACENT_BUYER"
+      ? "DIRECT_COMMERCIAL_PROSPECT"
+      : genericSemanticClass === "MEDICAL_COMMERCIAL_FAMILY_MATCH" ||
+          genericSemanticClass === "MEDICAL_COMMERCIAL_CHANNEL_MATCH"
       ? "DIRECT_COMMERCIAL_PROSPECT"
       : classification === "PRODUCT_RELEVANT_NOT_BUYER"
       ? "PRODUCT_RELEVANT_NOT_BUYER"
@@ -1175,13 +1383,38 @@ export function evaluateCandidateCompatibility(
     ? "Adjacent commercial prospect: credible channel role with product-family adjacency"
     : classification === "PRODUCT_RELEVANT_NOT_BUYER"
     ? "Product relevance is verified, but purchasing or sourcing intent is not"
+    : genericSemanticClass === "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+    ? "Verified medical-commercial company with compatible product-family or clinical-category evidence; exact product availability is not claimed"
+    : genericSemanticClass === "MEDICAL_COMMERCIAL_CHANNEL_MATCH"
+    ? "Verified medical-commercial channel compatible with this product family; exact product availability is not claimed"
     : bestArchetype?.reason ||
       (mismatch ? "Product-family mismatch" : "Generic support only");
+  const evidenceFacets: ProspectEvidenceFacets = {
+    company: Boolean(
+      candidate.identityConfidence === "HIGH" ||
+        candidate.identityConfidence === "MEDIUM" ||
+        candidate.registryIdentifier || candidate.websiteUrl,
+    ),
+    category: adjacentEvidence.length > 0 || categoryEvidence.length > 0,
+    product: directEvidence.length > 0,
+    commercial: buyerRole.credible || commercialChannelEvidence.length > 0,
+  };
+  const evidenceLevel: EvidenceLevel = evidenceFacets.commercial
+    ? 4
+    : evidenceFacets.product
+    ? 3
+    : evidenceFacets.category
+    ? 2
+    : evidenceFacets.company
+    ? 1
+    : 0;
   return {
     candidate: enrichedCandidate,
     directEvidence,
     adjacentEvidence,
     genericEvidence,
+    categoryEvidence,
+    commercialChannelEvidence,
     directConceptCount: directConcepts.size,
     adjacentConceptCount: adjacentConcepts.size,
     independentDirectSourceCount: directSources.size,
@@ -1193,6 +1426,10 @@ export function evaluateCandidateCompatibility(
     endBuyerProcurementRole: buyerRole.endBuyerProcurementRole,
     salesProspectClassification,
     commercialReason,
+    genericSemanticClass,
+    evidenceFacets,
+    evidenceLevel,
+    hardReject,
     productClassification,
     classification,
     negativeProductContext,

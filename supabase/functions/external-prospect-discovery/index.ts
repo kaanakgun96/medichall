@@ -29,6 +29,7 @@ import {
   buildProductFamilyProfile,
   classifyEvidenceForProduct,
   type ProductFamilyProfile,
+  withAdaptiveCommercialIntelligence,
 } from "../_shared/buyer-discovery-relevance-v2.ts";
 import {
   registryAdaptersForCountries,
@@ -58,9 +59,11 @@ import {
   createBraveSearchProvider,
   normalizePublicWebResult,
   PUBLIC_WEB_DISCOVERY_LIMITS,
+  PUBLIC_WEB_HIGH_RECALL_CAPACITY,
   type PublicWebCacheEntry,
   publicWebCandidatesToProspects,
   type PublicWebDiscoveryCache,
+  runHighRecallPublicWebDiscovery,
   runPublicWebDiscovery,
 } from "../_shared/public-web-discovery.ts";
 import {
@@ -113,10 +116,12 @@ import {
   type DiscoveryRunMode,
   discoverySaturation,
   freshDiscoveryMessage,
+  highRecallProductPolicy,
   type SearchPartitionHistory,
 } from "../_shared/buyer-discovery-search-space.ts";
 
 const TED_ENDPOINT = "https://api.ted.europa.eu/v3/notices/search";
+const UNIVERSAL_HIGH_RECALL_ARCHITECTURE_VERSION = "UNIVERSAL_HIGH_RECALL_V2";
 const ALLOWED_ORIGINS = new Set([
   "https://medichall.com",
   "https://www.medichall.com",
@@ -1506,6 +1511,7 @@ export type WebsiteOrganizationAnalysis = {
   identityConfidence: CompanyIdentityConfidence;
   organizationType: OrganizationType;
   commercialIdentityVerified: boolean;
+  medicalCommercialIdentityVerified: boolean;
   editorialContent: boolean;
 };
 
@@ -1525,6 +1531,9 @@ export function analyzeOfficialWebsitePage(
   );
   const commercialSignal =
     /\b(?:manufacturer|manufacturing|fabricant|fabbricante|fabricante|hersteller|fabrikant|distributor|distribution|distributeur|distributore|distribuidor|vertrieb|händler|supplier|fournisseur|fornitore|proveedor|lieferant|leverancier|wholesal(?:e|er)|grossiste|ingrosso|mayorista|großhandel|groothandel|importer|importateur|importatore|importador|importeur|exporter|reseller|revendeur|rivenditore|wiederverkäufer|oem|procedure pack|medical technology company|request (?:a )?quote|demander un devis|richiedi un preventivo|solicitar presupuesto|angebot anfordern|product catalogue|product catalog|catalogue produits|catalogo prodotti|produktkatalog)\b/i
+      .test(visibleText);
+  const medicalCommercialSignal =
+    /\b(?:medical|clinical|surgical|healthcare|hospital (?:supply|supplies|equipment)|diagnostic|radiolog|imaging|laborator|dental|rehabilitation|orthop|cardi|urolog|endoscop|laparoscop|infection control|sterile|patient (?:care|warming)|operating room|medical device|medizintechnik|medizinprodukt|dispositif m[eé]dical|dispositivi medici|producto sanitario|dispositivo m[eé]dico|medisch|medyczn)\b/i
       .test(visibleText);
   const healthcareProvider =
     schemaTypes.some((type) =>
@@ -1572,6 +1581,8 @@ export function analyzeOfficialWebsitePage(
       : "LOW",
     organizationType,
     commercialIdentityVerified: organizationType === "COMMERCIAL_COMPANY",
+    medicalCommercialIdentityVerified:
+      organizationType === "COMMERCIAL_COMPANY" && medicalCommercialSignal,
     editorialContent,
   };
 }
@@ -1673,6 +1684,8 @@ export async function verifyWebsites(
     resolver?: PublicResolver;
     fetcher?: PublicFetcher;
     now?: Date;
+    maximumShallowChecks?: number;
+    maximumDeepChecks?: number;
   } = {},
 ): Promise<{
   available: number;
@@ -1691,7 +1704,10 @@ export async function verifyWebsites(
   candidateDomainsTotal: number;
   candidateDomainsRanked: number;
   verificationSlots: number;
+  shallowVerificationSlots: number;
+  deepVerificationSlots: number;
   verificationAttempted: number;
+  deepVerificationAttempted: number;
   verificationSuccess: number;
   officialCompanyDomains: number;
   directoryDomainsSkipped: number;
@@ -1715,6 +1731,30 @@ export async function verifyWebsites(
         candidate.websiteCandidateSignals?.domainClass || "UNKNOWN",
       ),
   ));
+  // Identity/category screening can be wider than product-page verification.
+  // Defaults preserve the deployed six-domain budget; a later approved
+  // rollout may raise the shallow bound independently of the deep bound.
+  const maximumShallowChecks = Math.max(
+    1,
+    Math.min(
+      50,
+      Math.trunc(
+        dependencies.maximumShallowChecks ??
+          DISCOVERY_LIMITS.maximumWebsiteChecks,
+      ),
+    ),
+  );
+  const maximumDeepChecks = Math.max(
+    0,
+    Math.min(
+      12,
+      maximumShallowChecks,
+      Math.trunc(
+        dependencies.maximumDeepChecks ??
+          DISCOVERY_LIMITS.maximumWebsiteChecks,
+      ),
+    ),
+  );
   const selected: ProspectCandidate[] = [];
   const countryCounts = new Map<string, number>();
   for (const candidate of ranked) {
@@ -1722,13 +1762,14 @@ export async function verifyWebsites(
     if ((countryCounts.get(country) || 0) > 0) continue;
     selected.push(candidate);
     countryCounts.set(country, 1);
-    if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
+    if (selected.length >= maximumShallowChecks) break;
   }
   for (const candidate of ranked) {
     if (selected.includes(candidate)) continue;
     selected.push(candidate);
-    if (selected.length >= DISCOVERY_LIMITS.maximumWebsiteChecks) break;
+    if (selected.length >= maximumShallowChecks) break;
   }
+  const deepCandidates = new Set(selected.slice(0, maximumDeepChecks));
   const results = await Promise.all(selected.map(async (candidate) => {
     type WebsiteResult = {
       status:
@@ -1858,7 +1899,7 @@ export async function verifyWebsites(
       });
       const pages: VerifiedPage[] = [asVerifiedPage(result.resolvedUrl, html)];
       let organizationRequests = 0;
-      if (isPublicWeb) {
+      if (isPublicWeb && deepCandidates.has(candidate)) {
         const knownUrls = [
           ...(candidate.websiteVerificationUrls || []),
           ...sameDomainEvidenceLinks(
@@ -1966,6 +2007,10 @@ export async function verifyWebsites(
       candidate.commercialIdentityVerified = Boolean(
         candidate.commercialIdentityVerified ||
           analyses.some((item) => item.commercialIdentityVerified),
+      );
+      candidate.medicalCommercialIdentityVerified = Boolean(
+        candidate.medicalCommercialIdentityVerified ||
+          analyses.some((item) => item.medicalCommercialIdentityVerified),
       );
       if (candidate.commercialIdentityVerified) {
         candidate.organizationType = "COMMERCIAL_COMPANY";
@@ -2118,8 +2163,12 @@ export async function verifyWebsites(
       .length,
     candidateDomainsTotal: withWebsites.length,
     candidateDomainsRanked: ranked.length,
-    verificationSlots: DISCOVERY_LIMITS.maximumWebsiteChecks,
+    verificationSlots: maximumShallowChecks,
+    shallowVerificationSlots: maximumShallowChecks,
+    deepVerificationSlots: maximumDeepChecks,
     verificationAttempted: selected.length,
+    deepVerificationAttempted:
+      selected.filter((candidate) => deepCandidates.has(candidate)).length,
     verificationSuccess: results.filter((value) => value.verificationSuccess)
       .length,
     officialCompanyDomains:
@@ -2494,7 +2543,7 @@ async function persistCandidate(
     discoveryState: DiscoveryResultState;
   } | null
 > {
-  if (!score.eligible || score.relevanceScore < 55) return null;
+  if (!score.eligible || !score.displayable) return null;
   const domain = normalizeDomain(candidate.websiteUrl);
   const safeCompanyName = candidate.nameSource === "PAGE_METADATA"
     ? domain
@@ -2679,6 +2728,16 @@ async function persistCandidate(
     relevance_score: score.relevanceScore,
     buyer_fit_score: score.buyerFitScore ?? score.relevanceScore,
     buyer_fit_grade: score.buyerFitGrade || score.confidence,
+    prospect_tier: score.prospectTier,
+    sales_actionability_score: score.salesActionabilityScore,
+    sales_actionability_grade: score.salesActionabilityGrade,
+    evidence_level: score.evidenceLevel,
+    evidence_facets: score.evidenceFacets,
+    evidence_confidence_score: score.evidenceConfidenceScore,
+    evidence_confidence_grade: score.evidenceConfidenceGrade,
+    final_rank_score: score.finalRankScore,
+    ranking_version: score.rankingVersion,
+    displayable: score.displayable,
     ai_buyer_judge_status: score.aiBuyerJudgeStatus || "DISABLED",
     ai_buyer_recommended_grade: score.aiBuyerRecommendedGrade || null,
     ai_buyer_reason_codes: (score.aiBuyerReasonCodes || []).slice(0, 6),
@@ -2737,8 +2796,18 @@ async function persistCandidate(
       commercial_fit: score.commercialFitClassification,
       commercial_buyer_grade: score.commercialBuyerGrade,
       sales_prospect_classification: score.salesProspectClassification,
+      prospect_tier: score.prospectTier,
+      generic_semantic_class: score.genericSemanticClass,
       buyer_fit_score: score.buyerFitScore ?? score.relevanceScore,
       buyer_fit_grade: score.buyerFitGrade || score.confidence,
+      sales_actionability_score: score.salesActionabilityScore,
+      sales_actionability_grade: score.salesActionabilityGrade,
+      evidence_level: score.evidenceLevel,
+      evidence_facets: score.evidenceFacets,
+      evidence_confidence_score: score.evidenceConfidenceScore,
+      evidence_confidence_grade: score.evidenceConfidenceGrade,
+      final_rank_score: score.finalRankScore,
+      ranking_version: score.rankingVersion,
       ai_buyer_judge_status: score.aiBuyerJudgeStatus || "DISABLED",
       ai_buyer_recommended_grade: score.aiBuyerRecommendedGrade || null,
       ai_sales_prospect_classification:
@@ -2797,6 +2866,48 @@ export function legacyQueryProgressCount(actualRequests: number): number {
     0,
     Math.min(LEGACY_QUERY_PROGRESS_LIMIT, Math.trunc(actualRequests)),
   );
+}
+
+export function discoveryQueryProgressCount(
+  actualRequests: number,
+  highRecallEnabled: boolean,
+): number {
+  return highRecallEnabled
+    ? Math.max(0, Math.min(32, Math.trunc(actualRequests)))
+    : legacyQueryProgressCount(actualRequests);
+}
+
+export function applyUniversalHighRecallRolloutGate(
+  ranking: ReturnType<typeof rankProspects>,
+  enabled: boolean,
+): ReturnType<typeof rankProspects> {
+  if (enabled) return ranking;
+  const accepted = ranking.accepted.filter((item) =>
+    item.score.commercialBuyerGrade === "DIRECT_BUYER" ||
+    item.score.commercialBuyerGrade === "ADJACENT_BUYER"
+  ).slice(0, 30);
+  const retained = new Set(accepted);
+  const acceptedByCountry = accepted.reduce<Record<string, number>>(
+    (counts, item) => {
+      const country = item.candidate.countryCode || "UNKNOWN";
+      counts[country] = (counts[country] || 0) + 1;
+      return counts;
+    },
+    {},
+  );
+  return {
+    ...ranking,
+    accepted,
+    rejected: [
+      ...ranking.rejected,
+      ...ranking.accepted.filter((item) => !retained.has(item)),
+    ],
+    diagnostics: {
+      ...ranking.diagnostics,
+      acceptedByCountry,
+      displayableProspects: accepted.length,
+    },
+  };
 }
 
 function enabledEnvironmentFlag(value: string | undefined): boolean {
@@ -3656,21 +3767,33 @@ async function handleDiscovery(request: Request): Promise<Response> {
       adaptiveRetrievalRuntime.diagnostics.providerRequests;
     adaptiveRetrievalCostUsd =
       adaptiveRetrievalRuntime.diagnostics.estimatedCostUsd;
-    const [partitionHistoryResult, freshYieldResult, seenCompanyResult] =
-      await Promise.all([
-        admin.from("buyer_discovery_partitions").select(
-          "partition_key,last_explored_at,executions,new_buyer_yield,updated_buyer_yield,direct_verified_yield,provider_requests",
-        ).eq("search_space_id", searchSpaceId),
-        admin.from("external_prospect_discovery_runs").select(
-          "new_verified_buyers",
-        ).eq("search_space_id", searchSpaceId)
-          .in("run_mode", ["FRESH_DISCOVERY", "ADMIN_QA_FRESH"])
-          .in("status", ["PARTIAL", "COMPLETED"])
-          .order("completed_at", { ascending: false }).limit(3),
-        admin.from("buyer_discovery_seen_companies").select(
-          "external_company_id,evidence_fingerprint",
-        ).eq("search_space_id", searchSpaceId),
-      ]);
+    const commercialProductFamily = withAdaptiveCommercialIntelligence(
+      productFamily,
+      adaptiveRetrievalRuntime.intelligence,
+    );
+    const [
+      partitionHistoryResult,
+      freshYieldResult,
+      seenCompanyResult,
+      highRecallFeatureResult,
+    ] = await Promise.all([
+      admin.from("buyer_discovery_partitions").select(
+        "partition_key,last_explored_at,executions,new_buyer_yield,updated_buyer_yield,direct_verified_yield,provider_requests",
+      ).eq("search_space_id", searchSpaceId),
+      admin.from("external_prospect_discovery_runs").select(
+        "new_verified_buyers",
+      ).eq("search_space_id", searchSpaceId)
+        .in("run_mode", ["FRESH_DISCOVERY", "ADMIN_QA_FRESH"])
+        .in("status", ["PARTIAL", "COMPLETED"])
+        .order("completed_at", { ascending: false }).limit(3),
+      admin.from("buyer_discovery_seen_companies").select(
+        "external_company_id,evidence_fingerprint",
+      ).eq("search_space_id", searchSpaceId),
+      admin.from("universal_high_recall_buyer_discovery_feature_state")
+        .select(
+          "high_recall_enabled,architecture_version,high_recall_public_web_maximum,high_recall_shallow_verification_ceiling,high_recall_deep_verification_ceiling,maximum_persisted_prospects,default_page_size",
+        ).eq("singleton", true).maybeSingle(),
+    ]);
     if (
       partitionHistoryResult.error || freshYieldResult.error ||
       seenCompanyResult.error
@@ -3729,15 +3852,29 @@ async function handleDiscovery(request: Request): Promise<Response> {
     const recentFreshYields = array(freshYieldResult.data).map((item) =>
       Math.max(0, Number(record(item).new_verified_buyers) || 0)
     ).reverse();
+    const highRecallFeature = record(highRecallFeatureResult.data);
+    const highRecallEnabled = !highRecallFeatureResult.error &&
+      highRecallFeature.high_recall_enabled === true &&
+      first(highRecallFeature.architecture_version) ===
+        UNIVERSAL_HIGH_RECALL_ARCHITECTURE_VERSION;
     const searchPlan = buildDiscoverySearchPlan({
       runMode,
-      productFamily,
+      productFamily: commercialProductFamily,
       targetCountries,
       cpvCodes: fallbackCpv,
       history: partitionHistory,
       recentFreshYields,
       adaptiveIntelligence: adaptiveRetrievalRuntime.intelligence,
+      highRecallEnabled,
     });
+    const highRecallPolicy = searchPlan.highRecall?.policy ||
+      highRecallProductPolicy({
+        productProfile: searchPlan.productProfile,
+        targetCountries,
+      });
+    const tedRequestLimit = highRecallEnabled
+      ? highRecallPolicy.hardTedCeiling
+      : searchPlan.budget.maximumTedRequests;
     const tedSearchPlan = searchPlan.tedPartitions.flatMap((partition) => {
       const plan = boundedTedSearchPlan({
         directTerms: partition.retrievalKind === "DIRECT_TERMS"
@@ -3759,7 +3896,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       return selected ? [selected] : [];
     }).filter((item, index, values) =>
       values.findIndex((candidate) => candidate.query === item.query) === index
-    ).slice(0, searchPlan.budget.maximumTedRequests);
+    ).slice(0, tedRequestLimit);
     const partitionRows = buildPartitionPersistenceRows(
       searchSpaceId,
       searchPlan.selectedPartitions,
@@ -3816,24 +3953,45 @@ async function handleDiscovery(request: Request): Promise<Response> {
       1,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumQueries,
     ));
-    const boundedPublicWebQueries = Math.min(
-      searchPlan.budget.maximumPublicWebQueries,
-      publicWebMaximumQueries,
-    );
+    const configuredHighRecallWebCeiling = Math.trunc(Math.max(
+      10,
+      Math.min(
+        PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumQueries,
+        Number(highRecallFeature.high_recall_public_web_maximum) ||
+          highRecallPolicy.recommendedPublicWebCeiling,
+        highRecallPolicy.recommendedPublicWebCeiling,
+      ),
+    ));
+    const boundedPublicWebQueries = highRecallEnabled
+      ? configuredHighRecallWebCeiling
+      : Math.min(
+        searchPlan.budget.maximumPublicWebQueries,
+        publicWebMaximumQueries,
+      );
     const publicWebMaximumCost = boundedEnvironmentNumber(
       Deno.env.get("PUBLIC_WEB_MAX_COST_USD_PER_RUN"),
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
       0,
       PUBLIC_WEB_DISCOVERY_LIMITS.maximumCostUsdPerRun,
     );
-    const boundedPublicWebCost = Math.min(
-      searchPlan.budget.maximumPublicWebCostUsd,
-      publicWebMaximumCost,
-    );
+    const boundedPublicWebCost = highRecallEnabled
+      ? Math.min(
+        PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCostUsd,
+        boundedPublicWebQueries *
+          PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd,
+      )
+      : Math.min(
+        searchPlan.budget.maximumPublicWebCostUsd,
+        publicWebMaximumCost,
+      );
+    const runSourceCeiling = highRecallEnabled ? 300 : 60;
+    const runCandidateCeiling = highRecallEnabled ? 300 : 100;
+    const runAcceptedCeiling = highRecallEnabled ? 100 : 30;
     await updateProgress({
       stage: "preparing_market_search",
-      queries_generated: legacyQueryProgressCount(
+      queries_generated: discoveryQueryProgressCount(
         tedSearchPlan.length + searchPlan.publicWebQueries.length,
+        highRecallEnabled,
       ),
       taxonomy_mapped: Math.min(100, taxonomyIds.length),
       product_profile: searchPlan.productProfile,
@@ -3862,6 +4020,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
         stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
         saturation: searchPlan.saturation,
         provider_budget: searchPlan.budget,
+        universal_high_recall: searchPlan.highRecall || null,
         adaptive: searchPlan.adaptive || null,
       },
       diagnostics: {
@@ -3921,6 +4080,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
         public_web_discovery_enabled: publicWebEnabled,
         public_web_query_limit: boundedPublicWebQueries,
         public_web_cost_limit_usd: boundedPublicWebCost,
+        universal_high_recall_enabled: highRecallEnabled,
+        universal_high_recall_feature_state_available: !highRecallFeatureResult
+          .error,
         temporary_unmapped_intent: unmappedIntent,
         unmapped_retrieval_plan: unmappedIntent
           ? {
@@ -3950,8 +4112,9 @@ async function handleDiscovery(request: Request): Promise<Response> {
     });
     await updateProgress({
       stage: "searching_procurement",
-      queries_generated: legacyQueryProgressCount(
+      queries_generated: discoveryQueryProgressCount(
         tedSearchPlan.length + searchPlan.publicWebQueries.length,
+        highRecallEnabled,
       ),
     });
     if (searchPlan.selectedPartitions.length) {
@@ -3989,18 +4152,39 @@ async function handleDiscovery(request: Request): Promise<Response> {
         tedSearchPlan,
         taxonomyIds,
         fallbackCpv,
-        productFamily,
+        commercialProductFamily,
       ),
-      runPublicWebDiscovery({
-        enabled: publicWebEnabled,
-        provider: publicWebProvider,
-        cache: publicWebDiscoveryCache(admin),
-        productFamily,
-        targetCountries,
-        maximumQueries: boundedPublicWebQueries,
-        maximumCostUsd: boundedPublicWebCost,
-        queryPlan: searchPlan.publicWebQueries,
-      }),
+      highRecallEnabled && searchPlan.highRecall
+        ? runHighRecallPublicWebDiscovery({
+          enabled: publicWebEnabled,
+          provider: publicWebProvider,
+          cache: publicWebDiscoveryCache(admin),
+          productFamily: commercialProductFamily,
+          targetCountries,
+          waves: searchPlan.highRecall.waves.map((wave) => ({
+            wave: wave.wave,
+            publicWebQueries: wave.publicWebQueries,
+          })),
+          maximumCumulativeQueries: boundedPublicWebQueries,
+          maximumCumulativeCostUsd: boundedPublicWebCost,
+          targetCandidateDomains: highRecallPolicy.targetWebCandidateDomains,
+          minimumCoverage: {
+            countries: highRecallPolicy.coverageFloor.minimumCountries,
+            regions: highRecallPolicy.coverageFloor.minimumRegions,
+            languages: highRecallPolicy.coverageFloor.minimumLanguages,
+            archetypes: highRecallPolicy.coverageFloor.minimumArchetypes,
+          },
+        })
+        : runPublicWebDiscovery({
+          enabled: publicWebEnabled,
+          provider: publicWebProvider,
+          cache: publicWebDiscoveryCache(admin),
+          productFamily: commercialProductFamily,
+          targetCountries,
+          maximumQueries: boundedPublicWebQueries,
+          maximumCostUsd: boundedPublicWebCost,
+          queryPlan: searchPlan.publicWebQueries,
+        }),
     ]);
     publicWebProviderRequests = publicWeb.providerRequests;
     publicWebProviderCostUsd = publicWeb.providerCostEstimateUsd;
@@ -4009,15 +4193,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
       taxonomyIds,
       targetCountries,
       partnerTypes,
+      maximumCandidates: highRecallEnabled
+        ? PUBLIC_WEB_HIGH_RECALL_CAPACITY.absoluteMaximumCandidates
+        : PUBLIC_WEB_DISCOVERY_LIMITS.maximumCandidates,
     });
     await updateProgress({
       stage: "checking_business_sources",
       sources_checked: Math.min(
-        60,
+        runSourceCeiling,
         ted.checked + publicWeb.queriesUsed,
       ),
       candidates_found: Math.min(
-        100,
+        runCandidateCeiling,
         ted.candidates.length + publicWebProspects.length,
       ),
     });
@@ -4039,11 +4226,11 @@ async function handleDiscovery(request: Request): Promise<Response> {
     await updateProgress({
       stage: "verifying_websites",
       sources_checked: Math.min(
-        60,
+        runSourceCeiling,
         ted.checked + publicWeb.queriesUsed + registry.checked,
       ),
       candidates_found: Math.min(
-        100,
+        runCandidateCeiling,
         ted.candidates.length + registry.candidates.length +
           publicWebProspects.length,
       ),
@@ -4058,15 +4245,31 @@ async function handleDiscovery(request: Request): Promise<Response> {
       partnerTypes,
       publicWebProspects,
     );
-    const website = await verifyWebsites(merged, productFamily);
+    const website = await verifyWebsites(merged, commercialProductFamily, {
+      maximumShallowChecks: highRecallEnabled
+        ? Math.min(
+          highRecallPolicy.shallowWebsiteDomainCeiling,
+          Number(
+            highRecallFeature.high_recall_shallow_verification_ceiling,
+          ) || highRecallPolicy.shallowWebsiteDomainCeiling,
+        )
+        : DISCOVERY_LIMITS.maximumWebsiteChecks,
+      maximumDeepChecks: highRecallEnabled
+        ? Math.min(
+          highRecallPolicy.deepWebsiteDomainCeiling,
+          Number(highRecallFeature.high_recall_deep_verification_ceiling) ||
+            highRecallPolicy.deepWebsiteDomainCeiling,
+        )
+        : DISCOVERY_LIMITS.maximumWebsiteChecks,
+    });
     await updateProgress({
       stage: "removing_duplicates",
       sources_checked: Math.min(
-        60,
+        runSourceCeiling,
         ted.checked + publicWeb.queriesUsed + registry.checked +
           website.checked,
       ),
-      candidates_found: Math.min(100, merged.length),
+      candidates_found: Math.min(runCandidateCeiling, merged.length),
     });
     const deduped = deduplicateCandidates(
       merged,
@@ -4084,16 +4287,19 @@ async function handleDiscovery(request: Request): Promise<Response> {
     await updateProgress({
       stage: "ranking_prospects",
       candidates_deduplicated: Math.min(
-        100,
+        runCandidateCeiling,
         deduped.registeredDuplicates + deduped.externalDuplicates,
       ),
     });
-    const deterministicRanking = rankProspects(
-      deduped.candidates,
-      productFamily,
-      {
-        europeWide: targetCountries.length === 0,
-      },
+    const deterministicRanking = applyUniversalHighRecallRolloutGate(
+      rankProspects(
+        deduped.candidates,
+        commercialProductFamily,
+        {
+          europeWide: targetCountries.length === 0,
+        },
+      ),
+      highRecallEnabled,
     );
     const judgeFeatureResult = await admin.from(
       "ai_buyer_relevance_judge_feature_state",
@@ -4111,7 +4317,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       DEFAULT_AI_BUYER_RELEVANCE_JUDGE_MODEL;
     const aiBuyerJudge = await runAiBuyerRelevanceJudge({
       enabled: aiBuyerJudgeEnabled,
-      productFamily,
+      productFamily: commercialProductFamily,
       accepted: deterministicRanking.accepted,
       rejected: deterministicRanking.rejected,
       apiKey: aiBuyerJudgeEnabled
@@ -4346,7 +4552,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
         taxonomyContextRows,
         item.ranked.candidate,
         item.ranked.score,
-        productFamily,
+        commercialProductFamily,
       );
       if (persisted) {
         accepted += 1;
@@ -4367,8 +4573,8 @@ async function handleDiscovery(request: Request): Promise<Response> {
     );
     await updateProgress({
       stage: "preparing_results",
-      candidates_accepted: Math.min(30, accepted),
-      candidates_rejected: Math.min(100, rejected),
+      candidates_accepted: Math.min(runAcceptedCeiling, accepted),
+      candidates_rejected: Math.min(runCandidateCeiling, rejected),
     });
     const completionStatus = discoveryCompletionStatus({
       tedUnavailable: ted.unavailable,
@@ -4424,7 +4630,10 @@ async function handleDiscovery(request: Request): Promise<Response> {
       candidate_domains_total: website.candidateDomainsTotal,
       candidate_domains_ranked: website.candidateDomainsRanked,
       verification_slots: website.verificationSlots,
+      shallow_verification_slots: website.shallowVerificationSlots,
+      deep_verification_slots: website.deepVerificationSlots,
       verification_attempted: website.verificationAttempted,
+      deep_verification_attempted: website.deepVerificationAttempted,
       verification_success: website.verificationSuccess,
       official_company_domains: website.officialCompanyDomains,
       directory_domains_skipped: website.directoryDomainsSkipped,
@@ -4442,6 +4651,14 @@ async function handleDiscovery(request: Request): Promise<Response> {
       public_web_provider_latency_ms: publicWeb.providerLatencyMs,
       public_web_provider_status_codes: publicWeb.providerStatusCodes,
       public_web_provider_circuit_open: publicWeb.circuitOpen,
+      universal_high_recall: {
+        enabled: highRecallEnabled,
+        feature_state_available: !highRecallFeatureResult.error,
+        architecture_version: UNIVERSAL_HIGH_RECALL_ARCHITECTURE_VERSION,
+        policy: highRecallPolicy,
+        wave_plan: searchPlan.highRecall || null,
+        execution: "highRecall" in publicWeb ? publicWeb.highRecall : null,
+      },
       public_web_candidate_domains: publicWeb.candidates.map((candidate) =>
         candidate.canonicalDomain
       ),
@@ -4509,6 +4726,19 @@ async function handleDiscovery(request: Request): Promise<Response> {
       generic_only_rejected: ranking.diagnostics.genericOnlyRejected,
       product_family_mismatch_rejected:
         ranking.diagnostics.productFamilyMismatchRejected,
+      prospect_tiers: ranking.diagnostics.prospectTiers,
+      generic_semantic_classes: ranking.diagnostics.genericSemanticClasses,
+      displayable_prospects: ranking.diagnostics.displayableProspects,
+      low_confidence_prospects: ranking.diagnostics.lowConfidence,
+      hard_rejects: ranking.diagnostics.hardRejects,
+      sales_actionability_grades: ranking.accepted.reduce(
+        (counts, item) => {
+          counts[item.score.salesActionabilityGrade] =
+            (counts[item.score.salesActionabilityGrade] || 0) + 1;
+          return counts;
+        },
+        {} as Record<string, number>,
+      ),
       diversity_tie_breaks_applied:
         ranking.diagnostics.diversityTieBreaksApplied,
       product_family: {
@@ -4756,9 +4986,18 @@ async function handleDiscovery(request: Request): Promise<Response> {
         status: "COMPLETED",
         provider_requests: providerRequests,
         candidate_observations: Math.min(300, outcome.candidateObservations),
-        new_buyer_yield: Math.min(30, outcome.newBuyers),
-        updated_buyer_yield: Math.min(30, outcome.updatedBuyers),
-        direct_verified_yield: Math.min(30, outcome.directVerifiedBuyers),
+        new_buyer_yield: Math.min(
+          highRecallEnabled ? 100 : 30,
+          outcome.newBuyers,
+        ),
+        updated_buyer_yield: Math.min(
+          highRecallEnabled ? 100 : 30,
+          outcome.updatedBuyers,
+        ),
+        direct_verified_yield: Math.min(
+          highRecallEnabled ? 100 : 30,
+          outcome.directVerifiedBuyers,
+        ),
         estimated_cost_usd: outcome.partition.providerKind === "PUBLIC_WEB"
           ? providerRequests * PUBLIC_WEB_DISCOVERY_LIMITS.braveRequestCostUsd
           : 0,
@@ -4825,17 +5064,17 @@ async function handleDiscovery(request: Request): Promise<Response> {
         status: partial ? "PARTIAL" : "COMPLETED",
         stage: "completed",
         sources_checked: Math.min(
-          60,
+          runSourceCeiling,
           ted.checked + publicWeb.queriesUsed + registry.checked +
             website.checked,
         ),
-        candidates_found: Math.min(100, merged.length),
+        candidates_found: Math.min(runCandidateCeiling, merged.length),
         candidates_deduplicated: Math.min(
-          100,
+          runCandidateCeiling,
           deduped.registeredDuplicates + deduped.externalDuplicates,
         ),
-        candidates_accepted: Math.min(30, accepted),
-        candidates_rejected: Math.min(100, rejected),
+        candidates_accepted: Math.min(runAcceptedCeiling, accepted),
+        candidates_rejected: Math.min(runCandidateCeiling, rejected),
         new_verified_buyers: stateCounts.NEW,
         updated_verified_buyers: stateCounts.UPDATED,
         previously_discovered_buyers: stateCounts.PREVIOUSLY_DISCOVERED,

@@ -6,10 +6,12 @@ import {
   adaptiveDiscoveryBudget,
   assertValidPartitionPriorities,
   buildDiscoverySearchPlan,
+  buildHighRecallWavePlan,
   buildPartitionPersistenceRows,
   classifyDiscoveryResultState,
   classifyProductMarketProfile,
   discoverySaturation,
+  evaluateHighRecallEarlyStop,
   freshDiscoveryMessage,
   orderDiscoveryStates,
 } from "./buyer-discovery-search-space.ts";
@@ -187,6 +189,104 @@ Deno.test("H/I/N/O: request plans are bounded, deterministic and retry-stable", 
     }`
   );
   assertEquals(new Set(semanticQueries).size, semanticQueries.length);
+});
+
+Deno.test("Universal High-Recall V2 plans three bounded diverse waves without benchmark-product branching", () => {
+  const plan = buildHighRecallWavePlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: syringe,
+    targetCountries: [],
+    cpvCodes: ["33141310"],
+  });
+  assertEquals(plan.version, "UNIVERSAL_HIGH_RECALL_WAVE_PLAN_V2");
+  assertEquals(plan.waves.map((wave) => wave.wave), [1, 2, 3]);
+  assertEquals(plan.policy.recommendedPublicWebCeiling, 25);
+  assert(plan.policy.targetDisplayableProspects >= 50);
+  assert(
+    plan.waves.reduce(
+      (total, wave) => total + wave.publicWebQueries.length,
+      0,
+    ) <= 25,
+  );
+  assert(
+    plan.waves.reduce(
+      (total, wave) => total + wave.tedPartitions.length,
+      0,
+    ) <= 6,
+  );
+  const partitionKeys = plan.waves.flatMap((wave) =>
+    wave.selectedPartitions.map((partition) => partition.partitionKey)
+  );
+  assertEquals(new Set(partitionKeys).size, partitionKeys.length);
+  const finalCoverage = plan.waves.at(-1)!.plannedCoverage;
+  assert(finalCoverage.regions.length >= 4);
+  assert(finalCoverage.languages.length >= 4);
+  assert(finalCoverage.archetypes.length >= 4);
+
+  const integrated = buildDiscoverySearchPlan({
+    runMode: "NORMAL_DISCOVERY",
+    productFamily: syringe,
+    targetCountries: [],
+    cpvCodes: ["33141310"],
+    highRecallEnabled: true,
+  });
+  assertEquals(integrated.version, "UNIVERSAL_HIGH_RECALL_V2");
+  assertEquals(integrated.highRecall?.version, plan.version);
+  assert(integrated.publicWebQueries.length > 10);
+  assert(integrated.publicWebQueries.length <= 25);
+  assert(integrated.budget.maximumDisplayedBuyers === 100);
+});
+
+Deno.test("High-Recall early stop requires both useful volume and geographic/channel coverage", () => {
+  const plan = buildHighRecallWavePlan({
+    productFamily: syringe,
+    targetCountries: [],
+    cpvCodes: ["33141310"],
+  });
+  const sparseCoverage = {
+    countries: ["GB"],
+    regions: ["WESTERN_EUROPE"],
+    languages: ["en"],
+    archetypes: ["DISTRIBUTOR"],
+  };
+  const continueDecision = evaluateHighRecallEarlyStop({
+    plan,
+    displayableProspects: 55,
+    coverage: sparseCoverage,
+    completedPublicWebQueries: 10,
+    completedTedRequests: 2,
+  });
+  assertEquals(continueDecision.reason, "CONTINUE");
+  const finalCoverage = plan.waves.at(-1)!.plannedCoverage;
+  const targetDecision = evaluateHighRecallEarlyStop({
+    plan,
+    displayableProspects: 55,
+    coverage: finalCoverage,
+    completedPublicWebQueries: 15,
+    completedTedRequests: 4,
+  });
+  assertEquals(targetDecision.reason, "TARGET_AND_COVERAGE_REACHED");
+  const saturated = evaluateHighRecallEarlyStop({
+    plan,
+    displayableProspects: 8,
+    coverage: sparseCoverage,
+    completedPublicWebQueries: 15,
+    completedTedRequests: 4,
+    waveYields: [{
+      publicWebQueries: 5,
+      newDisplayableProspects: 0,
+      newCountries: 0,
+      newRegions: 0,
+      newArchetypes: 0,
+    }, {
+      publicWebQueries: 5,
+      newDisplayableProspects: 0,
+      newCountries: 0,
+      newRegions: 0,
+      newArchetypes: 0,
+    }],
+  });
+  assertEquals(saturated.reason, "MARGINAL_YIELD_SATURATED");
 });
 
 Deno.test("F/G/J: seen-company states distinguish new, materially updated and unchanged evidence", () => {

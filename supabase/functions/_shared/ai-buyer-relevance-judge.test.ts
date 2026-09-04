@@ -1,4 +1,5 @@
 import {
+  AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
   AI_BUYER_RELEVANCE_JUDGE_LIMITS,
   AI_BUYER_RELEVANCE_JUDGE_VERSION,
   type AiBuyerJudgeCache,
@@ -100,6 +101,45 @@ function grade(
     now: new Date("2026-08-30T12:00:00Z"),
   });
   return ranking.accepted[0] || ranking.rejected[0];
+}
+
+function asHighRecallTier(
+  ranked: RankedProspect,
+  tier: "LIKELY_COMMERCIAL_PROSPECT" | "POTENTIAL_COMMERCIAL_PROSPECT",
+): RankedProspect {
+  const likely = tier === "LIKELY_COMMERCIAL_PROSPECT";
+  return {
+    ...ranked,
+    score: {
+      ...ranked.score,
+      eligible: true,
+      displayable: true,
+      relevanceScore: likely ? 48 : 38,
+      commercialBuyerGrade: "GENERIC_SUPPORT",
+      salesProspectClassification: "DIRECT_COMMERCIAL_PROSPECT",
+      prospectTier: tier,
+      genericSemanticClass: likely
+        ? "MEDICAL_COMMERCIAL_FAMILY_MATCH"
+        : "MEDICAL_COMMERCIAL_CHANNEL_MATCH",
+      directEvidenceCount: 0,
+      adjacentEvidenceCount: 0,
+      evidenceLevel: likely ? 2 : 1,
+      evidenceFacets: {
+        company: true,
+        category: likely,
+        product: false,
+        commercial: true,
+      },
+      evidenceConfidenceScore: likely ? 58 : 42,
+      evidenceConfidenceGrade: likely ? "MEDIUM" : "LOW",
+      salesActionabilityScore: likely ? 64 : 51,
+      salesActionabilityGrade: "MEDIUM",
+      finalRankScore: likely ? 62 : 52,
+      buyerFitScore: likely ? 65 : 54,
+      buyerFitGrade: likely ? "MEDIUM" : "LOW",
+      genericOnlyCeilingApplied: false,
+    },
+  };
 }
 
 const glove = buildProductFamilyProfile([{
@@ -278,6 +318,18 @@ Deno.test("provider schema is conservative, bounded, and treats evidence as untr
     "end-buyer procurement classification missing",
   );
   assert(
+    serialized.includes(
+      "Exact target-product proof is a confidence and ranking boost, not a universal admission requirement",
+    ),
+    "high-recall admission contract missing",
+  );
+  assert(
+    serialized.includes("prospect_tier") &&
+      serialized.includes("sales_actionability_score") &&
+      serialized.includes("evidence_facets"),
+    "V2 tier, actionability, and evidence context missing",
+  );
+  assert(
     !serialized.includes("ANTHROPIC_API_KEY"),
     "secret names must not enter provider body",
   );
@@ -383,6 +435,135 @@ Deno.test("AI can downgrade but cannot promote deterministic adjacent evidence t
     assertEquals(reviewed.score.commercialBuyerGrade, "ADJACENT_BUYER");
     assert(reviewed.score.buyerFitScore <= 74, "adjacent score ceiling failed");
   }
+});
+
+Deno.test("AI refines likely and potential prospects without turning absent exact proof into rejection", async () => {
+  const deterministic = grade(
+    candidate({
+      name: "QA European Medical Channel",
+      companyType: "Distributor",
+      title: "Official medical distribution portfolio",
+      snippet:
+        "Medical-device distributor and hospital supplier serving operating-room product categories.",
+    }),
+    glove,
+  );
+  const product = await aiBuyerJudgeProductContext(glove);
+  for (
+    const tier of [
+      "LIKELY_COMMERCIAL_PROSPECT",
+      "POTENTIAL_COMMERCIAL_PROSPECT",
+    ] as const
+  ) {
+    const ranked = asHighRecallTier(deterministic, tier);
+    assert(
+      isAiBuyerJudgeEligible(ranked),
+      `${tier} should be eligible for bounded rank refinement`,
+    );
+    const built = await buildAiBuyerJudgeCandidate(ranked, product);
+    const reviewed = applyAiBuyerJudgment(
+      ranked,
+      judgment(built.candidateId, {
+        product_fit: "LOW",
+        buyer_role_confidence: "MEDIUM",
+        commercial_fit: "MEDIUM",
+        sales_actionability: "LOW",
+        contradiction: "WEAK",
+        sales_prospect_classification: "PRODUCT_RELEVANT_NOT_BUYER",
+        recommended_grade: "PRODUCT_RELEVANT_NOT_BUYER",
+        buyer_fit_score: 35,
+        reason_codes: ["INSUFFICIENT_VERIFIED_EVIDENCE"],
+        short_explanation:
+          "The commercial channel is verified, while exact current product availability is not proven.",
+      }),
+      "REVIEWED",
+    );
+    assertEquals(reviewed.score.prospectTier, tier);
+    assertEquals(reviewed.score.displayable, true);
+    assertEquals(reviewed.score.eligible, true);
+    assertEquals(
+      reviewed.score.salesProspectClassification,
+      "DIRECT_COMMERCIAL_PROSPECT",
+    );
+    assert(
+      reviewed.score.finalRankScore < ranked.score.finalRankScore,
+      "uncertainty should lower rank without removing the prospect",
+    );
+  }
+});
+
+Deno.test("AI strong affirmative contradictions can remove a prospect but weak absence cannot", async () => {
+  const ranked = grade(
+    candidate({
+      name: "QA Contradicted Channel",
+      companyType: "Distributor",
+      title: "Official examination glove catalogue",
+      snippet:
+        "Medical distributor of nitrile examination gloves for clinical use.",
+    }),
+    glove,
+  );
+  const product = await aiBuyerJudgeProductContext(glove);
+  const built = await buildAiBuyerJudgeCandidate(ranked, product);
+  const reviewed = applyAiBuyerJudgment(
+    ranked,
+    judgment(built.candidateId, {
+      product_fit: "LOW",
+      buyer_role: "UNKNOWN",
+      buyer_role_confidence: "LOW",
+      commercial_fit: "LOW",
+      sales_actionability: "LOW",
+      contradiction: "STRONG",
+      sales_prospect_classification: "REJECTED",
+      recommended_grade: "REJECTED",
+      buyer_fit_score: 10,
+      reason_codes: ["NON_MEDICAL_CONTEXT"],
+      short_explanation:
+        "Verified evidence is in a non-medical context and contradicts the candidate product interpretation.",
+    }),
+    "REVIEWED",
+  );
+  assertEquals(reviewed.score.prospectTier, "HARD_REJECT");
+  assertEquals(reviewed.score.displayable, false);
+  assertEquals(reviewed.score.eligible, false);
+  assertEquals(reviewed.score.commercialBuyerGrade, "REJECTED");
+});
+
+Deno.test("paid judge ceiling does not cap the deterministic result pool", async () => {
+  const ranked = Array.from({ length: 5 }, (_, index) =>
+    grade(
+      candidate({
+        name: `QA High Recall Distributor ${index + 1}`,
+        companyType: "Distributor",
+        title: "Official examination glove catalogue",
+        snippet:
+          "Medical distributor of nitrile examination gloves for clinical use.",
+      }),
+      glove,
+    ));
+  const calls = { count: 0 };
+  const { cache } = memoryCache();
+  const result = await runAiBuyerRelevanceJudge({
+    enabled: true,
+    productFamily: glove,
+    accepted: ranked,
+    rejected: [],
+    apiKey: "qa-key-never-logged",
+    cache,
+    maximumCandidatesPerRun: 2,
+    fetcher: mockFetcher(
+      (_candidate, candidateId) => judgment(candidateId),
+      calls,
+    ),
+  });
+  assertEquals(calls.count, 1);
+  assertEquals(result.diagnostics.judgedCandidates, 2);
+  assertEquals(result.diagnostics.statusCounts.NOT_SELECTED_FALLBACK, 3);
+  assertEquals(
+    result.accepted.length,
+    5,
+    "the paid-call ceiling must not truncate unjudged deterministic prospects",
+  );
 });
 
 Deno.test("AI failure falls back to the unchanged deterministic result", async () => {
@@ -935,7 +1116,7 @@ Deno.test("failed cache entry is never reused as a completed judgment", async ()
   assertEquals(second.diagnostics.cacheHits, 0);
 });
 
-Deno.test("retained glove replay preserves ten audited strong buyers and rejects non-medical candidates before AI", async () => {
+Deno.test("retained glove replay keeps weak-uncertainty prospects visible and rejects non-medical candidates before AI", async () => {
   const retained = [
     [
       "Granqvist Sportartiklar Aktiebolag",
@@ -1065,8 +1246,8 @@ Deno.test("retained glove replay preserves ten audited strong buyers and rejects
     3,
     "11 eligible companies should use three bounded batches",
   );
-  assertEquals(result.accepted.length, 10);
-  assertEquals(result.rejected.length, 5);
+  assertEquals(result.accepted.length, 11);
+  assertEquals(result.rejected.length, 4);
   assert(
     result.accepted.every((item) =>
       retained.find(([name]) => name === item.candidate.name)?.[2] === true
@@ -1186,6 +1367,10 @@ Deno.test("known taxonomy, procedure pack, and Smart Resolver temporary intents 
 
 Deno.test("batch and run budgets remain bounded with no Fresh-credit semantics", () => {
   assertEquals(AI_BUYER_RELEVANCE_JUDGE_VERSION, "AI_BUYER_RELEVANCE_JUDGE_V1");
+  assertEquals(
+    AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,
+    "AI_BUYER_RELEVANCE_JUDGE_V2_0",
+  );
   assertEquals(AI_BUYER_RELEVANCE_JUDGE_LIMITS.maximumCandidatesPerBatch, 5);
   assertEquals(AI_BUYER_RELEVANCE_JUDGE_LIMITS.maximumCandidatesPerRun, 30);
   assert(

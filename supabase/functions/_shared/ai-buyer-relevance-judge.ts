@@ -13,7 +13,7 @@ import type {
 
 export const AI_BUYER_RELEVANCE_JUDGE_VERSION = "AI_BUYER_RELEVANCE_JUDGE_V1";
 export const AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION =
-  "AI_BUYER_RELEVANCE_JUDGE_V1_0";
+  "AI_BUYER_RELEVANCE_JUDGE_V2_0";
 export const DEFAULT_AI_BUYER_RELEVANCE_JUDGE_MODEL = "claude-haiku-4-5";
 
 export const AI_BUYER_RELEVANCE_JUDGE_LIMITS = Object.freeze({
@@ -120,6 +120,11 @@ export type AiBuyerJudgeCandidate = {
   countryCode: string | null;
   deterministicGrade: CommercialBuyerGrade;
   deterministicScore: number;
+  deterministicProspectTier: ProspectScore["prospectTier"];
+  deterministicFinalRankScore: number;
+  deterministicSalesActionabilityScore: number;
+  evidenceLevel: ProspectScore["evidenceLevel"];
+  evidenceFacets: ProspectScore["evidenceFacets"];
   productFit: ProspectScore["commercialFitClassification"];
   buyerRoleConfidence: ProspectScore["buyerRoleConfidence"];
   buyerArchetypes: Array<{
@@ -373,6 +378,17 @@ function evidenceForJudge(candidate: ProspectCandidate) {
 
 export function isAiBuyerJudgeEligible(ranked: RankedProspect): boolean {
   const { score } = ranked;
+  // Universal high-recall prospects deliberately remain displayable without
+  // exact SKU proof when verified medical-commercial family/channel evidence
+  // exists. The AI judge refines their ordering and actionability; it is not a
+  // second exact-match gate. HARD_REJECT and LOW_CONFIDENCE rows do not consume
+  // the bounded paid-review capacity.
+  if (
+    score.eligible && score.displayable &&
+    (score.prospectTier === "STRONG_COMMERCIAL_PROSPECT" ||
+      score.prospectTier === "LIKELY_COMMERCIAL_PROSPECT" ||
+      score.prospectTier === "POTENTIAL_COMMERCIAL_PROSPECT")
+  ) return true;
   if (
     (score.commercialBuyerGrade === "DIRECT_BUYER" ||
       score.commercialBuyerGrade === "ADJACENT_BUYER") &&
@@ -406,6 +422,11 @@ export async function buildAiBuyerJudgeCandidate(
     identity,
     evidence,
     deterministicGrade: ranked.score.commercialBuyerGrade,
+    deterministicProspectTier: ranked.score.prospectTier,
+    deterministicFinalRankScore: ranked.score.finalRankScore,
+    deterministicSalesActionabilityScore: ranked.score.salesActionabilityScore,
+    evidenceLevel: ranked.score.evidenceLevel,
+    evidenceFacets: ranked.score.evidenceFacets,
     salesProspectClassification: ranked.score.salesProspectClassification,
     buyerArchetypes: ranked.score.buyerArchetypes,
   }));
@@ -419,6 +440,11 @@ export async function buildAiBuyerJudgeCandidate(
     countryCode: ranked.candidate.countryCode,
     deterministicGrade: ranked.score.commercialBuyerGrade,
     deterministicScore: ranked.score.relevanceScore,
+    deterministicProspectTier: ranked.score.prospectTier,
+    deterministicFinalRankScore: ranked.score.finalRankScore,
+    deterministicSalesActionabilityScore: ranked.score.salesActionabilityScore,
+    evidenceLevel: ranked.score.evidenceLevel,
+    evidenceFacets: ranked.score.evidenceFacets,
     productFit: ranked.score.commercialFitClassification,
     buyerRoleConfidence: ranked.score.buyerRoleConfidence,
     buyerArchetypes: ranked.score.buyerArchetypes.slice(0, 6).map((item) => ({
@@ -461,6 +487,11 @@ export function aiBuyerJudgeProviderBody(input: {
     deterministic_result: {
       grade: candidate.deterministicGrade,
       score: candidate.deterministicScore,
+      prospect_tier: candidate.deterministicProspectTier,
+      final_rank_score: candidate.deterministicFinalRankScore,
+      sales_actionability_score: candidate.deterministicSalesActionabilityScore,
+      evidence_level: candidate.evidenceLevel,
+      evidence_facets: candidate.evidenceFacets,
       product_fit: candidate.productFit,
       buyer_role_confidence: candidate.buyerRoleConfidence,
       sales_prospect_classification:
@@ -484,6 +515,9 @@ export function aiBuyerJudgeProviderBody(input: {
       "Hospitals, NHS-type supply-chain bodies, public purchasing authorities, central procurement organizations, and other end buyers are END_BUYER_PROCUREMENT_SIGNAL unless the supplied evidence specifically proves a directly approachable manufacturer-supplier onboarding or purchasing route for the relevant commercial model.",
       "Keep end-buyer procurement evidence as a valuable product-demand signal, but do not rank the end buyer itself as a direct sales prospect merely because it procures or uses the product.",
       "Registry-only, CPV-only, generic healthcare, editorial, and non-medical evidence cannot establish a buyer.",
+      "Exact target-product proof is a confidence and ranking boost, not a universal admission requirement. A verified medical-commercial distributor, importer, wholesaler, reseller, tender supplier, OEM/private-label operator, or assembler may remain a LIKELY or POTENTIAL commercial prospect when verified family/category/channel evidence exists.",
+      "Do not mark a prospect rejected merely because exact product evidence is absent. Use buyer_fit_score and sales_actionability to express uncertainty, and use STRONG contradiction only for affirmative conflicting evidence such as a non-medical context, unrelated product family, editorial-only source, end-buyer role, or manufacturer-only role.",
+      "Treat deterministic prospect_tier, evidence_level, and evidence_facets as bounded prior evidence. Refine rank and actionability, and report contradictions; do not collapse the discovery pool into only exact-product matches.",
       "Return one independent compact judgment for every candidate_id using only the required tool. Do not reveal chain-of-thought or output prose outside the tool.",
     ].join("\n"),
     messages: [{
@@ -822,51 +856,50 @@ export async function callAiBuyerRelevanceJudge(input: {
   };
 }
 
-const GRADE_RANK: Record<CommercialBuyerGrade, number> = {
-  REJECTED: 0,
-  GENERIC_SUPPORT: 1,
-  PRODUCT_RELEVANT_NOT_BUYER: 2,
-  ADJACENT_BUYER: 3,
-  DIRECT_BUYER: 4,
-};
-
-const GRADE_FROM_RANK: Record<number, CommercialBuyerGrade> = {
-  0: "REJECTED",
-  1: "GENERIC_SUPPORT",
-  2: "PRODUCT_RELEVANT_NOT_BUYER",
-  3: "ADJACENT_BUYER",
-  4: "DIRECT_BUYER",
-};
-
 function buyerFitGrade(score: number): BuyerFitGrade {
   return score >= 75 ? "HIGH" : score >= 60 ? "MEDIUM" : "LOW";
 }
 
-function hasIndependentBuyerEvidence(score: ProspectScore): boolean {
-  return score.buyerRoleConfidence !== "NONE" && score.buyerArchetypes.some(
-    (item) =>
-      item.archetype !== "MANUFACTURER" && item.archetype !== "UNKNOWN" &&
-      item.strength !== "LOW",
-  );
+function salesActionabilityGrade(score: number): BuyerFitGrade {
+  return score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW";
 }
 
-function deterministicCeiling(score: ProspectScore): number {
+function boundedScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+const JUDGED_ACTIONABILITY_SCORE: Record<BuyerFitGrade, number> = {
+  HIGH: 85,
+  MEDIUM: 60,
+  LOW: 30,
+};
+
+const AFFIRMATIVE_HARD_CONTRADICTION_CODES = new Set<AiBuyerReasonCode>([
+  "NON_MEDICAL_CONTEXT",
+  "UNRELATED_PROCUREMENT",
+  "EDITORIAL_ONLY",
+  "MANUFACTURER_ONLY_NO_BUYER_SIGNAL",
+]);
+
+const AFFIRMATIVE_REJECTION_CODES = new Set<AiBuyerReasonCode>([
+  "NON_MEDICAL_CONTEXT",
+  "UNRELATED_PROCUREMENT",
+  "EDITORIAL_ONLY",
+]);
+
+function hasAffirmativeHardContradiction(
+  judgment: AiBuyerRelevanceJudgment,
+): boolean {
+  if (judgment.contradiction !== "STRONG") return false;
   if (
-    score.salesProspectClassification === "END_BUYER_PROCUREMENT_SIGNAL"
-  ) return GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER;
-  if (
-    score.commercialBuyerGrade === "REJECTED" ||
-    score.commercialBuyerGrade === "GENERIC_SUPPORT"
-  ) return GRADE_RANK[score.commercialBuyerGrade];
-  if (score.commercialBuyerGrade === "PRODUCT_RELEVANT_NOT_BUYER") {
-    if (!hasIndependentBuyerEvidence(score)) {
-      return GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER;
-    }
-    return score.directEvidenceCount > 0
-      ? GRADE_RANK.DIRECT_BUYER
-      : GRADE_RANK.ADJACENT_BUYER;
-  }
-  return GRADE_RANK[score.commercialBuyerGrade];
+    judgment.sales_prospect_classification ===
+      "END_BUYER_PROCUREMENT_SIGNAL" &&
+    (judgment.buyer_role === "PROCUREMENT_ORGANIZATION" ||
+      judgment.buyer_role === "HOSPITAL_BUYER")
+  ) return true;
+  return judgment.reason_codes.some((code) =>
+    AFFIRMATIVE_HARD_CONTRADICTION_CODES.has(code)
+  );
 }
 
 function fallbackReviewedScore(
@@ -875,8 +908,10 @@ function fallbackReviewedScore(
 ): AiBuyerReviewedScore {
   return {
     ...score,
-    buyerFitScore: score.relevanceScore,
-    buyerFitGrade: buyerFitGrade(score.relevanceScore),
+    buyerFitScore: score.buyerFitScore ?? score.relevanceScore,
+    buyerFitGrade: buyerFitGrade(
+      score.buyerFitScore ?? score.relevanceScore,
+    ),
     aiBuyerJudgeStatus: status,
     aiBuyerRecommendedGrade: null,
     aiBuyerSalesProspectClassification: null,
@@ -891,50 +926,108 @@ export function applyAiBuyerJudgment(
   status: "CACHED" | "REVIEWED",
 ): AiBuyerReviewedProspect {
   const deterministic = ranked.score;
-  const requestedRank = judgment.sales_prospect_classification === "REJECTED"
-    ? GRADE_RANK.REJECTED
-    : judgment.sales_prospect_classification ===
-          "PRODUCT_RELEVANT_NOT_BUYER" ||
-        judgment.sales_prospect_classification ===
-          "END_BUYER_PROCUREMENT_SIGNAL"
-    ? GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER
-    : GRADE_RANK[judgment.recommended_grade];
-  let finalRank = Math.min(requestedRank, deterministicCeiling(deterministic));
-  let score = Math.round(
-    deterministic.relevanceScore * 0.65 + judgment.buyer_fit_score * 0.35,
-  );
-  if (finalRank <= GRADE_RANK.REJECTED) score = Math.min(39, score);
-  else if (finalRank === GRADE_RANK.GENERIC_SUPPORT) {
-    score = Math.min(39, score);
-  } else if (finalRank === GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER) {
-    score = Math.min(59, score);
-  } else if (finalRank === GRADE_RANK.ADJACENT_BUYER) {
-    score = Math.min(74, score);
-    if (score < 55) finalRank = GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER;
-  } else if (score < 60) {
-    finalRank = score >= 55
-      ? GRADE_RANK.ADJACENT_BUYER
-      : GRADE_RANK.PRODUCT_RELEVANT_NOT_BUYER;
+  const deterministicHardReject = deterministic.prospectTier ===
+      "HARD_REJECT" ||
+    deterministic.commercialBuyerGrade === "REJECTED";
+  const deterministicNonProspect = !deterministic.displayable ||
+    deterministic.prospectTier === "LOW_CONFIDENCE" ||
+    deterministic.salesProspectClassification ===
+      "END_BUYER_PROCUREMENT_SIGNAL" ||
+    deterministic.salesProspectClassification ===
+      "PRODUCT_RELEVANT_NOT_BUYER";
+  const hardContradiction = hasAffirmativeHardContradiction(judgment);
+  const affirmativeRejection = judgment.contradiction === "STRONG" &&
+    judgment.reason_codes.some((code) => AFFIRMATIVE_REJECTION_CODES.has(code));
+
+  // AI may refine a deterministic admission or reject affirmative conflicts,
+  // but it must never promote a deterministic non-prospect and must not turn
+  // missing exact-product proof into a second admission gate.
+  let finalProspectTier = deterministic.prospectTier;
+  let finalGrade = deterministic.commercialBuyerGrade;
+  let finalSalesProspectClassification =
+    deterministic.salesProspectClassification;
+  if (deterministicHardReject) {
+    finalProspectTier = "HARD_REJECT";
+    finalGrade = "REJECTED";
+    finalSalesProspectClassification = "REJECTED";
+  } else if (deterministicNonProspect) {
+    finalProspectTier = "LOW_CONFIDENCE";
+  } else if (hardContradiction) {
+    if (affirmativeRejection) {
+      finalProspectTier = "HARD_REJECT";
+      finalGrade = "REJECTED";
+      finalSalesProspectClassification = "REJECTED";
+    } else if (
+      judgment.sales_prospect_classification ===
+        "END_BUYER_PROCUREMENT_SIGNAL"
+    ) {
+      finalProspectTier = "LOW_CONFIDENCE";
+      finalGrade = "PRODUCT_RELEVANT_NOT_BUYER";
+      finalSalesProspectClassification = "END_BUYER_PROCUREMENT_SIGNAL";
+    } else if (
+      judgment.sales_prospect_classification ===
+        "PRODUCT_RELEVANT_NOT_BUYER" ||
+      judgment.buyer_role === "MANUFACTURER_ONLY"
+    ) {
+      finalProspectTier = "LOW_CONFIDENCE";
+      finalGrade = "PRODUCT_RELEVANT_NOT_BUYER";
+      finalSalesProspectClassification = "PRODUCT_RELEVANT_NOT_BUYER";
+    } else if (judgment.sales_prospect_classification === "REJECTED") {
+      finalProspectTier = "HARD_REJECT";
+      finalGrade = "REJECTED";
+      finalSalesProspectClassification = "REJECTED";
+    }
   }
-  const finalGrade = GRADE_FROM_RANK[finalRank];
-  const finalSalesProspectClassification: SalesProspectClassification =
-    finalGrade === "REJECTED"
-      ? "REJECTED"
-      : deterministic.salesProspectClassification ===
-            "END_BUYER_PROCUREMENT_SIGNAL" ||
-          judgment.sales_prospect_classification ===
-            "END_BUYER_PROCUREMENT_SIGNAL"
-      ? "END_BUYER_PROCUREMENT_SIGNAL"
-      : finalGrade === "DIRECT_BUYER" || finalGrade === "ADJACENT_BUYER"
-      ? "DIRECT_COMMERCIAL_PROSPECT"
-      : finalGrade === "PRODUCT_RELEVANT_NOT_BUYER"
-      ? "PRODUCT_RELEVANT_NOT_BUYER"
-      : "REJECTED";
-  if (finalGrade === "PRODUCT_RELEVANT_NOT_BUYER") score = Math.min(59, score);
-  const eligible = finalSalesProspectClassification ===
+
+  const displayable = finalSalesProspectClassification ===
       "DIRECT_COMMERCIAL_PROSPECT" &&
-    (finalGrade === "DIRECT_BUYER" || finalGrade === "ADJACENT_BUYER") &&
-    score >= 55;
+    (finalProspectTier === "STRONG_COMMERCIAL_PROSPECT" ||
+      finalProspectTier === "LIKELY_COMMERCIAL_PROSPECT" ||
+      finalProspectTier === "POTENTIAL_COMMERCIAL_PROSPECT");
+  const eligible = displayable;
+  const deterministicBuyerFit = deterministic.buyerFitScore ??
+    deterministic.relevanceScore;
+  const contradictionPenalty = judgment.contradiction === "STRONG"
+    ? 18
+    : judgment.contradiction === "WEAK"
+    ? 5
+    : 0;
+  let score = boundedScore(
+    deterministicBuyerFit * 0.7 + judgment.buyer_fit_score * 0.3 -
+      contradictionPenalty,
+  );
+  if (!displayable) score = Math.min(59, score);
+  if (finalGrade === "ADJACENT_BUYER") score = Math.min(74, score);
+  const judgedActionability = JUDGED_ACTIONABILITY_SCORE[
+    judgment.sales_actionability
+  ];
+  let salesActionabilityScore = boundedScore(
+    deterministic.salesActionabilityScore * 0.65 +
+      judgedActionability * 0.35 - contradictionPenalty,
+  );
+  if (!displayable) {
+    salesActionabilityScore = Math.min(39, salesActionabilityScore);
+  }
+  const productFitAdjustment = judgment.product_fit === "HIGH"
+    ? 5
+    : judgment.product_fit === "LOW"
+    ? -5
+    : 0;
+  const commercialFitAdjustment = judgment.commercial_fit === "HIGH"
+    ? 4
+    : judgment.commercial_fit === "LOW"
+    ? -4
+    : 0;
+  let finalRankScore = boundedScore(
+    deterministic.finalRankScore * 0.7 + score * 0.2 +
+      salesActionabilityScore * 0.1 + productFitAdjustment +
+      commercialFitAdjustment - contradictionPenalty,
+  );
+  if (!displayable) finalRankScore = Math.min(39, finalRankScore);
+  const reviewedConfidenceScore = boundedScore(
+    score * 0.6 + deterministic.evidenceConfidenceScore * 0.4 -
+      (judgment.contradiction === "WEAK" ? 3 : 0),
+  );
   const aiReason = {
     kind: deterministic.directEvidenceCount > 0
       ? "DIRECT_PRODUCT_EVIDENCE" as const
@@ -953,7 +1046,13 @@ export function applyAiBuyerJudgment(
   const reviewedScore: AiBuyerReviewedScore = {
     ...deterministic,
     eligible,
-    confidence: eligible && score >= 75 ? "HIGH" : eligible ? "MEDIUM" : "LOW",
+    displayable,
+    prospectTier: finalProspectTier,
+    confidence: displayable && reviewedConfidenceScore >= 75
+      ? "HIGH"
+      : displayable && reviewedConfidenceScore >= 45
+      ? "MEDIUM"
+      : "LOW",
     commercialBuyerGrade: finalGrade,
     salesProspectClassification: finalSalesProspectClassification,
     commercialReason: judgment.short_explanation,
@@ -961,6 +1060,11 @@ export function applyAiBuyerJudgment(
       `${judgment.short_explanation} ${deterministic.reasonSummary}`
         .slice(0, 1200),
     reasons: [aiReason, ...deterministic.reasons].slice(0, 20),
+    salesActionabilityScore,
+    salesActionabilityGrade: salesActionabilityGrade(
+      salesActionabilityScore,
+    ),
+    finalRankScore,
     buyerFitScore: score,
     buyerFitGrade: buyerFitGrade(score),
     aiBuyerJudgeStatus: status,
@@ -1372,15 +1476,22 @@ function finalizeJudgeRun(
   >,
 ): AiBuyerJudgeRunResult {
   const all = [...reviewedByIdentity.values()].sort((left, right) =>
+    right.score.finalRankScore - left.score.finalRankScore ||
+    right.score.salesActionabilityScore -
+      left.score.salesActionabilityScore ||
     right.score.buyerFitScore - left.score.buyerFitScore ||
     left.candidate.name.localeCompare(right.candidate.name)
   );
   return {
-    accepted: all.filter((item) => item.score.eligible).slice(
-      0,
-      AI_BUYER_RELEVANCE_JUDGE_LIMITS.maximumCandidatesPerRun,
+    // maximumCandidatesPerRun is a paid-call ceiling, not a result-capacity
+    // ceiling. Candidates outside the judge budget retain their deterministic
+    // V2 tier/rank and must remain visible.
+    accepted: all.filter((item) =>
+      item.score.eligible && item.score.displayable
     ),
-    rejected: all.filter((item) => !item.score.eligible),
+    rejected: all.filter((item) =>
+      !item.score.eligible || !item.score.displayable
+    ),
     diagnostics: {
       ...metrics,
       implementationVersion: AI_BUYER_RELEVANCE_JUDGE_IMPLEMENTATION_VERSION,

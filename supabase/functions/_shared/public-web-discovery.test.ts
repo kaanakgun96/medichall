@@ -8,6 +8,7 @@ import {
   type PublicWebDiscoveryCache,
   type PublicWebDiscoveryProvider,
   publicWebRequestKey,
+  runHighRecallPublicWebDiscovery,
   runPublicWebDiscovery,
 } from "./public-web-discovery.ts";
 import {
@@ -714,5 +715,104 @@ Deno.test("cost and result budgets remain hard bounded", async () => {
   assert(
     result.providerCostEstimateUsd <= 0.05,
     "provider cost estimate must remain at or below $0.05/run",
+  );
+});
+
+Deno.test("Universal High-Recall Public Web executes bounded waves and deduplicates across them", async () => {
+  const providerBatchSizes: number[] = [];
+  const provider = fixtureProvider((input) => {
+    providerBatchSizes.push(input.queries.length);
+    return Promise.resolve({
+      requestsMade: input.queries.length,
+      circuitOpen: false,
+      batches: input.queries.map((query) => {
+        const identity = query.variant === 10 ? 0 : query.variant;
+        return {
+          query,
+          status: "ACTIVE" as const,
+          statusCode: 200,
+          latencyMs: 2,
+          resultsReceived: 1,
+          rejectedCount: 0,
+          candidates: [{
+            name: "candidate-" + identity + ".com",
+            pageUrl: "https://candidate-" + identity + ".com/products",
+            canonicalDomain: "candidate-" + identity + ".com",
+            countryCode: query.country,
+          }],
+          errorCode: null,
+        };
+      }),
+    });
+  });
+  const query = (variant: number) => ({
+    variant,
+    strategy: variant < 10 ? "EXACT" as const : "LOCALIZED" as const,
+    query: '"medical device ' + variant + '" distributor',
+    country: ["GB", "FR", "DE", "IT", "ES"][variant % 5],
+    language: ["en", "fr", "de", "it", "es"][variant % 5],
+    uiLanguage: "en-GB",
+    marketRegion: [
+      "WESTERN_EUROPE",
+      "DACH",
+      "SOUTHERN_EUROPE",
+      "BENELUX",
+    ][variant % 4],
+    buyerArchetype: ["DISTRIBUTOR", "IMPORTER", "TENDER_SUPPLIER"][variant % 3],
+  });
+  const result = await runHighRecallPublicWebDiscovery({
+    enabled: true,
+    provider,
+    cache: new MemoryCache(),
+    productFamily: camera,
+    targetCountries: [],
+    waves: [{
+      wave: 1,
+      publicWebQueries: Array.from({ length: 10 }, (_, index) => query(index)),
+    }, {
+      wave: 2,
+      publicWebQueries: Array.from(
+        { length: 5 },
+        (_, index) => query(index + 10),
+      ),
+    }, {
+      wave: 3,
+      publicWebQueries: Array.from(
+        { length: 10 },
+        (_, index) => query(index + 15),
+      ),
+    }],
+    maximumCumulativeQueries: 25,
+    maximumCumulativeCostUsd: 0.125,
+    targetCandidateDomains: 100,
+    minimumCoverage: {
+      countries: 5,
+      regions: 4,
+      languages: 5,
+      archetypes: 3,
+    },
+  });
+  assert(
+    providerBatchSizes.length === 3 &&
+      providerBatchSizes.every((size) => size <= 10),
+    "each provider invocation must retain the existing ten-query boundary",
+  );
+  assert(
+    result.providerRequests === 25 &&
+      result.providerCostEstimateUsd === 0.125,
+    "the cumulative coordinator must enforce the explicit 25-query/$0.125 ceiling",
+  );
+  assert(
+    result.candidates.length === 24 &&
+      result.highRecall.duplicateDomainsCollapsed === 1,
+    `the same company domain observed in later waves must not be duplicated: ${result.candidates.length}/${result.highRecall.duplicateDomainsCollapsed}`,
+  );
+  assert(
+    result.highRecall.wavesExecuted === 3,
+    "all three waves must execute before the hard ceiling in this fixture",
+  );
+  assert(
+    result.highRecall.stopReason === "HARD_EXECUTION_CEILING",
+    "the final bounded wave must report the cumulative hard ceiling",
   );
 });

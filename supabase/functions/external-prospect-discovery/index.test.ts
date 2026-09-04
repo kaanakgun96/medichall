@@ -1,5 +1,7 @@
 import {
+  applyUniversalHighRecallRolloutGate,
   discoveryCompletionStatus,
+  discoveryQueryProgressCount,
   handleExternalProspectDiscoveryRequest,
   legacyQueryProgressCount,
   mergeSignals,
@@ -354,6 +356,105 @@ Deno.test("official product/company domains outrank directories and marketplaces
   assertEquals(visited.some((url) => url.includes("ebay.co.uk")), false);
 });
 
+Deno.test("progressive shallow verification is wider than deep verification and does not cap displayable prospects", async () => {
+  const profile = {
+    ...buildProductFamilyProfile([{
+      taxonomyId: 990002,
+      canonicalName: "Sterile Surgical Gowns",
+      slug: "sterile-surgical-gowns",
+      aliases: ["Sterile Surgical Gown", "Surgical Gown"],
+    }]),
+    categoryTerms: ["operating room consumables"],
+    commercialChannelTerms: [
+      "medical device distributor",
+      "hospital supplier",
+    ],
+  };
+  const candidates: ProspectCandidate[] = Array.from(
+    { length: 12 },
+    (_, index) => {
+      const domain = `progressive-${index + 1}.example`;
+      return {
+        name: `Progressive Medical ${index + 1}`,
+        nameSource: "OFFICIAL_WEBSITE",
+        countryCode: ["GB", "DE", "FR", "IT"][index % 4],
+        countryName: ["United Kingdom", "Germany", "France", "Italy"][
+          index % 4
+        ],
+        cityRegion: null,
+        companyType: "Unknown",
+        websiteUrl: `https://${domain}/portfolio`,
+        registryIdentifier: null,
+        description: null,
+        evidence: [],
+        activities: [],
+        taxonomyIds: [],
+        taxonomyRelation: "none",
+        targetCountry: true,
+        preferredCompanyType: false,
+        relatedAwardCount: 0,
+        lastEvidenceAt: null,
+        discoverySources: ["PUBLIC_WEB"],
+        websiteVerificationUrls: [`https://${domain}/portfolio`],
+        websiteCandidateSignals: {
+          verificationScore: 80 - index,
+          domainClass: "LIKELY_OFFICIAL",
+          medicalContext: true,
+          commercialRoleContext: true,
+          productPageContext: false,
+        },
+      };
+    },
+  );
+  const visitedDomains = new Set<string>();
+  const verification = await verifyWebsites(candidates, profile, {
+    maximumShallowChecks: 12,
+    maximumDeepChecks: 2,
+    resolver: () => Promise.resolve(["93.184.216.34"]),
+    fetcher: (request) => {
+      const url = new URL(String(request));
+      if (!url.pathname.endsWith("robots.txt")) {
+        visitedDomains.add(url.hostname);
+      }
+      return Promise.resolve(
+        url.pathname.endsWith("robots.txt")
+          ? new Response("User-agent: *\nAllow: /")
+          : new Response(
+            `<script type="application/ld+json">{"@type":"Organization","name":"${url.hostname}"}</script><p>Medical device distributor and hospital supplier for operating room consumables.</p>`,
+            { headers: { "Content-Type": "text/html" } },
+          ),
+      );
+    },
+  });
+  const ranked = rankProspects(candidates, profile);
+
+  assertEquals(verification.shallowVerificationSlots, 12);
+  assertEquals(verification.deepVerificationSlots, 2);
+  assertEquals(verification.verificationAttempted, 12);
+  assertEquals(verification.deepVerificationAttempted, 2);
+  assertEquals(visitedDomains.size, 12);
+  assertEquals(ranked.accepted.length, 12);
+  assertEquals(
+    applyUniversalHighRecallRolloutGate(ranked, true).accepted.length,
+    12,
+  );
+  assertEquals(
+    applyUniversalHighRecallRolloutGate(ranked, false).accepted.length,
+    0,
+  );
+  assertEquals(
+    ranked.accepted.every((item) =>
+      item.score.prospectTier === "LIKELY_COMMERCIAL_PROSPECT" ||
+      item.score.prospectTier === "POTENTIAL_COMMERCIAL_PROSPECT"
+    ),
+    true,
+  );
+  assertEquals(
+    ranked.accepted.every((item) => !item.score.evidenceFacets.product),
+    true,
+  );
+});
+
 Deno.test("same official domain combines product-page and commercial-role evidence without weakening GENERIC_ONLY", async () => {
   const profile = buildProductFamilyProfile([{
     taxonomyId: 990002,
@@ -487,7 +588,20 @@ Deno.test("same official domain combines product-page and commercial-role eviden
       ),
   });
   assertEquals(genericResult.generic, 1);
-  assertEquals(rankProspects([generic], profile).accepted.length, 0);
+  const genericMedicalChannel = rankProspects([generic], profile);
+  assertEquals(genericMedicalChannel.accepted.length, 1);
+  assertEquals(
+    genericMedicalChannel.accepted[0]?.score.prospectTier,
+    "POTENTIAL_COMMERCIAL_PROSPECT",
+  );
+  assertEquals(
+    genericMedicalChannel.accepted[0]?.score.genericSemanticClass,
+    "MEDICAL_COMMERCIAL_CHANNEL_MATCH",
+  );
+  assertEquals(
+    genericMedicalChannel.accepted[0]?.score.evidenceFacets.product,
+    false,
+  );
   const fashion = buildCandidate("qa-fashion-gowns.example");
   fashion.companyType = "Reseller";
   fashion.commercialIdentityVerified = true;
@@ -512,6 +626,8 @@ Deno.test("vNext combined retrieval fits the expanded production progress constr
   assertEquals(legacyQueryProgressCount(4), 4);
   assertEquals(legacyQueryProgressCount(20), 16);
   assertEquals(legacyQueryProgressCount(-1), 0);
+  assertEquals(discoveryQueryProgressCount(31, true), 31);
+  assertEquals(discoveryQueryProgressCount(40, true), 32);
 });
 
 Deno.test("registry identifier merges an alternate legal name into its TED candidate", () => {

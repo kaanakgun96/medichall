@@ -321,6 +321,10 @@ Deno.test("local discovery fixtures qualify verified equivalent terminology and 
       `qa-generic-healthcare-${index}.example`,
       "Generic healthcare services, hospital education and medical equipment.",
     );
+    genericFixture.companyType = "Unknown";
+    genericFixture.preferredCompanyType = false;
+    genericFixture.organizationType = "EDUCATION_RESEARCH";
+    genericFixture.commercialIdentityVerified = false;
     const ranking = rankProspects(
       [acceptedFixture, genericFixture],
       temporary,
@@ -331,7 +335,7 @@ Deno.test("local discovery fixtures qualify verified equivalent terminology and 
     assert.equal(ranking.accepted[0].candidate.name, acceptedFixture.name);
     assert.equal(ranking.accepted[0].score.directEvidenceCount, 1);
     assert.equal(ranking.accepted[0].score.adjacentEvidenceCount, 0);
-    assert.equal(ranking.diagnostics.genericOnlyRejected, 1);
+    assert.equal(ranking.diagnostics.hardRejects, 1);
   }
 });
 
