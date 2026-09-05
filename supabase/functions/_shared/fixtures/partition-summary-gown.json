@@ -1,0 +1,57 @@
+{
+  "profile": {
+    "taxonomyId": 26,
+    "canonicalName": "Sterile Surgical Gowns",
+    "slug": "sterile-surgical-gowns",
+    "aliases": [],
+    "localizedAliases": []
+  },
+  "intelligence": {
+    "canonical_product": "Sterile Surgical Gowns",
+    "product_family": "Sterile Surgical Gowns",
+    "commercial_synonyms": [
+      "sterile surgical gowns",
+      "surgical gown",
+      "medical gown"
+    ],
+    "clinical_contexts": [
+      "operating room procedures",
+      "surgical site protection"
+    ],
+    "procurement_terms": [
+      "surgical gown procurement",
+      "sterile gown supply",
+      "surgical apparel sourcing",
+      "disposable gown ordering"
+    ],
+    "channel_archetypes": [
+      "medical device distributor",
+      "surgical supply wholesaler",
+      "surgical apparel reseller"
+    ],
+    "adjacent_commercial_terms": [],
+    "negative_contexts": [
+      "fashion gown",
+      "evening wear",
+      "costume apparel",
+      "non-medical clothing",
+      "general purpose garment"
+    ],
+    "localized_terms": [],
+    "search_confidence": "HIGH"
+  },
+  "targetCountries": [
+    "BE",
+    "DE",
+    "ES",
+    "FR",
+    "GB",
+    "IT",
+    "NL",
+    "PL"
+  ],
+  "cpvCodes": [
+    "33140000"
+  ],
+  "oldPostgresBytes": 40402
+}

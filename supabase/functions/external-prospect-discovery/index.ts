@@ -97,6 +97,7 @@ import {
   runAiBuyerRelevanceJudge,
 } from "../_shared/ai-buyer-relevance-judge.ts";
 import { normalizeRetrievalTerm } from "../_shared/unmapped-product-terminology.ts";
+import { buildDiscoveryPartitionSummary } from "../_shared/buyer-discovery-partition-summary.ts";
 import {
   ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_IMPLEMENTATION_VERSION,
   ADAPTIVE_MEDICAL_COMMERCIAL_RETRIEVAL_VERSION,
@@ -3995,34 +3996,7 @@ async function handleDiscovery(request: Request): Promise<Response> {
       ),
       taxonomy_mapped: Math.min(100, taxonomyIds.length),
       product_profile: searchPlan.productProfile,
-      partition_summary: {
-        version: searchPlan.version,
-        run_mode: runMode,
-        selected_partition_keys: searchPlan.selectedPartitions.map((item) =>
-          item.partitionKey
-        ),
-        languages: [
-          ...new Set(
-            searchPlan.selectedPartitions.map((item) => item.language),
-          ),
-        ],
-        regions: [
-          ...new Set(
-            searchPlan.selectedPartitions.map((item) => item.marketRegion),
-          ),
-        ],
-        buyer_archetypes: [
-          ...new Set(
-            searchPlan.selectedPartitions.map((item) => item.buyerArchetype),
-          ),
-        ],
-        unused_partitions_remaining: searchPlan.unusedPartitionsRemaining,
-        stale_partitions_revisited: searchPlan.stalePartitionsRevisited,
-        saturation: searchPlan.saturation,
-        provider_budget: searchPlan.budget,
-        universal_high_recall: searchPlan.highRecall || null,
-        adaptive: searchPlan.adaptive || null,
-      },
+      partition_summary: buildDiscoveryPartitionSummary(searchPlan),
       diagnostics: {
         registry_coverage: registryCoverage.map((item) => ({
           country_code: item.countryCode,
