@@ -101,6 +101,22 @@ begin
     raise exception 'Run persistence capacity does not support 100 prospects';
   end if;
 
+  -- Inspect the constrained column, not an assumed historical constraint name.
+  if (select count(*) from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid
+        and a.attnum = any(c.conkey)
+      where c.conrelid = 'public.external_prospect_discovery_runs'::regclass
+        and c.contype = 'c' and a.attname = 'previously_discovered_buyers') <> 1
+     or not exists (
+       select 1 from pg_constraint
+       where conrelid = 'public.external_prospect_discovery_runs'::regclass
+         and conname = 'external_prospect_discovery_runs_previously_discovered_buyers_v'
+         and convalidated and pg_get_constraintdef(oid) =
+           'CHECK (((previously_discovered_buyers >= 0) AND (previously_discovered_buyers <= 100)))'
+     ) then
+    raise exception 'Previously-discovered capacity has a legacy/duplicate or missing V2 bound';
+  end if;
+
   if exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
@@ -179,7 +195,31 @@ where run.company_id = fixture.company_id and run.intent_hash = repeat('9',64);
 do $bounded_capacity$
 declare
   v_run uuid := (select run_id from high_recall_v2_fixture where ordinal=1);
+  v_count integer;
+  v_constraint text;
 begin
+  foreach v_count in array array[30,31,100] loop
+    update public.external_prospect_discovery_runs
+    set previously_discovered_buyers = v_count where id = v_run;
+    if (select previously_discovered_buyers
+        from public.external_prospect_discovery_runs where id = v_run) <> v_count then
+      raise exception 'Previously-discovered value % was not persisted', v_count;
+    end if;
+  end loop;
+  begin
+    update public.external_prospect_discovery_runs
+    set previously_discovered_buyers = 101 where id = v_run;
+    raise exception 'Previously-discovered counter exceeded 100';
+  exception when check_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint <> 'external_prospect_discovery_runs_previously_discovered_buyers_v' then
+      raise exception 'Unexpected constraint rejected the 101 counter: %', v_constraint;
+    end if;
+  end;
+  if (select previously_discovered_buyers
+      from public.external_prospect_discovery_runs where id = v_run) <> 100 then
+    raise exception 'Rejected 101 update changed the persisted counter';
+  end if;
   begin
     update public.external_prospect_discovery_runs
     set candidates_accepted = 101 where id = v_run;
