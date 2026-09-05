@@ -274,12 +274,12 @@ select fixture.company_id,external_company.id,fixture.run_id,fixture.run_id,
   'Verified fixture commercial prospect','[]'::jsonb,'[]'::jsonb,
   '[]'::jsonb,'[]'::jsonb,
   75,'HIGH',case
-    when ordinal <= 20 then 'STRONG_COMMERCIAL_PROSPECT'
-    when ordinal <= 60 then 'LIKELY_COMMERCIAL_PROSPECT'
+    when external_company.ordinal <= 20 then 'STRONG_COMMERCIAL_PROSPECT'
+    when external_company.ordinal <= 60 then 'LIKELY_COMMERCIAL_PROSPECT'
     else 'POTENTIAL_COMMERCIAL_PROSPECT' end,
   75,'HIGH',4,
   '{"company":true,"category":true,"product":true,"commercial":true}'::jsonb,
-  80,'HIGH',101-ordinal,'UNIVERSAL_HIGH_RECALL_V2',true
+  80,'HIGH',101-external_company.ordinal,'UNIVERSAL_HIGH_RECALL_V2',true
 from high_recall_v2_fixture fixture
 join lateral (
   select company.id,company.company_name,
